@@ -1,0 +1,25 @@
+{
+  "name": "@extension/theme",
+  "version": "0.0.1",
+  "description": "The theme choice of the React pages and the wasm editor (D9): the user’s mode and light / dark pair over the themes of @workspace/dna (themes.index.json), and gpui-kit’s theme files the editor needs for a theme that is not built in.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./lib/index.ts",
+    "./sources": "./lib/sources.ts"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@workspace/dna": "workspace:*"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
