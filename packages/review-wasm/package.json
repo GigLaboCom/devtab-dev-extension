@@ -1,0 +1,24 @@
+{
+  "name": "@extension/review-wasm",
+  "version": "0.0.1",
+  "description": "The review editor (gpui-kit in wasm, built from crates/review-wasm over crates/review-view) as the extension consumes it: the prebuilt module copied into pkg/ by scripts/sync.sh, its types and a host wrapper (run → first frame → compare_texts / show_diff / set_theme).",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./lib/index.ts",
+    "./host": "./lib/host.ts"
+  },
+  "scripts": {
+    "ready": "bash scripts/sync.sh",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:bundle": "rm -rf pkg",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.1",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "extends": "@extension/tsconfig/app",
+  "compilerOptions": {
+    "types": ["vite/client"]
+  },
+  "include": ["lib"]
+}
