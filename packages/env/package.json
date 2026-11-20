@@ -1,0 +1,20 @@
+{
+  "name": "@extension/env",
+  "version": "0.1.0",
+  "description": "Build-time environment flags (IS_DEV/IS_PROD) from the workspace-root .env — taken from the second sample extension (docs/extension-structure.md).",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "ready": "tsc -b",
+    "type-check": "tsc --noEmit",
+    "clean:bundle": "rm -rf dist",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3"
+  }
+}

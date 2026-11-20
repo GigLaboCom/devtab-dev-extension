@@ -1,0 +1,9 @@
+{
+  "extends": "@extension/tsconfig/module",
+  "compilerOptions": {
+    "types": ["node"],
+    "lib": ["ES2022"]
+  },
+  // lib/ builds to dist/ through tsconfig.build.json (`ready`); this one also covers the tests (type-check, eslint).
+  "include": ["lib", "tests"]
+}

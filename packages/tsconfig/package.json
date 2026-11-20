@@ -1,0 +1,11 @@
+{
+  "name": "@extension/tsconfig",
+  "version": "0.1.0",
+  "description": "Shared tsconfig presets (base/app/module), taken from the second sample extension (docs/extension-structure.md).",
+  "private": true,
+  "exports": {
+    "./base": "./base.json",
+    "./app": "./app.json",
+    "./module": "./module.json"
+  }
+}

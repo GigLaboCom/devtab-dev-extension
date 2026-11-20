@@ -1,0 +1,28 @@
+{
+  "name": "@extension/hmr",
+  "version": "0.1.0",
+  "description": "Dev-only extension auto-reload — watchRebuildPlugin runs the ws reload server inside `vite build --watch` on a port picked from a pool (8081…8090; in a container, the ones published to the host — the host port is baked into the reload/refresh clients it injects). taken from the second sample extension (docs/extension-structure.md).",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "scripts": {
+    "ready": "tsc -b tsconfig.build.json",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:bundle": "rm -rf dist",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "ws": "^8.18.2"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/node": "^22.20.1",
+    "@types/ws": "^8.18.1",
+    "typescript": "^5.9.3",
+    "vite": "^6.0.5",
+    "vitest": "^4.1.10"
+  }
+}

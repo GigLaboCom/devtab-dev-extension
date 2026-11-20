@@ -1,0 +1,10 @@
+{
+  "extends": "@extension/tsconfig/module",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "lib",
+    "types": ["node"],
+    "lib": ["ES2022"]
+  },
+  "include": ["lib"]
+}

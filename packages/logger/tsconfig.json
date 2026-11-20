@@ -1,0 +1,9 @@
+{
+  "extends": "@extension/tsconfig/module",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "lib",
+    "types": ["node"]
+  },
+  "include": ["lib"]
+}
