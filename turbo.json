@@ -1,0 +1,43 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "agentGuidance": false,
+  "globalEnv": ["CEB_*", "CLI_CEB_*"],
+  "globalDependencies": [".env", "packages/tsconfig/*.json", "extension/product.json"],
+  "concurrency": "20",
+  "tasks": {
+    "ready": {
+      "dependsOn": ["^ready"],
+      "outputs": ["dist/**"],
+      "cache": false
+    },
+    "dev": {
+      "dependsOn": ["ready"],
+      "outputs": ["../dist/**", "dist/**"],
+      "cache": false,
+      "persistent": true
+    },
+    "build": {
+      "dependsOn": ["ready", "^build"],
+      "outputs": ["../dist/**", "dist/**"],
+      "cache": false
+    },
+    "test": {
+      "dependsOn": ["^ready"],
+      "cache": false
+    },
+    "type-check": {
+      "dependsOn": ["^ready"],
+      "cache": true,
+      "inputs": ["**/*.{ts,tsx,mts,cts}", "tsconfig*.json", "package.json"]
+    },
+    "clean:bundle": {
+      "dependsOn": ["^clean:bundle"],
+      "cache": false
+    },
+    "clean:turbo": {
+      "dependsOn": ["^clean:turbo"],
+      "cache": false
+    }
+  }
+}

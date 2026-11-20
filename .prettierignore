@@ -1,0 +1,23 @@
+dist
+dist-zip
+pnpm-lock.yaml
+*.md
+.claude
+.state
+spikes
+vendor
+docs
+packages/review-wasm/pkg
+# The Rust workspace: its target/, tools and the module's generated JS
+crates
+# generated: copied byte for byte from spikes/theme-export (packages/dna/scripts/sync-themes.mjs) and derived from it
+packages/dna/themes.css
+packages/dna/themes.index.json
+packages/dna/tokens.json
+# shadcn's nova style as published, kept unchanged for diffs against style-gpui.css
+packages/dna/upstream
+# gpui-kit's theme files, as they are (packages/theme/scripts/sync-gpui-themes.mjs)
+packages/theme/gpui-themes
+
+# The built showcase page of the style package (pnpm --filter @workspace/dna showcase)
+packages/dna/showcase/dist

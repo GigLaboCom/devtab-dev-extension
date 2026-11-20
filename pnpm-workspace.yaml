@@ -1,0 +1,12 @@
+packages:
+  - extension
+  - packages/*
+
+allowBuilds:
+  esbuild: true
+  # Its postinstall only re-fetches a native binding that pnpm already installs via the matching
+  # optional dependency — not needed (same call as the sibling extensions).
+  unrs-resolver: false
+
+patchedDependencies:
+  '@radix-ui/react-select@2.4.1': patches/@radix-ui__react-select@2.4.1.patch

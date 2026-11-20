@@ -1,0 +1,42 @@
+diff --git a/dist/index.js b/dist/index.js
+index cbf979150635ccf619d7e74f7681d92b7564eb8b..3174fe55192436210078de68727631b3cf13fbeb 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -832,15 +832,7 @@ var SelectViewport = /* @__PURE__ */ React.forwardRef(
+     const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, contentContext.onViewportChange);
+     const prevScrollTopRef = React.useRef(0);
+     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+-        "style",
+-        {
+-          dangerouslySetInnerHTML: {
+-            __html: `[data-radix-select-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-select-viewport]::-webkit-scrollbar{display:none}`
+-          },
+-          nonce
+-        }
+-      ),
++      /* style element removed: the CSP (style-src 'self') refuses it; the rule is in the page stylesheet */ null,
+       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Collection.Slot, { scope: __scopeSelect, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+         import_react_primitive.Primitive.div,
+         {
+diff --git a/dist/index.mjs b/dist/index.mjs
+index c36cf353eb4fd8b223a19d1ad340341add6ab453..03476df1d1e14e3a90c605d9c98dc65d1463f80d 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -762,15 +762,7 @@ var SelectViewport = /* @__PURE__ */ React.forwardRef(
+     const composedRefs = useComposedRefs(forwardedRef, contentContext.onViewportChange);
+     const prevScrollTopRef = React.useRef(0);
+     return /* @__PURE__ */ jsxs(Fragment2, { children: [
+-      /* @__PURE__ */ jsx(
+-        "style",
+-        {
+-          dangerouslySetInnerHTML: {
+-            __html: `[data-radix-select-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-select-viewport]::-webkit-scrollbar{display:none}`
+-          },
+-          nonce
+-        }
+-      ),
++      /* style element removed: the CSP (style-src 'self') refuses it; the rule is in the page stylesheet */ null,
+       /* @__PURE__ */ jsx(Collection.Slot, { scope: __scopeSelect, children: /* @__PURE__ */ jsx(
+         Primitive.div,
+         {
