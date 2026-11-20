@@ -9,6 +9,7 @@
     "ready": {
       "dependsOn": ["^ready"],
       "outputs": ["dist/**"],
+      "passThroughEnv": ["REVIEW_WASM_PKG"],
       "cache": false
     },
     "dev": {
