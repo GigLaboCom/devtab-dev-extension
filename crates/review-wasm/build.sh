@@ -22,6 +22,28 @@ if [[ ! -x "$bindgen" ]] || [[ "$("$bindgen" --version | awk '{print $2}')" != "
     cargo install wasm-bindgen-cli --version "$crate_version" --locked --root .tools
 fi
 
+# No absolute build paths in the module: panic locations and file!() of every crate built for the target (this
+# workspace, the gpui-kit checkout, the registry and git sources) name /src, /cargo and /rustup instead of this
+# machine's directories. rustc applies the last prefix that matches, so the home directory (~) is only the fallback.
+# The flags go to target crates only (--target is given), so host build scripts and proc macros are not rebuilt.
+root="$(cd "$crates/.." && pwd -P)"
+remap=(
+    "--remap-path-prefix=$HOME=~"
+    "--remap-path-prefix=${RUSTUP_HOME:-$HOME/.rustup}=/rustup"
+    "--remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo"
+    "--remap-path-prefix=$root=/src"
+)
+sep=$'\037'
+flags="${CARGO_ENCODED_RUSTFLAGS:-}"
+if [[ -z "$flags" && -n "${RUSTFLAGS:-}" ]]; then
+    flags="$(printf '%s' "$RUSTFLAGS" | tr -s ' ' "$sep")"
+fi
+for flag in "${remap[@]}"; do
+    flags="${flags:+$flags$sep}$flag"
+done
+export CARGO_ENCODED_RUSTFLAGS="$flags"
+unset RUSTFLAGS
+
 # The editor's render tree needs more than wasm-ld's default 1 MiB stack
 # (same flag as gpui-kit's crates/story-web/scripts/build-wasm.sh).
 # CARGO_FLAGS=--no-default-features builds without the syntect highlighter.
