@@ -1,0 +1,5 @@
+{
+  "name": "gpui-review",
+  "description": "Compare code side by side in a real editor, plus offline developer tools. Live review of local changes needs a macOS companion app.",
+  "zipPrefix": "gpui-review"
+}

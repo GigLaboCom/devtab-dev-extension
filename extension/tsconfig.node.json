@@ -1,0 +1,7 @@
+{
+  "extends": "@extension/tsconfig/app",
+  "compilerOptions": {
+    "types": ["chrome", "node", "vite/client"]
+  },
+  "include": ["vite.config.ts", "vitest.config.ts", "manifest.config.ts"]
+}

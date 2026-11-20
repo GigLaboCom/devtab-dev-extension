@@ -1,0 +1,13 @@
+{
+  "extends": "@extension/tsconfig/app",
+  "compilerOptions": {
+    // No `node` types for the app: src/ runs in extension pages and a service worker. The build configs are checked
+    // by tsconfig.node.json; the tests that read files use vitest's own environment.
+    "types": ["chrome", "vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@src/*": ["src/*"]
+    }
+  },
+  "include": ["src"]
+}

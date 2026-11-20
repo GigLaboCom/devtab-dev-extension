@@ -1,0 +1,44 @@
+/* The editor page: gpui-web appends its canvas to <body> and stretches it. A file, not an inline <style> — the CSP
+   has no 'unsafe-inline' for styles (spikes/extension-e2e, finding 4: an inline <style> breaks the layout there).
+   Only the tokens and the base of @workspace/dna: this page has no components and needs no Tailwind. */
+@import '@workspace/dna/theme.css';
+
+* {
+  box-sizing: border-box;
+}
+
+/* Chrome's own sheet for extension pages sets `body { font-family: system-ui; font-size: 75% }` unlayered — over the
+   layered base; the placeholder text keeps the product's face (as @workspace/dna/ui.css does for the main page). */
+:root > body {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+}
+
+body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  color: var(--muted-foreground);
+}
+
+body > canvas {
+  position: fixed;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Over the canvas until the first frame (docs/theming.md §5.5). */
+.placeholder {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  background: var(--background);
+}
+
+.placeholder[hidden] {
+  display: none;
+}

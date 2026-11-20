@@ -1,0 +1,48 @@
+{
+  "name": "extension",
+  "version": "0.0.1",
+  "description": "The Manifest V3 extension: code comparison on the wasm editor, developer tools, live review (a stub until the companion exists). Its name is in product.json.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "ready": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
+    "dev": "vite build --watch --mode development",
+    "build": "vite build",
+    "type-check": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean:bundle": "rm -rf ../dist",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@extension/logger": "workspace:*",
+    "@extension/review-wasm": "workspace:*",
+    "@extension/theme": "workspace:*",
+    "@workspace/dna": "workspace:*",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "1.70.0",
+    "radix-ui": "^1.8.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.7.1",
+    "@extension/env": "workspace:*",
+    "@extension/hmr": "workspace:*",
+    "@extension/tsconfig": "workspace:*",
+    "@tailwindcss/vite": "4.3.5",
+    "@testing-library/react": "^16.3.2",
+    "@types/chrome": "^0.0.287",
+    "@types/node": "^22.20.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^4.7.0",
+    "jsdom": "^25.0.1",
+    "tailwindcss": "4.3.5",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.1",
+    "vitest": "^4.1.10"
+  }
+}
