@@ -1,0 +1,2 @@
+# The project's width (.prettierrc printWidth), so Rust code and its comments wrap like the rest of the repository.
+max_width = 120

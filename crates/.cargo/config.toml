@@ -1,0 +1,4 @@
+# Fetch the gpui-kit fork through the git CLI: the global git config rewrites https to ssh, which cargo's built-in
+# git cannot authenticate.
+[net]
+git-fetch-with-cli = true

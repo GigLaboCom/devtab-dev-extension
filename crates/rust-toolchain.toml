@@ -1,0 +1,6 @@
+# Same compiler as spikes/review-wasm and spikes/gpui-viewer: stable builds both the wasm module and the native
+# crate. gpui-kit's web gallery pins a nightly (crates/story-web/rust-toolchain.toml); stable is enough here.
+[toolchain]
+channel = "1.100.0"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]

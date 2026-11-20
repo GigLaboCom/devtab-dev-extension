@@ -1,0 +1,68 @@
+# The review view in Rust: the comparison of two texts and its display, shared by the browser module and a
+# native viewer (docs/extension-structure.md, docs/replaceable-behaviors.md).
+#
+#   review-view   the shared crate: comparison seams (LineDiffer, …) with no gpui, and the gpui view (feature `view`)
+#   review-wasm   the wasm entry point the extension loads: wasm-bindgen exports over review-view
+#
+# Cargo.lock started as gpui-kit's own lock file at the pinned revision (the versions it is tested with).
+[workspace]
+members = ["review-view", "review-wasm"]
+resolver = "2"
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+publish = false
+
+[workspace.dependencies]
+# gpui-kit: the fork glani/gpui-component, branch `land-next`, pinned by commit — the tip of `land-next` on
+# 2026-11-17 (gpui-kit v0.10.0). Pinned by `rev`, not by branch, so a build is reproducible.
+gpui-component = { git = "https://github.com/glani/gpui-component", rev = "0209cf10e0270aeaf381895608432c5b954dab8e" }
+gpui-kit-assets = { git = "https://github.com/glani/gpui-component", rev = "0209cf10e0270aeaf381895608432c5b954dab8e" }
+# The gpui snapshot that revision pins in its own [workspace.dependencies]; two exact gpui-pre versions cannot
+# resolve in one graph, so a mismatch fails loudly.
+gpui = { package = "gpui-pre", version = "=0.3.12" }
+# The native platform, for review-view's `window` example only (feature `window-example`).
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", default-features = false, features = ["font-kit", "runtime_shaders"] }
+# Single-threaded: no `multithreaded` feature, so no SharedArrayBuffer and no cross-origin isolation on the page.
+gpui_web = { package = "gpui-pre-web", version = "=0.3.12", default-features = false }
+
+# Line diff: Myers and Histogram (Apache-2.0). Without the unified-diff printer, which nothing here uses.
+imara-diff = { version = "0.2.0", default-features = false }
+lsp-types = { version = "0.97.0", features = ["proposed"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# A clock that works natively and in the browser (gpui uses the same crate on wasm).
+web-time = "1.1"
+
+# gpui-kit with the fixes not yet on `land-next`: the pinned revision above plus the patches in
+# ../vendor/gpui-kit/patches/, prepared by ../vendor/gpui-kit/prepare.sh (crates/review-wasm/build.sh runs it; run it once
+# by hand before `cargo test` or `cargo run`). gpui-base and gpui-component-macros come along as path dependencies of
+# gpui-component. When the fixes reach `land-next`: move `rev` above to that commit and delete this section, the patches
+# and the script (docs/extension-structure.md §11.8).
+[patch."https://github.com/glani/gpui-component"]
+gpui-component = { path = "../vendor/gpui-kit/checkout/crates/component" }
+gpui-kit-assets = { path = "../vendor/gpui-kit/checkout/crates/assets" }
+
+# As gpui-kit's own release profile.
+[profile.release]
+strip = "symbols"
+
+# Size-first variant, kept from spikes/review-wasm for measurements: `./build.sh small`.
+[profile.small]
+inherits = "release"
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
+# Native tests and checks build gpui in debug; these crates are optimized as in gpui-kit's own dev profile, the
+# differ so that the large-input contract test stays quick.
+[profile.dev.package]
+imara-diff = { opt-level = 3 }
+hashbrown = { opt-level = 3 }
+resvg = { opt-level = 3 }
+rustybuzz = { opt-level = 3 }
+taffy = { opt-level = 3 }
+ttf-parser = { opt-level = 3 }
+gpui-pre = { opt-level = 3 }

@@ -1,0 +1,32 @@
+[package]
+name = "review-wasm"
+description = "The review view (review-view) in the browser: the wasm-bindgen exports the extension's editor page calls."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = ["syntect"]
+# The highlighter: syntect is gpui-kit's portable one. Off (`--no-default-features`) = plain text only.
+syntect = ["gpui-component/syntect"]
+# A throwaway probe (src/probe.rs, docs/research/inline-range-background.md): one more export, `probe_ranges`. Never
+# in the shipped module; built into another directory: `CARGO_FLAGS="--features probe" OUT=<dir> ./build.sh`.
+probe = ["review-view/inspect"]
+
+# Everything is wasm-only: natively the crate is empty and pulls in nothing (a native viewer uses review-view).
+[target.'cfg(target_family = "wasm")'.dependencies]
+review-view = { path = "../review-view" }
+
+gpui.workspace = true
+gpui-component.workspace = true
+gpui-kit-assets.workspace = true
+lsp-types.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+gpui_web.workspace = true
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
