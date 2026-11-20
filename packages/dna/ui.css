@@ -1,0 +1,141 @@
+/*
+ * @workspace/dna/ui.css — the FRAME of an extension page: the shell, its side navigation, the section head. Only the
+ * frame: everything inside it is a shadcn component styled by style-gpui.css. The site has its own frame and does not
+ * import this file.
+ *
+ * Plain CSS on the tokens (no Tailwind needed). The numbers are gpui-kit's Sidebar (docs/theming-components.md §5.3):
+ * 255 wide; group title 32 tall, 12 px at 70 %, 400; item 28 tall, padding 8, gap 8, radius 6, 8 between items;
+ * hover sidebar_accent at 80 %; active sidebar_accent, 500.
+ *
+ *   .kit-shell                 the page: navigation + the current section
+ *     .kit-sidebar             the side column (.kit-sidebar-brand, .kit-sidebar-group-label, .kit-sidebar-foot)
+ *       .kit-nav > .kit-nav-item[aria-current='page']
+ *     .kit-main                the scrolling area
+ *       .kit-section           one section (.kit-section-head > .kit-section-title + .kit-section-hint)
+ */
+/* Chrome gives every extension page `body { font-family: system-ui; font-size: 75% }` as an unlayered author sheet,
+   which beats theme.css's layered base (and reaches the Radix portals, which live in <body>). Unlayered and one step
+   more specific, the base's face and size win again. A site has no such sheet; this is why it lives in the frame. */
+:root > body {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+}
+
+@layer components {
+  .kit-shell {
+    display: grid;
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    height: 100%;
+  }
+
+  .kit-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 2);
+    min-height: 0;
+    padding: calc(var(--spacing) * 2);
+    border-inline-end: 1px solid var(--sidebar-border);
+    background: var(--sidebar);
+    color: var(--sidebar-foreground);
+  }
+
+  .kit-sidebar-brand {
+    display: flex;
+    align-items: center;
+    height: var(--size-control);
+    padding-inline: calc(var(--spacing) * 2);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .kit-sidebar-group-label {
+    display: flex;
+    align-items: center;
+    height: var(--size-control);
+    padding-inline: calc(var(--spacing) * 2);
+    color: color-mix(in oklab, var(--sidebar-foreground) 70%, transparent);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-normal);
+  }
+
+  .kit-sidebar-foot {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 2);
+    margin-block-start: auto;
+  }
+
+  .kit-nav {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .kit-nav-item {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    height: var(--size-sidebar-item);
+    padding-inline: calc(var(--spacing) * 2);
+    border-radius: var(--radius-md);
+    color: inherit;
+    font-size: var(--text-sm);
+    text-decoration: none;
+  }
+
+  .kit-nav-item:hover {
+    background: color-mix(in oklab, var(--sidebar-accent) 80%, transparent);
+    color: var(--sidebar-accent-foreground);
+  }
+
+  .kit-nav-item[aria-current='page'] {
+    background: var(--sidebar-accent);
+    color: var(--sidebar-accent-foreground);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .kit-nav-item svg {
+    flex-shrink: 0;
+    width: calc(var(--spacing) * 4);
+    height: calc(var(--spacing) * 4);
+  }
+
+  .kit-main {
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .kit-section {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 3);
+    min-height: 100%;
+    padding: calc(var(--spacing) * 4) calc(var(--spacing) * 5);
+  }
+
+  .kit-section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: calc(var(--spacing) * 3);
+  }
+
+  .kit-section-title {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-semibold);
+    line-height: var(--text-lg--line-height);
+  }
+
+  .kit-section-hint {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: var(--text-sm);
+  }
+}

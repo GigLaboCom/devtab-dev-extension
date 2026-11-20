@@ -1,0 +1,37 @@
+/*
+ * The product's faces (D9, docs/theming.md §8 №1): IBM Plex Sans for everything, IBM Plex Mono for code.
+ * The weights are gpui-kit's three (docs/theming-components.md §3): 400, 500, 600 — mono needs 400 only.
+ * Files, never remote: woff2 "complete" sets of @ibm/plex-sans 1.1.0 and @ibm/plex-mono 2.5.0 from the public npm
+ * registry (SIL OFL 1.1, fonts/OFL-IBMPlex.txt). README.md → «Шрифты» has their sha256 and how to replace them.
+ */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/IBMPlexSans-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./fonts/IBMPlexSans-Medium.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./fonts/IBMPlexSans-SemiBold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/IBMPlexMono-Regular.woff2') format('woff2');
+}

@@ -1,0 +1,426 @@
+/*
+ * @workspace/dna/style-gpui.css — the shadcn/ui style tuned to gpui-kit (D10, docs/theming-components.md).
+ *
+ * shadcn's components (the Radix base, apps/v4/registry/bases/radix at shadcn-ui/ui e62c9435) carry layout classes and
+ * one `cn-*` class per part; a STYLE gives each `cn-*` class its look. This file is that style: shadcn's `nova`
+ * (upstream/style-nova.css, unchanged) with gpui-kit's numbers — every rule below names the table row of
+ * theming-components.md it follows. Unlike shadcn's registry, which inlines a style into the component files at build
+ * time, the classes stay in the DOM and this file is applied at run time, so the extension and the site wear the same
+ * rules from the same file (README.md → «Слой компонентов»).
+ *
+ * Needs Tailwind v4 with tailwind.css (the token bridge) imported before it. Rules sit in `@layer components`: a
+ * utility in a component file or in `className` wins over the style, as in shadcn. Utilities name tokens only —
+ * lint/rules.ts checks every `@apply` (tests/lint-own.test.ts).
+ *
+ * Covered: P1 — Button, Badge, Kbd, Tooltip, Popover, Hover Card, Dropdown Menu, Context Menu, Tabs, list rows
+ * (own, `kit-list*`); P2 the extension uses — Input, Textarea, Select, Checkbox, Label, Toggle, Toggle Group, Card,
+ * Separator; the scrollbar of Scroll Area (§4.8). Not yet: Sidebar (the extension's navigation is the frame, ui.css),
+ * Dialog, Sheet, Command, Sonner, Table and the P3 rest — upstream/style-nova.css has their nova rules.
+ */
+@layer components {
+  /* MARK: Badge — gpui-kit Tag, medium (§5.3): 12 px, 400, padding 10 / 4, 25 tall, radius 6 */
+  .cn-badge {
+    @apply h-6.25 gap-1 rounded-md border border-transparent px-2.5 text-xs font-normal [&>svg]:size-3!;
+  }
+
+  .cn-badge-variant-default {
+    @apply bg-primary text-primary-foreground [a]:hover:bg-primary-hover;
+  }
+
+  .cn-badge-variant-secondary {
+    @apply bg-secondary text-secondary-foreground border-border [a]:hover:bg-secondary-hover;
+  }
+
+  .cn-badge-variant-outline {
+    @apply border-border text-foreground [a]:hover:bg-accent [a]:hover:text-accent-foreground;
+  }
+
+  .cn-badge-variant-destructive {
+    @apply bg-button-danger text-button-danger-foreground [a]:hover:bg-button-danger-hover;
+  }
+
+  .cn-badge-variant-ghost {
+    @apply hover:bg-accent hover:text-accent-foreground;
+  }
+
+  .cn-badge-variant-link {
+    @apply text-link underline-offset-4 hover:underline;
+  }
+
+  /* MARK: Button (§5.1; colours §4.3, disabled §4.7): radius 6, weight 400, no press offset, no transition */
+  .cn-button {
+    @apply focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 disabled:text-muted-foreground/50 rounded-md border border-transparent bg-clip-padding text-sm font-normal focus-visible:ring-3 aria-invalid:ring-3 [&_svg:not([class*='size-'])]:size-4;
+  }
+
+  .cn-button-variant-default {
+    @apply bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-active disabled:bg-primary/15;
+  }
+
+  .cn-button-variant-outline {
+    @apply border-input bg-button text-button-foreground hover:bg-button-hover active:bg-button-active aria-expanded:bg-button-active disabled:border-input/50 disabled:bg-input-background/50;
+  }
+
+  .cn-button-variant-secondary {
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary-hover active:bg-secondary-active aria-expanded:bg-secondary-active disabled:bg-secondary/15;
+  }
+
+  .cn-button-variant-ghost {
+    @apply text-secondary-foreground hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 active:bg-button-active aria-expanded:bg-secondary-active;
+  }
+
+  .cn-button-variant-destructive {
+    @apply bg-button-danger text-button-danger-foreground hover:bg-button-danger-hover active:bg-button-danger-active focus-visible:border-destructive/40 focus-visible:ring-destructive/20 disabled:bg-destructive/15;
+  }
+
+  .cn-button-variant-link {
+    @apply text-link hover:text-link-hover active:text-link-active underline-offset-4 hover:underline;
+  }
+
+  /* Sizes: default 32 / 10 / 8; sm 24 / 8 / 4; xs 20 / 4 / 4, text 12; lg 32 / 12 / 8, text 16 (gpui-kit's lg is no taller). */
+  .cn-button-size-default {
+    @apply h-8 gap-2 px-2.5;
+  }
+
+  .cn-button-size-sm {
+    @apply h-6 gap-1 px-2 text-sm [&_svg:not([class*='size-'])]:size-3.5;
+  }
+
+  .cn-button-size-xs {
+    @apply h-5 gap-1 px-1 text-xs [&_svg:not([class*='size-'])]:size-3;
+  }
+
+  .cn-button-size-lg {
+    @apply h-8 gap-2 px-3 text-base [&_svg:not([class*='size-'])]:size-6;
+  }
+
+  .cn-button-size-icon {
+    @apply size-8;
+  }
+
+  .cn-button-size-icon-sm {
+    @apply size-6 [&_svg:not([class*='size-'])]:size-3.5;
+  }
+
+  .cn-button-size-icon-xs {
+    @apply size-5 [&_svg:not([class*='size-'])]:size-3;
+  }
+
+  .cn-button-size-icon-lg {
+    @apply size-8;
+  }
+
+  /* MARK: Card — gpui-kit GroupBox (§5.3): radius 6, a border instead of nova's ring, padding 16 */
+  .cn-card {
+    @apply bg-card text-card-foreground border-border gap-4 overflow-hidden rounded-md border py-4 text-sm data-[size=sm]:gap-3 data-[size=sm]:py-3;
+  }
+
+  .cn-card-header {
+    @apply gap-1 px-4 group-data-[size=sm]/card:px-3;
+  }
+
+  .cn-card-title {
+    @apply text-base leading-tight font-semibold group-data-[size=sm]/card:text-sm;
+  }
+
+  .cn-card-description {
+    @apply text-muted-foreground text-sm;
+  }
+
+  .cn-card-content {
+    @apply px-4 group-data-[size=sm]/card:px-3;
+  }
+
+  .cn-card-footer {
+    @apply gap-2 px-4 group-data-[size=sm]/card:px-3;
+  }
+
+  /* MARK: Checkbox (§5.1): 16, radius min(r, 4), check 12, background input_background; 180 ms */
+  .cn-checkbox {
+    @apply border-input bg-input-background data-checked:bg-primary data-checked:text-primary-foreground data-checked:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 disabled:border-input/50 disabled:bg-input-background/50 rounded-checkbox flex size-4 items-center justify-center border transition-colors duration-180 focus-visible:ring-3 aria-invalid:ring-3;
+  }
+
+  .cn-checkbox-indicator {
+    @apply [&>svg]:size-3;
+  }
+
+  /* MARK: Context Menu — as Dropdown Menu */
+  .cn-context-menu-content {
+    @apply ring-foreground/10 bg-popover text-popover-foreground flex max-w-125 min-w-32 flex-col gap-0.5 rounded-md p-1 shadow-md ring-1;
+  }
+
+  .cn-context-menu-item {
+    @apply focus:bg-accent focus:text-accent-foreground data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-disabled:text-muted-foreground data-disabled:opacity-100 h-6.5 gap-1 rounded-md px-2 py-0 text-sm data-inset:pl-7 [&_svg:not([class*='size-'])]:size-3;
+  }
+
+  .cn-context-menu-checkbox-item {
+    @apply focus:bg-accent focus:text-accent-foreground data-disabled:text-muted-foreground data-disabled:opacity-100 h-6.5 gap-1 rounded-md py-0 pr-8 pl-2 text-sm data-inset:pl-7 [&_svg:not([class*='size-'])]:size-3;
+  }
+
+  .cn-context-menu-radio-item {
+    @apply focus:bg-accent focus:text-accent-foreground data-disabled:text-muted-foreground data-disabled:opacity-100 h-6.5 gap-1 rounded-md py-0 pr-8 pl-2 text-sm data-inset:pl-7 [&_svg:not([class*='size-'])]:size-3;
+  }
+
+  .cn-context-menu-item-indicator {
+    @apply absolute right-2;
+  }
+
+  .cn-context-menu-label {
+    @apply text-muted-foreground leading-gpui px-2 py-0 text-sm font-normal data-inset:pl-7;
+  }
+
+  .cn-context-menu-separator {
+    @apply bg-border -mx-1 my-0.5 h-0.5;
+  }
+
+  .cn-context-menu-shortcut {
+    @apply text-muted-foreground ml-auto pl-3 text-xs tracking-normal;
+  }
+
+  .cn-context-menu-sub-trigger {
+    @apply focus:bg-accent focus:text-accent-foreground data-open:bg-accent data-open:text-accent-foreground h-6.5 gap-1 rounded-md px-2 py-0 text-sm data-inset:pl-7 [&_svg:not([class*='size-'])]:size-3;
+  }
+
+  .cn-context-menu-sub-content {
+    @apply ring-foreground/10 bg-popover text-popover-foreground flex max-w-125 min-w-32 flex-col gap-0.5 rounded-md p-1 shadow-md ring-1;
+  }
+
+  /* MARK: Dropdown Menu (§5.2): padding 4, 2 between rows, 128–500 wide; row 26 / 8 / 0, icon 12 gap 4; a 2 px
+     separator; group title 14 px 400; no animation */
+  .cn-dropdown-menu-content {
+    @apply ring-foreground/10 bg-popover text-popover-foreground flex max-w-125 min-w-32 flex-col gap-0.5 rounded-md p-1 shadow-md ring-1;
+  }
+
+  .cn-dropdown-menu-item {
+    @apply focus:bg-accent focus:text-accent-foreground data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-disabled:text-muted-foreground data-disabled:opacity-100 not-data-[variant=destructive]:focus:**:text-accent-foreground h-6.5 gap-1 rounded-md px-2 py-0 text-sm data-inset:pl-7 [&_svg:not([class*='size-'])]:size-3;
+  }
+
+  .cn-dropdown-menu-checkbox-item {
+    @apply focus:bg-accent focus:text-accent-foreground focus:**:text-accent-foreground data-disabled:text-muted-foreground data-disabled:opacity-100 h-6.5 gap-1 rounded-md py-0 pr-8 pl-2 text-sm data-inset:pl-7 [&_svg:not([class*='size-'])]:size-3;
+  }
+
+  .cn-dropdown-menu-radio-item {
+    @apply focus:bg-accent focus:text-accent-foreground focus:**:text-accent-foreground data-disabled:text-muted-foreground data-disabled:opacity-100 h-6.5 gap-1 rounded-md py-0 pr-8 pl-2 text-sm data-inset:pl-7 [&_svg:not([class*='size-'])]:size-3;
+  }
+
+  .cn-dropdown-menu-item-indicator {
+    @apply absolute right-2 flex items-center justify-center;
+  }
+
+  .cn-dropdown-menu-label {
+    @apply text-muted-foreground leading-gpui px-2 py-0 text-sm font-normal data-inset:pl-7;
+  }
+
+  .cn-dropdown-menu-separator {
+    @apply bg-border -mx-1 my-0.5 h-0.5;
+  }
+
+  .cn-dropdown-menu-shortcut {
+    @apply text-muted-foreground group-focus/dropdown-menu-item:text-accent-foreground ml-auto pl-3 text-xs tracking-normal;
+  }
+
+  .cn-dropdown-menu-sub-trigger {
+    @apply focus:bg-accent focus:text-accent-foreground data-open:bg-accent data-open:text-accent-foreground h-6.5 gap-1 rounded-md px-2 py-0 text-sm data-inset:pl-7 [&_svg:not([class*='size-'])]:size-3;
+  }
+
+  .cn-dropdown-menu-sub-content {
+    @apply ring-foreground/10 bg-popover text-popover-foreground flex max-w-125 min-w-32 flex-col gap-0.5 rounded-md p-1 shadow-md ring-1;
+  }
+
+  /* MARK: Hover Card (§5.2): as Popover */
+  .cn-hover-card-content {
+    @apply ring-foreground/10 bg-popover text-popover-foreground w-64 rounded-md p-3 text-sm shadow-md ring-1;
+  }
+
+  /* MARK: Input (§5.1): 32 / 10, 14 px, background input_background, caret colour, disabled input 40 % */
+  .cn-input {
+    @apply bg-input-background border-input caret-caret placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 disabled:bg-input/40 disabled:text-foreground/50 h-8 rounded-md border px-2.5 py-1 text-sm transition-colors file:h-6 file:text-sm file:font-medium focus-visible:ring-3 aria-invalid:ring-3;
+  }
+
+  /* MARK: Kbd (§5.2): 12 px, padding 4 / 2, at least 20, muted, radius 3 — as nova; bare inside a tooltip */
+  .cn-kbd {
+    @apply bg-muted text-muted-foreground in-data-[slot=tooltip-content]:bg-transparent h-5 w-fit min-w-5 gap-1 rounded-sm px-1 font-sans text-xs font-medium [&_svg:not([class*='size-'])]:size-3;
+  }
+
+  .cn-kbd-group {
+    @apply gap-1;
+  }
+
+  /* MARK: Label (§5.1): 14 px, 500 — as nova */
+  .cn-label {
+    @apply gap-2 text-sm leading-none font-medium group-data-[disabled=true]:opacity-50 peer-disabled:opacity-50;
+  }
+
+  /* MARK: Popover (§5.2): padding 12, radius 6, no animation */
+  .cn-popover-content {
+    @apply bg-popover text-popover-foreground ring-foreground/10 flex flex-col gap-2.5 rounded-md p-3 text-sm shadow-md ring-1;
+  }
+
+  .cn-popover-header {
+    @apply flex flex-col gap-0.5 text-sm;
+  }
+
+  .cn-popover-title {
+    @apply font-medium;
+  }
+
+  .cn-popover-description {
+    @apply text-muted-foreground;
+  }
+
+  /* MARK: Scroll Area (§4.8): a 16 px lane, a 6 px thumb 4 from the edge (8 on hover), radius 3, at least 48 long */
+  .cn-scroll-area-scrollbar {
+    @apply data-horizontal:h-4 data-horizontal:flex-col data-horizontal:pt-1.5 data-horizontal:pb-1 data-horizontal:hover:pt-1 data-vertical:h-full data-vertical:w-4 data-vertical:pr-1 data-vertical:pl-1.5 data-vertical:hover:pl-1;
+  }
+
+  .cn-scroll-area-thumb {
+    @apply bg-scrollbar-thumb hover:bg-scrollbar-thumb-hover rounded-thumb min-h-12;
+  }
+
+  /* MARK: Select (§5.1): trigger as an input, chevron 16 muted, gap 4; list 4 padding, trigger-wide, 6 below (≤ 320:
+     the component's max-h, which also keeps it inside the window),
+     150 ms in from the top, gone at once; row 7 / 4, 14 px on a 1.618 line; hover accent 70 %, chosen accent; check 12 */
+  .cn-select-trigger {
+    @apply border-input bg-input-background data-placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 gap-1 rounded-md border px-2.5 text-sm select-none focus-visible:ring-3 aria-invalid:ring-3 data-[size=default]:h-8 data-[size=sm]:h-6 data-[size=sm]:px-2 *:data-[slot=select-value]:flex *:data-[slot=select-value]:gap-2 [&_svg:not([class*='size-'])]:size-4;
+  }
+
+  .cn-select-trigger-icon {
+    @apply text-muted-foreground size-4;
+  }
+
+  .cn-select-content {
+    @apply bg-popover text-popover-foreground data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-top-2 ring-foreground/10 min-w-36 rounded-md shadow-md ring-1 duration-150;
+  }
+
+  /* Radix hides the list's native scrollbar with an inline <style> the extension's CSP refuses (the extension patches
+     it out: patches/@radix-ui__react-select@2.4.1.patch); the same rule, here. It scrolls with the arrows. */
+  .cn-select-viewport {
+    @apply p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden;
+  }
+
+  .cn-select-label {
+    @apply text-muted-foreground px-1.75 py-1 text-xs;
+  }
+
+  .cn-select-item {
+    @apply data-highlighted:bg-accent/70 data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground data-highlighted:text-accent-foreground leading-gpui gap-2 rounded-md py-1 pr-8 pl-1.75 text-sm [&_svg:not([class*='size-'])]:size-3 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2;
+  }
+
+  .cn-select-item-indicator {
+    @apply pointer-events-none absolute right-2 flex size-3 items-center justify-center;
+  }
+
+  .cn-select-group {
+    @apply scroll-my-1;
+  }
+
+  .cn-select-separator {
+    @apply bg-border -mx-1 my-1 h-px;
+  }
+
+  .cn-select-scroll-up-button {
+    @apply bg-popover z-10 flex cursor-default items-center justify-center py-1 [&_svg:not([class*='size-'])]:size-4;
+  }
+
+  .cn-select-scroll-down-button {
+    @apply bg-popover z-10 flex cursor-default items-center justify-center py-1 [&_svg:not([class*='size-'])]:size-4;
+  }
+
+  /* MARK: Separator (§5.3): 1 px border — as nova */
+  .cn-separator {
+    @apply bg-border shrink-0;
+  }
+
+  .cn-separator-horizontal {
+    @apply h-px w-full;
+  }
+
+  .cn-separator-vertical {
+    @apply h-full w-px;
+  }
+
+  /* MARK: Tabs (§5.3). default = gpui-kit Segmented: bar 32, tab_bar_segmented, radius 8, padding 4, gap 2; tab 24 /
+     12, radius 6, 400; active background + tab_active_foreground + shadow-sm. line = Underline: tab 36, 16 apart, a
+     2 px primary line, a border under the bar */
+  .cn-tabs {
+    @apply gap-2;
+  }
+
+  .cn-tabs-list {
+    @apply text-tab-foreground gap-0.5 rounded-lg p-1 group-data-horizontal/tabs:h-8;
+  }
+
+  .cn-tabs-list-variant-default {
+    @apply bg-tab-bar-segmented;
+  }
+
+  .cn-tabs-list-variant-line {
+    @apply border-border gap-4 rounded-none border-b bg-transparent p-0 group-data-horizontal/tabs:h-9;
+  }
+
+  .cn-tabs-trigger {
+    @apply text-tab-foreground hover:text-tab-active-foreground focus-visible:border-ring focus-visible:ring-ring/50 data-active:text-tab-active-foreground gap-1.5 rounded-md border border-transparent px-3 text-sm font-normal focus-visible:ring-3 group-data-[variant=default]/tabs-list:h-6 group-data-[variant=default]/tabs-list:data-active:bg-background group-data-[variant=default]/tabs-list:data-active:shadow-sm group-data-[variant=line]/tabs-list:h-9 group-data-[variant=line]/tabs-list:rounded-none group-data-[variant=line]/tabs-list:px-0 group-data-[variant=line]/tabs-list:after:absolute group-data-[variant=line]/tabs-list:after:inset-x-0 group-data-[variant=line]/tabs-list:after:bottom-0 group-data-[variant=line]/tabs-list:after:h-0.5 group-data-[variant=line]/tabs-list:data-active:after:bg-primary [&_svg:not([class*='size-'])]:size-4;
+  }
+
+  .cn-tabs-content {
+    @apply text-sm;
+  }
+
+  /* MARK: Textarea (§5.1): as Input */
+  .cn-textarea {
+    @apply bg-input-background border-input caret-caret placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 disabled:bg-input/40 disabled:text-foreground/50 rounded-md border px-2.5 py-2 text-sm transition-colors focus-visible:ring-3 aria-invalid:ring-3;
+  }
+
+  /* MARK: Toggle (§5.1): 32, padding 8; hover and on: accent */
+  .cn-toggle {
+    @apply hover:bg-accent hover:text-accent-foreground data-on:bg-accent data-on:text-accent-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 gap-1 rounded-md border border-transparent text-sm font-normal focus-visible:ring-3 [&_svg:not([class*='size-'])]:size-4;
+  }
+
+  .cn-toggle-variant-default {
+    @apply bg-transparent;
+  }
+
+  .cn-toggle-variant-outline {
+    @apply border-input bg-transparent;
+  }
+
+  /* Own variant: one segment of gpui-kit's Segmented bar (the Tabs `default` numbers), for a choice of one. */
+  .cn-toggle-variant-segmented {
+    @apply text-tab-foreground hover:text-tab-active-foreground data-on:bg-background data-on:text-tab-active-foreground data-on:hover:bg-background data-on:shadow-sm bg-transparent hover:bg-transparent;
+  }
+
+  .cn-toggle-size-default {
+    @apply h-8 min-w-8 px-2;
+  }
+
+  .cn-toggle-size-sm {
+    @apply h-6 min-w-6 px-2 [&_svg:not([class*='size-'])]:size-3.5;
+  }
+
+  .cn-toggle-size-lg {
+    @apply h-8 min-w-8 px-3;
+  }
+
+  /* MARK: Toggle Group */
+  .cn-toggle-group {
+    @apply gap-0.5 rounded-md data-[variant=segmented]:bg-tab-bar-segmented data-[variant=segmented]:rounded-lg data-[variant=segmented]:p-1;
+  }
+
+  .cn-toggle-group-item {
+    @apply data-[variant=segmented]:flex-1;
+  }
+
+  /* MARK: Tooltip (§5.2): popover colours with a border and the softer shadow; padding 8 / 2, 14 px on 1.618; no
+     arrow; 150 ms up by 4 px; keys bare, 12 apart */
+  .cn-tooltip-content {
+    @apply bg-popover text-popover-foreground border-border shadow-tooltip data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-1 data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:slide-in-from-bottom-1 leading-gpui inline-flex items-center gap-3 rounded-md border px-2 py-0.5 text-sm duration-150;
+  }
+
+  /* MARK: List rows — own (§5.3 «Строки списка»; no shadcn part): the menu row's numbers, 26 tall, 14 px */
+  .kit-list {
+    @apply m-0 flex list-none flex-col gap-0.5 p-0;
+  }
+
+  .kit-list-item {
+    @apply text-foreground hover:bg-list-hover aria-[current=page]:bg-list-active aria-selected:bg-list-active flex h-6.5 items-center gap-2 rounded-md px-2 text-sm no-underline [&_svg:not([class*='size-'])]:size-4;
+  }
+}

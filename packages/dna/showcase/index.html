@@ -1,0 +1,1509 @@
+<!doctype html>
+<html lang="en" data-theme="default-light" data-mode="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DNA showcase</title>
+    <link rel="stylesheet" href="./showcase.css" />
+    <script type="module" src="./showcase.js"></script>
+  </head>
+  <body>
+    <svg width="0" height="0" class="absolute" aria-hidden="true">
+      <defs>
+        <g id="i-plus"><path d="M5 12h14M12 5v14" /></g>
+        <g id="i-check"><path d="M20 6 9 17l-5-5" /></g>
+        <g id="i-chevron-down"><path d="m6 9 6 6 6-6" /></g>
+        <g id="i-chevron-right"><path d="m9 18 6-6-6-6" /></g>
+        <g id="i-file">
+          <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
+          <path d="M14 2v5h6" />
+        </g>
+        <g id="i-copy">
+          <rect x="8" y="8" width="14" height="14" rx="2" />
+          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+        </g>
+        <g id="i-trash">
+          <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+        </g>
+        <g id="i-bold"><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8" /></g>
+        <g id="i-italic"><path d="M19 4h-9M14 20H5M15 4 9 20" /></g>
+        <g id="i-underline"><path d="M6 4v6a6 6 0 0 0 12 0V4M4 20h16" /></g>
+      </defs>
+    </svg>
+    <div class="kit-shell">
+      <aside class="kit-sidebar">
+        <div class="kit-sidebar-brand">DNA showcase</div>
+        <div class="kit-sidebar-group-label">Components</div>
+        <nav class="kit-nav"
+          ><a class="kit-nav-item" href="#tokens" aria-current="page">Tokens</a
+          ><a class="kit-nav-item" href="#button">Button</a><a class="kit-nav-item" href="#badge">Badge and Kbd</a
+          ><a class="kit-nav-item" href="#fields">Input, Textarea, Label</a
+          ><a class="kit-nav-item" href="#checkbox">Checkbox</a
+          ><a class="kit-nav-item" href="#toggle">Toggle and Toggle Group</a
+          ><a class="kit-nav-item" href="#tabs">Tabs</a><a class="kit-nav-item" href="#select">Select</a
+          ><a class="kit-nav-item" href="#menu">Dropdown Menu and Context Menu</a
+          ><a class="kit-nav-item" href="#overlays">Tooltip, Popover, Hover Card</a
+          ><a class="kit-nav-item" href="#card">Card and Separator</a
+          ><a class="kit-nav-item" href="#list">List rows and Scroll Area</a></nav
+        >
+        <div class="kit-sidebar-foot">
+          <label class="cn-label flex items-center select-none" for="theme">Theme</label>
+          <select id="theme" class="cn-input w-full min-w-0 outline-none"></select>
+          <p class="show-note" id="theme-name"></p>
+        </div>
+      </aside>
+      <main class="kit-main">
+        <div class="kit-section">
+          <header class="kit-section-head">
+            <h1 class="kit-section-title">Every component on one page</h1>
+            <p class="kit-section-hint"
+              >The tokens, the component style tuned to gpui-kit and the extension frame, in the theme chosen on the
+              left.</p
+            >
+          </header>
+          <section class="show-group" id="tokens"
+            ><h2>Tokens</h2><p class="show-note">Colours of the chosen theme, the type scale, radii and shadows.</p
+            ><div class="show-swatches"
+              ><span class="show-swatch"><i class="bg-background"></i>background</span
+              ><span class="show-swatch"><i class="bg-foreground"></i>foreground</span
+              ><span class="show-swatch"><i class="bg-card"></i>card</span
+              ><span class="show-swatch"><i class="bg-popover"></i>popover</span
+              ><span class="show-swatch"><i class="bg-primary"></i>primary</span
+              ><span class="show-swatch"><i class="bg-primary-hover"></i>primary-hover</span
+              ><span class="show-swatch"><i class="bg-secondary"></i>secondary</span
+              ><span class="show-swatch"><i class="bg-accent"></i>accent</span
+              ><span class="show-swatch"><i class="bg-muted"></i>muted</span
+              ><span class="show-swatch"><i class="bg-muted-foreground"></i>muted-foreground</span
+              ><span class="show-swatch"><i class="bg-border"></i>border</span
+              ><span class="show-swatch"><i class="bg-input"></i>input</span
+              ><span class="show-swatch"><i class="bg-input-background"></i>input-background</span
+              ><span class="show-swatch"><i class="bg-ring"></i>ring</span
+              ><span class="show-swatch"><i class="bg-destructive"></i>destructive</span
+              ><span class="show-swatch"><i class="bg-button-danger"></i>button-danger</span
+              ><span class="show-swatch"><i class="bg-success"></i>success</span
+              ><span class="show-swatch"><i class="bg-warning"></i>warning</span
+              ><span class="show-swatch"><i class="bg-info"></i>info</span
+              ><span class="show-swatch"><i class="bg-link"></i>link</span
+              ><span class="show-swatch"><i class="bg-list-hover"></i>list-hover</span
+              ><span class="show-swatch"><i class="bg-list-active"></i>list-active</span
+              ><span class="show-swatch"><i class="bg-tab-bar-segmented"></i>tab-bar-segmented</span
+              ><span class="show-swatch"><i class="bg-sidebar"></i>sidebar</span
+              ><span class="show-swatch"><i class="bg-sidebar-accent"></i>sidebar-accent</span
+              ><span class="show-swatch"><i class="bg-scrollbar-thumb"></i>scrollbar-thumb</span
+              ><span class="show-swatch"><i class="bg-selection"></i>selection</span
+              ><span class="show-swatch"><i class="bg-editor-background"></i>editor-background</span
+              ><span class="show-swatch"><i class="bg-editor-active-line"></i>editor-active-line</span></div
+            ><div class="show-row"
+              ><span class="text-xs">text-xs 12</span><span class="text-sm">text-sm 14</span
+              ><span class="text-base">text-base 16</span><span class="text-lg">text-lg 18</span
+              ><code>code 13 / 20 mono</code><span class="font-medium">medium 500</span
+              ><span class="font-semibold">semibold 600</span><a href="#tokens">link</a></div
+            ><div class="show-row"
+              ><span class="bg-secondary border-border rounded-sm border px-3 py-2 text-xs">rounded-sm</span
+              ><span class="bg-secondary border-border rounded-md border px-3 py-2 text-xs">rounded-md</span
+              ><span class="bg-secondary border-border rounded-lg border px-3 py-2 text-xs">rounded-lg</span
+              ><span class="bg-secondary border-border rounded-xl border px-3 py-2 text-xs">rounded-xl</span
+              ><span class="bg-popover shadow-sm rounded-md px-3 py-2 text-xs">shadow-sm</span
+              ><span class="bg-popover shadow-md rounded-md px-3 py-2 text-xs">shadow-md</span
+              ><span class="bg-popover shadow-tooltip rounded-md px-3 py-2 text-xs">shadow-tooltip</span
+              ><span class="bg-popover shadow-dialog rounded-md px-3 py-2 text-xs">shadow-dialog</span></div
+            ></section
+          >
+          <section class="show-group" id="button"
+            ><h2>Button</h2
+            ><p class="show-note">Six variants; sizes default 32, sm 24, xs 20, lg 32; icon buttons; disabled.</p
+            ><div class="show-row"
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-default cn-button-size-default"
+                >Default</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-default cn-button-size-sm"
+                >Small</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-default cn-button-size-xs"
+                >Tiny</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-default cn-button-size-lg"
+                >Large</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-default cn-button-size-default"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg
+                >With icon</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-default cn-button-size-icon"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-default cn-button-size-icon-sm"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-default cn-button-size-icon-xs"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-default cn-button-size-default"
+                disabled
+                >Disabled</button
+              ></div
+            ><div class="show-row"
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-outline cn-button-size-default"
+                >Outline</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-outline cn-button-size-sm"
+                >Small</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-outline cn-button-size-xs"
+                >Tiny</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-outline cn-button-size-lg"
+                >Large</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-outline cn-button-size-default"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg
+                >With icon</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-outline cn-button-size-icon"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-outline cn-button-size-icon-sm"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-outline cn-button-size-icon-xs"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-outline cn-button-size-default"
+                disabled
+                >Disabled</button
+              ></div
+            ><div class="show-row"
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-secondary cn-button-size-default"
+                >Secondary</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-secondary cn-button-size-sm"
+                >Small</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-secondary cn-button-size-xs"
+                >Tiny</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-secondary cn-button-size-lg"
+                >Large</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-secondary cn-button-size-default"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg
+                >With icon</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-secondary cn-button-size-icon"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-secondary cn-button-size-icon-sm"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-secondary cn-button-size-icon-xs"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-secondary cn-button-size-default"
+                disabled
+                >Disabled</button
+              ></div
+            ><div class="show-row"
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-default"
+                >Ghost</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-sm"
+                >Small</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-xs"
+                >Tiny</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-lg"
+                >Large</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-default"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg
+                >With icon</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon-sm"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon-xs"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-default"
+                disabled
+                >Disabled</button
+              ></div
+            ><div class="show-row"
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-destructive cn-button-size-default"
+                >Destructive</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-destructive cn-button-size-sm"
+                >Small</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-destructive cn-button-size-xs"
+                >Tiny</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-destructive cn-button-size-lg"
+                >Large</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-destructive cn-button-size-default"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg
+                >With icon</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-destructive cn-button-size-icon"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-destructive cn-button-size-icon-sm"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-destructive cn-button-size-icon-xs"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-destructive cn-button-size-default"
+                disabled
+                >Disabled</button
+              ></div
+            ><div class="show-row"
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-link cn-button-size-default"
+                >Link</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-link cn-button-size-sm"
+                >Small</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-link cn-button-size-xs"
+                >Tiny</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-link cn-button-size-lg"
+                >Large</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-link cn-button-size-default"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg
+                >With icon</button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-link cn-button-size-icon"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-link cn-button-size-icon-sm"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-link cn-button-size-icon-xs"
+                aria-label="Add"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-plus" /></svg></button
+              ><button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-link cn-button-size-default"
+                disabled
+                >Disabled</button
+              ></div
+            ></section
+          >
+          <section class="show-group" id="badge"
+            ><h2>Badge and Kbd</h2
+            ><div class="show-row"
+              ><span
+                data-slot="badge"
+                class="cn-badge group/badge inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap cn-badge-variant-default"
+                >Default</span
+              ><span
+                data-slot="badge"
+                class="cn-badge group/badge inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap cn-badge-variant-outline"
+                >Outline</span
+              ><span
+                data-slot="badge"
+                class="cn-badge group/badge inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap cn-badge-variant-secondary"
+                >Secondary</span
+              ><span
+                data-slot="badge"
+                class="cn-badge group/badge inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap cn-badge-variant-ghost"
+                >Ghost</span
+              ><span
+                data-slot="badge"
+                class="cn-badge group/badge inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap cn-badge-variant-destructive"
+                >Destructive</span
+              ><span
+                data-slot="badge"
+                class="cn-badge group/badge inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap cn-badge-variant-link"
+                >Link</span
+              ></div
+            ><div class="show-row"
+              ><kbd
+                data-slot="kbd"
+                class="cn-kbd pointer-events-none inline-flex items-center justify-center select-none"
+                >⌘</kbd
+              ><kbd
+                data-slot="kbd"
+                class="cn-kbd pointer-events-none inline-flex items-center justify-center select-none"
+                >K</kbd
+              ><span data-slot="kbd-group" class="cn-kbd-group inline-flex items-center"
+                ><kbd
+                  data-slot="kbd"
+                  class="cn-kbd pointer-events-none inline-flex items-center justify-center select-none"
+                  >Ctrl</kbd
+                ><kbd
+                  data-slot="kbd"
+                  class="cn-kbd pointer-events-none inline-flex items-center justify-center select-none"
+                  >Shift</kbd
+                ><kbd
+                  data-slot="kbd"
+                  class="cn-kbd pointer-events-none inline-flex items-center justify-center select-none"
+                  >P</kbd
+                ></span
+              ></div
+            ></section
+          >
+          <section class="show-group" id="fields"
+            ><h2>Input, Textarea, Label</h2
+            ><div class="show-row"
+              ><div class="flex w-64 flex-col gap-2"
+                ><label data-slot="label" for="f1" class="cn-label flex items-center select-none">Input</label
+                ><input
+                  id="f1"
+                  data-slot="input"
+                  class="cn-input w-full min-w-0 outline-none disabled:pointer-events-none disabled:cursor-not-allowed"
+                  placeholder="Placeholder" /></div
+              ><div class="flex w-64 flex-col gap-2"
+                ><label data-slot="label" for="f2" class="cn-label flex items-center select-none">With a value</label
+                ><input
+                  id="f2"
+                  data-slot="input"
+                  class="cn-input w-full min-w-0 outline-none disabled:pointer-events-none disabled:cursor-not-allowed"
+                  value="gpui-kit" /></div
+              ><div class="flex w-64 flex-col gap-2"
+                ><label data-slot="label" for="f3" class="cn-label flex items-center select-none">Invalid</label
+                ><input
+                  id="f3"
+                  data-slot="input"
+                  class="cn-input w-full min-w-0 outline-none disabled:pointer-events-none disabled:cursor-not-allowed"
+                  value="not a number"
+                  aria-invalid="true" /></div
+              ><div class="flex w-64 flex-col gap-2"
+                ><label data-slot="label" for="f4" class="cn-label flex items-center select-none">Disabled</label
+                ><input
+                  id="f4"
+                  data-slot="input"
+                  class="cn-input w-full min-w-0 outline-none disabled:pointer-events-none disabled:cursor-not-allowed"
+                  value="Disabled"
+                  disabled /></div></div
+            ><div class="show-row"
+              ><div class="flex w-64 flex-col gap-2"
+                ><label data-slot="label" for="t1" class="cn-label flex items-center select-none">Textarea</label
+                ><textarea
+                  id="t1"
+                  data-slot="textarea"
+                  class="cn-textarea flex field-sizing-content min-h-16 w-full outline-none disabled:cursor-not-allowed"
+                  placeholder="Paste code here"></textarea></div
+              ><div class="flex w-64 flex-col gap-2"
+                ><label data-slot="label" for="t2" class="cn-label flex items-center select-none">With code</label
+                ><textarea
+                  id="t2"
+                  data-slot="textarea"
+                  class="cn-textarea flex field-sizing-content min-h-16 w-full outline-none disabled:cursor-not-allowed">
+fn main() {
+    println!("hello");
+}</textarea>
+              </div></div
+            ></section
+          >
+          <section class="show-group" id="checkbox"
+            ><h2>Checkbox</h2
+            ><div class="show-row"
+              ><span class="flex items-center gap-2"
+                ><button
+                  type="button"
+                  role="checkbox"
+                  id="c1"
+                  aria-checked="false"
+                  data-slot="checkbox"
+                  data-state="unchecked"
+                  class="cn-checkbox peer relative shrink-0 outline-none after:absolute after:-inset-x-3 after:-inset-y-2 disabled:cursor-not-allowed"
+                  ><span
+                    data-slot="checkbox-indicator"
+                    class="cn-checkbox-indicator grid place-content-center text-current transition-none"
+                    hidden
+                    ><svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true">
+                      <use href="#i-check" /></svg></span></button
+                ><label data-slot="label" for="c1" class="cn-label flex items-center select-none"
+                  >Unchecked</label
+                ></span
+              ><span class="flex items-center gap-2"
+                ><button
+                  type="button"
+                  role="checkbox"
+                  id="c2"
+                  aria-checked="true"
+                  data-slot="checkbox"
+                  data-state="checked"
+                  class="cn-checkbox peer relative shrink-0 outline-none after:absolute after:-inset-x-3 after:-inset-y-2 disabled:cursor-not-allowed"
+                  ><span
+                    data-slot="checkbox-indicator"
+                    class="cn-checkbox-indicator grid place-content-center text-current transition-none"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true">
+                      <use href="#i-check" /></svg></span></button
+                ><label data-slot="label" for="c2" class="cn-label flex items-center select-none">Checked</label></span
+              ><span class="flex items-center gap-2"
+                ><button
+                  type="button"
+                  role="checkbox"
+                  id="c3"
+                  aria-checked="false"
+                  data-slot="checkbox"
+                  data-state="unchecked"
+                  class="cn-checkbox peer relative shrink-0 outline-none after:absolute after:-inset-x-3 after:-inset-y-2 disabled:cursor-not-allowed"
+                  disabled
+                  ><span
+                    data-slot="checkbox-indicator"
+                    class="cn-checkbox-indicator grid place-content-center text-current transition-none"
+                    hidden
+                    ><svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true">
+                      <use href="#i-check" /></svg></span></button
+                ><label data-slot="label" for="c3" class="cn-label flex items-center select-none">Disabled</label></span
+              ><span class="flex items-center gap-2"
+                ><button
+                  type="button"
+                  role="checkbox"
+                  id="c4"
+                  aria-checked="true"
+                  data-slot="checkbox"
+                  data-state="checked"
+                  class="cn-checkbox peer relative shrink-0 outline-none after:absolute after:-inset-x-3 after:-inset-y-2 disabled:cursor-not-allowed"
+                  disabled
+                  ><span
+                    data-slot="checkbox-indicator"
+                    class="cn-checkbox-indicator grid place-content-center text-current transition-none"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true">
+                      <use href="#i-check" /></svg></span></button
+                ><label data-slot="label" for="c4" class="cn-label flex items-center select-none"
+                  >Disabled, checked</label
+                ></span
+              ></div
+            ></section
+          >
+          <section class="show-group" id="toggle"
+            ><h2>Toggle and Toggle Group</h2
+            ><p class="show-note">The segmented group is gpui-kit's Segmented bar: a choice of one.</p
+            ><div class="show-row"
+              ><button
+                type="button"
+                data-slot="toggle"
+                data-state="off"
+                aria-pressed="false"
+                class="cn-toggle group/toggle inline-flex items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-toggle-variant-default cn-toggle-size-default"
+                >Default</button
+              ><button
+                type="button"
+                data-slot="toggle"
+                data-state="on"
+                aria-pressed="true"
+                class="cn-toggle group/toggle inline-flex items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-toggle-variant-default cn-toggle-size-default"
+                >On</button
+              ><button
+                type="button"
+                data-slot="toggle"
+                data-state="off"
+                aria-pressed="false"
+                class="cn-toggle group/toggle inline-flex items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-toggle-variant-outline cn-toggle-size-default"
+                >Outline</button
+              ><button
+                type="button"
+                data-slot="toggle"
+                data-state="on"
+                aria-pressed="true"
+                class="cn-toggle group/toggle inline-flex items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-toggle-variant-outline cn-toggle-size-default"
+                >On</button
+              ><button
+                type="button"
+                data-slot="toggle"
+                data-state="off"
+                aria-pressed="false"
+                class="cn-toggle group/toggle inline-flex items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-toggle-variant-default cn-toggle-size-sm"
+                >Small</button
+              ><button
+                type="button"
+                data-slot="toggle"
+                data-state="off"
+                aria-pressed="false"
+                class="cn-toggle group/toggle inline-flex items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-toggle-variant-default cn-toggle-size-lg"
+                >Large</button
+              ><button
+                type="button"
+                data-slot="toggle"
+                data-state="off"
+                aria-pressed="false"
+                class="cn-toggle group/toggle inline-flex items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-toggle-variant-default cn-toggle-size-default"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-bold" /></svg></button></div
+            ><div class="show-row"
+              ><div
+                data-slot="toggle-group"
+                data-variant="segmented"
+                data-single
+                class="cn-toggle-group group/toggle-group flex w-fit flex-row items-center"
+                ><button
+                  type="button"
+                  data-slot="toggle-group-item"
+                  data-variant="segmented"
+                  data-state="on"
+                  aria-pressed="true"
+                  class="cn-toggle group/toggle inline-flex items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-toggle-variant-segmented cn-toggle-size-sm cn-toggle-group-item shrink-0 focus:z-10 focus-visible:z-10"
+                  >System</button
+                ><button
+                  type="button"
+                  data-slot="toggle-group-item"
+                  data-variant="segmented"
+                  data-state="off"
+                  aria-pressed="false"
+                  class="cn-toggle group/toggle inline-flex items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-toggle-variant-segmented cn-toggle-size-sm cn-toggle-group-item shrink-0 focus:z-10 focus-visible:z-10"
+                  >Light</button
+                ><button
+                  type="button"
+                  data-slot="toggle-group-item"
+                  data-variant="segmented"
+                  data-state="off"
+                  aria-pressed="false"
+                  class="cn-toggle group/toggle inline-flex items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-toggle-variant-segmented cn-toggle-size-sm cn-toggle-group-item shrink-0 focus:z-10 focus-visible:z-10"
+                  >Dark</button
+                ></div
+              ><div
+                data-slot="toggle-group"
+                data-variant="outline"
+                class="cn-toggle-group group/toggle-group flex w-fit flex-row items-center"
+                ><button
+                  type="button"
+                  data-slot="toggle-group-item"
+                  data-variant="outline"
+                  data-state="on"
+                  aria-pressed="true"
+                  class="cn-toggle group/toggle inline-flex items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-toggle-variant-outline cn-toggle-size-default cn-toggle-group-item shrink-0 focus:z-10 focus-visible:z-10"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-bold" /></svg></button
+                ><button
+                  type="button"
+                  data-slot="toggle-group-item"
+                  data-variant="outline"
+                  data-state="off"
+                  aria-pressed="false"
+                  class="cn-toggle group/toggle inline-flex items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-toggle-variant-outline cn-toggle-size-default cn-toggle-group-item shrink-0 focus:z-10 focus-visible:z-10"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-italic" /></svg></button
+                ><button
+                  type="button"
+                  data-slot="toggle-group-item"
+                  data-variant="outline"
+                  data-state="off"
+                  aria-pressed="false"
+                  class="cn-toggle group/toggle inline-flex items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-toggle-variant-outline cn-toggle-size-default cn-toggle-group-item shrink-0 focus:z-10 focus-visible:z-10"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-underline" /></svg></button></div></div
+          ></section>
+          <section class="show-group" id="tabs"
+            ><h2>Tabs</h2><p class="show-note">default is the segmented bar, line is the underline.</p
+            ><div class="show-row"
+              ><div data-slot="tabs" data-orientation="horizontal" class="cn-tabs group/tabs flex flex-col"
+                ><div
+                  role="tablist"
+                  data-slot="tabs-list"
+                  data-variant="default"
+                  class="cn-tabs-list cn-tabs-list-variant-default group/tabs-list inline-flex w-fit items-center justify-center"
+                  ><button
+                    type="button"
+                    role="tab"
+                    data-slot="tabs-trigger"
+                    data-state="active"
+                    class="cn-tabs-trigger relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none"
+                    >Changes</button
+                  ><button
+                    type="button"
+                    role="tab"
+                    data-slot="tabs-trigger"
+                    data-state="inactive"
+                    class="cn-tabs-trigger relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none"
+                    >History</button
+                  ><button
+                    type="button"
+                    role="tab"
+                    data-slot="tabs-trigger"
+                    data-state="inactive"
+                    class="cn-tabs-trigger relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none"
+                    >Settings</button
+                  ></div
+                ><div data-slot="tabs-content" class="cn-tabs-content flex-1 outline-none"
+                  >Content of the tab.</div
+                ></div
+              ><div data-slot="tabs" data-orientation="horizontal" class="cn-tabs group/tabs flex flex-col"
+                ><div
+                  role="tablist"
+                  data-slot="tabs-list"
+                  data-variant="line"
+                  class="cn-tabs-list cn-tabs-list-variant-line group/tabs-list inline-flex w-fit items-center justify-center"
+                  ><button
+                    type="button"
+                    role="tab"
+                    data-slot="tabs-trigger"
+                    data-state="active"
+                    class="cn-tabs-trigger relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none"
+                    >Changes</button
+                  ><button
+                    type="button"
+                    role="tab"
+                    data-slot="tabs-trigger"
+                    data-state="inactive"
+                    class="cn-tabs-trigger relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none"
+                    >History</button
+                  ><button
+                    type="button"
+                    role="tab"
+                    data-slot="tabs-trigger"
+                    data-state="inactive"
+                    class="cn-tabs-trigger relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center whitespace-nowrap outline-none disabled:pointer-events-none"
+                    >Settings</button
+                  ></div
+                ><div data-slot="tabs-content" class="cn-tabs-content flex-1 outline-none"
+                  >Content of the tab.</div
+                ></div
+              ></div
+            ></section
+          >
+          <section class="show-group" id="select"
+            ><h2>Select</h2><p class="show-note">The list is shown open: 6 below the trigger, as wide as the trigger.</p
+            ><div class="show-row"
+              ><div class="flex flex-col gap-1.5"
+                ><button
+                  type="button"
+                  role="combobox"
+                  data-slot="select-trigger"
+                  class="cn-select-trigger flex w-fit items-center justify-between whitespace-nowrap outline-none disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 w-44"
+                  aria-expanded="true"
+                  ><span data-slot="select-value">Rust</span
+                  ><svg
+                    class="cn-select-trigger-icon pointer-events-none"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-chevron-down" /></svg></button
+                ><div
+                  data-slot="select-content"
+                  data-state="open"
+                  class="cn-select-content relative w-44 overflow-x-hidden overflow-y-auto"
+                  ><div class="cn-select-viewport"
+                    ><div data-slot="select-group" class="cn-select-group"
+                      ><div data-slot="select-label" class="cn-select-label">Languages</div
+                      ><div
+                        role="option"
+                        data-slot="select-item"
+                        data-state="checked"
+                        class="cn-select-item relative flex w-full cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                        ><span class="cn-select-item-indicator"
+                          ><svg
+                            class="pointer-events-none"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true">
+                            <use href="#i-check" /></svg></span
+                        ><span>Rust</span></div
+                      ><div
+                        role="option"
+                        data-slot="select-item"
+                        data-state="unchecked"
+                        class="cn-select-item relative flex w-full cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                        ><span>TypeScript</span></div
+                      ><div
+                        role="option"
+                        data-slot="select-item"
+                        data-state="unchecked"
+                        class="cn-select-item relative flex w-full cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                        ><span>Python</span></div
+                      ><div data-slot="select-separator" class="cn-select-separator pointer-events-none"></div
+                      ><div
+                        role="option"
+                        data-slot="select-item"
+                        data-state="unchecked"
+                        class="cn-select-item relative flex w-full cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                        ><span>Plain text</span></div
+                      ></div
+                    ></div
+                  ></div
+                ></div
+              ><div class="flex flex-col gap-2 self-start"
+                ><button
+                  type="button"
+                  role="combobox"
+                  data-slot="select-trigger"
+                  class="cn-select-trigger flex w-fit items-center justify-between whitespace-nowrap outline-none disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 w-44"
+                  ><span data-slot="select-value"><span class="text-muted-foreground">Choose a language</span></span
+                  ><svg
+                    class="cn-select-trigger-icon pointer-events-none"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-chevron-down" /></svg></button
+                ><button
+                  type="button"
+                  role="combobox"
+                  data-slot="select-trigger"
+                  class="cn-select-trigger flex w-fit items-center justify-between whitespace-nowrap outline-none disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 w-44"
+                  disabled
+                  ><span data-slot="select-value">Disabled</span
+                  ><svg
+                    class="cn-select-trigger-icon pointer-events-none"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-chevron-down" /></svg></button></div></div
+          ></section>
+          <section class="show-group" id="menu"
+            ><h2>Dropdown Menu and Context Menu</h2
+            ><p class="show-note">Shown open. The row under the pointer takes the focus, as in the real menu.</p
+            ><div class="show-row"
+              ><div
+                role="menu"
+                data-slot="dropdown-menu-content"
+                data-state="open"
+                class="cn-dropdown-menu-content w-56 overflow-x-hidden overflow-y-auto"
+                ><div data-slot="dropdown-menu-label" class="cn-dropdown-menu-label">File</div
+                ><div
+                  role="menuitem"
+                  tabindex="-1"
+                  data-menu-item
+                  data-slot="dropdown-menu-item"
+                  class="cn-dropdown-menu-item group/dropdown-menu-item relative flex cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-file" /></svg
+                  >Open file…<span data-slot="dropdown-menu-shortcut" class="cn-dropdown-menu-shortcut">⌘O</span></div
+                ><div
+                  role="menuitem"
+                  tabindex="-1"
+                  data-menu-item
+                  data-slot="dropdown-menu-item"
+                  class="cn-dropdown-menu-item group/dropdown-menu-item relative flex cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-copy" /></svg
+                  >Copy path<span data-slot="dropdown-menu-shortcut" class="cn-dropdown-menu-shortcut">⇧⌘C</span></div
+                ><div
+                  role="menuitemcheckbox"
+                  tabindex="-1"
+                  data-menu-item
+                  data-slot="dropdown-menu-checkbox-item"
+                  data-state="checked"
+                  class="cn-dropdown-menu-checkbox-item group/dropdown-menu-item relative flex cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                  >Word wrap<span class="cn-dropdown-menu-item-indicator"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true">
+                      <use href="#i-check" /></svg></span></div
+                ><div role="separator" data-slot="dropdown-menu-separator" class="cn-dropdown-menu-separator"></div
+                ><div
+                  role="menuitem"
+                  tabindex="-1"
+                  data-menu-item
+                  data-slot="dropdown-menu-sub-trigger"
+                  class="cn-dropdown-menu-sub-trigger group/dropdown-menu-item relative flex cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                  >Compare with<svg
+                    class="ml-auto"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-chevron-right" /></svg></div
+                ><div
+                  role="menuitem"
+                  tabindex="-1"
+                  data-menu-item
+                  data-slot="dropdown-menu-item"
+                  class="cn-dropdown-menu-item group/dropdown-menu-item relative flex cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                  data-disabled="true"
+                  aria-disabled="true"
+                  >Disabled</div
+                ><div
+                  role="menuitem"
+                  tabindex="-1"
+                  data-menu-item
+                  data-slot="dropdown-menu-item"
+                  class="cn-dropdown-menu-item group/dropdown-menu-item relative flex cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                  data-variant="destructive"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-trash" /></svg
+                  >Discard</div
+                ></div
+              ><div
+                role="menu"
+                data-slot="context-menu-content"
+                data-state="open"
+                class="cn-context-menu-content w-56 overflow-x-hidden overflow-y-auto"
+                ><div data-slot="context-menu-label" class="cn-context-menu-label">File</div
+                ><div
+                  role="menuitem"
+                  tabindex="-1"
+                  data-menu-item
+                  data-slot="context-menu-item"
+                  class="cn-context-menu-item group/dropdown-menu-item relative flex cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-file" /></svg
+                  >Open file…<span data-slot="context-menu-shortcut" class="cn-context-menu-shortcut">⌘O</span></div
+                ><div
+                  role="menuitem"
+                  tabindex="-1"
+                  data-menu-item
+                  data-slot="context-menu-item"
+                  class="cn-context-menu-item group/dropdown-menu-item relative flex cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-copy" /></svg
+                  >Copy path<span data-slot="context-menu-shortcut" class="cn-context-menu-shortcut">⇧⌘C</span></div
+                ><div
+                  role="menuitemcheckbox"
+                  tabindex="-1"
+                  data-menu-item
+                  data-slot="context-menu-checkbox-item"
+                  data-state="checked"
+                  class="cn-context-menu-checkbox-item group/dropdown-menu-item relative flex cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                  >Word wrap<span class="cn-context-menu-item-indicator"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true">
+                      <use href="#i-check" /></svg></span></div
+                ><div role="separator" data-slot="context-menu-separator" class="cn-context-menu-separator"></div
+                ><div
+                  role="menuitem"
+                  tabindex="-1"
+                  data-menu-item
+                  data-slot="context-menu-sub-trigger"
+                  class="cn-context-menu-sub-trigger group/dropdown-menu-item relative flex cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                  >Compare with<svg
+                    class="ml-auto"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-chevron-right" /></svg></div
+                ><div
+                  role="menuitem"
+                  tabindex="-1"
+                  data-menu-item
+                  data-slot="context-menu-item"
+                  class="cn-context-menu-item group/dropdown-menu-item relative flex cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                  data-disabled="true"
+                  aria-disabled="true"
+                  >Disabled</div
+                ><div
+                  role="menuitem"
+                  tabindex="-1"
+                  data-menu-item
+                  data-slot="context-menu-item"
+                  class="cn-context-menu-item group/dropdown-menu-item relative flex cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                  data-variant="destructive"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-trash" /></svg
+                  >Discard</div
+                ></div
+              ></div
+            ></section
+          >
+          <section class="show-group" id="overlays"
+            ><h2>Tooltip, Popover, Hover Card</h2><p class="show-note">Shown open, in place.</p
+            ><div class="show-row"
+              ><div data-slot="tooltip-content" data-state="delayed-open" class="cn-tooltip-content w-fit"
+                >Compare the two texts
+                <span data-slot="kbd-group" class="cn-kbd-group inline-flex items-center"
+                  ><kbd
+                    data-slot="kbd"
+                    class="cn-kbd pointer-events-none inline-flex items-center justify-center select-none"
+                    >⌘</kbd
+                  ><kbd
+                    data-slot="kbd"
+                    class="cn-kbd pointer-events-none inline-flex items-center justify-center select-none"
+                    >↵</kbd
+                  ></span
+                ></div
+              ><div data-slot="popover-content" data-state="open" class="cn-popover-content w-72 outline-hidden"
+                ><div data-slot="popover-header" class="cn-popover-header"
+                  ><div data-slot="popover-title" class="cn-popover-title">Whitespace</div
+                  ><p data-slot="popover-description" class="cn-popover-description"
+                    >Changes that touch only spaces are dimmed.</p
+                  ></div
+                ><button
+                  type="button"
+                  data-slot="button"
+                  class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-outline cn-button-size-sm"
+                  >Show them</button
+                ></div
+              ><div data-slot="hover-card-content" data-state="open" class="cn-hover-card-content"
+                ><p class="font-medium">fn total(&amp;self) -&gt; u64</p
+                ><p class="text-muted-foreground">Sums the lines of the invoice, in cents.</p></div
+              ></div
+            ></section
+          >
+          <section class="show-group" id="card"
+            ><h2>Card and Separator</h2
+            ><div class="show-row"
+              ><div data-slot="card" data-size="default" class="cn-card group/card flex w-72 flex-col"
+                ><div data-slot="card-header" class="cn-card-header group/card-header grid auto-rows-min items-start"
+                  ><div data-slot="card-title" class="cn-card-title">Live review</div
+                  ><div data-slot="card-description" class="cn-card-description">Needs the companion app.</div></div
+                ><div data-slot="card-content" class="cn-card-content">Reads the changes in a local repository.</div
+                ><div data-slot="card-footer" class="cn-card-footer flex items-center"
+                  ><button
+                    type="button"
+                    data-slot="button"
+                    class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-default cn-button-size-sm"
+                    >Install</button
+                  ><button
+                    type="button"
+                    data-slot="button"
+                    class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-sm"
+                    >Later</button
+                  ></div
+                ></div
+              ><div data-slot="card" data-size="sm" class="cn-card group/card flex w-72 flex-col"
+                ><div data-slot="card-header" class="cn-card-header group/card-header grid auto-rows-min items-start"
+                  ><div data-slot="card-title" class="cn-card-title">Live review</div
+                  ><div data-slot="card-description" class="cn-card-description">Needs the companion app.</div></div
+                ><div data-slot="card-content" class="cn-card-content">Reads the changes in a local repository.</div
+                ><div data-slot="card-footer" class="cn-card-footer flex items-center"
+                  ><button
+                    type="button"
+                    data-slot="button"
+                    class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-default cn-button-size-sm"
+                    >Install</button
+                  ><button
+                    type="button"
+                    data-slot="button"
+                    class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-sm"
+                    >Later</button
+                  ></div
+                ></div
+              ><div class="flex w-48 flex-col gap-3 text-sm"
+                ><span>Above</span
+                ><div data-slot="separator" role="none" class="cn-separator cn-separator-horizontal"></div
+                ><span>Below</span></div
+              ><div class="flex h-8 items-center gap-3 text-sm"
+                ><span>Left</span
+                ><div data-slot="separator" role="none" class="cn-separator cn-separator-vertical"></div
+                ><span>Right</span></div
+              ></div
+            ></section
+          >
+          <section class="show-group" id="list"
+            ><h2>List rows and Scroll Area</h2
+            ><div class="show-row"
+              ><ul class="kit-list w-56"
+                ><li
+                  ><a href="#list" class="kit-list-item" aria-current="page"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true">
+                      <use href="#i-file" /></svg
+                    >src/lib.rs</a
+                  ></li
+                ><li
+                  ><a href="#list" class="kit-list-item"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true">
+                      <use href="#i-file" /></svg
+                    >src/hunks.rs</a
+                  ></li
+                ><li
+                  ><a href="#list" class="kit-list-item"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true">
+                      <use href="#i-file" /></svg
+                    >src/diff_view.rs</a
+                  ></li
+                ><li
+                  ><a href="#list" class="kit-list-item"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true">
+                      <use href="#i-file" /></svg
+                    >Cargo.toml</a
+                  ></li
+                ></ul
+              ><div class="show-scroll"
+                ><div class="p-3 text-sm"
+                  ><p>Line 1 of a long list</p><p>Line 2 of a long list</p><p>Line 3 of a long list</p
+                  ><p>Line 4 of a long list</p><p>Line 5 of a long list</p><p>Line 6 of a long list</p
+                  ><p>Line 7 of a long list</p><p>Line 8 of a long list</p></div
+                ><div
+                  data-slot="scroll-area-scrollbar"
+                  data-orientation="vertical"
+                  class="cn-scroll-area-scrollbar absolute top-0 right-0 flex touch-none select-none"
+                  ><div
+                    data-slot="scroll-area-thumb"
+                    class="cn-scroll-area-thumb relative flex-1"></div></div></div></div
+          ></section>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

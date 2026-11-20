@@ -1,0 +1,70 @@
+/*
+ * The showcase page of @workspace/dna: every component of style-gpui.css and the extension frame on one static page,
+ * in any of the themes. It imports the package the way a page does (README.md → «Слой компонентов») and adds only its
+ * own layout, on the tokens. Built by build.mjs into dist/.
+ */
+@import 'tailwindcss';
+@import '../theme.css';
+@import '../tailwind.css';
+@import '../style-gpui.css';
+@import '../ui.css';
+
+html,
+body {
+  height: 100%;
+}
+
+.show-group {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 3);
+  padding-block: calc(var(--spacing) * 5);
+  border-block-end: 1px solid var(--border);
+}
+
+.show-group > h2 {
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.show-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+}
+
+.show-note {
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
+
+.show-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--spacing) * 36), 1fr));
+  gap: calc(var(--spacing) * 2);
+}
+
+.show-swatch {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  font-size: var(--text-xs);
+}
+
+.show-swatch > i {
+  flex: none;
+  width: calc(var(--spacing) * 6);
+  height: calc(var(--spacing) * 6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.show-scroll {
+  position: relative;
+  width: calc(var(--spacing) * 60);
+  height: calc(var(--spacing) * 30);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
