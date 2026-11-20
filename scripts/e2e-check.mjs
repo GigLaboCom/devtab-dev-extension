@@ -1,0 +1,1015 @@
+#!/usr/bin/env node
+// The e2e check: the BUILT extension (dist/) in Chrome for Testing without a window — the way spikes/extension-e2e
+// loads one (new headless, its own throwaway profile, --load-extension) — then every part of the main page:
+//   1. the extension loads: no manifest errors, install warnings or runtime errors (chrome://extensions' own data);
+//      the service worker runs and listens for the toolbar button;
+//   2. «Compare code» in the default light theme: the wasm editor draws the opening example, then two texts typed in
+//      the fields (language from the shadcn Select) give a coloured diff in the editor (the editor reports `shown` for
+//      the right path; the iframe's pixels have the added-green and removed-red of the diff). The comparison runs in
+//      the module: the editor page receives the two texts and no hunks, the counts on the page are the ones the module
+//      answers with, a request may name a built-in differ (`myers`), an unknown differ name or option comes back as an
+//      error, and a 50 000-line pair is timed in the browser (the report's `browserTiming`);
+//      the end of a long file: scrolled to the end by wheel, by the scroll bar's thumb and by the keyboard, both sides
+//      draw the last line of the 50 000-line pair, level; the pairs next to it (spacer rows at the start, a file ending
+//      with spacer rows, a short file, no spacer rows, an insertion or a deletion at the end) leave neither side blank
+//      (the report's `endOfFile`);
+//      a request before the first frame: the module on a page of its own refuses it with an error before run() and
+//      while its window opens, shows one it took before the first frame in that frame, and takes calls from inside its
+//      own callbacks; the editor page answers a request sent before its module has loaded;
+//   3. «Tools» → JSON: an error with its position, then formatting with sorted keys (the shadcn Checkbox);
+//   4. «Live review»: the companion notice;
+//   5. the default dark theme repaints the page and the editor; every part again;
+//   6. a theme that is not a default (Tokyo Night) chosen from the theme list reaches the page AND the editor (the
+//      editor's background is that theme's); every part again;
+//   7. the controls measured against gpui-kit (docs/theming-specs): sizes, radii, colours → the report's `measure`;
+//   and not a single console error or page error on the way (the CSP's violations land there too).
+// Screenshots of each step go to --shots=<dir> (docs/screenshots/extension-dna/ for the record).
+//
+// Usage:
+//   pnpm test:e2e [-- <dist>] [--shots=<dir>] [--json=<file>]
+// Needs a build (pnpm build) and Playwright with Chrome for Testing: `pnpm e2e:setup` puts both under .state/
+// (Playwright is NOT a workspace dependency, as in the second sibling extension). Elsewhere: PLAYWRIGHT_DIR=<a
+// directory with node_modules/playwright>, PLAYWRIGHT_BROWSERS_PATH=<its browsers>.
+
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+/* global document, window, addEventListener, chrome, createImageBitmap, OffscreenCanvas, getComputedStyle, location, HTMLTextAreaElement -- page.evaluate callbacks run in the pages */
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const argv = process.argv.slice(2).filter(a => a !== '--');
+const flag = name => argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3);
+const DIST = resolve(argv.find(a => !a.startsWith('--')) ?? join(ROOT, 'dist'));
+const SHOTS = flag('shots') ? resolve(flag('shots')) : null;
+const JSON_OUT = resolve(flag('json') ?? join(ROOT, '.state/e2e/report.json'));
+process.env.PLAYWRIGHT_BROWSERS_PATH ??= join(ROOT, '.state/extension-e2e/browsers');
+
+if (!existsSync(join(DIST, 'manifest.json'))) {
+  console.error(`No built extension in ${DIST} (run pnpm build, or pass the dist path).`);
+  process.exit(2);
+}
+
+const loadPlaywright = () => {
+  for (const dir of [process.env.PLAYWRIGHT_DIR, join(ROOT, '.state/e2e/node')].filter(Boolean)) {
+    try {
+      return createRequire(join(resolve(dir), 'package.json'))('playwright');
+    } catch {
+      // the next place
+    }
+  }
+  console.error('Playwright not found. Run `pnpm e2e:setup` (or set PLAYWRIGHT_DIR).');
+  process.exit(2);
+};
+const { chromium } = loadPlaywright();
+
+const report = { dist: DIST, startedAt: new Date().toISOString(), checks: [], console: [], shots: [] };
+const check = (name, ok, detail = '') => {
+  report.checks.push({ name, ok, detail });
+  console.log(`${ok ? '✓' : '✗'} ${name}${detail ? ` — ${detail}` : ''}`);
+  return ok;
+};
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+mkdirSync(join(ROOT, '.state/e2e/profiles'), { recursive: true });
+const profile = mkdtempSync(join(ROOT, '.state/e2e/profiles/run-'));
+const ctx = await chromium.launchPersistentContext(profile, {
+  channel: 'chromium',
+  headless: true,
+  ignoreDefaultArgs: ['--disable-extensions'],
+  args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`, '--lang=en-US'],
+  viewport: { width: 1440, height: 900 },
+  colorScheme: 'light',
+});
+
+// The module the extension ships (validate-build checks that dist carries exactly this wasm), on a page of its own for
+// the checks that call it directly. Served by route: nothing goes to the network.
+const MODULE_ORIGIN = 'https://review-module.test';
+const MODULE_DIR = join(ROOT, 'packages/review-wasm/pkg');
+await ctx.route(`${MODULE_ORIGIN}/**`, route => {
+  const path = new URL(route.request().url()).pathname;
+  if (path === '/') {
+    return route.fulfill({ contentType: 'text/html', body: '<!doctype html><meta charset="utf-8"><body></body>' });
+  }
+  const file = { '/review_wasm.js': 'text/javascript', '/review_wasm_bg.wasm': 'application/wasm' }[path];
+  return file
+    ? route.fulfill({ contentType: file, body: readFileSync(join(MODULE_DIR, path.slice(1))) })
+    : route.fulfill({ status: 404, body: '' });
+});
+
+const shoot = async (target, name) => {
+  if (!SHOTS) return;
+  mkdirSync(SHOTS, { recursive: true });
+  const file = join(SHOTS, name);
+  await target.screenshot({ path: file });
+  report.shots.push(file);
+};
+
+/** Pixel statistics of a PNG, decoded in a blank page (the spike's method). */
+const pixelStats = async png => {
+  const page = await ctx.newPage();
+  try {
+    return await page.evaluate(async b64 => {
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+      const canvas = new OffscreenCanvas(bmp.width, bmp.height);
+      const g = canvas.getContext('2d');
+      g.drawImage(bmp, 0, 0);
+      const { data } = g.getImageData(0, 0, bmp.width, bmp.height);
+      let green = 0;
+      let red = 0;
+      let lum = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const [r, gg, b] = [data[i], data[i + 1], data[i + 2]];
+        if (gg > r + 12 && gg > b + 4) green++;
+        if (r > gg + 12 && r > b + 12) red++;
+        lum += 0.2126 * r + 0.7152 * gg + 0.0722 * b;
+      }
+      const total = data.length / 4;
+      return {
+        greenishPct: +((green / total) * 100).toFixed(2),
+        reddishPct: +((red / total) * 100).toFixed(2),
+        meanLuminance: Math.round(lum / total),
+      };
+    }, png.toString('base64'));
+  } finally {
+    await page.close();
+  }
+};
+
+/** The most frequent colour of a PNG (`#rrggbb`) and its share — the editor's background. */
+const dominantColor = async png => {
+  const page = await ctx.newPage();
+  try {
+    return await page.evaluate(async b64 => {
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+      const canvas = new OffscreenCanvas(bmp.width, bmp.height);
+      const g = canvas.getContext('2d');
+      g.drawImage(bmp, 0, 0);
+      const { data } = g.getImageData(0, 0, bmp.width, bmp.height);
+      const counts = new Map();
+      for (let i = 0; i < data.length; i += 4) {
+        const key = (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+      const [key, n] = [...counts].sort((a, b) => b[1] - a[1])[0];
+      return { color: `#${key.toString(16).padStart(6, '0')}`, share: +(n / (data.length / 4)).toFixed(3) };
+    }, png.toString('base64'));
+  } finally {
+    await page.close();
+  }
+};
+
+/**
+ * What each half of the editor's frame shows at its bottom: the lowest row with text on it (`ink`, dark on the
+ * background), the lowest row tinted as a modified line (`blue`, a band across the pane), and how many rows are filled
+ * with anything but the background (text rows, spacer rows, tinted rows). The scroll bars at the outer edges, the
+ * divider and the module's status line are left out.
+ */
+const paneEnds = async png => {
+  const page = await ctx.newPage();
+  try {
+    return await page.evaluate(async b64 => {
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+      const canvas = new OffscreenCanvas(bmp.width, bmp.height);
+      const g = canvas.getContext('2d');
+      g.drawImage(bmp, 0, 0);
+      const { data, width, height } = g.getImageData(0, 0, bmp.width, bmp.height);
+      const at = (x, y) => {
+        const i = (y * width + x) * 4;
+        return [data[i], data[i + 1], data[i + 2]];
+      };
+      const lum = ([r, gg, b]) => 0.2126 * r + 0.7152 * gg + 0.0722 * b;
+      const bottom = height - 40;
+      const pane = (x0, x1) => {
+        const counts = new Map();
+        for (let y = 0; y < bottom; y += 2)
+          for (let x = x0; x < x1; x += 2) {
+            const key = at(x, y).join(',');
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+          }
+        const background = [...counts]
+          .sort((a, b) => b[1] - a[1])[0][0]
+          .split(',')
+          .map(Number);
+        const backgroundLum = lum(background);
+        let ink = null;
+        let blue = null;
+        let filled = 0;
+        for (let y = 0; y < bottom; y++) {
+          const row = new Map();
+          let dark = false;
+          for (let x = x0; x < x1; x++) {
+            const c = at(x, y);
+            if (lum(c) < backgroundLum - 80) dark = true;
+            const key = c.join(',');
+            row.set(key, (row.get(key) ?? 0) + 1);
+          }
+          if (dark) ink = y;
+          const [key, n] = [...row].sort((a, b) => b[1] - a[1])[0];
+          const c = key.split(',').map(Number);
+          if (n > (x1 - x0) * 0.4 && c.some((v, i) => Math.abs(v - background[i]) > 4)) {
+            filled++;
+            if (c[2] > c[0] + 8 && c[2] > c[1] + 3) blue = y;
+          }
+        }
+        return { ink, blue, filled };
+      };
+      const half = Math.floor(width / 2);
+      // The new side's scroll-bar thumb: the dark run in the frame's right-most 16 columns, from the top.
+      const backgroundLum = lum(at(width - 40, 10));
+      let thumb = null;
+      for (let x = width - 16; x < width && !thumb; x++)
+        for (let y = 0; y < bottom; y++)
+          if (lum(at(x, y)) < backgroundLum - 20) {
+            let end = y;
+            while (end + 1 < bottom && lum(at(x, end + 1)) < backgroundLum - 20) end++;
+            if (end - y >= 8) {
+              thumb = { x: x + 2, y: Math.round((y + end) / 2) };
+              break;
+            }
+            y = end;
+          }
+      return { old: pane(16, half - 4), new: pane(half + 4, width - 16), height, thumb };
+    }, png.toString('base64'));
+  } finally {
+    await page.close();
+  }
+};
+
+const hexToRgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+const near = (a, b, tolerance = 3) => hexToRgb(a).every((v, i) => Math.abs(v - hexToRgb(b)[i]) <= tolerance);
+const THEME_INDEX = JSON.parse(readFileSync(join(ROOT, 'packages/dna/themes.index.json'), 'utf8'));
+const TOKENS = JSON.parse(readFileSync(join(ROOT, 'packages/dna/tokens.json'), 'utf8'));
+const OTHER_THEME = THEME_INDEX.find(t => t.id === 'tokyo-night');
+/** `#rrggbbaa` over an opaque `#rrggbb`. */
+const over = (top, bottom) => {
+  const a = top.length === 9 ? parseInt(top.slice(7), 16) / 255 : 1;
+  const [t, b] = [hexToRgb(top.slice(0, 7)), hexToRgb(bottom)];
+  return `#${t
+    .map((v, i) =>
+      Math.round(v * a + b[i] * (1 - a))
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`;
+};
+// The editor in the wasm paints its background with gpui-kit's input_background() (the highlight theme's
+// `editor.background` is not read without tree-sitter — docs/theming.md §1.8): `--input-background` over `--background`.
+const otherTokens = TOKENS.themes[OTHER_THEME.id].tokens;
+const OTHER_EDITOR_BG = over(otherTokens['--input-background'], otherTokens['--background']);
+
+/** Box, spacing, type and colours of one element, as the browser computed them. */
+const measureOf = locator =>
+  locator.evaluate(el => {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    return {
+      width: +r.width.toFixed(2),
+      height: +r.height.toFixed(2),
+      top: +r.top.toFixed(2),
+      bottom: +r.bottom.toFixed(2),
+      paddingLeft: cs.paddingLeft,
+      paddingRight: cs.paddingRight,
+      paddingTop: cs.paddingTop,
+      borderRadius: cs.borderTopLeftRadius,
+      borderWidth: cs.borderTopWidth,
+      borderColor: cs.borderTopColor,
+      background: cs.backgroundColor,
+      color: cs.color,
+      fontFamily: cs.fontFamily.split(',')[0],
+      fontSize: cs.fontSize,
+      fontWeight: cs.fontWeight,
+      lineHeight: cs.lineHeight,
+      boxShadow: cs.boxShadow,
+      gap: cs.columnGap,
+    };
+  });
+
+/** The theme's variables as the page resolved them. */
+const tokensOf = (page, names) =>
+  page.evaluate(
+    list =>
+      Object.fromEntries(list.map(n => [n, getComputedStyle(document.documentElement).getPropertyValue(n).trim()])),
+    names,
+  );
+
+let failed = false;
+try {
+  // 1. The extension loads.
+  const sw =
+    ctx.serviceWorkers().find(w => w.url().endsWith('/service-worker-loader.js')) ??
+    (await ctx.waitForEvent('serviceworker', { timeout: 20_000 }));
+  const id = new URL(sw.url()).host;
+  check('service worker runs', true, sw.url());
+  const listens = await sw.evaluate(() => chrome.action.onClicked.hasListeners());
+  check('the service worker listens for the toolbar button', listens === true);
+
+  const extPage = await ctx.newPage();
+  await extPage.goto('chrome://extensions/');
+  const info = await extPage.evaluate(async extId => {
+    await chrome.developerPrivate.updateProfileConfiguration({ inDeveloperMode: true });
+    const all = await chrome.developerPrivate.getExtensionsInfo({ includeDisabled: true, includeTerminated: true });
+    const e = all.find(x => x.id === extId);
+    return (
+      e && {
+        name: e.name,
+        version: e.version,
+        state: e.state,
+        manifestErrors: e.manifestErrors,
+        installWarnings: e.installWarnings,
+        runtimeErrors: e.runtimeErrors,
+        permissions: e.permissions,
+      }
+    );
+  }, id);
+  await extPage.close();
+  report.extension = info;
+  check(
+    'loaded without manifest errors or install warnings',
+    !!info && info.state === 'ENABLED' && !info.manifestErrors.length && !info.installWarnings.length,
+    info ? `${info.name} ${info.version}, ${info.state}` : 'not found',
+  );
+
+  const page = await ctx.newPage();
+  page.on('console', m => {
+    if (m.type() === 'error' || m.type() === 'warning')
+      report.console.push({ type: m.type(), text: m.text(), url: m.location().url });
+  });
+  page.on('pageerror', e => report.console.push({ type: 'pageerror', text: String(e) }));
+  const base = `chrome-extension://${id}/src/app/index.html`;
+
+  const openSection = async (section, ready) => {
+    await page.goto(`${base}#/${section}`);
+    await ready();
+  };
+  const status = page.locator('.status-line');
+  const frameEl = page.locator('iframe.viewer-frame');
+  const frame = page.frameLocator('iframe.viewer-frame');
+  const editorReady = async () => {
+    await status.and(page.locator('[data-viewer-state="ready"]')).waitFor({ timeout: 30_000 });
+    await page.waitForFunction(() => Number(document.querySelector('.status-line')?.dataset.shown) > 0, null, {
+      timeout: 15_000,
+    });
+    await sleep(500); // two frames after show_diff, and the scroll sync settling
+  };
+  const toolsReady = async () => {
+    const input = page.getByLabel('Input');
+    await input.waitFor({ timeout: 5_000 });
+    await input.fill('{"name":"example","tags":["diff","tools"],"nested":{"b":2,"a":1},"ok":true}');
+    await page.getByRole('button', { name: 'Format' }).click();
+  };
+  const reviewReady = () => page.getByRole('heading', { name: 'Companion app required' }).waitFor({ timeout: 5_000 });
+  const pickFromList = async (label, option) => {
+    await page.getByLabel(label, { exact: true }).click();
+    await page.getByRole('option', { name: option, exact: true }).click();
+    await page.getByRole('listbox').waitFor({ state: 'detached', timeout: 5_000 });
+  };
+
+  // 2. Compare code — the default light theme.
+  await page.goto(`${base}#/compare`);
+  await page.waitForFunction(
+    () => document.querySelector('.status-line')?.getAttribute('data-shown-path') === 'example/new.rs',
+    null,
+    { timeout: 45_000 },
+  );
+  await editorReady();
+  check('the editor starts and shows the opening example', true, await status.innerText());
+  check(
+    'the page starts in the default light theme',
+    (await page.evaluate(() => document.documentElement.dataset.theme)) === 'default-light',
+  );
+  await shoot(page, '01-compare-light.png');
+
+  const textareaAtRest = await measureOf(page.getByLabel(/^Before/));
+  const before = Number(await status.getAttribute('data-shown'));
+  const oldText = [
+    'def greet(name):',
+    '    """Say hello."""',
+    "    print('Hello, ' + name)",
+    '',
+    'def unused():',
+    '    return None',
+    '',
+    "greet('world')",
+    '',
+  ].join('\n');
+  const newText = [
+    'def greet(name: str) -> None:',
+    '    """Say hello."""',
+    "    print(f'Hello, {name}!')",
+    '',
+    "greet('world')",
+    "greet('reviewer')",
+    '',
+  ].join('\n');
+  await page.getByLabel(/^Before/).fill(oldText);
+  await page.getByLabel(/^After/).fill(newText);
+
+  // The language list open: measured against gpui-kit's Select (docs/theming-specs/gpui-kit-form-controls.md §7).
+  // At rest first: an open list hides the rest of the page from the accessibility tree (Radix's aria-hidden).
+  const language = page.getByLabel('Language', { exact: true });
+  report.measure = {
+    theme: 'default-light',
+    tokens: await tokensOf(page, [
+      '--primary',
+      '--primary-foreground',
+      '--button',
+      '--button-foreground',
+      '--input',
+      '--input-background',
+      '--foreground',
+      '--popover',
+      '--accent',
+      '--muted-foreground',
+      '--radius-md',
+    ]),
+    buttonPrimary: await measureOf(page.getByRole('button', { name: 'Compare' })),
+    buttonGhostSmall: await measureOf(page.getByText('Open file…').first()),
+    selectTrigger: await measureOf(language),
+    selectChevron: await measureOf(language.locator('svg')),
+    textarea: textareaAtRest,
+    navItemActive: await measureOf(page.locator('.kit-nav-item[aria-current="page"]')),
+    segmentActive: await measureOf(page.getByRole('radio', { name: 'System' })),
+  };
+  await language.click();
+  const listbox = page.getByRole('listbox');
+  await listbox.waitFor({ timeout: 5_000 });
+  await sleep(250); // the 150 ms entrance
+  await page.mouse.move(0, 0);
+  const content = page.locator('[data-slot="select-content"]');
+  report.measure.selectContent = await measureOf(content);
+  report.measure.selectViewport = await measureOf(content.locator('[data-radix-select-viewport]'));
+  report.measure.selectItemChecked = await measureOf(page.getByRole('option', { name: 'Rust', exact: true }));
+  report.measure.selectItem = await measureOf(page.getByRole('option', { name: 'Python', exact: true }));
+  await page.getByRole('option', { name: 'Python', exact: true }).hover();
+  await sleep(100);
+  report.measure.selectItemHover = await measureOf(page.getByRole('option', { name: 'Python', exact: true }));
+  await shoot(page, '02-compare-language-list.png');
+  await page.getByRole('option', { name: 'Python', exact: true }).click();
+  await listbox.waitFor({ state: 'detached', timeout: 5_000 });
+  check('the language comes from the shadcn Select', (await language.innerText()).trim() === 'Python');
+
+  // What crosses the iframe boundary, recorded on both sides: the editor page's inbox, the main page's answers.
+  const viewerFrame = page.frames().find(f => f.url().endsWith('/src/viewer/index.html'));
+  await viewerFrame.evaluate(() => {
+    globalThis.__inbox = [];
+    globalThis.addEventListener('message', e => globalThis.__inbox.push(e.data));
+  });
+  await page.evaluate(() => {
+    globalThis.__answers = [];
+    globalThis.addEventListener('message', e => globalThis.__answers.push(e.data));
+  });
+  await page.getByRole('button', { name: 'Compare' }).click();
+  await page.waitForFunction(n => Number(document.querySelector('.status-line')?.dataset.shown) > n, before, {
+    timeout: 10_000,
+  });
+  await sleep(400);
+  const summary = await status.innerText();
+  check('two different texts are compared', /\d+ changes? · \+\d+ −\d+ lines/.test(summary), summary);
+  const [sent] = await viewerFrame.evaluate(() => globalThis.__inbox.filter(m => m?.type === 'viewer/compare'));
+  check(
+    'the page sends the two texts and no hunks',
+    sent?.request?.oldText === oldText &&
+      sent.request.newText === newText &&
+      sent.request.language === 'python' &&
+      !('hunks' in sent.request) &&
+      !('options' in sent.request),
+    JSON.stringify({ id: sent?.id, keys: Object.keys(sent?.request ?? {}) }),
+  );
+  const answer = (await page.evaluate(() => globalThis.__answers)).find(
+    m => m?.type === 'viewer/shown' && m.id === sent?.id,
+  )?.shown;
+  report.compareAnswer = answer;
+  check(
+    // Lines 2–6 of the old text become line 2 of the new one: one modification, not a modification and a deletion.
+    'the counts on the page are the module’s answer (Histogram: 3 changes, +3 −5)',
+    answer?.lineDiffer === 'histogram' &&
+      answer.changes === 3 &&
+      answer.added === 3 &&
+      answer.removed === 5 &&
+      summary === `${answer.changes} changes · +${answer.added} −${answer.removed} lines`,
+    JSON.stringify(answer),
+  );
+
+  // Requests the page itself never makes, sent to the editor page the way the page does: named variants as data.
+  let probeId = 1_000_000;
+  const probe = async (request, timeout = 20_000) => {
+    const id = ++probeId;
+    const started = await page.evaluate(
+      ({ id, request }) => {
+        globalThis.__answers = [];
+        const frame = document.querySelector('iframe.viewer-frame');
+        const started = performance.now();
+        frame.contentWindow.postMessage({ type: 'viewer/compare', id, request }, location.origin);
+        return started;
+      },
+      { id, request },
+    );
+    await page.waitForFunction(
+      id => globalThis.__answers.some(m => m?.id === id && (m.type === 'viewer/shown' || m.type === 'viewer/error')),
+      id,
+      { timeout },
+    );
+    const answered = await page.evaluate(() => performance.now());
+    const message = (await page.evaluate(() => globalThis.__answers)).find(m => m?.id === id);
+    return { ...message, roundTripMs: +(answered - started).toFixed(1) };
+  };
+  const pythonRequest = { path: 'probe.py', language: 'python', oldText, newText };
+  const myers = await probe({ ...pythonRequest, options: { lineDiffer: 'myers' } });
+  check(
+    'a request can name a built-in differ (myers)',
+    myers.type === 'viewer/shown' && myers.shown.lineDiffer === 'myers' && myers.shown.changes === 3,
+    JSON.stringify(myers.shown ?? myers),
+  );
+  const shownBefore = await status.getAttribute('data-shown');
+  const unknown = await probe({ ...pythonRequest, options: { lineDiffer: 'nope' } });
+  check(
+    'an unknown differ name is an error reported to the page, not a fallback',
+    unknown.type === 'viewer/error' &&
+      unknown.message.includes('unknown lineDiffer "nope"; built in: histogram, myers') &&
+      !(await page.evaluate(() => globalThis.__answers)).some(m => m?.type === 'viewer/shown'),
+    unknown.message,
+  );
+  const typo = await probe({ ...pythonRequest, options: { lineDifer: 'myers' } });
+  check(
+    'an unknown option is refused too',
+    typo.type === 'viewer/error' && typo.message.includes('unknown field `lineDifer`'),
+    typo.message,
+  );
+  check(
+    'the page ignores answers to requests it did not make',
+    (await status.getAttribute('data-shown')) === shownBefore,
+  );
+
+  // The cost of the comparison on the editor page's thread: a 50 000-line pair, unique lines, in every thousand a
+  // modification, a deletion and an insertion (crates/review-view/examples/measure.rs times the same pair natively).
+  const [bigOld, bigNew] = await page.evaluate(lines => {
+    const base = i => `    let value_${i} = compute(${i}, "row ${i}");`;
+    const before = [];
+    const after = [];
+    for (let i = 0; i < lines; i++) {
+      before.push(base(i));
+      const k = i % 1000;
+      if (k === 100) after.push(`    let value_${i} = compute(${i}, "row ${i}") + 1;`);
+      else if (k === 400) continue;
+      else if (k === 700) after.push(base(i), `    log("inserted after ${i}");`);
+      else after.push(base(i));
+    }
+    return [before.join('\n') + '\n', after.join('\n') + '\n'];
+  }, 50_000);
+  report.browserTiming = { lines: 50_000, bytes: [bigOld.length, bigNew.length], runs: {} };
+  for (const lineDiffer of ['histogram', 'myers']) {
+    const runs = [];
+    for (let run = 0; run < 5; run++) {
+      const result = await probe({
+        path: 'large.rs',
+        language: 'text',
+        oldText: bigOld,
+        newText: bigNew,
+        options: { lineDiffer },
+      });
+      runs.push({
+        changes: result.shown?.changes,
+        compareMs: result.shown?.compareMs,
+        roundTripMs: result.roundTripMs,
+      });
+    }
+    report.browserTiming.runs[lineDiffer] = runs;
+  }
+  const median = values => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
+  const timing = Object.fromEntries(
+    Object.entries(report.browserTiming.runs).map(([name, runs]) => [
+      name,
+      {
+        compareMs: +median(runs.map(r => r.compareMs)).toFixed(1),
+        roundTripMs: median(runs.map(r => r.roundTripMs)),
+      },
+    ]),
+  );
+  report.browserTiming.median = timing;
+  check(
+    'a 50 000-line pair is compared in the browser (150 changes)',
+    Object.values(report.browserTiming.runs).every(runs => runs.every(r => r.changes === 150)),
+    Object.entries(timing)
+      .map(([name, t]) => `${name}: compare ${t.compareMs} ms, request to answer ${t.roundTripMs} ms`)
+      .join('; '),
+  );
+  // The same pair through the page itself: the fields, the button, the counts on the status line.
+  // Typing 2.5 MB through `fill` takes longer than the timeout; the value is set the way React's onChange sees it.
+  const setField = (label, value) =>
+    page.getByLabel(label).evaluate((el, text) => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, text);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }, value);
+  const compareThroughPage = async (before, after) => {
+    await setField(/^Before/, before);
+    await setField(/^After/, after);
+    const n = Number(await status.getAttribute('data-shown'));
+    await page.getByRole('button', { name: 'Compare' }).click();
+    await page.waitForFunction(n => Number(document.querySelector('.status-line')?.dataset.shown) > n, n, {
+      timeout: 20_000,
+    });
+    await sleep(400);
+    return status.innerText();
+  };
+  const bigSummary = await compareThroughPage(bigOld, bigNew);
+  check(
+    'the page shows the module’s counts for the large pair',
+    bigSummary === '150 changes · +100 −100 lines',
+    bigSummary,
+  );
+  // Scroll the editor to the first changes (rows 100–130): both sides move together, the rows stay level.
+  const box = await frameEl.boundingBox();
+  await page.mouse.move(box.x + box.width * 0.75, box.y + box.height / 2);
+  await page.mouse.wheel(0, 1980);
+  await sleep(600);
+  await shoot(page, '13-compare-50000-lines.png');
+  // The end of a long file. The view keeps both sides level with blank spacer rows; the editor once laid out the rows
+  // of its viewport as if those rows were not there, so at the end of a long file it drew too few lines, or none
+  // (docs/extension-structure.md §11.8). The large pair with its last line modified: that line's tint must stand at
+  // the bottom of both sides, on one row, however the side is scrolled to the end.
+  const scrollToEnd = async how => {
+    const frameBox = await frameEl.boundingBox();
+    const right = { x: frameBox.x + frameBox.width * 0.75, y: frameBox.y + frameBox.height / 2 };
+    if (how === 'wheel') {
+      await page.mouse.move(right.x, right.y);
+      for (let i = 0; i < 30; i++) await page.mouse.wheel(0, 100_000);
+    } else if (how === 'top') {
+      await page.mouse.move(right.x, right.y);
+      for (let i = 0; i < 30; i++) await page.mouse.wheel(0, -100_000);
+    } else if (how === 'drag') {
+      // The thumb of the new side's scroll bar, at the top of the track at the frame's right edge. A turn of the wheel
+      // shows the bar; the frame's pixels tell where the thumb is. Then the thumb is dragged past the track's end.
+      await page.mouse.move(right.x, right.y);
+      await page.mouse.wheel(0, 200);
+      await sleep(150);
+      const found = (await paneEnds(await frameEl.screenshot())).thumb;
+      report.endOfFile.dragThumb = found;
+      const thumb = found
+        ? { x: frameBox.x + found.x, y: frameBox.y + found.y }
+        : { x: frameBox.x + frameBox.width - 8, y: frameBox.y + 20 };
+      await page.mouse.move(thumb.x, thumb.y, { steps: 3 });
+      await page.mouse.down();
+      await page.mouse.move(thumb.x, frameBox.y + frameBox.height + 40, { steps: 20 });
+      await page.mouse.up();
+    } else {
+      // The editor in wasm takes the bindings of a platform other than macOS.
+      await page.mouse.click(right.x, right.y);
+      await page.keyboard.press('Control+End');
+    }
+    await sleep(700);
+  };
+  const endPair = [bigOld, bigNew.replace(/\);\n$/, ') + 1;\n')];
+  report.endOfFile = {};
+  for (const how of ['wheel', 'drag', 'keys']) {
+    const shown = await probe({ path: 'large-end.rs', language: 'text', oldText: endPair[0], newText: endPair[1] });
+    await sleep(400);
+    // A new comparison keeps the offset the editors had; each way starts from the top.
+    const thumbAtShow = (await paneEnds(await frameEl.screenshot())).thumb;
+    await scrollToEnd('top');
+    await scrollToEnd(how);
+    const ends = await paneEnds(await frameEl.screenshot());
+    report.endOfFile[how] = { ...ends, thumbAtShow };
+    await shoot(page, `15-end-of-large-pair-${how}.png`);
+    check(
+      `scrolled to the end by ${how}, the last line of the 50 000-line pair is drawn on both sides, level`,
+      shown.shown?.changes === 151 &&
+        ends.old.blue !== null &&
+        ends.new.blue !== null &&
+        Math.abs(ends.old.blue - ends.new.blue) <= 1,
+      `the last line's tint ends at y=${ends.old.blue} (old) and y=${ends.new.blue} (new) of ${ends.height}; ` +
+        `text ends at y=${ends.old.ink} and y=${ends.new.ink}`,
+    );
+  }
+  // The cases next to it, each scrolled to the end by the wheel: spacer rows at the very start, a file that ends with
+  // a spacer block (no newline at the end), a file shorter than the editor, no spacer rows at all, a pure insertion
+  // and a pure deletion at the end, and 60 deleted lines 40 lines before the end (crates/review-view/examples/window.rs
+  // has the same pairs). Neither side may be blank at the end.
+  const numbered = (from, to) =>
+    Array.from({ length: to - from }, (_, k) => `    let value_${from + k} = compute(${from + k}, "row ${from + k}");`);
+  const lines = list => list.join('\n') + '\n';
+  const added = n => Array.from({ length: n }, (_, k) => `    // added ${k}`);
+  const shortNew = numbered(0, 10);
+  shortNew.splice(3, 1);
+  shortNew.splice(6, 0, ...added(3));
+  const endCases = {
+    'delete-near-end': [lines(numbered(0, 50_000)), lines([...numbered(0, 49_900), ...numbered(49_960, 50_000)])],
+    'delete-end': [lines(numbered(0, 50_000)), lines(numbered(0, 49_940))],
+    'insert-end': [lines(numbered(0, 49_940)), lines(numbered(0, 50_000))],
+    start: [lines(numbered(0, 2_000)), lines([...added(60), ...numbered(0, 2_000)])],
+    'end-block': [numbered(0, 2_000).join('\n'), numbered(0, 2_060).join('\n')],
+    short: [lines(numbered(0, 10)), lines(shortNew)],
+    'no-spacers': [
+      lines(numbered(0, 2_000)),
+      lines(numbered(0, 2_000).map((l, i) => (i % 100 === 50 ? `${l} // changed` : l))),
+    ],
+  };
+  for (const [name, [before, after]] of Object.entries(endCases)) {
+    await probe({ path: `${name}.rs`, language: 'text', oldText: before, newText: after });
+    await sleep(400);
+    await scrollToEnd('wheel');
+    const ends = await paneEnds(await frameEl.screenshot());
+    report.endOfFile[name] = ends;
+    await shoot(page, `16-end-${name}.png`);
+    // Text, or a band of spacer or changed rows; a stray line of a border is neither.
+    const drawn = side => side.ink !== null || side.filled > 4;
+    check(
+      `the end of ${name}.rs is drawn on both sides`,
+      drawn(ends.old) && drawn(ends.new),
+      `old: text to y=${ends.old.ink}, ${ends.old.filled} filled rows; new: text to y=${ends.new.ink}, ` +
+        `${ends.new.filled} filled rows`,
+    );
+  }
+  // Back to the two texts, for the screenshot of them.
+  await compareThroughPage(oldText, newText);
+  const light = await pixelStats(await frameEl.screenshot());
+  report.compareLight = light;
+  check(
+    'the editor shows a coloured diff (added green, removed red)',
+    light.greenishPct > 0.5 && light.reddishPct > 0.2,
+    JSON.stringify(light),
+  );
+  await shoot(page, '03-compare-two-texts.png');
+
+  // 2b. A request that arrives before the editor's first frame. The module first, called as early as a page can call
+  // it: on a page of its own (the module files served by route, never fetched from the network).
+  const earlyRequest = { path: 'early.py', language: 'python', oldText, newText };
+  const moduleRun = async (body, shot) => {
+    const modulePage = await ctx.newPage();
+    const messages = [];
+    modulePage.on('console', m => messages.push(`${m.type()}: ${m.text()}`));
+    modulePage.on('pageerror', e => messages.push(`pageerror: ${e}`));
+    await modulePage.goto(`${MODULE_ORIGIN}/`);
+    try {
+      const result = await modulePage.evaluate(body, earlyRequest);
+      await sleep(600);
+      const pixels = shot ? await pixelStats(await modulePage.screenshot()) : null;
+      if (shot) await shoot(modulePage, shot);
+      return { ...result, pixels, panics: messages.filter(m => /panicked|RuntimeError|unreachable/.test(m)) };
+    } finally {
+      await modulePage.close();
+    }
+  };
+  // Before init, after init, right after run(), then every task until the module takes the request.
+  const polled = await moduleRun(async request => {
+    const events = [];
+    globalThis.__reviewEvent = (name, detail) => events.push({ name, detail, at: performance.now() });
+    const m = await import('/review_wasm.js');
+    const attempt = () => {
+      try {
+        m.compare_texts(JSON.stringify(request));
+        return null;
+      } catch (error) {
+        return String(error);
+      }
+    };
+    const beforeInit = attempt();
+    await m.default({ module_or_path: '/review_wasm_bg.wasm' });
+    const beforeRun = attempt();
+    m.run(JSON.stringify({}));
+    const afterRun = attempt();
+    const tick = () =>
+      new Promise(resolve => {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = () => resolve();
+        channel.port2.postMessage(0);
+      });
+    let refused = 0;
+    let lastRefusal = null;
+    for (let i = 0; i < 20_000; i++) {
+      await tick();
+      const error = attempt();
+      if (!error) break;
+      refused++;
+      lastRefusal = error;
+    }
+    const acceptedAt = performance.now();
+    const firstFrameBefore = events.some(e => e.name === 'first-frame');
+    while (!events.some(e => e.name === 'first-frame') && performance.now() - acceptedAt < 10_000) await tick();
+    return {
+      beforeInit,
+      beforeRun,
+      afterRun,
+      refused,
+      lastRefusal,
+      acceptedBeforeFirstFrame: !firstFrameBefore,
+      events: events.map(e => ({ name: e.name, detail: e.detail })),
+    };
+  }, '14-module-request-before-first-frame.png');
+  report.earlyModule = polled;
+  const polledShown = polled.events.find(e => e.name === 'shown');
+  check(
+    'the module refuses a request before run() with an error, never a panic',
+    /__wbindgen|undefined/.test(polled.beforeInit ?? '') &&
+      polled.beforeRun === 'compare_texts: the window is not open yet' &&
+      polled.afterRun === 'compare_texts: the window is not open yet' &&
+      polled.panics.length === 0,
+    JSON.stringify({ beforeInit: polled.beforeInit, beforeRun: polled.beforeRun, afterRun: polled.afterRun }),
+  );
+  check(
+    'a request the module takes before its first frame is shown in that frame',
+    polled.acceptedBeforeFirstFrame &&
+      JSON.parse(polledShown?.detail ?? '{}').changes === 3 &&
+      polled.events.map(e => e.name).join(',') === 'shown,first-frame' &&
+      polled.pixels.greenishPct > 0.5,
+    `refused ${polled.refused}× while the window opened; then ${polled.events.map(e => e.name).join(' → ')}; ` +
+      JSON.stringify(polled.pixels),
+  );
+  // From inside the module's own callbacks: `first-frame` and `shown` reach the page after the module's call returns,
+  // so the page may answer synchronously with another export.
+  const nested = await moduleRun(async request => {
+    const events = [];
+    const results = [];
+    const m = await import('/review_wasm.js');
+    globalThis.__reviewEvent = (name, detail) => {
+      events.push(name === 'shown' ? `shown ${JSON.parse(detail).path}` : name);
+      const next =
+        name === 'first-frame' ? 'from-first-frame.py' : detail.includes('from-first-frame') ? 'from-shown.py' : null;
+      if (!next) return;
+      try {
+        m.compare_texts(JSON.stringify({ ...request, path: next }));
+        results.push(`${next}: ok`);
+      } catch (error) {
+        results.push(`${next}: ${error}`);
+      }
+    };
+    await m.default({ module_or_path: '/review_wasm_bg.wasm' });
+    m.run(JSON.stringify({}));
+    const started = performance.now();
+    while (!events.includes('shown from-shown.py') && performance.now() - started < 10_000)
+      await new Promise(resolve => setTimeout(resolve, 20));
+    return { events, results };
+  });
+  report.earlyNested = nested;
+  check(
+    'the page may call the module from inside its first-frame and shown callbacks',
+    nested.events.join(',') === 'first-frame,shown from-first-frame.py,shown from-shown.py' &&
+      [...nested.results].sort().join(',') === 'from-first-frame.py: ok,from-shown.py: ok' &&
+      nested.panics.length === 0,
+    `${nested.events.join(' → ')}; ${nested.results.join(', ')}${nested.panics.length ? `; ${nested.panics[0]}` : ''}`,
+  );
+
+  // Then the editor page of the extension, asked before its module has even loaded: the main page posts the request
+  // the moment the editor page's script has run (its DOMContentLoaded, seen from inside the frame), long before the
+  // first frame and `viewer/ready`. A message posted before any script of the page runs has no listener to reach.
+  const earlyPage = await ctx.newPage();
+  earlyPage.on('pageerror', e => report.console.push({ type: 'pageerror', text: String(e) }));
+  await earlyPage.addInitScript(request => {
+    if (window === window.top) {
+      globalThis.__answers = [];
+      addEventListener('message', e => globalThis.__answers.push({ ...e.data, at: performance.now() }));
+      // Called from the frame; runs in this (the parent's) realm, so the message's source is the parent window.
+      globalThis.__postEarly = () => {
+        const target = document.querySelector('iframe.viewer-frame').contentWindow;
+        globalThis.__earlySent = { at: performance.now(), readyState: target.document.readyState };
+        target.postMessage({ type: 'viewer/compare', id: 777, request }, location.origin);
+      };
+    } else if (location.pathname.endsWith('/src/viewer/index.html')) {
+      addEventListener('DOMContentLoaded', () => window.parent.__postEarly(), { once: true });
+    }
+  }, earlyRequest);
+  await earlyPage.goto(`${base}#/compare`);
+  const early = await earlyPage
+    .waitForFunction(() => globalThis.__answers.some(m => m.id === 777), null, { timeout: 30_000 })
+    .then(() => earlyPage.evaluate(() => ({ sent: globalThis.__earlySent, answers: globalThis.__answers })))
+    .catch(async () => ({
+      timedOut: true,
+      ...(await earlyPage.evaluate(() => ({ sent: globalThis.__earlySent, answers: globalThis.__answers }))),
+    }));
+  await earlyPage.close();
+  const earlyAnswer = early.answers?.find(m => m.id === 777);
+  const readyAt = early.answers?.find(m => m.type === 'viewer/ready')?.at;
+  report.earlyPage = { sent: early.sent, answer: earlyAnswer, readyAt, timedOut: !!early.timedOut };
+  check(
+    'the editor page answers a request sent before its module loaded',
+    !early.timedOut &&
+      early.sent?.at < readyAt &&
+      earlyAnswer?.type === 'viewer/shown' &&
+      earlyAnswer.shown.path === 'early.py' &&
+      earlyAnswer.shown.changes === 3,
+    early.timedOut
+      ? `no answer in 30 s (sent at ${early.sent?.at?.toFixed(0)} ms, page ${early.sent?.readyState}; ` +
+          `viewer/ready at ${readyAt?.toFixed(0)} ms)`
+      : `sent at ${early.sent.at.toFixed(0)} ms (${early.sent.readyState}), viewer/ready at ${readyAt.toFixed(0)} ms, ` +
+          `answered at ${earlyAnswer?.at.toFixed(0)} ms: ${JSON.stringify(earlyAnswer?.shown ?? earlyAnswer)}`,
+  );
+
+  // 3. Tools → JSON.
+  await page.goto(`${base}#/tools/json`);
+  const input = page.getByLabel('Input');
+  await input.fill('{"name": "gpui", "tags": ["diff", "tools",], "ok": true}');
+  const invalid = await page.locator('.validity').first().innerText();
+  check('JSON: an error with its position', /Line 1, column 43: trailing comma/.test(invalid), invalid);
+  await input.fill('{"name":"example","tags":["diff","tools"],"nested":{"b":2,"a":1},"ok":true}');
+  await page.getByLabel('Sort keys').check();
+  await page.getByRole('button', { name: 'Format' }).click();
+  const formatted = await page.getByLabel('Result').inputValue();
+  check(
+    'JSON: format with sorted keys',
+    formatted.includes('"nested": {\n    "a": 1,\n    "b": 2\n  }') &&
+      formatted.indexOf('"ok"') < formatted.indexOf('"tags"'),
+  );
+  await page.mouse.move(0, 0);
+  await sleep(400); // the checkbox's 180 ms colour transition
+  report.measure.buttonOutline = await measureOf(page.getByRole('button', { name: 'Minify' }));
+  report.measure.checkboxChecked = await measureOf(page.getByLabel('Sort keys'));
+  report.measure.listItemActive = await measureOf(page.locator('.kit-list-item[aria-current="page"]'));
+  await shoot(page, '04-tools-light.png');
+
+  // 4. Live review.
+  await openSection('review', reviewReady);
+  check('live review shows the companion notice', true);
+  await shoot(page, '05-review-light.png');
+
+  // 5. The default dark theme: the page and the editor follow the switch (through chrome.storage).
+  await openSection('compare', editorReady);
+  const lightExample = await pixelStats(await frameEl.screenshot());
+  await page.getByRole('radio', { name: 'Dark' }).click();
+  await frame.locator('html[data-mode="dark"]').waitFor({ timeout: 5_000 });
+  await sleep(500);
+  const dark = await pixelStats(await frameEl.screenshot());
+  report.compareDark = dark;
+  const pageDark = await page.evaluate(() => document.documentElement.dataset.theme);
+  check(
+    'the dark theme repaints the page and the editor',
+    pageDark === 'default-dark' && dark.meanLuminance < lightExample.meanLuminance - 60 && dark.greenishPct > 0.2,
+    `page ${pageDark}; editor luminance ${lightExample.meanLuminance} → ${dark.meanLuminance}`,
+  );
+  await shoot(page, '06-compare-dark.png');
+  await openSection('tools/json', toolsReady);
+  await shoot(page, '07-tools-dark.png');
+  await openSection('review', reviewReady);
+  await shoot(page, '08-review-dark.png');
+
+  // 6. A theme that is not a default, from the list: the page and the editor (with gpui-kit's theme file).
+  await openSection('compare', editorReady);
+  await page.getByLabel('Dark theme', { exact: true }).click();
+  await page.getByRole('listbox').waitFor({ timeout: 5_000 });
+  await sleep(250);
+  const darkOptions = await page.getByRole('option').count();
+  await shoot(page, '09-theme-list-open.png');
+  check(
+    'the dark theme list offers every dark theme of themes.index.json',
+    darkOptions === THEME_INDEX.filter(t => t.mode === 'dark').length,
+    `${darkOptions} options`,
+  );
+  await page.getByRole('option', { name: OTHER_THEME.name, exact: true }).click();
+  await frame.locator(`html[data-theme="${OTHER_THEME.id}"]`).waitFor({ timeout: 5_000 });
+  await sleep(800);
+  const pageOther = await page.evaluate(() => document.documentElement.dataset.theme);
+  const editorBg = await dominantColor(await frameEl.screenshot());
+  report.otherTheme = { id: OTHER_THEME.id, page: pageOther, editorDominant: editorBg, expected: OTHER_EDITOR_BG };
+  check(
+    `a theme from the list (${OTHER_THEME.name}) reaches the page and the editor`,
+    pageOther === OTHER_THEME.id && near(editorBg.color, OTHER_EDITOR_BG),
+    `page ${pageOther}; editor background ${editorBg.color} (${Math.round(editorBg.share * 100)} % of the frame), ` +
+      `the theme's input_background over background ${OTHER_EDITOR_BG}`,
+  );
+  await shoot(page, '10-compare-tokyo-night.png');
+  await openSection('tools/json', toolsReady);
+  await shoot(page, '11-tools-tokyo-night.png');
+  await openSection('review', reviewReady);
+  await shoot(page, '12-review-tokyo-night.png');
+
+  // Back to the defaults for the next run's profile (each run has its own profile; this only tidies the report).
+  await pickFromList('Dark theme', 'Default Dark');
+  await page.getByRole('radio', { name: 'System' }).click();
+
+  // The service worker's own errors, after everything ran.
+  const after = await (async () => {
+    const p = await ctx.newPage();
+    await p.goto('chrome://extensions/');
+    const e = await p.evaluate(
+      async extId =>
+        (await chrome.developerPrivate.getExtensionsInfo({ includeDisabled: true })).find(x => x.id === extId),
+      id,
+    );
+    await p.close();
+    return e;
+  })();
+  check(
+    'no runtime errors recorded for the extension',
+    !after?.runtimeErrors?.length,
+    JSON.stringify(after?.runtimeErrors ?? []),
+  );
+
+  const errors = report.console.filter(m => m.type !== 'warning');
+  check('no console errors or page errors', errors.length === 0, errors.map(e => e.text).join(' | '));
+  const warnings = report.console.filter(m => m.type === 'warning');
+  if (warnings.length) console.log(`  (console warnings: ${warnings.map(w => w.text).join(' | ')})`);
+} catch (error) {
+  check('the run finished', false, String(error?.stack ?? error));
+} finally {
+  await ctx.close();
+  rmSync(profile, { recursive: true, force: true });
+  failed = report.checks.some(c => !c.ok);
+  report.ok = !failed;
+  mkdirSync(dirname(JSON_OUT), { recursive: true });
+  writeFileSync(JSON_OUT, JSON.stringify(report, null, 2) + '\n');
+  console.log(`\n${failed ? 'E2E FAILED' : 'E2E PASSED'} — report: ${JSON_OUT}`);
+}
+process.exit(failed ? 1 : 0);
