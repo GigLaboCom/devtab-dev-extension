@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+#
+# Pre-commit: no secrets and no private data in what is about to be committed.
+#
+#   1. Files that stay local never get staged: the developer documents (docs/, their own repository) and the
+#      experiments linked into this checkout (spikes, inside docs/), personal agent settings and .env files.
+#   2. Added lines carry no absolute home paths (/Users/Shared/ names no one and is allowed), no address of the
+#      global git identity, and nothing that matches the private list in <git common dir>/info/privacy-patterns
+#      (one extended regex per line, matched without case; never tracked, so the patterns stay private).
+#   3. The author is not the global git address (this repository commits under its own local identity).
+#   4. gitleaks scans the staged changes for secrets (.gitleaks.toml). It is required: without it the commit is
+#      refused.
+#
+# Install once: scripts/install-hooks.sh. To skip it deliberately: git commit --no-verify.
+
+set -euo pipefail
+
+# shellcheck source=lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+failed=0
+say() { echo "pre-commit: $*" >&2; }
+
+staged="$(git diff --cached --name-only --diff-filter=ACMR)"
+
+# 1. Local-only files.
+blocked='^(docs|spikes)(/|$)|(^|/)CLAUDE\.local\.md$|^\.claude/settings(\.local)?\.json$|(^|/)\.env(\..*)?$'
+if blocked_files="$(printf '%s\n' "$staged" | grep -E "$blocked")"; then
+  say "files that stay local are staged:"
+  printf '  %s\n' $blocked_files >&2
+  failed=1
+fi
+
+# 2. Private data in added lines.
+builtin_patterns
+private=()
+while IFS= read -r line; do
+  private+=("$line")
+  patterns+=("$line")
+  labels+=("private pattern ${#private[@]}")
+done < <(private_patterns)
+
+while IFS= read -r file; do
+  [[ -z "$file" ]] && continue
+  added="$(git diff --cached -U0 --no-color -- "$file" | grep -E '^\+' | grep -vE '^\+\+\+ ' |
+    sed 's#/Us''ers/Shared/##g' || true)"
+  [[ -z "$added" ]] && continue
+  for i in "${!patterns[@]}"; do
+    if printf '%s\n' "$added" | grep -qiE -- "${patterns[$i]}"; then
+      say "$file adds ${labels[$i]}"
+      failed=1
+    fi
+  done
+done <<<"$staged"
+
+# 3. The author's identity.
+author_email="$(git var GIT_AUTHOR_IDENT | sed -E 's/^.* <([^>]*)>.*$/\1/')"
+if [[ -n "$global_email" && "$author_email" == "$global_email" ]]; then
+  say "the author is the global git address: set this repository's own identity"
+  say "(git config user.name …; git config user.email …) and commit again"
+  failed=1
+fi
+
+# 4. Secrets.
+if gitleaks="$(find_gitleaks)"; then
+  config=()
+  [[ -f "$root/.gitleaks.toml" ]] && config=(--config "$root/.gitleaks.toml")
+  if ! "$gitleaks" git --staged --no-banner --redact --log-level warn "${config[@]+"${config[@]}"}" "$root" >&2; then
+    say "gitleaks found a possible secret"
+    failed=1
+  fi
+else
+  gitleaks_missing | sed 's/^/pre-commit: /' >&2
+  failed=1
+fi
+
+if [[ $failed -ne 0 ]]; then
+  say "commit refused"
+  exit 1
+fi

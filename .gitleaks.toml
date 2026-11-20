@@ -1,0 +1,18 @@
+# gitleaks configuration for the hooks (.githooks/pre-commit, .githooks/pre-push).
+# https://github.com/gitleaks/gitleaks
+
+title = "extension gitleaks config"
+
+[extend]
+# The default rules.
+useDefault = true
+
+[allowlist]
+description = "Build output, lockfiles and binary assets"
+paths = [
+  '''(^|/)target/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)Cargo\.lock$''',
+  '''(^|/)pnpm-lock\.yaml$''',
+  '''\.(webp|png|jpg|svg|ttf|woff2|wasm)$''',
+]

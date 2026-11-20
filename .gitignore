@@ -1,0 +1,38 @@
+target/
+.state/
+vendor/openidea-server/*/openidea-server
+vendor/openidea-server/*/*.gz
+# gpui-kit at the pinned revision with vendor/gpui-kit/patches applied, made by vendor/gpui-kit/prepare.sh
+vendor/gpui-kit/checkout/
+*.log
+
+# extension workspace (pnpm + turbo), appended to the existing rules
+node_modules/
+dist/
+dist-zip/
+.vite/
+.turbo/
+.env
+packages/*/dist/
+*.tsbuildinfo
+.DS_Store
+# the prebuilt editor module, copied from crates/review-wasm/pkg by packages/review-wasm/scripts/sync.sh
+packages/review-wasm/pkg/
+# the Rust workspace (crates/): build output of crates/review-wasm/build.sh and the wasm-bindgen CLI it installs;
+# crates/target is covered by target/ above
+crates/review-wasm/pkg/
+crates/.tools/
+
+# The built showcase page of the style package (pnpm --filter @workspace/dna showcase)
+packages/dna/showcase/dist
+
+# The developer documents (docs/): decisions, the plan, research, tool specifications, screenshots and the
+# experiments (docs/spikes/). Their own private repository, never this one's: scripts/docs-checkout.sh puts it
+# here. spikes is a link to docs/spikes, so the paths spikes/… in comments and documents still resolve. No
+# trailing slash: in a linked worktree both are links.
+/docs
+/spikes
+
+# Personal agent and editor settings
+.claude/settings.local.json
+CLAUDE.local.md
