@@ -303,3 +303,29 @@ export const zoneLongName = (epochMs: number, timeZone: string): string =>
   cached(nameFormats, timeZone, { timeZoneName: 'long' })
     .formatToParts(Math.floor(epochMs))
     .find(part => part.type === 'timeZoneName')?.value ?? '';
+
+/**
+ * A row of a time zone picker (unix-time.md §8; cron.md §8): the name, its offset at the instant shown, and what else
+ * finds it. Moved here from the Unix Time tool unchanged when Cron needed the same picker (2026-11-21).
+ */
+export interface ZoneOption {
+  value: string;
+  label: string;
+  /** "UTC+05:30" at the instant. */
+  hint: string;
+  /** The old name of LEGACY_ZONE_NAMES and the English long name: "Asia/Calcutta India Standard Time". */
+  keywords: string;
+}
+
+let oldNames: Map<string, string> | undefined;
+
+/** Every zone of `timeZones()` for the picker, its offset and long name at the instant (computed when it opens). */
+export const zoneOptions = (epochMs: number): ZoneOption[] => {
+  oldNames ??= new Map(Object.entries(LEGACY_ZONE_NAMES).map(([old, current]) => [current, old]));
+  return timeZones().map(zone => ({
+    value: zone,
+    label: zone,
+    hint: `UTC${formatOffset(zoneOffsetMs(epochMs, zone))}`,
+    keywords: [oldNames!.get(zone), zoneLongName(epochMs, zone)].filter(Boolean).join(' '),
+  }));
+};

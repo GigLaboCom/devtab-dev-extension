@@ -12,9 +12,7 @@ import {
   formatOffset,
   formatReadable,
   formatYear,
-  LEGACY_ZONE_NAMES,
   relativeTime,
-  timeZones,
   zoneLongName,
   zoneOffsetMs,
 } from '@workspace/tools-shared/time';
@@ -122,28 +120,9 @@ export const zoneSummary = (epochNs: bigint, timeZone: string): string => {
 export const relativeOf = (epochNs: bigint, nowMs: number): string =>
   relativeTime(Number(floorDiv(epochNs, 1_000_000n)), nowMs);
 
-/** A row of the zone picker (§8): the name, its offset at the instant shown, and what else finds it. */
-export interface ZoneOption {
-  value: string;
-  label: string;
-  /** "UTC+05:30" at the instant. */
-  hint: string;
-  /** The old name of LEGACY_ZONE_NAMES and the English long name: "Asia/Calcutta India Standard Time". */
-  keywords: string;
-}
-
-let oldNames: Map<string, string> | undefined;
-
-/** Every zone of `timeZones()` for the picker, its offset and long name at the instant (computed when it opens). */
-export const zoneOptions = (epochMs: number): ZoneOption[] => {
-  oldNames ??= new Map(Object.entries(LEGACY_ZONE_NAMES).map(([old, current]) => [current, old]));
-  return timeZones().map(zone => ({
-    value: zone,
-    label: zone,
-    hint: `UTC${formatOffset(zoneOffsetMs(epochMs, zone))}`,
-    keywords: [oldNames!.get(zone), zoneLongName(epochMs, zone)].filter(Boolean).join(' '),
-  }));
-};
+/** The zone picker's rows (§8): moved to the shared time module when Cron needed the same picker (2026-11-21). */
+export { zoneOptions } from '@workspace/tools-shared/time';
+export type { ZoneOption } from '@workspace/tools-shared/time';
 
 /** §5.7: what Now writes — milliseconds for Auto and Milliseconds, whole seconds, or milliseconds with zeros. */
 export const nowText = (nowMs: number, unit: UnitOption): string => {

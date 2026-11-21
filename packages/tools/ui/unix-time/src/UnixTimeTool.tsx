@@ -10,7 +10,6 @@
  * snapshot (`change`); Now and a copied row are commits; an entry the host opens comes back as the field, the unit and
  * the zone.
  */
-import { Combobox } from './Combobox';
 import { convertDraft, readConvertPayload } from './entries';
 import { unixTimeHistory } from './history';
 import { EmptyResults, FixedResults, LiveResults, LiveZoneLine, ZoneLine } from './Results';
@@ -25,15 +24,16 @@ import {
 } from '@workspace/tool-logic-unix-time';
 import { useRestore, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
+import { Combobox } from '@workspace/ui/combobox';
 import { Input } from '@workspace/ui/input';
 import { Label } from '@workspace/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
 import { ToolMessage, ToolOptions } from '@workspace/ui/tool-page';
 import { useEffect, useRef, useState } from 'react';
-import type { ComboboxRows } from './Combobox';
 import type { ConvertPayload } from './entries';
 import type { ParsedInput, UnitOption } from '@workspace/tool-logic-unix-time';
 import type { HistoryDraft, ToolProps } from '@workspace/tools-host';
+import type { ComboboxRows } from '@workspace/ui/combobox';
 import type { ReactElement } from 'react';
 
 const UNITS: Array<{ value: UnitOption; label: string }> = [

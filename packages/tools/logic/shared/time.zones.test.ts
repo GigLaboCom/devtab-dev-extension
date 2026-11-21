@@ -18,6 +18,7 @@ import {
   wallTimeToEpochMs,
   zoneLongName,
   zoneOffsetMs,
+  zoneOptions,
 } from './time';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { WallClock } from './time';
@@ -244,6 +245,19 @@ describe('the zone list and names (§5.4)', () => {
     expect(zoneLongName(1_700_000_000_000, 'Australia/Lord_Howe')).toBe('Lord Howe Daylight Time');
     expect(zoneLongName(Date.UTC(1960, 0, 1, 12), 'Africa/Monrovia')).toBe('GMT-00:44:30');
     expect(zoneLongName(0, 'UTC')).toBe('Coordinated Universal Time');
+  });
+
+  it('the picker rows: every listed zone with its offset at the instant, found by its old and long names', () => {
+    const rows = zoneOptions(1_700_000_000_000);
+    expect(rows.map(r => r.value)).toEqual(timeZones());
+    expect(rows[0]).toEqual({ value: 'UTC', label: 'UTC', hint: 'UTC+00:00', keywords: 'Coordinated Universal Time' });
+    expect(rows.find(r => r.value === 'Asia/Kolkata')).toEqual({
+      value: 'Asia/Kolkata',
+      label: 'Asia/Kolkata',
+      hint: 'UTC+05:30',
+      keywords: 'Asia/Calcutta India Standard Time',
+    });
+    expect(zoneOptions(1_720_000_000_000).find(r => r.value === 'Europe/Berlin')?.hint).toBe('UTC+02:00');
   });
 });
 
