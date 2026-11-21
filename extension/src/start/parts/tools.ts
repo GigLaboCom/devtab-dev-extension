@@ -1,9 +1,13 @@
 /** Tools: our sections and tools, the ones used last first (row, no permission). */
-import { MAX_TILES, settled } from '../tileSources';
+import { MAX_TILES } from '../tileSources';
 import type { RowPart } from '../part';
-import type { PartDeps, Place } from './deps';
+import type { Place } from './deps';
 
-export const toolsPart = (deps: PartDeps): RowPart => ({
+/** The places the row shows: all but "Tools" and "Settings" — the field and the page's corner lead there. */
+export const tilePlaces = (destinations: readonly Place[]): Place[] =>
+  destinations.filter(d => d.id !== 'tools' && d.id !== 'settings');
+
+export const toolsPart: RowPart = {
   id: 'tools',
   kind: 'row',
   title: 'Tools',
@@ -11,20 +15,7 @@ export const toolsPart = (deps: PartDeps): RowPart => ({
   defaultOn: true,
   permissions: [],
   empty: 'No tools.',
-  tiles: {
-    tiles: state => {
-      // The "Tools" and "Settings" entries are left out: the field and the page's corner lead there.
-      const places = deps.destinations.filter(d => d.id !== 'tools' && d.id !== 'settings');
-      const rank = (d: Place): number => {
-        const i = state.recent.used.indexOf(d.hash);
-        return i === -1 ? state.recent.used.length + places.indexOf(d) : i;
-      };
-      return settled(
-        [...places]
-          .sort((a, b) => rank(a) - rank(b))
-          .slice(0, MAX_TILES)
-          .map(d => ({ id: d.id, title: d.title, href: d.hash, destination: d.id })),
-      );
-    },
-  },
-});
+  loadAt: 'start',
+  reserve: (_state, places) => Math.min(MAX_TILES, tilePlaces(places).length),
+  load: () => import('./tools.run'),
+};

@@ -1,3 +1,4 @@
+import { toolCatalogue } from './build/toolCatalogue';
 import manifest from './manifest.config';
 import product from './product.json';
 import { toolbarButton } from './src/toolbar';
@@ -86,6 +87,8 @@ export default defineConfig({
     // Tailwind v4 over @workspace/dna (src/app/app.css): a plain CSS file in dist/, no runtime and no inline style.
     tailwindcss(),
     react(),
+    // The tools as data for the start page, the palette and the sidebar (build/toolCatalogue.ts): `virtual:tool-catalogue`.
+    toolCatalogue(resolve(__dirname, '..')),
     crx({ manifest }),
     productName(),
     emitLicences(),

@@ -1,16 +1,19 @@
 /**
- * Seam `StartPart`: one shared contract every part definition passes (parts/index.ts, the composition root), the
- * helpers the page, the settings and the permission bookkeeping derive from the definitions, and each part's own data
- * code.
+ * Seam `StartPart`: one shared contract every part definition and its code pass (parts/index.ts, the composition root),
+ * the helpers the page, the settings and the permission bookkeeping derive from the definitions, and each part's own
+ * data code.
  */
-import { partDefinitions, startParts } from '.';
+import { partDefinitions } from '.';
 import { pickMostVisited } from './mostVisited.data';
 import { isSearchResults, pickRecentSites } from './recentlyOpened.data';
+import { PENDING } from '../../tools/recogniser';
 import {
   declaredPermissions,
   moveRow,
   pageContext,
+  partCode,
   partState,
+  partsToLoad,
   permissionsToRelease,
   permissionsToRequest,
   rowsInOrder,
@@ -22,7 +25,7 @@ import { MAX_TILES } from '../tileSources';
 import { DESTINATIONS, TOOL_DESTINATIONS } from '@src/shared/destinations';
 import { fakeStorage } from '@src/test/fakes';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { StartPart } from '../part';
+import type { OptionCode, PartCode, RowCode, StartPart } from '../part';
 import type { StartState } from '../settings';
 import type { PartDeps } from './deps';
 
@@ -71,7 +74,17 @@ const setup = () => {
     destinations: DESTINATIONS,
     afterPaint: immediately,
   };
-  return { storage, api, deps, parts: startParts(deps) };
+  return { storage, api, deps, code: partCode(deps) };
+};
+
+/** A part's code, created over `deps`. */
+const codeOf = async (part: StartPart, deps: PartDeps): Promise<RowCode | OptionCode> =>
+  (await (part.load() as Promise<{ create(deps: PartDeps): RowCode | OptionCode }>)).create(deps);
+
+const rowCode = async (id: string, deps = setup().deps): Promise<RowCode> => {
+  const part = DEFINITIONS.find(p => p.id === id);
+  if (part?.kind !== 'row') throw new Error(`${id} is a row`);
+  return (await codeOf(part, deps)) as RowCode;
 };
 
 const state: StartState = {
@@ -101,9 +114,13 @@ describe('the composition root', () => {
 });
 
 describe.each(DEFINITIONS.map(p => [p.id, p] as const))('StartPart contract: %s', (id, definition) => {
-  const live = (): { part: StartPart; storage: ReturnType<typeof fakeStorage>; api: ReturnType<typeof fakeApi> } => {
-    const { parts, storage, api } = setup();
-    return { part: parts.find(p => p.id === id)!, storage, api };
+  const live = async (): Promise<{
+    code: RowCode | OptionCode;
+    storage: ReturnType<typeof fakeStorage>;
+    api: ReturnType<typeof fakeApi>;
+  }> => {
+    const { deps, storage, api } = setup();
+    return { code: await codeOf(definition, deps), storage, api };
   };
 
   it('has a title and a one-line description', () => {
@@ -112,12 +129,13 @@ describe.each(DEFINITIONS.map(p => [p.id, p] as const))('StartPart contract: %s'
     expect(definition.description).not.toMatch(/\n/);
   });
 
-  it('creating it touches none of what it uses when it runs', () => {
-    const untouchable = new Proxy(
-      {},
-      { get: (_, key) => (key === 'then' ? undefined : expect.fail(`touched ${String(key)}`)) },
-    );
-    expect(() => startParts(untouchable as PartDeps)).not.toThrow();
+  it('is data apart from its code: nothing but `load` (and a row’s `reserve`) is a function, and it has no deps', () => {
+    const { load, ...rest } = definition;
+    expect(typeof load).toBe('function');
+    const data = definition.kind === 'row' ? { ...rest, reserve: undefined } : rest;
+    expect(JSON.parse(JSON.stringify(data))).toEqual(JSON.parse(JSON.stringify(data)));
+    expect(Object.values(data).filter(v => typeof v === 'function')).toEqual([]);
+    expect(['start', 'idle']).toContain(definition.loadAt);
   });
 
   it('declares its permissions with a reason; Chrome’s prompt exactly when one is optional; a required one warns not', () => {
@@ -129,13 +147,25 @@ describe.each(DEFINITIONS.map(p => [p.id, p] as const))('StartPart contract: %s'
     expect(Boolean(definition.prompt?.trim())).toBe(optional);
   });
 
-  it('is either a row (a tile source and an empty line) or an option (a contribution to the page)', () => {
+  it('is either a row (its code: a tile source; an empty line) or an option (its code: what it says it provides)', async () => {
+    const { code } = await live();
     if (definition.kind === 'row') {
-      expect(typeof definition.tiles.tiles).toBe('function');
+      expect(typeof (code as RowCode).tiles.tiles).toBe('function');
       expect(definition.empty.trim()).not.toBe('');
+      expect(definition.loadAt).toBe('start');
     } else {
-      expect(typeof definition.contribute).toBe('function');
+      expect(Object.keys((code as OptionCode).context).sort()).toEqual([...definition.provides].sort());
+      expect((code as OptionCode).context).toBe((code as OptionCode).context);
     }
+  });
+
+  it('a row that says how many tiles it will show says it right (the room the page keeps for it)', async () => {
+    if (definition.kind !== 'row' || !definition.reserve) return;
+    const { code } = await live();
+    for (const s of [state, DEFAULT_STATE])
+      expect(definition.reserve(s, DESTINATIONS)).toBe(
+        (await (code as RowCode).tiles.tiles(s)).length + ((code as RowCode).editor ? 1 : 0),
+      );
   });
 
   it('switches on and off through the stored settings, and leaves the other parts as they were', async () => {
@@ -151,11 +181,11 @@ describe.each(DEFINITIONS.map(p => [p.id, p] as const))('StartPart contract: %s'
   });
 
   it('stores nothing when it runs: no storage row, no localStorage, nothing logged', async () => {
-    const { part, storage } = live();
+    const { code, storage } = await live();
     const warn = vi.spyOn(console, 'warn');
     const log = vi.spyOn(console, 'log');
-    if (part.kind === 'row') await part.tiles.tiles(state);
-    else part.contribute();
+    if ('tiles' in code) await code.tiles.tiles(state);
+    else void code.context;
     expect(storage.rows.size).toBe(0);
     expect(window.localStorage.length).toBe(0);
     expect(warn).not.toHaveBeenCalled();
@@ -165,17 +195,16 @@ describe.each(DEFINITIONS.map(p => [p.id, p] as const))('StartPart contract: %s'
   });
 
   it('a row that needs a permission touches the browser only after the first paint, and reads nothing without its API', async () => {
-    const { part } = live();
-    if (part.kind !== 'row' || !permissionsToRequest(part).length) return;
+    if (definition.kind !== 'row' || !permissionsToRequest(definition).length) return;
     // A `chrome` that records what is asked of it and has none of the optional APIs (as without the permission).
     const touched: string[] = [];
     const browser = new Proxy({}, { get: (_, key) => void touched.push(String(key)) });
     let painted!: () => void;
-    const gated = startParts({
+    const gated = (await codeOf(definition, {
       ...setup().deps,
       chrome: browser as typeof chrome,
       afterPaint: () => new Promise<void>(r => (painted = r)),
-    }).find(p => p.id === id) as typeof part;
+    })) as RowCode;
     const pending = gated.tiles.tiles(state);
     await Promise.resolve();
     expect(touched).toEqual([]);
@@ -225,15 +254,72 @@ describe('what the page and the settings derive from the parts', () => {
     ).toBe('on');
   });
 
-  it('the options that are on make the page’s context; with none, the field has no web search and tiles letters', () => {
-    const { parts } = setup();
-    const off = { ...DEFAULT_SETTINGS, parts: { webSearch: false } };
-    expect(pageContext(parts, off, new Set()).webSearch).toBeUndefined();
-    expect(pageContext(parts, off, new Set()).siteIcons.src('https://a.example/')).toBeNull();
+  it('the options that are on make the page’s context; with none, no web search, letters, strict matching, no recognition', async () => {
+    const { code } = setup();
+    const none = { ...DEFAULT_SETTINGS, parts: Object.fromEntries(DEFINITIONS.map(p => [p.id, false])) };
+    const bare = pageContext(DEFINITIONS, none, new Set(), code);
+    expect(bare.webSearch).toBeUndefined();
+    expect(bare.recognise).toBeUndefined();
+    expect(bare.siteIcons.src('https://a.example/')).toBeNull();
+    expect(bare.matcher.match('b64', DESTINATIONS)).toEqual([]);
     const on = { ...DEFAULT_SETTINGS, parts: { siteIcons: true } };
-    expect(pageContext(parts, on, held).webSearch).toBeDefined();
-    expect(pageContext(parts, on, held).siteIcons.src('https://a.example/')).toMatch(/_favicon/);
-    expect(pageContext(parts, on, new Set()).siteIcons.src('https://a.example/')).toBeNull();
+    for (const part of partsToLoad(DEFINITIONS, on, held, true)) await code.load(part);
+    const full = pageContext(DEFINITIONS, on, held, code);
+    expect(full.webSearch).toBeDefined();
+    expect(full.siteIcons.src('https://a.example/')).toMatch(/_favicon/);
+    expect(full.matcher.match('b64', DESTINATIONS).map(f => f.destination.title)).toEqual(['Base64']);
+    await full.recognise?.ready();
+    expect(full.recognise?.recognise('{"a": 1}')).toBe('json');
+    expect(pageContext(DEFINITIONS, on, new Set(), code).siteIcons.src('https://a.example/')).toBeNull();
+  });
+
+  it('while an option’s code is on its way, a stand-in: search and paste wait for it, icons keep their place', async () => {
+    const { code, api } = setup();
+    const on = { ...DEFAULT_SETTINGS, parts: { siteIcons: true } };
+    const waiting = pageContext(DEFINITIONS, on, held, code);
+    expect(waiting.siteIcons.waiting).toBe(true);
+    expect(waiting.recognise?.recognise('{"a": 1}')).toBe(PENDING);
+    expect(waiting.matcher.match('b64', DESTINATIONS)).toEqual([]);
+    await waiting.webSearch?.search('kittens');
+    expect(api.search.query).toHaveBeenCalledWith({ text: 'kittens', disposition: 'CURRENT_TAB' });
+    await waiting.recognise?.ready();
+    expect(waiting.recognise?.recognise('{"a": 1}')).toBe('json');
+    expect(pageContext(DEFINITIONS, DEFAULT_SETTINGS, held, undefined).webSearch).toBeUndefined();
+  });
+
+  it('an option whose code failed leaves the page as it is without it; a row’s failure is known', async () => {
+    const broken: StartPart[] = DEFINITIONS.map(
+      p => ({ ...p, load: () => Promise.reject(new Error('gone')) }) as StartPart,
+    );
+    const code: PartCode = partCode(setup().deps);
+    for (const part of broken) await code.load(part).catch(() => undefined);
+    const context = pageContext(broken, DEFAULT_SETTINGS, held, code);
+    expect(context.webSearch).toBeUndefined();
+    expect(context.recognise).toBeUndefined();
+    expect(code.failed(broken.find(p => p.id === 'tools')!)).toBe(true);
+  });
+
+  it('the page loads what the first frames show at once, the rest when idle, nothing that is off or blocked', () => {
+    const at = (idle: boolean, settings = DEFAULT_SETTINGS, h: ReadonlySet<string> = held) =>
+      partsToLoad(DEFINITIONS, settings, h, idle).map(p => p.id);
+    const defaultsOn = DEFINITIONS.filter(p => p.defaultOn);
+    expect(at(true)).toEqual(defaultsOn.map(p => p.id));
+    expect(at(false)).toEqual(defaultsOn.filter(p => p.loadAt === 'start').map(p => p.id));
+    expect(at(true, { ...DEFAULT_SETTINGS, parts: { recentlyOpened: true } }, new Set())).not.toContain(
+      'recentlyOpened',
+    );
+    expect(at(true, { ...DEFAULT_SETTINGS, parts: Object.fromEntries(DEFINITIONS.map(p => [p.id, false])) })).toEqual(
+      [],
+    );
+  });
+
+  it('a part’s code loads once per page, whoever asks', async () => {
+    const { code } = setup();
+    const tools = DEFINITIONS.find(p => p.id === 'tools')!;
+    expect(code.loaded(tools)).toBeUndefined();
+    const [a, b] = await Promise.all([code.load(tools), code.load(tools)]);
+    expect(a).toBe(b);
+    expect(code.loaded(tools)).toBe(a);
   });
 
   it('switching a part off gives back only what no other switched-on part needs', () => {
@@ -251,17 +337,15 @@ describe('what the page and the settings derive from the parts', () => {
 });
 
 describe('the parts’ data', () => {
-  it('shortcuts: the user’s, in their order, answered without waiting (drawn in the first frame)', async () => {
-    const shortcuts = setup().parts.find(p => p.id === 'shortcuts');
-    if (shortcuts?.kind !== 'row') throw new Error('shortcuts is a row');
+  it('shortcuts: the user’s, in their order, answered without waiting (drawn as soon as the code is here)', async () => {
+    const shortcuts = await rowCode('shortcuts');
     const promise = shortcuts.tiles.tiles(state);
     expect(promise).toMatchObject({ status: 'fulfilled' });
     expect((await promise).map(t => t.title)).toEqual(['Docs', 'Mail']);
   });
 
   it('tools: our places, the recently used first, the registry order after', async () => {
-    const tools = setup().parts.find(p => p.id === 'tools');
-    if (tools?.kind !== 'row') throw new Error('tools is a row');
+    const tools = await rowCode('tools');
     // The tools after the sections come from the registry: a new tool adds a tile without editing this test.
     const others = TOOL_DESTINATIONS.map(d => d.hash).filter(h => h !== '#/tools/json');
     expect((await tools.tiles.tiles(state)).map(t => t.href)).toEqual(
@@ -285,9 +369,8 @@ describe('the parts’ data', () => {
   });
 
   it('recently opened reads the last 200 entries of all time', async () => {
-    const { parts, api } = setup();
-    const recent = parts.find(p => p.id === 'recentlyOpened');
-    if (recent?.kind !== 'row') throw new Error('recentlyOpened is a row');
+    const { deps, api } = setup();
+    const recent = await rowCode('recentlyOpened', deps);
     await recent.tiles.tiles(state);
     expect(api.history.search).toHaveBeenCalledWith({ text: '', startTime: 0, maxResults: 200 });
   });

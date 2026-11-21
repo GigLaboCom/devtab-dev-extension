@@ -5,11 +5,9 @@
  * two as one warning. Only this browser's closed tabs: getRecentlyClosed returns those, and getDevices (other signed-in
  * devices) is never called.
  */
-import { afterFirstPaint } from '../tileSources';
 import type { RowPart } from '../part';
-import type { PartDeps } from './deps';
 
-export const recentlyClosedPart = (deps: PartDeps): RowPart => ({
+export const recentlyClosedPart: RowPart = {
   id: 'recentlyClosed',
   kind: 'row',
   title: 'Recently closed',
@@ -35,13 +33,6 @@ export const recentlyClosedPart = (deps: PartDeps): RowPart => ({
   privacy:
     'Recently closed: the tabs you closed in this browser are read only while this is on, and only to show their tiles. They are not stored, not copied, not logged and not sent anywhere; your other devices are never read; switching it off gives the permissions back to Chrome.',
   empty: 'No tabs were closed recently.',
-  tiles: {
-    tiles: async () => {
-      await (deps.afterPaint ?? afterFirstPaint)();
-      // `chrome.sessions` exists only while the permission is held; without it nothing is read or loaded.
-      if (!deps.chrome.sessions) return [];
-      const { CLOSED_WINDOW, pickRecentlyClosed } = await import('./recentlyClosed.data');
-      return pickRecentlyClosed(await deps.chrome.sessions.getRecentlyClosed({ maxResults: CLOSED_WINDOW }));
-    },
-  },
-});
+  loadAt: 'start',
+  load: () => import('./recentlyClosed.run'),
+};

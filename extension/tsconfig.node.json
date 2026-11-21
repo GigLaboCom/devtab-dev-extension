@@ -1,7 +1,13 @@
 {
   "extends": "@extension/tsconfig/app",
   "compilerOptions": {
-    "types": ["chrome", "node", "vite/client"]
+    "types": ["chrome", "node", "vite/client"],
+    // The manifest reads the start page's part definitions, whose modules reach a few of the app's (the finder's types,
+    // the places): the same alias as the app, and the build's virtual modules.
+    "baseUrl": ".",
+    "paths": {
+      "@src/*": ["src/*"]
+    }
   },
-  "include": ["vite.config.ts", "vitest.config.ts", "manifest.config.ts"]
+  "include": ["vite.config.ts", "vitest.config.ts", "manifest.config.ts", "build", "src/tools/virtual.d.ts"]
 }

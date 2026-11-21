@@ -6,9 +6,14 @@
 export interface SiteIcons {
   /** An image address for the site, or null for the letter. */
   src(site: string): string | null;
+  /** The icons are on their way (the option is on, its code has not arrived): keep the icon's place empty. */
+  waiting?: boolean;
 }
 
 export const letterIcons: SiteIcons = { src: () => null };
+
+/** While the site icons' code arrives: neither a letter nor an image yet, so a letter does not turn into an icon. */
+export const waitingIcons: SiteIcons = { src: () => null, waiting: true };
 
 /** Chrome's favicon cache: `chrome-extension://<id>/_favicon/?pageUrl=…&size=32` (allowed by `img-src 'self'`). */
 export const chromeFavicons = (getURL: (path: string) => string): SiteIcons => ({

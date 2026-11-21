@@ -1,3 +1,4 @@
+import { toolCatalogue } from './build/toolCatalogue';
 import { defineConfig } from 'vitest/config';
 import { resolve } from 'node:path';
 
@@ -10,6 +11,8 @@ const CSP_ALIASES = { 'react-remove-scroll': resolve(__dirname, 'src/shared/csp/
  */
 export default defineConfig({
   esbuild: { jsx: 'automatic' },
+  // The tool catalogue the pages import (build/toolCatalogue.ts), from the same definitions as the build.
+  plugins: [toolCatalogue(resolve(__dirname, '..'))],
   resolve: {
     alias: {
       '@src': resolve(__dirname, 'src'),
@@ -22,8 +25,9 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}'],
     // What jsdom lacks and the pages use (Blob.text, scrollIntoView).
     setupFiles: ['src/test/setup.ts'],
-    // Process CSS, so a `?raw` CSS import is the file's text (by default vitest stubs CSS to '', and the style check in
-    // src/dna.test.ts would lint an empty string) — as in the second sibling extension.
-    css: { include: [/.+/] },
+    // Process CSS read as text (`?raw`), so the style check in src/dna.test.ts lints the files and not '' (by default
+    // vitest stubs CSS) — as in the second sibling extension. Only those: a plain CSS import (the shell's shell.css)
+    // would be inserted into jsdom, whose parser does not take `@layer` with a nested `@media`.
+    css: { include: [/\?raw$/] },
   },
 });

@@ -1,9 +1,7 @@
 /** Web search: the field's last row searches the web with the user's own search engine (option; required `search`). */
-import { chromeWebSearch } from '../webSearch';
 import type { OptionPart } from '../part';
-import type { PartDeps } from './deps';
 
-export const webSearchPart = (deps: PartDeps): OptionPart => ({
+export const webSearchPart: OptionPart = {
   id: 'webSearch',
   kind: 'option',
   title: 'Web search',
@@ -19,5 +17,7 @@ export const webSearchPart = (deps: PartDeps): OptionPart => ({
       warning: null,
     },
   ],
-  contribute: () => ({ webSearch: chromeWebSearch(deps.chrome.search) }),
-});
+  loadAt: 'start',
+  provides: ['webSearch'],
+  load: () => import('./webSearch.run'),
+};

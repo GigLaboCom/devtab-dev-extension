@@ -1,9 +1,7 @@
 /** Recently opened: the sites opened last, from the browser's history (row, optional `history`; after the first paint). */
-import { afterFirstPaint } from '../tileSources';
 import type { RowPart } from '../part';
-import type { PartDeps } from './deps';
 
-export const recentlyOpenedPart = (deps: PartDeps): RowPart => ({
+export const recentlyOpenedPart: RowPart = {
   id: 'recentlyOpened',
   kind: 'row',
   title: 'Recently opened',
@@ -23,12 +21,6 @@ export const recentlyOpenedPart = (deps: PartDeps): RowPart => ({
   privacy:
     'Recently opened: your browsing history is read only while this is on, and only to show its tiles on the start page. It is not stored, not copied, not logged and not sent anywhere; switching it off gives the permission back to Chrome.',
   empty: 'Your history has no sites to show yet.',
-  tiles: {
-    tiles: async () => {
-      await (deps.afterPaint ?? afterFirstPaint)();
-      if (!deps.chrome.history) return [];
-      const { HISTORY_WINDOW, pickRecentSites } = await import('./recentlyOpened.data');
-      return pickRecentSites(await deps.chrome.history.search({ text: '', startTime: 0, maxResults: HISTORY_WINDOW }));
-    },
-  },
-});
+  loadAt: 'start',
+  load: () => import('./recentlyOpened.run'),
+};

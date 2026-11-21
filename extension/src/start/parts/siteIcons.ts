@@ -1,9 +1,7 @@
 /** Site icons: Chrome's icon of each site on the tiles instead of a letter (option, optional `favicon`). */
-import { chromeFavicons } from '../siteIcons';
 import type { OptionPart } from '../part';
-import type { PartDeps } from './deps';
 
-export const siteIconsPart = (deps: PartDeps): OptionPart => ({
+export const siteIconsPart: OptionPart = {
   id: 'siteIcons',
   kind: 'option',
   title: 'Site icons',
@@ -19,5 +17,7 @@ export const siteIconsPart = (deps: PartDeps): OptionPart => ({
   ],
   prompt: 'Read the icons of the websites you visit',
   privacy: 'Site icons: the icons come from Chrome’s own icon cache on this device; nothing is fetched from the sites.',
-  contribute: () => ({ siteIcons: chromeFavicons(path => deps.chrome.runtime.getURL(path)) }),
-});
+  loadAt: 'start',
+  provides: ['siteIcons'],
+  load: () => import('./siteIcons.run'),
+};

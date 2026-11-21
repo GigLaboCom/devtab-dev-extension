@@ -1,6 +1,7 @@
 /** "Recently closed": what it reads, what it shows, and that it reads nothing it should not. */
 import { recentlyClosedPart } from './recentlyClosed';
 import { pickRecentlyClosed } from './recentlyClosed.data';
+import { create } from './recentlyClosed.run';
 import { DEFAULT_STATE } from '../settings';
 import { describe, expect, it, vi } from 'vitest';
 import type { PartDeps } from './deps';
@@ -18,15 +19,15 @@ const SESSIONS: chrome.sessions.Session[] = [
   { lastModified: 4, tab: tab(undefined) },
 ];
 
-const part = (sessions: Partial<typeof chrome.sessions> | undefined, afterPaint = () => Promise.resolve()) =>
-  recentlyClosedPart({
+const code = (sessions: Partial<typeof chrome.sessions> | undefined, afterPaint = () => Promise.resolve()) =>
+  create({
     chrome: { sessions } as unknown as typeof chrome,
     afterPaint,
   } as PartDeps);
 
 describe('recently closed', () => {
   it('asks Chrome for `sessions` and `tabs` together, and says what Chrome’s prompt says', () => {
-    const definition = part(undefined);
+    const definition = recentlyClosedPart;
     expect(definition.permissions.map(p => [p.name, p.optional])).toEqual([
       ['sessions', true],
       ['tabs', true],
@@ -48,7 +49,7 @@ describe('recently closed', () => {
     const getRecentlyClosed = vi.fn(() => Promise.resolve(SESSIONS));
     const getDevices = vi.fn(() => Promise.resolve([]));
     let painted!: () => void;
-    const pending = part({ getRecentlyClosed, getDevices }, () => new Promise(r => (painted = r))).tiles.tiles(
+    const pending = code({ getRecentlyClosed, getDevices }, () => new Promise(r => (painted = r))).tiles.tiles(
       DEFAULT_STATE,
     );
     await Promise.resolve();
@@ -60,6 +61,6 @@ describe('recently closed', () => {
   });
 
   it('without the permission (no chrome.sessions) reads nothing and shows nothing', async () => {
-    expect(await part(undefined).tiles.tiles(DEFAULT_STATE)).toEqual([]);
+    expect(await code(undefined).tiles.tiles(DEFAULT_STATE)).toEqual([]);
   });
 });
