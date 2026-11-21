@@ -11,6 +11,7 @@
     "./tailwind.css": "./tailwind.css",
     "./style-gpui.css": "./style-gpui.css",
     "./ui.css": "./ui.css",
+    "./menu.css": "./menu.css",
     "./tokens.json": "./tokens.json",
     "./themes.index.json": "./themes.index.json",
     "./lint": "./lint/rules.ts"

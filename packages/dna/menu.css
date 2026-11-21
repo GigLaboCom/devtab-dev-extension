@@ -1,0 +1,56 @@
+/*
+ * @workspace/dna/menu.css — the FRAME of the extension's toolbar menu: the popup page Chrome opens under the
+ * extension's button. A file of its own, not part of ui.css: only the popup page imports it, so a build whose button
+ * has no menu ships none of it, and the popup loads no frame it does not draw.
+ *
+ * Plain CSS on the tokens (no Tailwind needed). The numbers are gpui-kit's dropdown menu (style-gpui.css,
+ * `cn-dropdown-menu-*`): padding 4, 2 between items; item 26 tall, padding 8, radius 6, 14 px; the highlighted item
+ * accent / accent-foreground. The popup is the menu, so there is no ring or shadow: Chrome draws the popup's frame.
+ *
+ *   .kit-menu                  the list (role menu)
+ *     li > .kit-menu-item      an item, a <button>; the focused one is highlighted — the pointer and the keys alike
+ *                              move the focus
+ */
+/* As in ui.css: Chrome's unlayered `body { font-family: system-ui; font-size: 75% }` for extension pages beats the
+   layered base; one step more specific, the base's face and size win again. */
+:root > body {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+}
+
+@layer components {
+  .kit-menu {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 0.5);
+    min-width: calc(var(--spacing) * 48);
+    margin: 0;
+    padding: calc(var(--spacing) * 1);
+    background: var(--popover);
+    color: var(--popover-foreground);
+    list-style: none;
+  }
+
+  .kit-menu-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: var(--size-row);
+    padding: 0 calc(var(--spacing) * 2);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: default;
+  }
+
+  /* The highlight is the focus mark, as in gpui-kit's menu: no ring on top of it. */
+  .kit-menu-item:focus {
+    outline: none;
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+}

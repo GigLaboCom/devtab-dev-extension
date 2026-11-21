@@ -89,3 +89,12 @@ for (const item of document.querySelectorAll('[data-slot="select-item"]')) {
   item.addEventListener('pointermove', () => item.setAttribute('data-highlighted', ''));
   item.addEventListener('pointerleave', () => item.removeAttribute('data-highlighted'));
 }
+
+// Switch: checked / unchecked, on the track and the thumb.
+for (const sw of document.querySelectorAll('[role="switch"]:not([disabled])')) {
+  sw.addEventListener('click', () => {
+    const state = sw.getAttribute('data-state') === 'checked' ? 'unchecked' : 'checked';
+    for (const el of [sw, sw.firstElementChild]) el.setAttribute('data-state', state);
+    sw.setAttribute('aria-checked', String(state === 'checked'));
+  });
+}

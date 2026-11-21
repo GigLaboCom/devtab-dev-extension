@@ -8,6 +8,7 @@
 @import '../tailwind.css';
 @import '../style-gpui.css';
 @import '../ui.css';
+@import '../menu.css';
 
 html,
 body {
@@ -67,4 +68,24 @@ body {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+}
+
+/* The start page's rows sit on the page's own background inside a group. */
+.show-start-rows {
+  margin-block-start: calc(var(--spacing) * 10);
+}
+
+/* The toolbar menu stands in a popup: Chrome draws that frame, the showcase a line. */
+.show-popup {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+/* «Compare code» stands in a box of the page's height: the frame fills it as it fills the extension's section. */
+.show-compare {
+  position: relative;
+  height: calc(var(--spacing) * 120);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }

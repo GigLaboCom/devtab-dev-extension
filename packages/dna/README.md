@@ -8,7 +8,7 @@
 - **вид компонентов** — стиль shadcn `nova`, подогнанный под замеры gpui-kit (D10,
   `docs/theming-components.md`): эталон — gpui-kit, подстраивается shadcn.
 
-Имя продукта не утверждено (Q6) и в пакет не входит: ни в имена файлов, ни в классы, ни в токены.
+Имя продукта (DevTab.Dev) в пакет не входит: ни в имена файлов, ни в классы, ни в токены.
 
 ## Файлы
 
@@ -21,7 +21,8 @@
 | `tailwind.css` | мост в Tailwind v4: свои варианты (`dark`, состояния Radix `data-open` и т. д.), сброс палитры и шкал Tailwind, `@theme inline reference` — каждая утилита читает переменную темы | руками; тест сверяет с темами |
 | `style-gpui.css` | **слой компонентов**: правила `cn-*` стиля shadcn с числами gpui-kit, в `@layer components` | руками |
 | `upstream/style-nova.css` | исходный стиль `nova` (shadcn-ui/ui `e62c9435`, MIT, `upstream/LICENSE-shadcn.md`) — без изменений, для сравнения с `style-gpui.css` | не править |
-| `ui.css` | **рамка страницы расширения**: `kit-shell`, `kit-sidebar*`, `kit-nav*`, `kit-main`, `kit-section*` | руками |
+| `ui.css` | **рамка страниц расширения**: `kit-shell`, `kit-sidebar*`, `kit-nav*`, `kit-main`, `kit-section*`; страница настроек — `kit-settings*`; стартовая страница новой вкладки — `kit-start*`, поле `kit-command*`, плитки `kit-tile*` / `kit-tiles*` и форма плитки `kit-tile-form*`; раздел «Compare code» — `kit-compare*` (общая панель, строка над каждой стороной, рамка редактора, пустое состояние, цели перетаскивания); раздел без рамки — `kit-bare` на странице с `<html data-frame="bare">` (страница настроек в окне Chrome, у `body` своя ширина); история инструментов — раздел `kit-history*` и строка на странице инструмента `kit-tool-history*`. Раскладку страниц расширение пишет только классами `kit-*` отсюда, своих классов раскладки в его CSS нет (это проверяет `extension/src/dna.test.ts`) | руками |
+| `menu.css` | **рамка меню под кнопкой расширения** (страница popup): `kit-menu`, `kit-menu-item` по числам выпадающего меню gpui-kit. Отдельный файл, не часть `ui.css`: его берёт только страница меню, поэтому сборка, где у кнопки нет меню, не везёт его правил, а меню не грузит рамку, которой не рисует | руками |
 | `tokens.json` | все токены: `themes.<id>.tokens` и `base` | **выводится** из CSS (`pnpm --filter @workspace/dna tokens`) |
 | `lint/rules.ts` | контракт в коде: `lintCss`, `lintInlineStyles`, `lintHtml`, `TOKENS`, `COLOR_NAMES` | руками |
 | `scripts/tokens.mjs`, `scripts/sync-themes.mjs` | вывод `tokens.json`; перенос сгенерированной половины из выгрузки | руками |
@@ -81,7 +82,7 @@ DOM, а `style-gpui.css` применяется во время работы. П
 
 Правила лежат в `@layer components`: утилита в файле компонента или в `className` побеждает стиль, как
 в shadcn. Поэтому то, что база задаёт утилитами поперёк gpui-kit, правится в самой базе — список правок
-записан в шапке каждого файла компонента (`extension/src/components/ui/*.tsx`), сводка —
+записан в шапке каждого файла компонента (`packages/ui/src/components/*.tsx`, пакет `@workspace/ui`), сводка —
 `docs/extension-structure.md`.
 
 Что есть в `style-gpui.css` (по приоритетам `theming-components.md` §5):
@@ -89,12 +90,16 @@ DOM, а `style-gpui.css` применяется во время работы. П
 | Приоритет | Части |
 |---|---|
 | P1 | Button, Badge, Kbd, Tooltip, Popover, Hover Card, Dropdown Menu, Context Menu, Tabs (`default` = Segmented, `line` = Underline), строки списка (`kit-list`, `kit-list-item`) |
-| P2, нужные расширению | Input, Textarea, Select, Checkbox, Label, Toggle (+ вариант `segmented`), Toggle Group, Card, Separator |
+| P2, нужные расширению | Input, Textarea, Select, Checkbox, Label, Toggle (+ вариант `segmented`), Toggle Group, Card, Separator, Switch, Table |
 | §4.8 | полоса Scroll Area |
-| ещё нет | Sidebar как компонент (у расширения навигацию рисует рамка `ui.css` по тем же числам), Dialog, Sheet, Command, Sonner, Table, Switch, Slider, Radio, Progress и прочее из P2–P3 — их правила `nova` в `upstream/style-nova.css` |
+| свои, общие для инструментов (D14) | рамка страницы инструмента `kit-tool-*` (шапка, строка параметров, панели ввода и результата, сообщение, пустое состояние), строка результата с копированием `kit-result-row*`, зона для файла `kit-file-drop*`. Здесь, а не в `ui.css`: их носит любой хозяин инструментов, сайт тоже |
+| ещё нет | Sidebar как компонент (у расширения навигацию рисует рамка `ui.css` по тем же числам), Dialog, Sheet, Command, Sonner, Slider, Radio, Progress и прочее из P2–P3 — их правила `nova` в `upstream/style-nova.css` |
 
-Компоненты, которые уже стоят в расширении и проверены в браузере: Button, Textarea, Select, Checkbox,
-Label, Toggle Group, Card. Правила остальных частей собираются Tailwind (`tests/compile.test.ts`) и
+Компоненты лежат в пакете `@workspace/ui` (`packages/ui/`, *с 2026-11-21*; раньше — `extension/src/components/ui/`).
+Уже стоят в расширении и проверены в браузере: Button, Textarea, Select, Checkbox, Label, Toggle Group, Card, Switch,
+Input, Tooltip (с `Kbd` для сочетания клавиш — подсказки действий «Compare code»), рамка инструмента и кнопка копирования
+(инструмент JSON). Table, строка результата и зона для файла пока только в витрине и в тестах пакета `@workspace/ui`:
+первыми их возьмут инструменты `url` и `hash`. Правила остальных частей собираются Tailwind (`tests/compile.test.ts`) и
 проходят линт, но в браузере не открывались.
 
 ## Что нужно расширению и что сайту
@@ -105,6 +110,7 @@ Label, Toggle Group, Card. Правила остальных частей соб
 | `tailwind.css` | да | да, если сайт на Tailwind v4 (D10) |
 | `style-gpui.css` | да | да, вместе с компонентами shadcn базы Radix |
 | `ui.css` | да (только главная страница) | **нет**: это рамка страницы расширения |
+| `menu.css` | да (только страница меню под кнопкой) | **нет** |
 | `tokens.json`, `lint` | тесты | тесты, сборка других платформ (письма, графика) |
 
 Порядок подключения (CSS страницы, одна сборка Tailwind):
@@ -117,7 +123,8 @@ Label, Toggle Group, Card. Правила остальных частей соб
 @import '@workspace/dna/ui.css'; /* только расширение */
 ```
 
-Страница без Tailwind и без компонентов (страница редактора в iframe) берёт один `theme.css`.
+Страница без Tailwind и без компонентов (страница редактора в iframe) берёт один `theme.css`; страница меню под кнопкой
+расширения — `theme.css` и `menu.css`.
 
 ## Витрина
 
@@ -133,6 +140,29 @@ python3 -m http.server 8793 --bind 127.0.0.1 -d packages/dna/showcase/dist
 Разметка в `showcase/index.html` повторяет то, что отдают компоненты shadcn (базовые классы
 раскладки плюс `cn-*`); состояния, которые в настоящих компонентах ставит Radix, имитирует
 `showcase/showcase.js`. Открытые списки и меню показаны раскрытыми на месте.
+
+Раздел «Start page and settings» показывает рамку стартовой страницы и настроек без расширения: поле со строками
+результатов (подсвеченная — та, что возьмёт Enter), подсказку под полем, строки плиток (буква и значок, кнопка правки
+при наведении, плитка «добавить»), строку, которая ещё читает, строку без разрешения, форму плитки с ошибкой и строки
+настроек с переключателями (включён, выключен, ждёт ответа Chrome). Снимки в Default Light, Default Dark и Tokyo Night —
+`docs/screenshots/new-tab-start-page/showcase-start-page-*.png` в репозитории документов.
+
+Раздел «Tool history» — раздел History расширения и строка истории на странице инструмента: состояние, фильтры, счёт
+и действия, вопрос перед удалением, список по сессиям, предупреждение мастер-пароля, сводка восстановления. Снимки в
+Default Light и Default Dark — `docs/screenshots/tool-history/showcase-tool-history-*.png`.
+
+Раздел «Toolbar menu» — меню под кнопкой расширения (`menu.css`) в рамке, которую на настоящей странице рисует Chrome;
+подсветка — фокус, её двигает указатель.
+
+Раздел «Tool page and Table» — то, что общее у страниц инструментов: рамка (`kit-tool-*`: шапка со строкой истории,
+строка параметров, две панели, сообщения трёх тонов, пустое состояние), кнопки копирования (словами и значком, до и после
+нажатия), строки результата (`kit-result-row*`, со значением, с отметкой «Matches», пустая), зона для файла
+(`kit-file-drop*`, обычная и с файлом над ней) и таблица (`cn-table*`, выбранная строка, подпись).
+
+Раздел «Compare code» — рамка раздела сравнения (`kit-compare*`) в четырёх состояниях: пример, сторона в правке и
+изменённая, отказ перетаскивания над пустым состоянием, файлы над страницей (выделена цель под указателем); и подсказка
+действия с сочетанием клавиш. Вместо редактора wasm — пустая рамка. Снимки в Default Light, Default Dark и Tokyo Night —
+`docs/screenshots/compare-drop-edit/showcase-compare-*.png` в репозитории документов.
 
 ## Как обновлять токены
 
@@ -183,7 +213,7 @@ IBM Plex Sans 400, 500, 600 и IBM Plex Mono 400 (D9: шрифт продукт�
    tsconfig (`@extension/tsconfig/app` — заменить на пресет сайта).
 2. Подключить `theme.css`, `tailwind.css`, `style-gpui.css` (без `ui.css`) в порядке выше.
 3. Компоненты — база Radix shadcn (`apps/v4/registry/bases/radix/ui/*.tsx` на `e62c9435`) с правками из
-   шапок файлов `extension/src/components/ui/*.tsx`; их можно взять оттуда же.
+   шапок файлов `packages/ui/src/components/*.tsx` (пакет `@workspace/ui`; его можно взять целиком).
 4. Ставить `data-theme` и `data-mode` на `<html>` до первой отрисовки: на сайте можно встроенным
    скриптом (у расширения — внешний `theme-boot.js`, потому что CSP запрещает встроенные).
 5. Тест сайта, как `extension/src/dna.test.ts`: его CSS, классы и HTML через `@workspace/dna/lint`.

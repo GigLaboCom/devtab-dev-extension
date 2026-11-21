@@ -14,8 +14,11 @@
  *
  * Covered: P1 — Button, Badge, Kbd, Tooltip, Popover, Hover Card, Dropdown Menu, Context Menu, Tabs, list rows
  * (own, `kit-list*`); P2 the extension uses — Input, Textarea, Select, Checkbox, Label, Toggle, Toggle Group, Card,
- * Separator; the scrollbar of Scroll Area (§4.8). Not yet: Sidebar (the extension's navigation is the frame, ui.css),
- * Dialog, Sheet, Command, Sonner, Table and the P3 rest — upstream/style-nova.css has their nova rules.
+ * Separator, Switch, Table; the scrollbar of Scroll Area (§4.8); the parts the tools share (own, `kit-tool-*`,
+ * `kit-result-row*`, `kit-file-drop*`: the tool page frame, a result with its copy action, the file drop zone — any host
+ * of the tools wears them, so they live here and not in the extension's frame, ui.css). Not yet: Sidebar (the
+ * extension's navigation is the frame, ui.css), Dialog, Sheet, Command, Sonner and the P3 rest — upstream/style-nova.css
+ * has their nova rules.
  */
 @layer components {
   /* MARK: Badge — gpui-kit Tag, medium (§5.3): 12 px, 400, padding 10 / 4, 25 tall, radius 6 */
@@ -338,6 +341,18 @@
     @apply h-full w-px;
   }
 
+  /* MARK: Switch (§5.1, gpui-kit-form-controls.md §5): Medium track 36 × 20, thumb 16; Small 28 × 16, thumb 12; the
+     thumb 2 in from the edge (a 1 px transparent border and 1 px padding); track `switch`, checked `primary`, thumb
+     `switch-thumb`, no shadow; a pill; disabled fades the track only; the focus ring on the track; no hover. The
+     thumb slides 280 ms on the spring curve (gpui-kit's spring_move). */
+  .cn-switch {
+    @apply data-unchecked:bg-switch data-checked:bg-primary focus-visible:border-ring focus-visible:ring-ring/50 disabled:data-unchecked:bg-switch/50 disabled:data-checked:bg-primary/50 rounded-full border border-transparent p-px transition-colors focus-visible:ring-3 data-[size=default]:h-5 data-[size=default]:w-9 data-[size=sm]:h-4 data-[size=sm]:w-7;
+  }
+
+  .cn-switch-thumb {
+    @apply bg-switch-thumb ease-spring rounded-full transition-transform duration-280 data-unchecked:translate-x-0 group-data-[size=default]/switch:size-4 group-data-[size=sm]/switch:size-3 group-data-[size=default]/switch:data-checked:translate-x-4 group-data-[size=sm]/switch:data-checked:translate-x-3;
+  }
+
   /* MARK: Tabs (§5.3). default = gpui-kit Segmented: bar 32, tab_bar_segmented, radius 8, padding 4, gap 2; tab 24 /
      12, radius 6, 400; active background + tab_active_foreground + shadow-sm. line = Underline: tab 36, 16 apart, a
      2 px primary line, a border under the bar */
@@ -422,5 +437,113 @@
 
   .kit-list-item {
     @apply text-foreground hover:bg-list-hover aria-[current=page]:bg-list-active aria-selected:bg-list-active flex h-6.5 items-center gap-2 rounded-md px-2 text-sm no-underline [&_svg:not([class*='size-'])]:size-4;
+  }
+
+  /* MARK: Table (§5.3 «Table»): rows and head 32 tall, cell padding 8 / 4; the head on table_head, 400; row borders,
+     hover and the selected row on the table tokens */
+  .cn-table-container {
+    @apply relative w-full overflow-x-auto;
+  }
+
+  .cn-table {
+    @apply w-full caption-bottom border-collapse text-sm;
+  }
+
+  .cn-table-header {
+    @apply bg-table-head text-table-head-foreground;
+  }
+
+  .cn-table-body {
+    @apply [&_tr:last-child]:border-0;
+  }
+
+  .cn-table-footer {
+    @apply bg-table-head border-table-row-border border-t font-medium [&>tr]:last:border-b-0;
+  }
+
+  .cn-table-row {
+    @apply border-table-row-border hover:bg-table-hover data-[state=selected]:bg-table-active border-b;
+  }
+
+  .cn-table-head {
+    @apply text-table-head-foreground h-8 px-2 text-left align-middle font-normal whitespace-nowrap;
+  }
+
+  .cn-table-cell {
+    @apply h-8 px-2 py-1 align-middle;
+  }
+
+  .cn-table-caption {
+    @apply text-muted-foreground mt-2 text-sm;
+  }
+
+  /* MARK: Tool page — own (D14; no shadcn part): what every tool page has in common, so the tools look like one
+     product — the head (title, summary, the host's history line), a row of options and actions, the panes of input
+     and result (two columns, as the JSON tool; stacked on request), a message under a pane, the empty state */
+  .kit-tool-page {
+    @apply flex min-w-0 flex-col gap-3;
+  }
+
+  .kit-tool-page-head {
+    @apply flex flex-col gap-0.5;
+  }
+
+  .kit-tool-page-title {
+    @apply text-foreground m-0 text-base font-semibold;
+  }
+
+  .kit-tool-page-summary {
+    @apply text-muted-foreground m-0 text-sm;
+  }
+
+  .kit-tool-options {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .kit-tool-panes {
+    @apply grid grid-cols-2 gap-3 data-[layout=stacked]:grid-cols-1;
+  }
+
+  .kit-tool-pane {
+    @apply flex min-w-0 flex-col gap-1;
+  }
+
+  .kit-tool-pane-head {
+    @apply flex min-h-6 items-center justify-between gap-2;
+  }
+
+  .kit-tool-message {
+    @apply text-muted-foreground data-[tone=error]:text-destructive data-[tone=success]:text-success m-0 min-h-5 text-sm;
+  }
+
+  .kit-tool-empty {
+    @apply text-muted-foreground m-0 text-sm;
+  }
+
+  /* MARK: Result row — own: a name, the value in the code font (wrapped anywhere, selectable) and its copy action */
+  .kit-result-rows {
+    @apply grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1;
+  }
+
+  .kit-result-row {
+    @apply col-span-3 grid grid-cols-subgrid items-center;
+  }
+
+  .kit-result-row-label {
+    @apply text-muted-foreground text-sm whitespace-nowrap;
+  }
+
+  .kit-result-row-value {
+    @apply text-foreground font-mono text-code break-all select-text data-empty:text-muted-foreground data-empty:font-sans data-empty:text-sm;
+  }
+
+  /* MARK: File drop zone — own: a dashed input-coloured box (gpui-kit has none; the input's border and radius), the
+     ring of focus while a file is over it */
+  .kit-file-drop {
+    @apply border-input bg-input-background text-muted-foreground data-[dragging=true]:border-ring data-[dragging=true]:bg-accent flex flex-col items-center justify-center gap-2 rounded-md border border-dashed px-4 py-6 text-center text-sm;
+  }
+
+  .kit-file-drop-line {
+    @apply flex flex-wrap items-center justify-center gap-2;
   }
 }

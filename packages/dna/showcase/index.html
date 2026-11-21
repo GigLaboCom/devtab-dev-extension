@@ -28,6 +28,27 @@
         <g id="i-bold"><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8" /></g>
         <g id="i-italic"><path d="M19 4h-9M14 20H5M15 4 9 20" /></g>
         <g id="i-underline"><path d="M6 4v6a6 6 0 0 0 12 0V4M4 20h16" /></g>
+        <g id="i-search">
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.3-4.3" />
+        </g>
+        <g id="i-globe">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20" />
+        </g>
+        <g id="i-braces">
+          <path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1" />
+          <path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1" />
+        </g>
+        <g id="i-pencil">
+          <path d="M21.2 6.8a1 1 0 0 0-4-4L3.8 16.2a2 2 0 0 0-.5.8l-1.3 4.4a.5.5 0 0 0 .6.6l4.4-1.3a2 2 0 0 0 .8-.5z" />
+        </g>
+        <g id="i-arrow-up"><path d="m5 12 7-7 7 7M12 19V5" /></g>
+        <g id="i-arrow-down"><path d="M12 5v14M19 12l-7 7-7-7" /></g>
+        <g id="i-columns">
+          <rect width="18" height="18" x="3" y="3" rx="2" />
+          <path d="M12 3v18" />
+        </g>
       </defs>
     </svg>
     <div class="kit-shell">
@@ -44,7 +65,12 @@
           ><a class="kit-nav-item" href="#menu">Dropdown Menu and Context Menu</a
           ><a class="kit-nav-item" href="#overlays">Tooltip, Popover, Hover Card</a
           ><a class="kit-nav-item" href="#card">Card and Separator</a
-          ><a class="kit-nav-item" href="#list">List rows and Scroll Area</a></nav
+          ><a class="kit-nav-item" href="#list">List rows and Scroll Area</a
+          ><a class="kit-nav-item" href="#start-page">Start page and settings</a
+          ><a class="kit-nav-item" href="#toolbar-menu">Toolbar menu</a
+          ><a class="kit-nav-item" href="#compare">Compare code</a
+          ><a class="kit-nav-item" href="#tool-history">Tool history</a
+          ><a class="kit-nav-item" href="#tool-page">Tool page and Table</a></nav
         >
         <div class="kit-sidebar-foot">
           <label class="cn-label flex items-center select-none" for="theme">Theme</label>
@@ -1502,6 +1528,1639 @@ fn main() {
                     data-slot="scroll-area-thumb"
                     class="cn-scroll-area-thumb relative flex-1"></div></div></div></div
           ></section>
+          <section class="show-group" id="start-page"
+            ><h2>Start page and settings</h2
+            ><p class="show-note"
+              >The frame of the extension's New Tab page (ui.css, kit-*): the field with its rows — the highlighted one
+              is what Enter takes — the hint, rows of tiles (a letter or an icon; the edit button shows on hover and
+              focus; the dashed "add" tile), a row still reading, a row whose permission was removed, the tile form with
+              an error, and settings rows with switches (on, off, waiting).</p
+            ><div class="kit-start"
+              ><div class="kit-start-main"
+                ><h1 class="kit-start-title">Product name</h1
+                ><div class="kit-command" data-page-focus="true"
+                  ><svg
+                    class="kit-command-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-search" /></svg
+                  ><input
+                    class="cn-input w-full min-w-0 outline-none kit-command-input"
+                    type="text"
+                    value="js"
+                    aria-label="Find a tool or search the web" /><ul
+                    class="kit-command-results"
+                    role="listbox"
+                    aria-label="Results"
+                    ><li class="kit-command-result" role="option" aria-selected="true"
+                      ><svg
+                        class="kit-command-result-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true">
+                        <use href="#i-braces" /></svg
+                      ><span class="kit-command-result-title">JSON</span
+                      ><span class="kit-command-result-kind">Tool</span
+                      ><kbd
+                        data-slot="kbd"
+                        class="cn-kbd pointer-events-none inline-flex items-center justify-center select-none kit-command-result-enter"
+                        >Enter</kbd
+                      ></li
+                    ><li class="kit-command-result" role="option" aria-selected="false"
+                      ><svg
+                        class="kit-command-result-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true">
+                        <use href="#i-globe" /></svg
+                      ><span class="kit-command-result-title">Search the web for “js”</span></li
+                    ></ul
+                  ><p class="kit-command-hint"
+                    >Press
+                    <kbd
+                      data-slot="kbd"
+                      class="cn-kbd pointer-events-none inline-flex items-center justify-center select-none"
+                      >Tab</kbd
+                    >
+                    or click here to type.</p
+                  ></div
+                ><div class="kit-tile-rows show-start-rows"
+                  ><section class="kit-tile-row"
+                    ><h2 class="kit-tile-row-title">My shortcuts</h2
+                    ><ul class="kit-tiles"
+                      ><li class="kit-tile-item"
+                        ><a href="#start-page" class="kit-tile"
+                          ><span class="kit-tile-icon" aria-hidden="true">D</span
+                          ><span class="kit-tile-title">Docs</span></a
+                        ><button type="button" class="kit-tile-edit" aria-label="Edit Docs"
+                          ><svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true">
+                            <use href="#i-pencil" /></svg></button></li
+                      ><li class="kit-tile-item"
+                        ><a href="#start-page" class="kit-tile"
+                          ><span class="kit-tile-icon" aria-hidden="true">M</span
+                          ><span class="kit-tile-title">Mail with a title long enough to be cut</span></a
+                        ><button
+                          type="button"
+                          class="kit-tile-edit"
+                          aria-label="Edit Mail with a title long enough to be cut"
+                          ><svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true">
+                            <use href="#i-pencil" /></svg></button></li
+                      ><li class="kit-tile-item"
+                        ><button type="button" class="kit-tile kit-tile-add"
+                          ><span class="kit-tile-icon" aria-hidden="true"
+                            ><svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <use href="#i-plus" /></svg></span
+                          ><span class="kit-tile-title">Add shortcut</span></button
+                        ></li
+                      ></ul
+                    ><form class="kit-tile-form" aria-label="Edit Docs"
+                      ><div class="kit-tile-form-fields"
+                        ><div class="kit-tile-form-field"
+                          ><label class="cn-label flex items-center select-none" for="sf-title">Title</label
+                          ><input id="sf-title" class="cn-input w-full min-w-0 outline-none" value="Docs" /></div
+                        ><div class="kit-tile-form-field"
+                          ><label class="cn-label flex items-center select-none" for="sf-url">Address</label
+                          ><input
+                            id="sf-url"
+                            class="cn-input w-full min-w-0 outline-none"
+                            value="not an address"
+                            aria-invalid="true" /></div></div
+                      ><p class="kit-tile-form-error"
+                        >Enter a website address, such as example.com or example.com/page.</p
+                      ><div class="kit-tile-form-actions"
+                        ><button
+                          type="button"
+                          class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 cn-button-variant-default cn-button-size-default"
+                          >Save</button
+                        ><button
+                          type="button"
+                          class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 cn-button-variant-ghost cn-button-size-default"
+                          >Cancel</button
+                        ><button
+                          type="button"
+                          class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 cn-button-variant-destructive cn-button-size-default kit-tile-form-remove"
+                          >Remove</button
+                        ></div
+                      ></form
+                    ></section
+                  ><section class="kit-tile-row"
+                    ><h2 class="kit-tile-row-title">Tools</h2
+                    ><ul class="kit-tiles"
+                      ><li class="kit-tile-item"
+                        ><a href="#start-page" class="kit-tile"
+                          ><span class="kit-tile-icon" aria-hidden="true"
+                            ><svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <use href="#i-columns" /></svg></span
+                          ><span class="kit-tile-title">Compare code</span></a
+                        ></li
+                      ><li class="kit-tile-item"
+                        ><a href="#start-page" class="kit-tile"
+                          ><span class="kit-tile-icon" aria-hidden="true"
+                            ><svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <use href="#i-braces" /></svg></span
+                          ><span class="kit-tile-title">JSON</span></a
+                        ></li
+                      ></ul
+                    ></section
+                  ><section class="kit-tile-row"
+                    ><h2 class="kit-tile-row-title">Most visited</h2
+                    ><div class="kit-tiles-waiting" aria-busy="true"></div></section
+                  ><section class="kit-tile-row"
+                    ><h2 class="kit-tile-row-title">Recently opened</h2
+                    ><p class="kit-tile-row-note"
+                      >Chrome’s permission to read your history was removed, so nothing is shown.
+                      <a href="#start-page">Turn it on again in Settings</a>.</p
+                    ></section
+                  ></div
+                ><p class="kit-start-empty"
+                  >Shortcuts and tiles are off — the line a start page shows with every row switched off.</p
+                ></div
+              ></div
+            ><div class="kit-settings"
+              ><section class="kit-settings-group"
+                ><h2 class="kit-settings-group-title">Start page</h2
+                ><p class="kit-settings-hint kit-settings-intro"
+                  >The rows under the field, in this order — generated from the parts, with buttons to move each.</p
+                ><div class="kit-settings-row"
+                  ><div class="kit-settings-text"
+                    ><span class="kit-settings-label">My shortcuts</span
+                    ><span class="kit-settings-hint">Sites you add on the start page.</span></div
+                  ><div class="kit-settings-controls"
+                    ><button
+                      type="button"
+                      data-slot="button"
+                      class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon-sm"
+                      aria-label="Move My shortcuts up"
+                      disabled
+                      ><svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true">
+                        <use href="#i-arrow-up" /></svg></button
+                    ><button
+                      type="button"
+                      data-slot="button"
+                      class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon-sm"
+                      aria-label="Move My shortcuts down"
+                      ><svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true">
+                        <use href="#i-arrow-down" /></svg></button
+                    ><button
+                      type="button"
+                      role="switch"
+                      aria-checked="true"
+                      aria-label="My shortcuts"
+                      data-state="checked"
+                      data-size="default"
+                      data-slot="switch"
+                      class="cn-switch peer group/switch relative inline-flex shrink-0 items-center outline-none disabled:cursor-not-allowed"
+                      ><span
+                        data-slot="switch-thumb"
+                        data-state="checked"
+                        class="cn-switch-thumb pointer-events-none block ring-0"></span></button></div></div
+                ><div class="kit-settings-row"
+                  ><div class="kit-settings-text"
+                    ><span class="kit-settings-label">Tools</span
+                    ><span class="kit-settings-hint">Tools and sections, the ones you used last first.</span></div
+                  ><div class="kit-settings-controls"
+                    ><button
+                      type="button"
+                      data-slot="button"
+                      class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon-sm"
+                      aria-label="Move Tools up"
+                      ><svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true">
+                        <use href="#i-arrow-up" /></svg></button
+                    ><button
+                      type="button"
+                      data-slot="button"
+                      class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon-sm"
+                      aria-label="Move Tools down"
+                      ><svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true">
+                        <use href="#i-arrow-down" /></svg></button
+                    ><button
+                      type="button"
+                      role="switch"
+                      aria-checked="true"
+                      aria-label="Tools"
+                      data-state="checked"
+                      data-size="default"
+                      data-slot="switch"
+                      class="cn-switch peer group/switch relative inline-flex shrink-0 items-center outline-none disabled:cursor-not-allowed"
+                      ><span
+                        data-slot="switch-thumb"
+                        data-state="checked"
+                        class="cn-switch-thumb pointer-events-none block ring-0"></span></button></div></div
+                ><div class="kit-settings-row"
+                  ><div class="kit-settings-text"
+                    ><span class="kit-settings-label">Recently opened</span
+                    ><span class="kit-settings-hint"
+                      >The sites you opened last, from your browsing history. Chrome asks you to allow “Read and change
+                      your browsing history on all your signed-in devices”.</span
+                    ><span class="kit-settings-note">Waiting for your answer in Chrome’s prompt…</span></div
+                  ><div class="kit-settings-controls"
+                    ><button
+                      type="button"
+                      data-slot="button"
+                      class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon-sm"
+                      aria-label="Move Recently opened up"
+                      ><svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true">
+                        <use href="#i-arrow-up" /></svg></button
+                    ><button
+                      type="button"
+                      data-slot="button"
+                      class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon-sm"
+                      aria-label="Move Recently opened down"
+                      ><svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true">
+                        <use href="#i-arrow-down" /></svg></button
+                    ><button
+                      type="button"
+                      role="switch"
+                      aria-checked="false"
+                      aria-label="Recently opened"
+                      data-state="unchecked"
+                      data-size="default"
+                      data-slot="switch"
+                      class="cn-switch peer group/switch relative inline-flex shrink-0 items-center outline-none disabled:cursor-not-allowed"
+                      disabled
+                      ><span
+                        data-slot="switch-thumb"
+                        data-state="unchecked"
+                        class="cn-switch-thumb pointer-events-none block ring-0"></span></button></div></div
+                ><div class="kit-settings-row"
+                  ><div class="kit-settings-text"
+                    ><span class="kit-settings-label">Recently closed</span
+                    ><span class="kit-settings-hint"
+                      >The tabs you closed last in this browser. Chrome asks you to allow “Read your browsing history on
+                      all your signed-in devices”.</span
+                    ><span class="kit-settings-note"
+                      >Chrome’s permission was removed, so this is off. Turn it on to ask again.</span
+                    ></div
+                  ><div class="kit-settings-controls"
+                    ><button
+                      type="button"
+                      data-slot="button"
+                      class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon-sm"
+                      aria-label="Move Recently closed up"
+                      ><svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true">
+                        <use href="#i-arrow-up" /></svg></button
+                    ><button
+                      type="button"
+                      data-slot="button"
+                      class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon-sm"
+                      aria-label="Move Recently closed down"
+                      disabled
+                      ><svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true">
+                        <use href="#i-arrow-down" /></svg></button
+                    ><button
+                      type="button"
+                      role="switch"
+                      aria-checked="true"
+                      aria-label="Recently closed"
+                      data-state="checked"
+                      data-size="default"
+                      data-slot="switch"
+                      class="cn-switch peer group/switch relative inline-flex shrink-0 items-center outline-none disabled:cursor-not-allowed"
+                      ><span
+                        data-slot="switch-thumb"
+                        data-state="checked"
+                        class="cn-switch-thumb pointer-events-none block ring-0"></span></button></div></div
+                ><div class="kit-settings-actions"
+                  ><button
+                    type="button"
+                    data-slot="button"
+                    class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 cn-button-variant-outline cn-button-size-sm"
+                    >Reset order</button
+                  ></div
+                ><h3 class="kit-settings-subtitle">The field and the tiles</h3
+                ><div class="kit-settings-row"
+                  ><div class="kit-settings-text"
+                    ><span class="kit-settings-label">Web search</span
+                    ><span class="kit-settings-hint">When nothing here matches, Enter searches the web.</span></div
+                  ><div class="kit-settings-controls"
+                    ><button
+                      type="button"
+                      role="switch"
+                      aria-checked="true"
+                      aria-label="Web search"
+                      data-state="checked"
+                      data-size="default"
+                      data-slot="switch"
+                      class="cn-switch peer group/switch relative inline-flex shrink-0 items-center outline-none disabled:cursor-not-allowed"
+                      ><span
+                        data-slot="switch-thumb"
+                        data-state="checked"
+                        class="cn-switch-thumb pointer-events-none block ring-0"></span></button></div></div></section
+              ><div class="kit-settings-hint kit-settings-prose"
+                ><p>Your data: what is stored and what is not, in plain words.</p
+                ><p>Each part that reads the browser adds its own line.</p></div
+              ></div
+            ></section
+          >
+          <section class="show-group" id="toolbar-menu"
+            ><h2>Toolbar menu</h2
+            ><p class="show-note"
+              >The popup under the extension's button (menu.css, kit-menu*): the popup is the menu, Chrome draws its
+              frame (here a line around it). The highlight is the focus — the first item has it when the menu opens; the
+              pointer and the arrow keys move it.</p
+            ><div class="show-row"
+              ><div class="show-popup"
+                ><ul class="kit-menu" role="menu" aria-label="Toolbar menu"
+                  ><li role="none"
+                    ><button class="kit-menu-item" type="button" role="menuitem" data-menu-item>New tab</button></li
+                  ><li role="none"
+                    ><button class="kit-menu-item" type="button" role="menuitem" data-menu-item>Settings</button></li
+                  ></ul
+                ></div
+              ></div
+            ></section
+          >
+          <section class="show-group" id="compare"
+            ><h2>Compare code</h2
+            ><p class="show-note"
+              >The frame of «Compare code» (ui.css, kit-compare*): the common bar, a bar above each editor with what its
+              text is and its actions, the editor's frame (a box here: the page has the wasm editor in it). States: the
+              example; a side being edited and edited; a refused drop over the empty state; files dragged over the page,
+              the right target under the pointer; the tooltip of an action with its shortcut.</p
+            ><div class="show-compare"
+              ><section class="kit-compare" aria-label="Compare code"
+                ><div class="kit-compare-bar"
+                  ><h3 class="kit-compare-title">Compare code</h3
+                  ><p class="kit-compare-notice" data-tone="info"
+                    >This is an example. Drop two files, open or paste a text on each side, or edit one, to compare your
+                    own.</p
+                  ><div class="kit-compare-tools"
+                    ><button
+                      class="cn-select-trigger inline-flex items-center justify-between"
+                      data-size="sm"
+                      type="button"
+                      >Rust</button
+                    ><button
+                      class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                      type="button"
+                      aria-label="Swap sides"
+                      ><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                    ><span class="kit-compare-counts"
+                      >5 changes<span class="kit-compare-added">+22</span
+                      ><span class="kit-compare-removed">−20</span></span
+                    ></div
+                  ></div
+                ><div class="kit-compare-sides"
+                  ><div class="kit-compare-side" role="group" aria-label="Original side"
+                    ><span class="kit-compare-side-role">Original</span
+                    ><span class="kit-compare-side-name" data-origin="example">before.rs</span
+                    ><span class="kit-compare-badge">Example</span
+                    ><div class="kit-compare-side-actions"
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Open file… (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Paste from the clipboard (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Copy the text (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Save (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Save as… (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Edit (original side)"
+                        aria-pressed="false"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Clear (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button></div></div
+                  ><div class="kit-compare-side" role="group" aria-label="Changed side"
+                    ><span class="kit-compare-side-role">Changed</span
+                    ><span class="kit-compare-side-name" data-origin="example">after.rs</span
+                    ><span class="kit-compare-badge">Example</span
+                    ><div class="kit-compare-side-actions"
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Open file… (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Paste from the clipboard (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Copy the text (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Save (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Save as… (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Edit (changed side)"
+                        aria-pressed="false"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Clear (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button></div></div></div
+                ><div class="kit-compare-view"><div class="kit-compare-frame"></div></div></section></div
+            ><div class="show-compare"
+              ><section class="kit-compare" aria-label="Compare code"
+                ><div class="kit-compare-bar"
+                  ><h3 class="kit-compare-title">Compare code</h3
+                  ><p class="kit-compare-notice" data-tone="success"
+                    >Editing the changed side: the comparison follows your edits.</p
+                  ><div class="kit-compare-tools"
+                    ><button
+                      class="cn-select-trigger inline-flex items-center justify-between"
+                      data-size="sm"
+                      type="button"
+                      >Rust</button
+                    ><button
+                      class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                      type="button"
+                      aria-label="Swap sides"
+                      ><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                    ><span class="kit-compare-counts"
+                      >1 change<span class="kit-compare-added">+4</span
+                      ><span class="kit-compare-removed">−2</span></span
+                    ></div
+                  ></div
+                ><div class="kit-compare-sides"
+                  ><div class="kit-compare-side" role="group" aria-label="Original side"
+                    ><span class="kit-compare-side-role">Original</span
+                    ><span class="kit-compare-side-name" data-origin="clipboard">Pasted text</span
+                    ><div class="kit-compare-side-actions"
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Open file… (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Paste from the clipboard (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Copy the text (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Save (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Save as… (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Edit (original side)"
+                        aria-pressed="false"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Clear (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button></div></div
+                  ><div class="kit-compare-side" role="group" aria-label="Changed side"
+                    ><span class="kit-compare-side-role">Changed</span
+                    ><span class="kit-compare-side-name" data-origin="file">server.rs</span
+                    ><span class="kit-compare-badge" data-badge="editing">Editing</span
+                    ><span class="kit-compare-badge" data-badge="modified">Edited</span
+                    ><div class="kit-compare-side-actions"
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Open file… (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Paste from the clipboard (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Copy the text (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Save (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Save as… (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Edit (changed side)"
+                        data-pressed
+                        aria-pressed="true"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Clear (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button></div></div></div
+                ><div class="kit-compare-view"><div class="kit-compare-frame"></div></div></section></div
+            ><div class="show-compare"
+              ><section class="kit-compare" aria-label="Compare code"
+                ><div class="kit-compare-bar"
+                  ><h3 class="kit-compare-title">Compare code</h3
+                  ><p class="kit-compare-notice" data-tone="error"
+                    >Nothing was opened: logo.png looks like a binary file.</p
+                  ><div class="kit-compare-tools"
+                    ><button
+                      class="cn-select-trigger inline-flex items-center justify-between"
+                      data-size="sm"
+                      type="button"
+                      >Rust</button
+                    ><button
+                      class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                      type="button"
+                      aria-label="Swap sides"
+                      ><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                    ><span class="kit-compare-counts">No differences</span></div
+                  ></div
+                ><div class="kit-compare-sides"
+                  ><div class="kit-compare-side" role="group" aria-label="Original side"
+                    ><span class="kit-compare-side-role">Original</span
+                    ><span class="kit-compare-side-name" data-origin="empty">Empty</span
+                    ><div class="kit-compare-side-actions"
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Open file… (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Paste from the clipboard (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Copy the text (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Save (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Save as… (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Edit (original side)"
+                        aria-pressed="false"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Clear (original side)"
+                        disabled
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button></div></div
+                  ><div class="kit-compare-side" role="group" aria-label="Changed side"
+                    ><span class="kit-compare-side-role">Changed</span
+                    ><span class="kit-compare-side-name" data-origin="empty">Empty</span
+                    ><div class="kit-compare-side-actions"
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Open file… (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Paste from the clipboard (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Copy the text (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Save (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Save as… (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Edit (changed side)"
+                        aria-pressed="false"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Clear (changed side)"
+                        disabled
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button></div></div></div
+                ><div class="kit-compare-view"
+                  ><div class="kit-compare-frame"></div
+                  ><div class="kit-compare-empty"
+                    ><p class="kit-compare-empty-title">Nothing to compare</p
+                    ><p class="kit-compare-empty-hint"
+                      >Drop one or two files here, open or paste a text on each side, or switch a side to Edit and
+                      type.</p
+                    ><button
+                      class="cn-button cn-button-variant-outline cn-button-size-sm inline-flex items-center justify-center"
+                      type="button"
+                      >Show the example</button
+                    ></div
+                  ></div
+                ></section
+              ></div
+            ><div class="show-compare"
+              ><section class="kit-compare" aria-label="Compare code"
+                ><div class="kit-compare-bar"
+                  ><h3 class="kit-compare-title">Compare code</h3><p class="kit-compare-notice" data-tone="info"></p
+                  ><div class="kit-compare-tools"
+                    ><button
+                      class="cn-select-trigger inline-flex items-center justify-between"
+                      data-size="sm"
+                      type="button"
+                      >Rust</button
+                    ><button
+                      class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                      type="button"
+                      aria-label="Swap sides"
+                      ><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                    ><span class="kit-compare-counts"
+                      >5 changes<span class="kit-compare-added">+22</span
+                      ><span class="kit-compare-removed">−20</span></span
+                    ></div
+                  ></div
+                ><div class="kit-compare-sides"
+                  ><div class="kit-compare-side" role="group" aria-label="Original side"
+                    ><span class="kit-compare-side-role">Original</span
+                    ><span class="kit-compare-side-name" data-origin="example">before.rs</span
+                    ><span class="kit-compare-badge">Example</span
+                    ><div class="kit-compare-side-actions"
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Open file… (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Paste from the clipboard (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Copy the text (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Save (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Save as… (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Edit (original side)"
+                        aria-pressed="false"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Clear (original side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button></div></div
+                  ><div class="kit-compare-side" role="group" aria-label="Changed side"
+                    ><span class="kit-compare-side-role">Changed</span
+                    ><span class="kit-compare-side-name" data-origin="example">after.rs</span
+                    ><span class="kit-compare-badge">Example</span
+                    ><div class="kit-compare-side-actions"
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Open file… (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Paste from the clipboard (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Copy the text (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Save (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Save as… (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Edit (changed side)"
+                        aria-pressed="false"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button
+                      ><button
+                        class="cn-button cn-button-variant-ghost cn-button-size-icon-sm kit-compare-action inline-flex shrink-0 items-center justify-center"
+                        type="button"
+                        aria-label="Clear (changed side)"
+                        ><svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5">
+                          <rect x="3" y="3" width="10" height="10" rx="2"></rect></svg></button></div></div></div
+                ><div class="kit-compare-view"><div class="kit-compare-frame"></div></div
+                ><div class="kit-compare-drop"
+                  ><div class="kit-compare-drop-target" data-side="old"
+                    ><span class="kit-compare-drop-label"
+                      >Drop to open as the original text<span class="kit-compare-drop-hint"
+                        >Two files at once: the first is the original</span
+                      ></span
+                    ></div
+                  ><div class="kit-compare-drop-target" data-side="new" data-over
+                    ><span class="kit-compare-drop-label"
+                      >Drop to open as the changed text<span class="kit-compare-drop-hint"
+                        >Two files at once: the first is the original</span
+                      ></span
+                    ></div
+                  ></div
+                ></section
+              ></div
+            ><div class="show-row"
+              ><div class="cn-tooltip-content inline-flex" role="tooltip"
+                >Save<kbd class="cn-kbd inline-flex items-center justify-center">⌘S</kbd></div
+              ></div
+            ></section
+          >
+          <section class="show-group" id="tool-history">
+            <h2>Tool history</h2>
+            <p class="show-note">
+              The History section (ui.css, kit-history*): whether history is kept, the filters, the count and actions,
+              the confirmation before a deletion, the list by session; a tool's history line (kit-tool-history*).
+            </p>
+            <div class="kit-history">
+              <div class="kit-history-status" data-history-state="on" role="status">
+                <span>History is on: your tools keep their work in this browser.</span>
+                <span class="kit-history-lock" data-vault="locked">Encrypted entries are locked.</span>
+                <a class="kit-history-status-link" href="#tool-history">Settings</a>
+              </div>
+              <div class="kit-history-filters">
+                <div class="kit-history-filter">
+                  <label class="cn-label flex items-center select-none" for="show-history-text">Text</label>
+                  <input
+                    id="show-history-text"
+                    class="cn-input w-full min-w-0 outline-none"
+                    placeholder="Search labels and text" />
+                </div>
+                <div class="kit-history-filter kit-history-filter-grow">
+                  <span class="kit-history-filter-label">Period</span>
+                  <div class="kit-history-dates">
+                    <label class="cn-label flex items-center select-none" for="show-history-from">From</label>
+                    <input
+                      id="show-history-from"
+                      type="date"
+                      class="cn-input w-full min-w-0 outline-none"
+                      value="2026-11-14" />
+                  </div>
+                </div>
+              </div>
+              <div class="kit-history-bar">
+                <p class="kit-history-count">3 entries · 1.6 KB match the filter</p>
+                <div class="kit-history-actions">
+                  <button class="cn-button cn-button-variant-outline cn-button-size-sm" type="button"
+                    >Export shown</button
+                  >
+                  <button class="cn-button cn-button-variant-destructive cn-button-size-sm" type="button"
+                    >Delete shown…</button
+                  >
+                </div>
+              </div>
+              <div class="kit-history-confirm" role="alertdialog">
+                <p>Delete the entries the filter shows: 3 entries and 1.6 KB? This cannot be undone.</p>
+                <div class="kit-history-confirm-actions">
+                  <button class="cn-button cn-button-variant-destructive cn-button-size-sm" type="button"
+                    >Delete permanently</button
+                  >
+                  <button class="cn-button cn-button-variant-outline cn-button-size-sm" type="button">Cancel</button>
+                </div>
+              </div>
+              <ol class="kit-history-list">
+                <li class="kit-history-session">
+                  <div class="kit-history-session-head">
+                    <span class="kit-history-session-title">JSON</span>
+                    <span class="kit-history-session-meta">Nov 21, 2026, 10:44 AM–10:46 AM · 2 entries</span>
+                  </div>
+                  <ul class="kit-history-entries">
+                    <li class="kit-history-entry">
+                      <span class="kit-history-entry-time">10:46 AM</span
+                      ><span class="kit-history-entry-kind">Edit</span
+                      ><span class="kit-history-entry-label">Edit · 24 characters</span
+                      ><span class="kit-history-entry-size">431 B</span
+                      ><span class="kit-history-entry-actions"
+                        ><button class="cn-button cn-button-variant-ghost cn-button-size-xs" type="button"
+                          >Open</button
+                        ></span
+                      >
+                    </li>
+                    <li class="kit-history-entry">
+                      <span class="kit-history-entry-time">10:44 AM</span
+                      ><span class="kit-history-entry-kind">Result</span
+                      ><span class="kit-history-entry-label">Format · 2 spaces · sorted keys</span
+                      ><span class="kit-history-entry-size">641 B</span
+                      ><span class="kit-history-entry-actions"
+                        ><button class="cn-button cn-button-variant-ghost cn-button-size-xs" type="button"
+                          >Open</button
+                        ></span
+                      >
+                    </li>
+                  </ul>
+                </li>
+              </ol>
+              <p class="kit-history-empty">Nothing matches the filter.</p>
+              <div class="kit-tool-history" data-history-state="on">
+                <p class="kit-tool-history-line">
+                  <span>History is on: this tool’s work is kept in this browser.</span>
+                  <a href="#tool-history">History</a><a href="#tool-history">Settings</a>
+                </p>
+                <details class="kit-tool-history-recent"><summary>Recent entries</summary></details>
+              </div>
+              <div class="kit-history-vault">
+                <div class="kit-history-vault-warning" role="note">
+                  <p
+                    ><strong>There is no way to recover this password.</strong> If you forget it, the encrypted entries
+                    can only be deleted.</p
+                  >
+                  <div class="kit-history-check"><span>I understand: forgotten means lost</span></div>
+                </div>
+                <form class="kit-history-vault-form">
+                  <div class="kit-history-restore-field">
+                    <label class="cn-label flex items-center select-none" for="show-history-password"
+                      >Master password</label
+                    >
+                    <input id="show-history-password" type="password" class="cn-input w-full min-w-0 outline-none" />
+                  </div>
+                </form>
+              </div>
+              <div class="kit-history-restore"><p>3 entries and 5 files (1.6 KB). Every checksum matches.</p></div>
+              <p class="kit-history-note">Restored 3 entries.</p>
+              <div class="kit-history-more">
+                <button class="cn-button cn-button-variant-outline cn-button-size-sm" type="button"
+                  >Show older entries</button
+                >
+              </div>
+            </div>
+          </section>
+          <section class="show-group" id="tool-page">
+            <h2>Tool page and Table</h2>
+            <p class="show-note">
+              What every tool page has in common (@workspace/ui tool-page, style-gpui.css kit-tool-*): the head with the
+              title, the summary and the host's history line; a row of options and actions; input and result panes; a
+              message under a pane (an error, a note, a success). Then the parts the tools share: a copy button (words,
+              or an icon that turns into a check), result rows (kit-result-row*), the file drop zone (kit-file-drop*,
+              shown with a file over it) and the table (cn-table*).
+            </p>
+            <section data-slot="tool-page" class="kit-tool-page">
+              <header class="kit-tool-page-head">
+                <h2 class="kit-tool-page-title">JSON</h2>
+                <p class="kit-tool-page-summary">Format, validate and minify JSON.</p>
+              </header>
+              <aside class="kit-tool-history" aria-label="JSON history" data-history-state="on">
+                <p class="kit-tool-history-line" role="status">
+                  <span>History is on: this tool’s work is kept in this browser.</span>
+                  <a href="#tool-page">History</a><a href="#tool-page">Settings</a>
+                </p>
+              </aside>
+              <div data-slot="tool-options" class="kit-tool-options">
+                <button
+                  type="button"
+                  data-slot="button"
+                  class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-default cn-button-size-default"
+                  >Format</button
+                >
+                <button
+                  type="button"
+                  data-slot="button"
+                  class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-outline cn-button-size-default"
+                  >Minify</button
+                >
+              </div>
+              <div data-slot="tool-panes" data-layout="columns" class="kit-tool-panes">
+                <div data-slot="tool-pane" class="kit-tool-pane">
+                  <div class="kit-tool-pane-head">
+                    <label data-slot="label" for="show-tool-input" class="cn-label flex items-center select-none"
+                      >Input</label
+                    >
+                  </div>
+                  <textarea
+                    id="show-tool-input"
+                    data-slot="textarea"
+                    class="cn-textarea flex field-sizing-content min-h-16 w-full outline-none disabled:cursor-not-allowed h-40 resize-y font-mono text-code field-sizing-fixed">
+{"name": "gpui", "tags": ["diff",]}</textarea>
+                  <p data-slot="tool-message" data-tone="error" role="alert" class="kit-tool-message"
+                    >Line 1, column 33: trailing comma</p
+                  >
+                </div>
+                <div data-slot="tool-pane" class="kit-tool-pane">
+                  <div class="kit-tool-pane-head">
+                    <label data-slot="label" for="show-tool-output" class="cn-label flex items-center select-none"
+                      >Result</label
+                    >
+                    <div class="flex items-center gap-1"
+                      ><button
+                        type="button"
+                        data-slot="button"
+                        class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-sm"
+                        >Copied</button
+                      ></div
+                    >
+                  </div>
+                  <textarea
+                    id="show-tool-output"
+                    data-slot="textarea"
+                    readonly
+                    class="cn-textarea flex field-sizing-content min-h-16 w-full outline-none disabled:cursor-not-allowed h-40 resize-y font-mono text-code field-sizing-fixed">
+{
+  "name": "gpui"
+}</textarea>
+                  <p data-slot="tool-message" data-tone="success" role="status" class="kit-tool-message">Valid JSON</p>
+                </div>
+              </div>
+              <p data-slot="tool-message" data-tone="note" role="status" class="kit-tool-message"
+                >Opened from History: Format · 2 spaces.</p
+              >
+              <p data-slot="tool-empty" class="kit-tool-empty">Paste a UUID or ULID to inspect it.</p>
+            </section>
+            <div class="show-row">
+              <button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-sm"
+                >Copy</button
+              >
+              <button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-sm"
+                >Copied</button
+              >
+              <button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon-xs"
+                aria-label="Copy SHA-256"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-copy" /></svg
+              ></button>
+              <button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon-xs"
+                aria-label="Copied"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                  <use href="#i-check" /></svg
+              ></button>
+              <button
+                type="button"
+                data-slot="button"
+                class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-sm"
+                disabled
+                >Copy</button
+              >
+            </div>
+            <div data-slot="result-rows" class="kit-result-rows">
+              <div data-slot="result-row" class="kit-result-row">
+                <span class="kit-result-row-label">MD5</span>
+                <span class="flex min-w-0 flex-wrap items-baseline gap-2"
+                  ><output class="kit-result-row-value" aria-label="MD5">900150983cd24fb0d6963f7d28e17f72</output></span
+                >
+                <button
+                  type="button"
+                  data-slot="button"
+                  class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon-xs"
+                  aria-label="Copy MD5"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-copy" /></svg
+                ></button>
+              </div>
+              <div data-slot="result-row" class="kit-result-row">
+                <span class="kit-result-row-label">SHA-256</span>
+                <span class="flex min-w-0 flex-wrap items-baseline gap-2"
+                  ><output class="kit-result-row-value" aria-label="SHA-256"
+                    >ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad</output
+                  ><span class="text-sm text-success">Matches</span></span
+                >
+                <button
+                  type="button"
+                  data-slot="button"
+                  class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon-xs"
+                  aria-label="Copied"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <use href="#i-check" /></svg
+                ></button>
+              </div>
+              <div data-slot="result-row" class="kit-result-row">
+                <span class="kit-result-row-label">Port</span>
+                <span class="flex min-w-0 flex-wrap items-baseline gap-2"
+                  ><output class="kit-result-row-value" aria-label="Port" data-empty="true">empty</output></span
+                >
+                <span></span>
+              </div>
+            </div>
+            <div class="show-row">
+              <div data-slot="file-drop" data-dragging="false" class="kit-file-drop w-80">
+                <div class="kit-file-drop-line"
+                  ><span>Drop a file here or</span
+                  ><button
+                    type="button"
+                    data-slot="button"
+                    class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-outline cn-button-size-sm"
+                    >Choose file</button
+                  ></div
+                >
+                <span>release.iso — 4.2 MB</span>
+              </div>
+              <div data-slot="file-drop" data-dragging="true" class="kit-file-drop w-80">
+                <div class="kit-file-drop-line"
+                  ><span>Drop a file here or</span
+                  ><button
+                    type="button"
+                    data-slot="button"
+                    class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-outline cn-button-size-sm"
+                    >Choose file</button
+                  ></div
+                >
+              </div>
+            </div>
+            <div data-slot="table-container" class="cn-table-container">
+              <table data-slot="table" class="cn-table">
+                <thead data-slot="table-header" class="cn-table-header">
+                  <tr data-slot="table-row" class="cn-table-row"
+                    ><th data-slot="table-head" class="cn-table-head">#</th
+                    ><th data-slot="table-head" class="cn-table-head">Name</th
+                    ><th data-slot="table-head" class="cn-table-head">Value</th
+                    ><th data-slot="table-head" class="cn-table-head"></th
+                  ></tr>
+                </thead>
+                <tbody data-slot="table-body" class="cn-table-body">
+                  <tr data-slot="table-row" class="cn-table-row"
+                    ><td data-slot="table-cell" class="cn-table-cell">1</td
+                    ><td data-slot="table-cell" class="cn-table-cell">query</td
+                    ><td data-slot="table-cell" class="cn-table-cell">value</td
+                    ><td data-slot="table-cell" class="cn-table-cell"
+                      ><button
+                        type="button"
+                        data-slot="button"
+                        class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon-xs"
+                        aria-label="Copy value of query"
+                        ><svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true">
+                          <use href="#i-copy" /></svg></button></td
+                  ></tr>
+                  <tr data-slot="table-row" class="cn-table-row" data-state="selected"
+                    ><td data-slot="table-cell" class="cn-table-cell">2</td
+                    ><td data-slot="table-cell" class="cn-table-cell">page</td
+                    ><td data-slot="table-cell" class="cn-table-cell">2</td
+                    ><td data-slot="table-cell" class="cn-table-cell"
+                      ><button
+                        type="button"
+                        data-slot="button"
+                        class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 cn-button-variant-ghost cn-button-size-icon-xs"
+                        aria-label="Copy value of page"
+                        ><svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true">
+                          <use href="#i-copy" /></svg></button></td
+                  ></tr>
+                </tbody>
+                <caption data-slot="table-caption" class="cn-table-caption">Query parameters (2)</caption>
+              </table>
+            </div>
+          </section>
         </div>
       </main>
     </div>

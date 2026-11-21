@@ -95,6 +95,10 @@ describe('the package’s own pieces keep the contract', () => {
     expect(lintCss(read('ui.css'), { file: 'ui.css' })).toEqual([]);
   });
 
+  it('menu.css (the toolbar menu’s frame)', () => {
+    expect(lintCss(read('menu.css'), { file: 'menu.css' })).toEqual([]);
+  });
+
   it('style-gpui.css (the component layer)', () => {
     expect(lintCss(read('style-gpui.css'), { file: 'style-gpui.css', own: ['--radix-'] })).toEqual([]);
   });
