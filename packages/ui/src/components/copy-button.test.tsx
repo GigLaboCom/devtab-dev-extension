@@ -23,6 +23,31 @@ describe('CopyButton', () => {
     expect(screen.getByRole('button').textContent).toBe('Copy');
   });
 
+  it('"Copied" goes the moment the value changes — also when the write answers after the change', async () => {
+    let answer!: () => void;
+    const write = vi.fn(() => new Promise<void>(r => (answer = r)));
+    const { rerender } = render(<CopyButton value="first" write={write} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+    rerender(<CopyButton value="second" write={write} />);
+    await act(async () => answer());
+    expect(screen.getByRole('button').textContent).toBe('Copy');
+    // Back to the copied value: it is the one in the clipboard again.
+    rerender(<CopyButton value="first" write={write} />);
+    expect(screen.getByRole('button').textContent).toBe('Copied');
+  });
+
+  it('a function value says "Copied" until its resetKey changes', async () => {
+    const write = vi.fn(() => Promise.resolve());
+    const { rerender } = render(<CopyButton value={() => 'v1'} resetKey={1} write={write} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+    await flush();
+    expect(screen.getByRole('button').textContent).toBe('Copied');
+    rerender(<CopyButton value={() => 'v1'} resetKey={1} write={write} />);
+    expect(screen.getByRole('button').textContent).toBe('Copied');
+    rerender(<CopyButton value={() => 'v2'} resetKey={2} write={write} />);
+    expect(screen.getByRole('button').textContent).toBe('Copy');
+  });
+
   it('as an icon: the label is its name, "Copied" for resetAfterMs', async () => {
     vi.useFakeTimers();
     const write = vi.fn(() => Promise.resolve());
@@ -45,5 +70,18 @@ describe('CopyButton', () => {
     expect(write).toHaveBeenCalledWith('late');
     expect(onError).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('button').textContent).toBe('Not copied');
+  });
+  it('shows a copy made elsewhere (an automatic copy) as "Copied" while it is the value; a refusal leaves it ready', () => {
+    const write = vi.fn(() => Promise.resolve());
+    const { rerender } = render(<CopyButton value="one" write={write} outcome={null} />);
+    expect(screen.getByRole('button').textContent).toBe('Copy');
+    rerender(<CopyButton value="two" write={write} outcome={{ text: 'two', ok: false }} />);
+    expect(screen.getByRole('button').textContent).toBe('Copy');
+    rerender(<CopyButton value="two" write={write} outcome={{ text: 'two', ok: true }} />);
+    expect(screen.getByRole('button').textContent).toBe('Copied');
+    // A new value: the old copy no longer is this one.
+    rerender(<CopyButton value="three" write={write} outcome={{ text: 'two', ok: true }} />);
+    expect(screen.getByRole('button').textContent).toBe('Copy');
+    expect(write).not.toHaveBeenCalled();
   });
 });

@@ -28,4 +28,17 @@ describe('ResultRow', () => {
     expect(output.hasAttribute('data-empty')).toBe(true);
     expect(screen.queryByRole('button')).toBeNull();
   });
+
+  it('is not a live region: a value derived from what is typed is not read again on every keystroke', () => {
+    render(<ResultRow label="SHA-256" value="e3b0c442" />);
+    expect(screen.getByRole('status', { name: 'SHA-256' }).getAttribute('aria-live')).toBe('off');
+  });
+
+  it('the extra slot in its second-line form: a line of its own under the value', () => {
+    const { container } = render(<ResultRow label="Port" value="443" extra="The scheme’s default port." extraBelow />);
+    const below = container.querySelector('.kit-result-row-extra');
+    expect(below?.textContent).toBe('The scheme’s default port.');
+    expect(container.querySelector('.kit-result-row')?.lastElementChild).toBe(below);
+    expect(screen.getByRole('status', { name: 'Port' }).parentElement?.textContent).toBe('443');
+  });
 });
