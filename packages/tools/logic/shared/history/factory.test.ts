@@ -114,6 +114,31 @@ describe('the history factory', () => {
     expect(sessions.size).toBe(2);
   });
 
+  it('keeps one waiting snapshot per kind: a change of another kind within the wait does not drop the first', async () => {
+    const store = memoryStore();
+    const { timers, advance } = manualTimers();
+    const history = createHistoryFactory({ store, cipher: noCipher, timers }).forOwner('json', DECLARATION);
+    const recorder = history.session();
+    recorder.change(draft('edit', 'one'));
+    await advance(IDLE_MS / 3);
+    recorder.change(draft('result', 'two'));
+    await advance(IDLE_MS / 3);
+    recorder.change(draft('edit', 'three'));
+    await advance(IDLE_MS + 1);
+    const labels = (await history.list()).entries.map(e => e.label).sort();
+    expect(labels).toEqual(['edit three', 'result two']);
+    // Both on flush too, the newest of each kind.
+    recorder.change(draft('edit', 'four'));
+    recorder.change(draft('result', 'five'));
+    await recorder.flush();
+    expect(
+      (await history.list()).entries
+        .map(e => e.label)
+        .slice(0, 2)
+        .sort(),
+    ).toEqual(['edit four', 'result five']);
+  });
+
   it('records nothing when the gate is off, for an undeclared kind, or for a declaration with no kinds', async () => {
     const store = memoryStore();
     let state: ReturnType<HistoryGate['state']> = 'incognito';

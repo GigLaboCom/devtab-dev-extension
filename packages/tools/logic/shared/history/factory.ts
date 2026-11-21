@@ -358,7 +358,8 @@ export const createHistoryFactory = (deps: FactoryDeps): HistoryFactory => {
         let lastWrite = 0;
         let lastChangeWrite = -Infinity;
         const lastByKind = new Map<string, string>();
-        let pending: HistoryDraft | undefined;
+        // The newest snapshot waiting per kind: a change of one kind does not replace another kind's waiting one.
+        const pending = new Map<string, HistoryDraft>();
         let timer: unknown;
         let chain: Promise<unknown> = Promise.resolve();
         const serial = <T>(task: () => Promise<T>): Promise<T> => {
@@ -397,19 +398,19 @@ export const createHistoryFactory = (deps: FactoryDeps): HistoryFactory => {
           const wait = Math.max(IDLE_MS, lastChangeWrite + MIN_GAP_MS - timers.now());
           timer = timers.setTimeout(() => {
             timer = undefined;
-            const draft = pending;
-            pending = undefined;
-            if (draft) void record(draft, true);
+            const drafts = [...pending.values()];
+            pending.clear();
+            for (const draft of drafts) void record(draft, true);
           }, wait);
         };
 
         const flush = async () => {
           if (timer !== undefined) timers.clearTimeout(timer);
           timer = undefined;
-          const draft = pending;
-          pending = undefined;
-          if (draft) await record(draft, true);
-          else await serial(async () => undefined);
+          const drafts = [...pending.values()];
+          pending.clear();
+          for (const draft of drafts) await record(draft, true);
+          if (!drafts.length) await serial(async () => undefined);
         };
 
         return {
@@ -418,13 +419,15 @@ export const createHistoryFactory = (deps: FactoryDeps): HistoryFactory => {
           },
           change(draft) {
             if (!kinds.has(draft.kind) || gate.state(owner) !== 'on') return;
-            pending = draft;
+            pending.delete(draft.kind);
+            pending.set(draft.kind, draft);
             schedule();
           },
           async commit(draft) {
             if (timer !== undefined) timers.clearTimeout(timer);
             timer = undefined;
-            pending = undefined;
+            // The explicit action records the state as it is now: the snapshots waiting of every kind go.
+            pending.clear();
             return record(draft, false);
           },
           flush,

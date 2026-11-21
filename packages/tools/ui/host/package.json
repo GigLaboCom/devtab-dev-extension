@@ -1,11 +1,13 @@
 {
   "name": "@workspace/tools-host",
   "version": "0.1.0",
-  "description": "The host contract of the tools (D14): ToolHost and its defaults that need no host, the tool's description type, and the shared hooks — now the tool history (D17): a tool asks its host for the history of its own id and records through it.",
+  "description": "The host contract of the tools (D14): ToolHost and its defaults that need no host, the tool's description type, and the shared hooks — the tool history (D17): a tool asks its host for the history of its own id and records through it; and per-tool settings: a tool reads and follows its own entry (the first setting: copy automatically after generating), with a contract suite every implementation runs.",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./lib/index.ts"
+    ".": "./lib/index.ts",
+    "./settings-contract": "./lib/settingsContract.ts",
+    "./navigation-contract": "./lib/navigationContract.ts"
   },
   "sideEffects": false,
   "scripts": {
