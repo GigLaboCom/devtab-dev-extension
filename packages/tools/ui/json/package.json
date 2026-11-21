@@ -5,7 +5,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/definition.ts"
+    ".": "./src/definition.ts",
+    "./detect": "./src/detect.ts"
   },
   "sideEffects": false,
   "scripts": {

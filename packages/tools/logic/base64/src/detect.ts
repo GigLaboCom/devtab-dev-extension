@@ -1,6 +1,6 @@
 /**
- * `detectBase64` (docs/tools/specs/base64.md §7) in a module of its own: the tool's definition imports it, so it is part
- * of every host page that lists the tools (the start page's first chunk). It needs only parseBase64 and strict UTF-8;
+ * `detectBase64` (docs/tools/specs/base64.md §7) in a module of its own: the ui package's `./detect` re-exports it,
+ * and a host loads every tool's `detect` together, lazily, when pasted text needs them. It needs only parseBase64 and strict UTF-8;
  * encoding, the hex view and the rest of the logic stay in the tool's own chunk.
  */
 import { parseBase64 } from '@workspace/tools-shared/base64';

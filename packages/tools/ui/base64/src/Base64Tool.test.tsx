@@ -1,5 +1,6 @@
 import Base64Tool from './Base64Tool';
 import { definition } from './definition';
+import { detect } from './detect';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LIVE_INPUT, MAX_INPUT, SETTLE_MS } from '@workspace/tool-logic-base64';
 import { memoryHost } from '@workspace/tools-host';
@@ -36,8 +37,8 @@ describe('the Base64 tool’s definition', () => {
       order: 2,
     });
     expect(definition.keywords).toEqual(['base64', 'encode', 'decode', 'base64url', 'url-safe', 'atob', 'btoa', 'pem']);
-    expect(definition.detect?.('SGVsbG8sIFdvcmxkIQ==')).toBe(true);
-    expect(definition.detect?.('password')).toBe(false);
+    expect(detect('SGVsbG8sIFdvcmxkIQ==')).toBe(true);
+    expect(detect('password')).toBe(false);
     expect(definition.history?.kinds.map(k => k.id)).toEqual(['encode', 'decode']);
     expect(definition.history?.kinds.some(k => k.secret)).toBe(false);
     expect((await definition.load()).default).toBe(Base64Tool);

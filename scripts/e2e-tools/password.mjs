@@ -37,6 +37,8 @@ const historyRows = page =>
 
 const passwordRows = async page => (await historyRows(page)).filter(r => r.owner === 'password');
 
+import { themeMode } from '../e2e-theme.mjs';
+
 export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   const opened = [];
   const open = async hash => {
@@ -75,7 +77,11 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   await output(page).waitFor();
   check(
     `${T}: listed in Tools, its page titled and summarised by its definition`,
-    (await page.getByRole('navigation', { name: 'Tools' }).getByRole('link', { name: T }).count()) === 1 &&
+    (await page
+      .getByRole('navigation', { name: 'Sections' })
+      .getByRole('list', { name: 'Tools' })
+      .getByRole('link', { name: T })
+      .count()) === 1 &&
       (await page.getByRole('heading', { name: T }).count()) === 1 &&
       /Kept only encrypted, with a master password\./.test(await page.locator('.kit-tool-page-summary').innerText()),
   );
@@ -124,7 +130,9 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   check(
     `${T}: says generated passwords are not kept without a master password, and so does the history line`,
     /Generated passwords are not kept \(no master password\)\./.test(await hint(page).innerText()) &&
-      /Secrets are not kept \(no master password\)\./.test(await page.locator('.kit-tool-history-line').innerText()),
+      /keeps secrets only: nothing is kept without a master password\./.test(
+        await page.locator('.kit-tool-history-line').innerText(),
+      ),
   );
   await shot(page, 'tool-password-01-default.png');
 
@@ -223,14 +231,14 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   await page.getByLabel('Length', { exact: true }).fill('20');
 
   // The same page in the default dark theme.
-  await page.getByRole('radio', { name: 'Dark' }).first().click();
+  await themeMode(ctx, base, 'Dark');
   await page.locator('html[data-mode="dark"]').waitFor();
   await shot(page, 'tool-password-05-default-dark.png');
   await page.getByRole('radio', { name: 'Words' }).click();
   await page.waitForFunction(() => document.querySelector('[data-strength]')?.textContent?.includes('words'));
   await shot(page, 'tool-password-06-words-dark.png');
   await page.getByRole('radio', { name: 'Random characters' }).click();
-  await page.getByRole('radio', { name: 'System' }).first().click();
+  await themeMode(ctx, base, 'System');
   await page.locator('html[data-mode="light"]').waitFor();
 
   // D17, the secret kind. No master password: nothing is written.

@@ -5,7 +5,8 @@
  * asks to open comes back as the text, the options and the result. Without a host the history is the page's memory.
  * The page frame (title, summary, the history line) is the host's; the body is built from the kit's tool parts.
  */
-import { editLabel, excerpt, isIndent, jsonHistory, resultLabel } from './history';
+import { editLabel, excerpt, isIndent, resultLabel } from './entries';
+import { jsonHistory } from './history';
 import { formatJson, locateJsonError, minifyJson } from '@workspace/tool-logic-json';
 import { useRestore, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';

@@ -1,7 +1,8 @@
 /**
  * What the tool history keeps of the JSON tool (D17, docs/tools/history.md): the text and the options as edit
  * snapshots, and every Format / Minify with its result. The text goes into blobs (deduplicated by content: formatting the
- * same input twice keeps it once); the payload holds the options and the outcome.
+ * same input twice keeps it once); the payload holds the options and the outcome. The declaration and the payload's types
+ * only: the definition imports this module, so the labels and guards live in entries.ts.
  */
 import type { Indent, JsonErrorInfo } from '@workspace/tool-logic-json';
 import type { HistoryDeclaration } from '@workspace/tools-host';
@@ -24,21 +25,3 @@ export type JsonResultPayload = JsonEditPayload & {
   ok: boolean;
   error?: Pick<JsonErrorInfo, 'line' | 'column' | 'message'>;
 };
-
-const INDENT_LABEL: Record<string, string> = { 2: '2 spaces', 4: '4 spaces', tab: 'Tab' };
-
-export const resultLabel = (p: JsonResultPayload): string =>
-  [
-    p.action === 'format' ? `Format · ${INDENT_LABEL[String(p.indent)]}` : 'Minify',
-    p.sortKeys ? 'sorted keys' : '',
-    p.ok ? '' : `error at line ${p.error?.line}, column ${p.error?.column}`,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-
-export const editLabel = (text: string): string => `Edit · ${text.length.toLocaleString('en-US')} characters`;
-
-/** The first characters of the text, for the History list's text search. */
-export const excerpt = (text: string): string => text.slice(0, 2000);
-
-export const isIndent = (v: unknown): v is Indent => v === 2 || v === 4 || v === 'tab';

@@ -1,10 +1,9 @@
 /**
  * The UUID / ULID tool as a host lists it (docs/tools/specs/uuid.md): the description, its history declaration and its
- * component, loaded only when the tool is opened. This module is part of every host page that lists the tools, so it
- * imports only the light `detect` and the declaration — never the component or a library.
+ * component, loaded only when the tool is opened. Data only: it imports its history declaration and nothing else at
+ * run time — a host reads it at build time and lists the tool without its code. Recognising pasted text is `./detect`.
  */
 import { uuidHistory } from './history';
-import { detectUuid } from '@workspace/tool-logic-uuid';
 import type { ToolDefinition } from '@workspace/tools-host';
 
 export const definition: ToolDefinition = {
@@ -13,7 +12,8 @@ export const definition: ToolDefinition = {
   summary: 'Generate UUIDs (v4, v7, v5, v3) and ULIDs, or inspect one: version, variant, time.',
   keywords: ['uuid', 'guid', 'ulid', 'v4', 'v7', 'v5', 'v3', 'generate', 'decode', 'timestamp', 'rfc 9562'],
   order: 6,
-  detect: detectUuid,
   history: uuidHistory,
+  // Makes identifiers on request (Generate); Copy / Copy all: one per line, no line break at the end.
+  output: { origin: 'generated', copies: 'lines' },
   load: () => import('./UuidTool'),
 };

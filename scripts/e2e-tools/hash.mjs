@@ -10,6 +10,7 @@ import { mkdirSync, rmSync, truncateSync, writeFileSync } from 'node:fs';
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { themeMode, withSettings } from '../e2e-theme.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const ABC = {
@@ -257,9 +258,12 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
   await shoot(page, 'tool-hash-04-history-light.png');
 
   // Dark: the same page in the default dark theme, then back.
-  const modes = page.getByRole('radiogroup', { name: 'Theme mode' });
-  const before = (await modes.getByRole('radio', { checked: true }).innerText()).trim();
-  await modes.getByRole('radio', { name: 'Dark', exact: true }).click();
+  const before = await withSettings(ctx, base, async settings =>
+    (
+      await settings.getByRole('radiogroup', { name: 'Theme mode' }).getByRole('radio', { checked: true }).innerText()
+    ).trim(),
+  );
+  await themeMode(ctx, base, 'Dark');
   await page.locator('html[data-mode="dark"]').waitFor();
   await text.fill('abc');
   await until('MD5', ABC.MD5);
@@ -275,8 +279,7 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
   await page.getByLabel('Compare with', { exact: true }).fill(signature);
   check('Hash: HMAC of a file, compared', (await message('compare')) === 'Matches HMAC-SHA-256.');
   await shoot(page, 'tool-hash-06-file-hmac-dark.png');
-  if (before) await modes.getByRole('radio', { name: before, exact: true }).click();
-  else await modes.getByRole('radio', { name: 'Light', exact: true }).click();
+  await themeMode(ctx, base, before || 'Light');
   await page.locator('html[data-mode="light"]').waitFor();
 
   // Turning the master password off deletes the encrypted entries: the history is as the run found it.

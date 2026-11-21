@@ -4,6 +4,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { memoryHost } from '@workspace/tools-host';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createHash, webcrypto } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { HistoryDraft, OpenedEntry, RecordingStatus, ToolHistory, ToolHost } from '@workspace/tools-host';
 
 beforeAll(() => {
@@ -40,7 +43,8 @@ describe('the Hash tool’s definition', () => {
   it('describes the tool, has no detect (§7) and loads its component', async () => {
     expect(definition).toMatchObject({ id: 'hash', title: 'Hash', order: 8 });
     expect(definition.summary).toBe('MD5, SHA-1 and SHA-2 hashes and HMAC of text or a file.');
-    expect(definition.detect).toBeUndefined();
+    // No `./detect` module (§7): the package exports the definition only, nothing recognises pasted text as its input.
+    expect(existsSync(join(dirname(fileURLToPath(import.meta.url)), 'detect.ts'))).toBe(false);
     expect(definition.history?.kinds.every(k => k.secret)).toBe(true);
     expect((await definition.load()).default).toBe(HashTool);
   });

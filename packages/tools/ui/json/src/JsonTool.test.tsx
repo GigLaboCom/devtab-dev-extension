@@ -1,4 +1,5 @@
 import { definition } from './definition';
+import { detect } from './detect';
 import JsonTool from './JsonTool';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { memoryHost } from '@workspace/tools-host';
@@ -12,8 +13,8 @@ const output = () => (screen.getByLabelText('Result') as HTMLTextAreaElement).va
 describe('the JSON tool’s definition', () => {
   it('describes the tool and loads its component', async () => {
     expect(definition).toMatchObject({ id: 'json', title: 'JSON', order: 1 });
-    expect(definition.detect?.('{"a": 1}')).toBe(true);
-    expect(definition.detect?.('hello')).toBe(false);
+    expect(detect('{"a": 1}')).toBe(true);
+    expect(detect('hello')).toBe(false);
     expect((await definition.load()).default).toBe(JsonTool);
   });
 });

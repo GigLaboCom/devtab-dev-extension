@@ -1,4 +1,5 @@
 import { definition } from './definition';
+import { detect } from './detect';
 import { urlHistory } from './history';
 import { carriesCredentials } from './record';
 import UrlTool from './UrlTool';
@@ -40,9 +41,9 @@ describe('the URL tool’s definition', () => {
     expect(definition).toMatchObject({ id: 'url', title: 'URL', order: 3 });
     expect(definition.summary).toBe('Percent-encode and decode text, split a URL into parts and list its query.');
     expect(definition.keywords).toContain('encodeURIComponent');
-    expect(definition.detect?.('https://example.com/path?q=1')).toBe(true);
-    expect(definition.detect?.('hello%20world')).toBe(true);
-    expect(definition.detect?.('mailto:dev@example.com')).toBe(false);
+    expect(detect('https://example.com/path?q=1')).toBe(true);
+    expect(detect('hello%20world')).toBe(true);
+    expect(detect('mailto:dev@example.com')).toBe(false);
     expect((await definition.load()).default).toBe(UrlTool);
   });
 });

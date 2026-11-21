@@ -9,6 +9,10 @@
  * change of the settings is a `change`. The history keeps it only encrypted, with a master password set and unlocked;
  * the hint says which applies now. An entry opened from History brings its settings and its passwords back.
  * The page frame (title, summary, the history line) is the host's.
+ *
+ * "Copy automatically after generating" (the host's per-tool setting, docs/tools/copying.md): a press of Generate also
+ * copies what Copy / Copy all would — never a change of the settings, the opening of the tool or of an entry. It is
+ * not recorded again (Generate committed the set already); the screen reader hears one sentence for both.
  */
 import { passwordHistory } from './history';
 import { DEFAULT_FIELDS, fieldsOf, generatedLabel, readPayload, settingsOf } from './payload';
@@ -22,7 +26,7 @@ import {
   strengthLine,
   strengthNote,
 } from '@workspace/tool-logic-password';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { AUTO_COPY_REFUSED, announceGenerated, useAutoCopy, useRestore, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -80,6 +84,7 @@ const PasswordTool = ({ host, restore }: ToolProps): ReactElement => {
   const [announcement, setAnnouncement] = useState('');
   const [restored, setRestored] = useState<string | null>(null);
   const { history, recorder, status } = useToolHistory(host, 'password', passwordHistory);
+  const autoCopy = useAutoCopy(host, 'password');
   const latest = useRef(fields);
   const wordList = useRef<readonly string[] | null>(null);
   const loading = useRef<Promise<readonly string[]> | null>(null);
@@ -104,14 +109,21 @@ const PasswordTool = ({ host, restore }: ToolProps): ReactElement => {
     };
   };
 
-  /** Shows a fresh result for `next`; a person's edit is a change, Generate a commit. */
+  /** Shows a fresh result for `next`; a person's edit is a change, Generate a commit (and the automatic copy). */
   const shown = (next: Fields, g: Generated, origin: Origin): void => {
     setResult(g);
     if (!g.ok) return;
-    setAnnouncement(g.values.length === 1 ? 'New password generated' : `${g.values.length} new passwords generated`);
+    const generated = g.values.length === 1 ? 'New password generated' : `${g.values.length} new passwords generated`;
     const draft = draftOf(settingsOf(next), g);
-    if (origin === 'generate') void recorder.commit(draft);
-    else recorder.change(draft);
+    if (origin !== 'generate') {
+      setAnnouncement(generated);
+      recorder.change(draft);
+      return;
+    }
+    void recorder.commit(draft);
+    if (!autoCopy.on) setAnnouncement(generated);
+    // What Copy / Copy all copies; announced once, with what the copy did.
+    else void autoCopy.afterGenerate(g.values.join('\n')).then(o => setAnnouncement(announceGenerated(generated, o)));
   };
 
   const apply = (next: Fields, origin: Origin): void => {
@@ -177,6 +189,7 @@ const PasswordTool = ({ host, restore }: ToolProps): ReactElement => {
   const ready = result?.ok === true;
   const enabledSets = CHAR_SETS.filter(s => fields.sets[s]).length;
   const general = errorOf('random') ?? errorOf('generation');
+  const refused = autoCopy.outcome?.ok === false && autoCopy.outcome.text === values.join('\n');
 
   /** A field's error under it, tied to the field by aria-describedby; changes while typing, so read out politely. */
   const fieldError = (id: string, message: string | undefined): ReactNode =>
@@ -248,7 +261,13 @@ const PasswordTool = ({ host, restore }: ToolProps): ReactElement => {
       {values.length > 1 ? (
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            <CopyButton label="Copy all" variant="outline" value={values.join('\n')} onCopied={copied} />
+            <CopyButton
+              label="Copy all"
+              variant="outline"
+              value={values.join('\n')}
+              onCopied={copied}
+              outcome={autoCopy.outcome}
+            />
             {generateButton}
           </div>
           <ResultRows className="w-fit max-w-full">
@@ -277,9 +296,16 @@ const PasswordTool = ({ host, restore }: ToolProps): ReactElement => {
             data-empty={values.length === 0 || undefined}>
             {values[0] ?? ''}
           </output>
-          <CopyButton variant="outline" value={values[0] ?? ''} onCopied={copied} />
+          <CopyButton variant="outline" value={values[0] ?? ''} onCopied={copied} outcome={autoCopy.outcome} />
           {generateButton}
         </div>
+      )}
+
+      {/* Read out within the announcement below, not again here. */}
+      {refused && (
+        <ToolMessage role={undefined} data-auto-copy="refused">
+          {AUTO_COPY_REFUSED}
+        </ToolMessage>
       )}
 
       {result?.ok && (

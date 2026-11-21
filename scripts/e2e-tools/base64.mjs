@@ -6,7 +6,9 @@
 
 /* global document, location, HTMLTextAreaElement, requestAnimationFrame, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
 
-export default async ({ page, base, check, shoot, sleep }) => {
+import { themeMode, withSettings } from '../e2e-theme.mjs';
+
+export default async ({ ctx, page, base, check, shoot, sleep }) => {
   // Node's URL gives chrome-extension: URLs an opaque origin; the scheme and host are the origin Chrome means.
   const origin = `chrome-extension://${new URL(base).host}`;
   const cdp = await page.context().newCDPSession(page);
@@ -287,12 +289,13 @@ export default async ({ page, base, check, shoot, sleep }) => {
   await page.goto(`${base}#/start`);
   await page.goto(`${base}#/tools/base64`);
   await input.waitFor();
-  const themeMode = page.getByRole('region', { name: 'Theme', exact: true });
-  const modeBefore = await themeMode.locator('[role="radio"][aria-checked="true"]').innerText();
+  const modeBefore = await withSettings(ctx, base, settings =>
+    settings.getByRole('radiogroup', { name: 'Theme mode' }).locator('[role="radio"][aria-checked="true"]').innerText(),
+  );
   await radio('Encode').click();
   await input.fill('Привет, 😀 subjects?_d');
   await shoot(page, 'tool-base64-04-encode-light.png');
-  await themeMode.getByRole('radio', { name: 'Dark' }).click();
+  await themeMode(ctx, base, 'Dark');
   await page.waitForFunction(() => document.documentElement.dataset.theme?.endsWith('dark'), null, {
     timeout: 5_000,
   });
@@ -304,7 +307,7 @@ export default async ({ page, base, check, shoot, sleep }) => {
   check('Base64: a byte order mark is kept and noted', bomNote === 'Starts with a byte order mark (U+FEFF).', bomNote);
   await input.fill('Zm9v\n😀');
   await shoot(page, 'tool-base64-06-decode-error-dark.png');
-  await themeMode.getByRole('radio', { name: modeBefore.trim(), exact: true }).click();
+  await themeMode(ctx, base, modeBefore.trim());
   await input.fill('');
   await cdp.detach();
 };

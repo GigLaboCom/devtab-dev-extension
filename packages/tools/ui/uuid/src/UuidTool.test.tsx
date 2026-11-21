@@ -1,7 +1,8 @@
 import { definition } from './definition';
+import { detect } from './detect';
 import UuidTool from './UuidTool';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { memoryHost } from '@workspace/tools-host';
+import { AUTO_COPY, AUTO_COPY_REFUSED, memoryHost } from '@workspace/tools-host';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ToolHost } from '@workspace/tools-host';
 
@@ -51,9 +52,9 @@ describe('the UUID / ULID tool’s definition', () => {
       'Generate UUIDs (v4, v7, v5, v3) and ULIDs, or inspect one: version, variant, time.',
     );
     expect(definition.keywords).toContain('rfc 9562');
-    expect(definition.detect?.('017F22E2-79B0-7CC3-98C4-DC0C0C07398F')).toBe(true);
-    expect(definition.detect?.('01ARZ3NDEKTSV4RRFFQ69G5FAV')).toBe(true);
-    expect(definition.detect?.('12345678901234567890123456')).toBe(false);
+    expect(detect('017F22E2-79B0-7CC3-98C4-DC0C0C07398F')).toBe(true);
+    expect(detect('01ARZ3NDEKTSV4RRFFQ69G5FAV')).toBe(true);
+    expect(detect('12345678901234567890123456')).toBe(false);
     expect(definition.history?.kinds.map(k => k.id)).toEqual(['generate', 'inspect']);
     expect(definition.history?.kinds.some(k => k.secret)).toBe(false);
     expect((await definition.load()).default).toBe(UuidTool);
@@ -358,5 +359,87 @@ describe('the UUID / ULID tool’s history', () => {
   it('says why an entry cannot be opened', async () => {
     render(<UuidTool host={memoryHost()} restore={{ id: 'missing' }} />);
     expect(await screen.findByText('This entry could not be opened.')).toBeTruthy();
+  });
+});
+
+describe('Copy automatically after generating (docs/tools/copying.md)', () => {
+  const autoCopyHost = async (on: boolean) => {
+    const host = memoryHost();
+    await host.settings.setForAll(['password', 'uuid'], { [AUTO_COPY]: on });
+    return host;
+  };
+  const entries = async (host: ToolHost) =>
+    (await host.history.forOwner('uuid', definition.history!).list({ kinds: ['generate'] })).entries;
+  const live = () => document.querySelector('[aria-live="polite"]')?.textContent ?? '';
+  const settle = () => act(async () => undefined);
+
+  it('off (the default): Generate copies nothing; a new batch is still announced', async () => {
+    render(<UuidTool host={await autoCopyHost(false)} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
+    await settle();
+    expect(writeText).not.toHaveBeenCalled();
+    expect(live()).toBe('New identifier generated');
+  });
+
+  it('on: opening, Type and How many copy nothing; Generate copies the whole batch, recorded once', async () => {
+    const host = await autoCopyHost(true);
+    render(<UuidTool host={host} />);
+    await settle();
+    await choose('Type', 'UUID v7 (time-ordered)');
+    type('How many', '5');
+    await settle();
+    expect(writeText).not.toHaveBeenCalled();
+    expect(live()).toBe('5 new identifiers generated');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
+    await settle();
+    expect(lines()).toHaveLength(5);
+    expect(writeText.mock.calls).toEqual([[result()]]);
+    expect(result().endsWith('\n')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Copied' })).toBeTruthy();
+    expect(live()).toBe('5 new identifiers generated and copied');
+    await waitFor(async () => expect(await entries(host)).toHaveLength(1));
+    await settle();
+    expect(await entries(host)).toHaveLength(1);
+  });
+
+  it('on, the browser refuses: one line says so, Copy all still works', async () => {
+    render(<UuidTool host={await autoCopyHost(true)} />);
+    type('How many', '3');
+    writeText.mockImplementationOnce(() =>
+      Promise.reject(
+        new DOMException("Failed to execute 'writeText' on 'Clipboard': Document is not focused.", 'NotAllowedError'),
+      ),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
+    await settle();
+    expect(screen.getByText(AUTO_COPY_REFUSED).getAttribute('role')).toBeNull();
+    expect(live()).toBe('3 new identifiers generated, not copied automatically');
+    fireEvent.click(screen.getByRole('button', { name: 'Copy all' }));
+    await settle();
+    expect(writeText).toHaveBeenLastCalledWith(result());
+    expect(screen.getByRole('button', { name: 'Copied' })).toBeTruthy();
+  });
+
+  it('on: opening an entry from History copies nothing', async () => {
+    const host = await autoCopyHost(false);
+    const { unmount } = render(<UuidTool host={host} />);
+    type('How many', '2');
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
+    await waitFor(async () => expect(await entries(host)).toHaveLength(1));
+    unmount();
+    await host.settings.setForAll(['uuid'], { [AUTO_COPY]: true });
+    render(<UuidTool host={host} restore={{ id: (await entries(host))[0]!.id }} />);
+    expect(await screen.findByText('Opened from History: UUID v4 · 2 identifiers.')).toBeTruthy();
+    await settle();
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('v5 is computed from its name, not generated on request: typing copies nothing', async () => {
+    render(<UuidTool host={await autoCopyHost(true)} />);
+    await choose('Type', 'UUID v5 (name, SHA-1)');
+    type('Name', 'www.example.com');
+    await waitFor(() => expect(result()).toBe('2ed6657d-e927-568b-95e1-2665a8aea6a2'));
+    expect(writeText).not.toHaveBeenCalled();
   });
 });

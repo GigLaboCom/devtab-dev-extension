@@ -6,6 +6,11 @@
  * History (D17, docs/tools/history.md §10): Generate and Copy commit the batch shown; an edit of the options is a
  * snapshot (`change`) once its result is there; Inspect snapshots an identifier that parsed; an entry the host asks to
  * open comes back as the options and the identifiers, or as the inspected text.
+ *
+ * "Copy automatically after generating" (the host's per-tool setting, docs/tools/copying.md): a press of Generate also
+ * copies the whole batch, as Copy / Copy all would — never a change of Type or How many (which make a new batch too),
+ * the opening of the tool or of an entry. Not recorded again: Generate committed the batch. A new batch is announced
+ * politely ("5 new identifiers generated"), with what the automatic copy did in the same sentence.
  */
 import { excerpt, generateLabel, NAMESPACE_LABELS, readGeneratePayload, TYPE_LABELS } from './entries';
 import { uuidHistory } from './history';
@@ -29,7 +34,7 @@ import {
   parseId,
   v4,
 } from '@workspace/tool-logic-uuid';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { AUTO_COPY_REFUSED, announceGenerated, useAutoCopy, useRestore, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/card';
 import { Checkbox } from '@workspace/ui/checkbox';
@@ -62,6 +67,8 @@ const MAX_ROWS = 12;
 
 const isRandom = (type: GenerateType): type is RandomType => type === 'v4' || type === 'v7' || type === 'ulid';
 const isNamed = (type: GenerateType): type is 'v3' | 'v5' => type === 'v3' || type === 'v5';
+const generatedText = (n: number): string =>
+  n === 1 ? 'New identifier generated' : `${n.toLocaleString('en-US')} new identifiers generated`;
 
 const generateDraft = (payload: GeneratePayload): HistoryDraft => ({
   kind: 'generate',
@@ -97,7 +104,9 @@ const UuidTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
   const [failure, setFailure] = useState<string | null>(null);
   const [inspect, setInspect] = useState(initial ?? '');
   const [restored, setRestored] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState('');
   const { history, recorder } = useToolHistory(host, 'uuid', uuidHistory);
+  const autoCopy = useAutoCopy(host, 'uuid');
 
   const count = parseCount(countText);
   const nsBytes = useMemo(
@@ -172,13 +181,15 @@ const UuidTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
     edit();
     setType(next);
     setFailure(null);
-    generate(next, count);
+    const bytes = generate(next, count);
+    if (bytes) setAnnouncement(generatedText(bytes.length));
   };
 
   const onCount = (text: string): void => {
     edit();
     setCountText(text);
-    generate(type, parseCount(text));
+    const bytes = generate(type, parseCount(text));
+    if (bytes) setAnnouncement(generatedText(bytes.length));
   };
 
   const onGenerate = (): void => {
@@ -188,6 +199,10 @@ const UuidTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
     edited.current = false;
     const shown = bytes.map(b => (type === 'ulid' ? encodeUlid(b) : formatUuid(b, format, uppercase)));
     void recorder.commit(generateDraft(payloadOf(shown)));
+    const generated = generatedText(shown.length);
+    if (!autoCopy.on) setAnnouncement(generated);
+    // The whole batch, as Copy / Copy all copies it; announced once, with what the copy did.
+    else void autoCopy.afterGenerate(shown.join('\n')).then(o => setAnnouncement(announceGenerated(generated, o)));
   };
 
   const onInspect = (text: string): void => {
@@ -243,6 +258,7 @@ const UuidTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
   const random = isRandom(type);
   const ulid = type === 'ulid';
   const nsError = isNamed(type) && !nsBytes;
+  const refused = autoCopy.outcome?.ok === false && autoCopy.outcome.text === result;
 
   return (
     <div className="flex flex-col gap-3">
@@ -412,6 +428,7 @@ const UuidTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
                   value={result}
                   label={ids.length > 1 ? 'Copy all' : 'Copy'}
                   onCopied={() => void recorder.commit(generateDraft(payloadOf(ids)))}
+                  outcome={autoCopy.outcome}
                 />
               </div>
             </div>
@@ -424,6 +441,15 @@ const UuidTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
               value={result}
             />
             {failure && <ToolMessage tone="error">{failure}</ToolMessage>}
+            {/* Read out within the announcement below, not again here. */}
+            {refused && (
+              <ToolMessage role={undefined} data-auto-copy="refused">
+                {AUTO_COPY_REFUSED}
+              </ToolMessage>
+            )}
+            <p className="sr-only" aria-live="polite">
+              {announcement}
+            </p>
             {type === 'v3' && <ToolMessage>UUID v5 is preferred over v3 (RFC 9562 §5.3).</ToolMessage>}
           </div>
         </CardContent>

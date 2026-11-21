@@ -3,9 +3,9 @@ import PasswordTool from './PasswordTool';
 import { readPayload } from './payload';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { DEFAULT_SYMBOLS, LOOK_ALIKE } from '@workspace/tool-logic-password';
-import { memoryHost } from '@workspace/tools-host';
+import { AUTO_COPY, AUTO_COPY_REFUSED, memoryHost, memoryToolSettings } from '@workspace/tools-host';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PasswordPayload } from './history';
@@ -68,7 +68,8 @@ describe('the Password Generator’s definition', () => {
   it('describes the tool, has no detect (§7), declares one secret kind and loads its component', async () => {
     expect(definition).toMatchObject({ id: 'password', title: 'Password Generator', order: 7 });
     expect(definition.summary).not.toMatch(/Nothing is stored/);
-    expect(definition.detect).toBeUndefined();
+    // No `./detect` module (§7): the package exports the definition only, nothing recognises pasted text as its input.
+    expect(existsSync(join(dirname(fileURLToPath(import.meta.url)), 'detect.ts'))).toBe(false);
     expect(definition.history?.kinds).toEqual([{ id: 'generated', title: 'Generated', secret: true }]);
     expect((await definition.load()).default).toBe(PasswordTool);
   });
@@ -372,6 +373,135 @@ describe('the Password Generator’s history (D17)', () => {
       },
       values: ['a'],
     });
+  });
+});
+
+/** The spy host with "Copy automatically after generating" switched on for this tool (or not). */
+const autoCopyHost = async (on: boolean) => {
+  const spy = spyHost();
+  const settings = memoryToolSettings();
+  await settings.setForAll(['password', 'uuid'], { [AUTO_COPY]: on });
+  return { ...spy, host: { ...spy.host, settings } satisfies ToolHost, settings };
+};
+const live = () => document.querySelector('[aria-live="polite"]')?.textContent ?? '';
+
+describe('Copy automatically after generating (docs/tools/copying.md)', () => {
+  it('off (the default): Generate copies nothing', async () => {
+    render(<PasswordTool host={(await autoCopyHost(false)).host} />);
+    fireEvent.click(button('Generate'));
+    await settle();
+    expect(writeText).not.toHaveBeenCalled();
+    expect(live()).toBe('New password generated');
+    expect(button('Copy').textContent).toBe('Copy');
+  });
+
+  it('on: opening and a change of the settings copy nothing; Generate copies the password, once, recorded once', async () => {
+    const { host, commits } = await autoCopyHost(true);
+    render(<PasswordTool host={host} />);
+    await settle();
+    type('Length', '24');
+    fireEvent.click(screen.getByLabelText('Avoid look-alike characters (0 O 1 I l |)'));
+    await settle();
+    expect(writeText).not.toHaveBeenCalled();
+
+    fireEvent.click(button('Generate'));
+    await settle();
+    expect(writeText.mock.calls).toEqual([[password()]]);
+    expect(password()).toHaveLength(24);
+    // The button's own "Copied", and one sentence for the screen reader (never the password).
+    expect(screen.getByRole('button', { name: 'Copied' })).toBeTruthy();
+    expect(live()).toBe('New password generated and copied');
+    expect(live()).not.toContain(password());
+    expect(screen.queryByText(AUTO_COPY_REFUSED)).toBeNull();
+    // Generate is the commit; the automatic copy is not a second one.
+    expect(commits).toHaveLength(1);
+    expect(payloadOf(commits[0]!).values).toEqual([password()]);
+  });
+
+  it('on, a batch: Generate copies what Copy all copies — one per line, no line break at the end', async () => {
+    render(<PasswordTool host={(await autoCopyHost(true)).host} />);
+    type('How many', '5');
+    await settle();
+    expect(writeText).not.toHaveBeenCalled();
+    fireEvent.click(button('Generate'));
+    await settle();
+    const all = [1, 2, 3, 4, 5].map(n => password(n));
+    expect(writeText.mock.calls).toEqual([[all.join('\n')]]);
+    expect(all.join('\n').endsWith('\n')).toBe(false);
+    expect(button('Copied').textContent).toBe('Copied');
+    expect(live()).toBe('5 new passwords generated and copied');
+  });
+
+  it('on, the browser refuses: one line says so, the copy buttons still work', async () => {
+    const { host } = await autoCopyHost(true);
+    render(<PasswordTool host={host} />);
+    writeText.mockImplementationOnce(() =>
+      Promise.reject(
+        new DOMException("Failed to execute 'writeText' on 'Clipboard': Document is not focused.", 'NotAllowedError'),
+      ),
+    );
+    fireEvent.click(button('Generate'));
+    await settle();
+    const line = screen.getByText(AUTO_COPY_REFUSED);
+    expect(line.getAttribute('role')).toBeNull();
+    expect(live()).toBe('New password generated, not copied automatically');
+    expect(button('Copy').textContent).toBe('Copy');
+    fireEvent.click(button('Copy'));
+    await settle();
+    expect(writeText).toHaveBeenLastCalledWith(password());
+    expect(screen.getByRole('button', { name: 'Copied' })).toBeTruthy();
+    // A new result: the refusal was about the old one.
+    type('Length', '30');
+    expect(screen.queryByText(AUTO_COPY_REFUSED)).toBeNull();
+  });
+
+  it('on: opening an entry from History copies nothing', async () => {
+    const { host, opened } = await autoCopyHost(true);
+    opened.set('e1', {
+      ok: true,
+      entry: {
+        id: 'e1',
+        owner: 'password',
+        kind: 'generated',
+        session: 's',
+        time: 0,
+        schema: 1,
+        encrypted: true,
+        bytes: 1,
+      },
+      label: 'Password · 20 characters · 130 bits',
+      payload: {
+        settings: {
+          mode: 'chars',
+          count: 1,
+          chars: {
+            length: 20,
+            sets: { upper: true, lower: true, digits: true, symbols: true },
+            symbols: DEFAULT_SYMBOLS,
+            avoidLookAlike: false,
+          },
+        },
+        values: ['q7#Vd!x2LmR9$ZpT4@kc'],
+      } as unknown as HistoryDraft['payload'],
+      blobs: {},
+    });
+    render(<PasswordTool host={host} restore={{ id: 'e1' }} />);
+    expect(await screen.findByText('Opened from History: Password · 20 characters · 130 bits.')).toBeTruthy();
+    await settle();
+    expect(password()).toBe('q7#Vd!x2LmR9$ZpT4@kc');
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('follows the switch live: turned on while the tool is open, the next Generate copies', async () => {
+    const { host, settings } = await autoCopyHost(false);
+    render(<PasswordTool host={host} />);
+    fireEvent.click(button('Generate'));
+    await settle();
+    expect(writeText).not.toHaveBeenCalled();
+    await act(() => settings.setForAll(['password'], { [AUTO_COPY]: true }));
+    fireEvent.click(button('Generate'));
+    await settle();
+    expect(writeText.mock.calls).toEqual([[password()]]);
   });
 });
 
