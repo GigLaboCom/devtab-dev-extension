@@ -1,0 +1,27 @@
+{
+  "name": "@workspace/tool-logic-hash",
+  "version": "0.1.0",
+  "description": "The Hash tool's logic (D14, docs/tools/specs/hash.md): MD5, SHA-1, SHA-2 and HMAC of bytes and files (a Digester seam: hash-wasm by default, @noble/hashes the other), input parsing, output formats, comparison with an expected digest. Pure TypeScript: no React, no DOM, no chrome.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@noble/hashes": "2.4.0",
+    "@workspace/tools-shared": "workspace:*",
+    "hash-wasm": "4.12.0"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
