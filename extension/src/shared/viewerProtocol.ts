@@ -11,15 +11,11 @@
  * (the main page then covers the editor with its drop targets), a drop that reached it anyway, the main page's
  * keyboard shortcuts, and Tab leaving the editor.
  */
+import type { KeyChord } from './keys';
 import type { CompareRequest, DiffShown, Side, SideRequest } from '@extension/review-wasm';
 
-/** A key with the platform's command modifier (⌘ on a Mac, Ctrl elsewhere) — a shortcut of the main page. */
-export interface KeyChord {
-  /** `KeyboardEvent.key`, lower case. */
-  key: string;
-  mod: boolean;
-  shift: boolean;
-}
+export type { KeyChord };
+export { chordOf, isMac, sameChord } from './keys';
 
 /** One dropped item, as the page that saw the drop collected it during the event (compare/files.ts). */
 export interface DroppedEntry {
@@ -120,20 +116,3 @@ export const isFromViewer = (data: unknown): data is FromViewer => {
       return false;
   }
 };
-
-/** The chord of a key event: the command modifier is ⌘ on a Mac and Ctrl elsewhere. */
-export const chordOf = (
-  event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'shiftKey'>,
-  mac: boolean,
-): KeyChord => ({
-  key: event.key.toLowerCase(),
-  mod: mac ? event.metaKey : event.ctrlKey,
-  shift: event.shiftKey,
-});
-
-export const sameChord = (a: KeyChord, b: KeyChord): boolean =>
-  a.key === b.key && a.mod === b.mod && a.shift === b.shift;
-
-/** Whether this browser runs on a Mac (the command modifier is ⌘). */
-export const isMac = (nav: Pick<Navigator, 'platform' | 'userAgent'> = navigator): boolean =>
-  /Mac|iPhone|iPad/.test(nav.platform || nav.userAgent);

@@ -1,6 +1,7 @@
 /**
  * Seam `TextSource` — where a side's text comes from when it is a file (docs/replaceable-behaviors.md): the files the
- * user picks, and the items of a drop. Both go through the same rules (files.ts: one or two files, all or nothing,
+ * user picks, the items of a drop, and the texts another part of the page handed over (a tool sending the person here,
+ * handoff.ts). Files and drops go through the same rules (files.ts: one or two files, all or nothing,
  * UTF-8 text, the size limit). The clipboard is the `Clipboard` seam (clipboard.ts), the example the `ExampleSource`
  * seam (examples.ts).
  *
@@ -9,7 +10,9 @@
  * downloads (sideSaver.ts). Nothing read is stored: the texts go to the editor and stay in the page's memory.
  */
 import { isAbort, messageOf, readEntries } from './files';
-import type { Incoming } from './files';
+import { takeHandedTexts } from './handoff';
+import type { Incoming, SideText } from './files';
+import type { HandedCompareText } from './handoff';
 import type { DroppedEntry } from '@src/shared/viewerProtocol';
 
 export interface TextSource {
@@ -17,6 +20,11 @@ export interface TextSource {
   pick(): Promise<Incoming | null>;
   /** The items of a drop, collected during the event (files.ts `collectDrop`). */
   drop(entries: readonly DroppedEntry[]): Promise<Incoming>;
+  /**
+   * Texts handed over for the comparison when the page opened — the original, then the changed text — taken once; none
+   * when nothing was handed over. Absent: the page never gets any.
+   */
+  handed?(): readonly SideText[];
 }
 
 /** The File System Access pickers: in Chrome, not in TypeScript's DOM types. */
@@ -35,7 +43,10 @@ const inputPick = (doc: Document): Promise<File[] | null> =>
     input.click();
   });
 
-export const browserTextSource = (win: Window & OpenPicker): TextSource => ({
+export const browserTextSource = (
+  win: Window & OpenPicker,
+  handedTexts: () => readonly HandedCompareText[] = takeHandedTexts,
+): TextSource => ({
   async pick() {
     if (typeof win.showOpenFilePicker === 'function') {
       let handles: FileSystemFileHandle[];
@@ -58,4 +69,5 @@ export const browserTextSource = (win: Window & OpenPicker): TextSource => ({
     return readEntries(files.map(file => ({ name: file.name, file, handle: null, directory: false, text: null })));
   },
   drop: entries => readEntries(entries),
+  handed: () => handedTexts().map(({ text, name }) => ({ text, fileName: name, handle: null, bom: false })),
 });

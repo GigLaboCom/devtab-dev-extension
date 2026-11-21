@@ -7,9 +7,11 @@
  * What happens on the canvas but belongs to the main page goes up to it (shared/viewerProtocol.ts): a drag of files
  * entering the editor (gpui-web would swallow the drop: it cancels drops on its canvas), a drop that reached the
  * editor anyway, the main page's shortcuts (⌘S would otherwise open the browser's "Save page"), and Tab leaving the
- * editor — at once from a read-only side, after Escape from one being edited, where Tab indents.
+ * editor — at once from a read-only side, after Escape from one being edited, where Tab indents. While the main page
+ * has a modal open, this page takes no focus (focusGuard.ts).
  */
 import './viewer.css';
+import { behindModal, guardFocus } from './focusGuard';
 import { createDebug } from '@extension/logger';
 import { startReview } from '@extension/review-wasm/host';
 import { loadThemeSource } from '@extension/theme/sources';
@@ -36,6 +38,9 @@ const themeArgs = async (theme: ResolvedTheme): Promise<ThemeArgs> => ({
 
 /** The side under a point of the page: the editors split it in two halves. */
 const sideAt = (x: number): Side => (x < window.innerWidth / 2 ? 'old' : 'new');
+
+// First, before the module can focus anything: no focus while the main page has a modal open (focusGuard.ts).
+guardFocus(window, behindModal(window));
 
 const main = async (): Promise<void> => {
   let controller: ReviewController | null = null;

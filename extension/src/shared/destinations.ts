@@ -1,9 +1,12 @@
 /**
- * The places of the main page a user can open: its sections and every tool of tools/registry.ts, each with its route
- * hash. The sidebar lists the sections; the start page's field finds all of them by title and keywords, and its Tools
- * tiles show them. Data only — the icons are the pages' (app/destinationIcons.ts).
+ * The places of the main page a user can open: its sections and every tool of the tool catalogue (tools/catalogue.ts —
+ * data made at build time from the tools' definitions, so the start page knows the tools without loading their code),
+ * each with its route hash. A place may stand under another (`parent`: every tool stands under Tools). The sidebar lists
+ * the sections and nests each place under its parent; the start page's field and the shell's palette find all of them by
+ * title and keywords, and the start page's Tools tiles show them. Data only — the icons are the pages'
+ * (app/destinationIcons.ts).
  */
-import { TOOLS } from '@src/tools/registry';
+import { TOOL_CATALOGUE } from '@src/tools/catalogue';
 
 export type DestinationKind = 'section' | 'tool';
 
@@ -12,9 +15,12 @@ export interface Destination {
   id: string;
   kind: DestinationKind;
   title: string;
-  summary: string;
+  /** A section's line; a tool's is its definition's (the Tools overview reads it there). */
+  summary?: string;
   keywords: readonly string[];
   hash: string;
+  /** The id of the place this one stands under (the sidebar nests it there); absent for a top-level place. */
+  parent?: string;
 }
 
 export const SECTION_DESTINATIONS: readonly Destination[] = [
@@ -61,13 +67,13 @@ export const SETTINGS_DESTINATION: Destination = {
   hash: '#/settings',
 };
 
-export const TOOL_DESTINATIONS: readonly Destination[] = TOOLS.map(tool => ({
+export const TOOL_DESTINATIONS: readonly Destination[] = TOOL_CATALOGUE.map(tool => ({
   id: `tools/${tool.id}`,
   kind: 'tool',
   title: tool.title,
-  summary: tool.summary,
   keywords: tool.keywords,
   hash: `#/tools/${tool.id}`,
+  parent: 'tools',
 }));
 
 /** Everything the field can open. */

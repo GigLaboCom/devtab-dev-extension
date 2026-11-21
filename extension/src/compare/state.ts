@@ -19,8 +19,9 @@ export type { Side } from '@extension/review-wasm';
 export const SIDES: readonly Side[] = ['old', 'new'];
 export const other = (side: Side): Side => (side === 'old' ? 'new' : 'old');
 
-/** What a side's text is: shown in its bar when it has no file name. */
-export type Origin = 'example' | 'file' | 'clipboard' | 'dropped' | 'empty';
+/** What a side's text is: shown in its bar when it has no file name. `handed`: another part of the page handed it over
+ *  (a tool sending the person here with texts pasted into it). */
+export type Origin = 'example' | 'file' | 'clipboard' | 'dropped' | 'handed' | 'empty';
 
 export interface SideMeta {
   origin: Origin;
@@ -210,6 +211,8 @@ export const sideName = (meta: SideMeta): string => {
   switch (meta.origin) {
     case 'clipboard':
       return 'Pasted text';
+    case 'handed':
+      return meta.empty && !meta.modified ? 'Empty' : 'Pasted text';
     case 'dropped':
       return 'Dropped text';
     case 'example':

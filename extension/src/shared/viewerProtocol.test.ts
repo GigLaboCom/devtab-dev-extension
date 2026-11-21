@@ -60,7 +60,8 @@ describe('viewer protocol', () => {
   it('a chord takes ⌘ on a Mac and Ctrl elsewhere', () => {
     const event = { key: 'S', metaKey: true, ctrlKey: false, shiftKey: true };
     expect(chordOf(event, true)).toEqual({ key: 's', mod: true, shift: true });
-    expect(chordOf(event, false)).toEqual({ key: 's', mod: false, shift: true });
+    // ⌘ off a Mac is the Windows / Super key: the other modifier, never the command one.
+    expect(chordOf(event, false)).toEqual({ key: 's', mod: false, shift: true, other: true });
     expect(sameChord(chordOf(event, true), { key: 's', mod: true, shift: true })).toBe(true);
     expect(isMac({ platform: 'MacIntel', userAgent: '' })).toBe(true);
     expect(isMac({ platform: 'Win32', userAgent: '' })).toBe(false);
