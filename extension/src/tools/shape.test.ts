@@ -2,8 +2,16 @@
  * Every tool fits the shape this host finds it by (D14; docs/tools/adding-a-tool.md): two packages,
  * `packages/tools/logic/<id>` (@workspace/tool-logic-<id>, main export src/index.ts) and `packages/tools/ui/<id>`
  * (@workspace/tool-ui-<id>, main export src/definition.ts, which exports `definition`), whose definition names the
- * folder's id, and whose sources import nothing of another tool, nothing of the extension, and no file outside their
- * own package. A tool that breaks it fails here — and would otherwise be missing from the host, or load another tool.
+ * folder's id and states its `output`, and whose sources import nothing of another tool, nothing of the extension, and no
+ * file outside their own package. A tool that breaks it fails here — and would otherwise be missing from the host, or
+ * load another tool.
+ *
+ * And the shape that keeps the start page's first load independent of the number of tools (D16,
+ * docs/research/start-route-budget.md): the definition is data — at run time it imports its history declaration and
+ * nothing else, so the build can read it for the catalogue (build/toolCatalogue.ts); the history declaration imports
+ * nothing at run time and exports the declaration alone (labels and guards live elsewhere); recognising pasted text is
+ * `src/detect.ts`, the package's `./detect` export, a module of its own that the host loads lazily (detectors.ts) and
+ * that imports only the tool's own logic.
  */
 import { TOOLS } from './registry';
 import { describe, expect, it } from 'vitest';
@@ -33,6 +41,9 @@ const sources = import.meta.glob<string>(
 const definitionModules = import.meta.glob<Record<string, unknown>>('../../../packages/tools/ui/*/src/definition.ts', {
   eager: true,
 });
+const detectModules = import.meta.glob<Record<string, unknown>>('../../../packages/tools/ui/*/src/detect.ts', {
+  eager: true,
+});
 
 /** `logic/json/src/index.ts` → ['logic', 'json', 'src/index.ts']. */
 const split = (path: string): [string, string, string] => {
@@ -60,6 +71,32 @@ const importsOf = (source: string): string[] =>
     ...source.matchAll(/^\s*import\s+['"]([^'"]+)['"]/gm),
     ...source.matchAll(/\bimport\(\s*['"]([^'"]+)['"]\s*\)/g),
   ].map(m => m[1]!);
+/** Import specifiers a module evaluates: everything but `import type` and `export type … from`. */
+const runtimeImportsOf = (source: string): string[] =>
+  [
+    ...source.matchAll(/^\s*(?:import|export)\s+(?!type\b)[^;]*?\sfrom\s+['"]([^'"]+)['"]/gms),
+    ...source.matchAll(/^\s*import\s+['"]([^'"]+)['"]/gm),
+  ].map(m => m[1]!);
+/** Names a module exports as values: `export const|let|function|class <name>`, `export { … }` (not `export type`). */
+const valueExportsOf = (source: string): string[] => [
+  ...[...source.matchAll(/^export\s+(?:const|let|var|function\*?|async\s+function|class)\s+([A-Za-z_$][\w$]*)/gm)].map(
+    m => m[1]!,
+  ),
+  ...[...source.matchAll(/^export\s+\{([^}]*)\}/gm)].flatMap(m =>
+    m[1]!
+      .split(',')
+      .map(n =>
+        n
+          .trim()
+          .split(/\s+as\s+/)
+          .at(-1)!,
+      )
+      .filter(n => n && !n.startsWith('type ')),
+  ),
+];
+const sourceOf = (layer: string, id: string, file: string): string | undefined =>
+  sources[`${ROOT}${layer}/${id}/${file}`];
+
 /** The package a bare specifier names: `@scope/name/sub` → `@scope/name`, `name/sub` → `name`. */
 const packageOf = (specifier: string): string =>
   specifier
@@ -99,7 +136,11 @@ describe('the tools’ packages', () => {
     const m = manifestOf('ui', id);
     expect(m, 'package.json').toBeDefined();
     expect(m).toMatchObject({ name: `@workspace/tool-ui-${id}`, private: true, type: 'module', sideEffects: false });
-    expect(m!.exports).toEqual({ '.': './src/definition.ts' });
+    // `./detect` exactly when the tool recognises pasted text (src/detect.ts).
+    expect(m!.exports).toEqual({
+      '.': './src/definition.ts',
+      ...(sourceOf('ui', id, 'src/detect.ts') !== undefined ? { './detect': './src/detect.ts' } : {}),
+    });
     expect(Object.keys(m!.scripts ?? {})).toEqual(expect.arrayContaining(['test', 'type-check']));
     expect(m!.dependencies).toMatchObject({
       [`@workspace/tool-logic-${id}`]: 'workspace:*',
@@ -126,7 +167,13 @@ describe('the tools’ definitions', () => {
     expect(d!.keywords.length).toBeGreaterThan(0);
     expect(Number.isInteger(d!.order) && d!.order > 0).toBe(true);
     expect(typeof d!.load).toBe('function');
-    if (d!.detect !== undefined) expect(typeof d!.detect).toBe('function');
+    // `detect` is a module of its own (below), never a member of the definition.
+    expect(d, 'no `detect` in the definition: src/detect.ts').not.toHaveProperty('detect');
+    // What its result is (docs/tools/copying.md): made on request — with what one generation copies — or derived from
+    // the person's input. Every tool states it; automatic copying is offered by it.
+    expect(['generated', 'input'], 'output.origin').toContain(d!.output?.origin);
+    if (d!.output.origin === 'generated') expect(['lines', 'text'], 'output.copies').toContain(d!.output.copies);
+    else expect(Object.keys(d!.output)).toEqual(['origin']);
     if (d!.history) {
       const kinds = d!.history.kinds.map(k => k.id);
       expect(new Set(kinds).size).toBe(kinds.length);
@@ -136,6 +183,39 @@ describe('the tools’ definitions', () => {
     }
     expect(TOOLS.map(t => t.id)).toContain(id);
   });
+
+  it.each(UI)('ui/%s: the definition is data — at run time it imports its history declaration, nothing else', id => {
+    const source = sourceOf('ui', id, 'src/definition.ts') ?? '';
+    expect(runtimeImportsOf(source).filter(s => s !== './history')).toEqual([]);
+    // The component, the one lazy import: `load: () => import('./<Name>Tool')` — inside the package.
+    const lazy = [...source.matchAll(/\bimport\(\s*['"]([^'"]+)['"]\s*\)/g)].map(m => m[1]!);
+    expect(lazy.filter(s => !s.startsWith('./'))).toEqual([]);
+  });
+
+  it.each(UI.filter(id => sourceOf('ui', id, 'src/history.ts') !== undefined))(
+    'ui/%s: the history declaration imports nothing at run time and exports the declaration alone',
+    id => {
+      const source = sourceOf('ui', id, 'src/history.ts')!;
+      expect(runtimeImportsOf(source)).toEqual([]);
+      const values = valueExportsOf(source);
+      expect(values, 'move labels, guards and helpers to another module (entries.ts)').toHaveLength(1);
+      const d = definitionModules[`${ROOT}ui/${id}/src/definition.ts`]?.definition as ToolDefinition | undefined;
+      expect(d?.history, 'the definition’s `history` is this declaration').toBeDefined();
+    },
+  );
+
+  it.each(UI.filter(id => sourceOf('ui', id, 'src/detect.ts') !== undefined))(
+    'ui/%s: src/detect.ts exports `detect` and imports only the tool’s own logic',
+    id => {
+      const module = detectModules[`${ROOT}ui/${id}/src/detect.ts`];
+      expect(typeof module?.detect).toBe('function');
+      const source = sourceOf('ui', id, 'src/detect.ts')!;
+      expect(
+        runtimeImportsOf(source).filter(s => !s.startsWith('.') && packageOf(s) !== `@workspace/tool-logic-${id}`),
+      ).toEqual([]);
+      expect(valueExportsOf(source)).toEqual(['detect']);
+    },
+  );
 
   it('have unique orders (the registry’s numbers in docs/tools/README.md)', () => {
     const orders = TOOLS.map(t => t.order);

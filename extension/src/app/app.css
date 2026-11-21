@@ -7,9 +7,9 @@
 @import '@workspace/dna/style-gpui.css';
 @import '@workspace/dna/ui.css';
 
-/* Tailwind finds classes in this package by itself; the UI kit and the tools' components are packages of their own. */
+/* Tailwind finds classes in this package by itself; the UI kit is a package of its own. Not the tools' components: their
+   classes are the shell's stylesheet's (shell.css), so a tool adds nothing to the start page's first load. */
 @source '../../../packages/ui/src';
-@source '../../../packages/tools/ui';
 
 html,
 body,

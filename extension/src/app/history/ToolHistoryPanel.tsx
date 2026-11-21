@@ -50,14 +50,24 @@ export const ToolHistoryPanel = ({
     };
   }, [host, source.owner, declared, version]);
 
-  const text = {
-    none: 'This tool keeps no history.',
-    on: 'History is on: this tool’s work is kept in this browser.',
-    off: 'History is off for this tool: nothing new is kept.',
-    incognito: 'Incognito window: nothing is kept.',
-  }[state];
+  // A tool whose every kind is secret keeps nothing without a master password or while locked: the line says so,
+  // never that its work is kept.
+  const allSecret = declared && source.declaration.kinds.every(k => k.secret);
+  const text =
+    state === 'on' && allSecret
+      ? {
+          unlocked: 'History is on: this tool’s work is kept in this browser, encrypted.',
+          locked: 'History is on, but this tool keeps secrets only: nothing is kept while the history is locked.',
+          none: 'History is on, but this tool keeps secrets only: nothing is kept without a master password.',
+        }[vault]
+      : {
+          none: 'This tool keeps no history.',
+          on: 'History is on: this tool’s work is kept in this browser.',
+          off: 'History is off for this tool: nothing new is kept.',
+          incognito: 'Incognito window: nothing is kept.',
+        }[state];
   const secretText =
-    state === 'on' && secrets
+    state === 'on' && secrets && !allSecret
       ? vault === 'unlocked'
         ? ' Secrets are kept encrypted.'
         : vault === 'locked'

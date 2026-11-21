@@ -8,7 +8,9 @@
  *   HistoryArchive   zipArchive (the tool-history archive, format 1)
  *   RetentionRule    ageAndBudget (the settings' retention period and size budget)
  *
- * and builds the factory every tool records through (ToolHost.history). Incognito: an extension page in spanning mode
+ * and builds the factory every tool records through (ToolHost.history). It also carries the tools' per-tool settings
+ * (ToolHost.settings, src/tools/settings.ts — chrome.storage.local): this object is what the shell already hands to
+ * Tools and Settings, so the second host member travels with the first. Incognito: an extension page in spanning mode
  * cannot run in an incognito window at all (probe), but if one ever does (`chrome.extension.inIncognitoContext` — a
  * split-mode manifest, a change of Chrome), nothing reaches the persistent database: the store is in memory and the gate
  * is closed.
@@ -19,6 +21,7 @@ import { historySettingsSource } from './settings';
 import { historySources } from './sources';
 import pkg from '../../package.json';
 import product from '../../product.json';
+import { extensionToolSettings } from '../tools/settings';
 import { createDebug } from '@extension/logger';
 import {
   ageAndBudget,
@@ -31,6 +34,7 @@ import {
 import type { SessionArea } from './sessionKeyHolder';
 import type { HistorySettingsSource, SettingsArea, SettingsChanged } from './settings';
 import type { HistorySource, Recordable } from './sources';
+import type { ToolSettingsStore } from '@workspace/tools-host';
 import type {
   GateState,
   HistoryArchive,
@@ -65,6 +69,8 @@ export interface HistoryHost {
   /** Something wrote to or deleted from the history in this page (lists refresh). */
   changed(): void;
   onChange(listener: () => void): () => void;
+  /** The tools' per-tool settings (ToolHost.settings), in chrome.storage.local, followed live. */
+  toolSettings: ToolSettingsStore;
 }
 
 /** The parts of `chrome` the history uses. */
@@ -175,6 +181,7 @@ export const historyHost = (env: HistoryEnvironment): HistoryHost => {
       changeListeners.add(listener);
       return () => changeListeners.delete(listener);
     },
+    toolSettings: extensionToolSettings(env.chrome.storage.local, env.chrome.storage.onChanged),
   };
 };
 

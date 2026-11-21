@@ -5,7 +5,8 @@
  * iframe (src/viewer/) owns the two texts and compares them in its wasm module (crates/review-view: the comparison
  * lives in Rust, D13) — on a request, and by itself as the user edits. This page keeps what it says about each side
  * (compare/state.ts), and its toolbar is the list of compare/actions.ts. Nothing opened or typed here is stored; the
- * only writes are the user's Save and Save as.
+ * only writes are the user's Save and Save as. The editor keeps the keys pressed in it, so it hands up the page's
+ * shortcuts and the frame's (`frameKeys`: ⌘K for the shell's palette).
  */
 import { sideWord } from '@src/compare/actions';
 import { collectDrop } from '@src/compare/files';
@@ -20,6 +21,7 @@ import {
   reduce,
   sideName,
 } from '@src/compare/state';
+import { keyLabel } from '@src/shared/keyLabels';
 import { VIEWER_PAGE } from '@src/shared/pages';
 import { chordOf, isFromViewer, isMac, sameChord } from '@src/shared/viewerProtocol';
 import { Button } from '@workspace/ui/button';
@@ -31,6 +33,7 @@ import type { ActionContext, CompareAction, ComparePort } from '@src/compare/act
 import type { CompareBehaviors } from '@src/compare/behaviors';
 import type { SideText } from '@src/compare/files';
 import type { Arrival, CompareState, Side, Tone } from '@src/compare/state';
+import type { FrameKeys } from '@src/shared/keys';
 import type { DroppedEntry, KeyChord, ToViewer } from '@src/shared/viewerProtocol';
 import type { DragEvent, ReactElement } from 'react';
 
@@ -38,9 +41,6 @@ import type { DragEvent, ReactElement } from 'react';
 export const DEFAULT_LANGUAGE = 'rust';
 
 const ROLE: Record<Side, string> = { old: 'Original', new: 'Changed' };
-
-const keyLabel = (chord: KeyChord, mac: boolean): string =>
-  [chord.mod ? (mac ? '⌘' : 'Ctrl+') : '', chord.shift ? (mac ? '⇧' : 'Shift+') : '', chord.key.toUpperCase()].join('');
 
 /** Where the texts of the module's status line come from: the changed side's name, else the original's. */
 const pathOf = (state: CompareState): string => state.sides.new.fileName ?? state.sides.old.fileName ?? 'untitled';
@@ -87,8 +87,27 @@ const ActionButton = ({
   );
 };
 
-export const ComparePage = ({ behaviors }: { behaviors: CompareBehaviors }): ReactElement => {
+export interface ComparePageProps {
+  behaviors: CompareBehaviors;
+  /** The shortcuts of the frame around the page (the shell's palette), handed up from the editor as well. */
+  frameKeys?: FrameKeys;
+}
+
+export const ComparePage = ({ behaviors, frameKeys }: ComparePageProps): ReactElement => {
   const [state, dispatch] = useReducer(reduce, DEFAULT_LANGUAGE, initialState);
+  const frameKeysRef = useRef(frameKeys);
+  frameKeysRef.current = frameKeys;
+  // The page's shortcuts and the frame's: the editor keeps every key it is not told to hand up.
+  const keysMessage = useCallback(
+    (): ToViewer => ({
+      type: 'viewer/keys',
+      keys: [
+        ...behaviors.actions.flatMap(a => (a.shortcut ? [a.shortcut] : [])),
+        ...(frameKeysRef.current?.keys ?? []),
+      ],
+    }),
+    [behaviors.actions],
+  );
   const stateRef = useRef(state);
   stateRef.current = state;
   const frame = useRef<HTMLIFrameElement>(null);
@@ -110,6 +129,11 @@ export const ComparePage = ({ behaviors }: { behaviors: CompareBehaviors }): Rea
     if (viewerReady.current) frame.current?.contentWindow?.postMessage(message, location.origin);
     else outbox.current = message.type === 'viewer/compare' ? [message] : [...outbox.current, message];
   }, []);
+  // The user changed a shortcut (on any page): the editor hands up the new set from now on.
+  const frameKeyList = frameKeys?.keys;
+  useEffect(() => {
+    if (viewerReady.current) frame.current?.contentWindow?.postMessage(keysMessage(), location.origin);
+  }, [frameKeyList, keysMessage]);
   const request = useCallback(
     (make: (id: number) => ToViewer) => {
       const id = ++nextId.current;
@@ -163,9 +187,20 @@ export const ComparePage = ({ behaviors }: { behaviors: CompareBehaviors }): Rea
     },
     [behaviors.examples, post, request],
   );
+  // Texts another part of the page handed over (a tool sending the person here: TextSource.handed) come instead of the
+  // example — two: the original and the changed text; one: the original. Taken once, so StrictMode's second run finds
+  // none and the example it asks for is dropped by the generation the arrival bumps.
+  const portRef = useRef<ComparePort | null>(null);
   useEffect(() => {
-    void showExample(DEFAULT_LANGUAGE);
-  }, [showExample]);
+    const handed = behaviors.texts.handed?.() ?? [];
+    if (!handed.length) return void showExample(DEFAULT_LANGUAGE);
+    // As when the example goes away: plain text unless a name tells the language.
+    stateRef.current = reduce(stateRef.current, { type: 'language', language: 'text' });
+    dispatch({ type: 'language', language: 'text' });
+    // One text: an empty changed side — both go in one comparison, the editor's first.
+    const pair = [handed[0]!, handed[1] ?? { text: '', fileName: null, handle: null, bom: false }];
+    void portRef.current?.load(pair, null, 'handed');
+  }, [behaviors.texts, showExample]);
 
   // ---- what the actions may do (ComparePort) -------------------------------------------------------------------
   const lastSide = useRef<Side>('new');
@@ -212,12 +247,20 @@ export const ComparePage = ({ behaviors }: { behaviors: CompareBehaviors }): Rea
           }));
         }
         const named = arrivals.map(
-          a => a.text.fileName ?? (origin === 'clipboard' ? 'The clipboard’s text' : 'The dropped text'),
+          a =>
+            a.text.fileName ??
+            (origin === 'clipboard'
+              ? 'The clipboard’s text'
+              : origin === 'handed'
+                ? 'The pasted text'
+                : 'The dropped text'),
         );
         say(
-          arrivals.length === 2
-            ? `Comparing ${named[0]} (original) with ${named[1]} (changed).`
-            : `${named[0]} is on the ${sideWord(first.side)} side.`,
+          origin === 'handed' && arrivals.length === 2 && arrivals.every(a => !a.text.fileName)
+            ? 'Comparing the pasted texts: the original on the left, the changed text on the right.'
+            : arrivals.length === 2
+              ? `Comparing ${named[0]} (original) with ${named[1]} (changed).`
+              : `${named[0]} is on the ${sideWord(first.side)} side.`,
           'success',
         );
       },
@@ -265,6 +308,7 @@ export const ComparePage = ({ behaviors }: { behaviors: CompareBehaviors }): Rea
     }),
     [confirmLoss, post, read, request, say],
   );
+  portRef.current = port;
 
   const runAction = useCallback(
     (action: CompareAction, side: Side | null) => {
@@ -384,8 +428,7 @@ export const ComparePage = ({ behaviors }: { behaviors: CompareBehaviors }): Rea
         case 'viewer/ready': {
           viewerReady.current = true;
           dispatch({ type: 'viewer', viewer: 'ready' });
-          const keys = behaviors.actions.flatMap(a => (a.shortcut ? [a.shortcut] : []));
-          for (const message of [{ type: 'viewer/keys', keys } as ToViewer, ...outbox.current])
+          for (const message of [keysMessage(), ...outbox.current])
             frame.current?.contentWindow?.postMessage(message, location.origin);
           outbox.current = [];
           return;
@@ -421,7 +464,7 @@ export const ComparePage = ({ behaviors }: { behaviors: CompareBehaviors }): Rea
           return;
         case 'viewer/key':
           if (data.side) lastSide.current = data.side;
-          handlers.current.runShortcut(data.chord, data.side);
+          if (!handlers.current.runShortcut(data.chord, data.side)) frameKeysRef.current?.run(data.chord);
           return;
         case 'viewer/leave':
           handlers.current.leaveEditor(data.backwards);
@@ -429,7 +472,7 @@ export const ComparePage = ({ behaviors }: { behaviors: CompareBehaviors }): Rea
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [behaviors.actions]);
+  }, [behaviors.actions, keysMessage]);
 
   const onLanguage = (language: string): void => {
     if (stateRef.current.example !== null) void showExample(language);

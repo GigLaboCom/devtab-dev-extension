@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DiffShown } from '@extension/review-wasm';
 import type { CompareBehaviors } from '@src/compare/behaviors';
 import type { ExamplePair } from '@src/compare/examples';
+import type { FrameKeys } from '@src/shared/keys';
 import type { DroppedEntry, FromViewer, ToViewer } from '@src/shared/viewerProtocol';
 
 const pairs: Record<string, ExamplePair> = {
@@ -73,8 +74,8 @@ const fakeBehaviors = () => {
   return behaviors;
 };
 
-const setup = async (behaviors = fakeBehaviors()) => {
-  render(<ComparePage behaviors={behaviors} />);
+const setup = async (behaviors = fakeBehaviors(), frameKeys?: FrameKeys) => {
+  render(<ComparePage behaviors={behaviors} frameKeys={frameKeys} />);
   const frame = screen.getByTitle('Side-by-side comparison') as HTMLIFrameElement;
   const viewer = frame.contentWindow!;
   // jsdom has no focus for windows; the page focuses the editor's frame when a side goes into edit mode.
@@ -310,5 +311,22 @@ describe('ComparePage', () => {
     await answer({ type: 'viewer/error', message: 'no WebGPU or WebGL2' });
     expect(counts().dataset.viewerState).toBe('error');
     expect(notice().textContent).toBe('The editor could not start. no WebGPU or WebGL2');
+  });
+  it('asks the editor to hand up the frame’s shortcuts too, and gives them back to the frame', async () => {
+    const find = { key: 'k', mod: true, shift: false };
+    const frameKeys: FrameKeys = { keys: [find], run: vi.fn(() => true) };
+    const behaviors = fakeBehaviors();
+    const { messages, answer, ready } = await setup(behaviors, frameKeys);
+    await ready();
+    expect(messages()[0]).toEqual({
+      type: 'viewer/keys',
+      keys: [{ key: 's', mod: true, shift: false }, { key: 's', mod: true, shift: true }, find],
+    });
+    // ⌘K pressed in the editor: no action of the page has it, so the frame takes it (the shell opens its palette).
+    await answer({ type: 'viewer/key', chord: find, side: 'new' });
+    expect(frameKeys.run).toHaveBeenCalledWith(find);
+    // ⌘S stays the page's: the frame never sees it.
+    await answer({ type: 'viewer/key', chord: { key: 's', mod: true, shift: false }, side: 'old' });
+    expect(frameKeys.run).toHaveBeenCalledTimes(1);
   });
 });

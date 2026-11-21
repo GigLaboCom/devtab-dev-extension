@@ -6,6 +6,10 @@
  */
 import { lintCss, lintHtml, lintInlineStyles } from '@workspace/dna/lint';
 import dnaMenu from '@workspace/dna/menu.css?raw';
+import dnaSections from '@workspace/dna/sections.css?raw';
+import dnaShell from '@workspace/dna/shell.css?raw';
+import dnaDialog from '@workspace/dna/style-gpui-dialog.css?raw';
+import dnaTools from '@workspace/dna/style-gpui-tools.css?raw';
 import dnaStyle from '@workspace/dna/style-gpui.css?raw';
 import dnaUi from '@workspace/dna/ui.css?raw';
 import { describe, expect, it } from 'vitest';
@@ -35,8 +39,19 @@ const DNA_IMPORTS = [
   '@workspace/dna/style-gpui.css',
   '@workspace/dna/ui.css',
 ];
-// The toolbar menu's popup page takes its own frame instead of the main page's.
-const IMPORTS = [...DNA_IMPORTS, '@workspace/dna/menu.css'];
+// The toolbar menu's popup page takes its own frame instead of the main page's; the shell's lazy stylesheet takes a
+// Tailwind build of its own (the theme without the preflight, the utilities over the tools too, the bridge), the Table
+// and the tools' parts, the Dialog, the sections' frames and the shell's frame.
+const SHELL_IMPORTS = [
+  'tailwindcss/theme.css',
+  'tailwindcss/utilities.css',
+  '@workspace/dna/tailwind.css',
+  '@workspace/dna/style-gpui-tools.css',
+  '@workspace/dna/style-gpui-dialog.css',
+  '@workspace/dna/sections.css',
+  '@workspace/dna/shell.css',
+];
+const IMPORTS = [...DNA_IMPORTS, '@workspace/dna/menu.css', ...SHELL_IMPORTS];
 // Radix publishes its measurements as custom properties (`--radix-select-trigger-width`); the components read them.
 const OWN = ['--radix-'];
 
@@ -74,7 +89,12 @@ const classesOf = (source: string): string[] => {
 
 describe('the extension’s styling keeps the @workspace/dna contract', () => {
   it('finds its sources', () => {
-    expect(CSS.map(([file]) => file)).toEqual(['./app/app.css', './popup/popup.css', './viewer/viewer.css']);
+    expect(CSS.map(([file]) => file)).toEqual([
+      './app/app.css',
+      './app/shell.css',
+      './popup/popup.css',
+      './viewer/viewer.css',
+    ]);
     // vitest.config.ts processes CSS: without it a `?raw` CSS import is '' and the lint below proves nothing.
     for (const [file, css] of CSS) expect(css.length, file).toBeGreaterThan(300);
     expect(TSX.length).toBeGreaterThanOrEqual(10);
@@ -131,6 +151,27 @@ describe('the extension’s styling keeps the @workspace/dna contract', () => {
     ).toBe('');
   });
 
+  it('the shell’s own stylesheet (loaded with its lazy chunk) takes the Dialog and the shell’s frame only', () => {
+    // Off the start route (a new tab has a byte budget): the shell, the palette and the Tools overview are
+    // shell.css, the Dialog is style-gpui-dialog.css; app.css has set the layers' order before this loads.
+    const shell = CSS.find(([file]) => file === './app/shell.css')![1];
+    expect([...shell.matchAll(/@import '([^']+)'[^;]*;/g)].map(m => m[1])).toEqual(SHELL_IMPORTS);
+    expect(
+      shell
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/@import[^;]*;/g, '')
+        .replace(/@source[^;]*;/g, '')
+        .trim(),
+    ).toBe('');
+    // It scans the tools; app.css does not (a tool adds nothing to the start page's stylesheet), and scans nothing
+    // app.css would not (so the start page's utilities are all here again, in one build's order).
+    expect(shell).toContain("@source '../../../packages/tools/ui';");
+    const app = CSS.find(([file]) => file === './app/app.css')![1];
+    expect(app).not.toContain('packages/tools');
+    for (const target of SHELL_IMPORTS.filter(t => t.startsWith('@workspace/dna/') && !t.endsWith('/tailwind.css')))
+      expect(app).not.toContain(target);
+  });
+
   it('the editor page takes the tokens and the base only (no Tailwind, no components)', () => {
     const viewer = CSS.find(([file]) => file === './viewer/viewer.css')![1];
     expect([...viewer.matchAll(/@import '([^']+)';/g)].map(m => m[1])).toEqual(['@workspace/dna/theme.css']);
@@ -139,7 +180,7 @@ describe('the extension’s styling keeps the @workspace/dna contract', () => {
 
 describe('every cn-* and kit-* class written here has a rule in @workspace/dna', () => {
   const defined = new Set(
-    [dnaStyle, dnaUi, dnaMenu].flatMap(css =>
+    [dnaStyle, dnaDialog, dnaTools, dnaUi, dnaSections, dnaShell, dnaMenu].flatMap(css =>
       [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/\.((?:cn|kit)-[\w-]+)/g)].map(m => m[1]!),
     ),
   );

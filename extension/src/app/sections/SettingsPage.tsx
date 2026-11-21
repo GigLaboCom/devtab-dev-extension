@@ -9,17 +9,22 @@
  *               buttons to move it; a reset of the order; then the options, which have no place to move. A part with an
  *               optional permission asks Chrome for it straight from the click (Chrome refuses a request without one);
  *               switching it off gives back what no other switched-on part needs. This page names no part.
- *   Appearance  the theme picker of the sidebar, the same component
+ *   Appearance  the theme (the only place it is chosen; not set = System, which follows the system live)
+ *   Shortcuts   the user's keyboard shortcuts for every action (ShortcutSettings.tsx)
  *   History     the tool history (D17): its own block, app/history/HistorySettings.tsx
  *   Your data   what is stored and what is not; each part that reads the browser adds its own line
  *
  * Everything here is a setting, kept in chrome.storage.local; nothing the user types into the start page is. What the
  * tools keep is the tool history, in this browser's IndexedDB (D17).
  */
+import { ShortcutSettings } from './ShortcutSettings';
 import { HistorySettings } from '../history/HistorySettings';
 import { ThemePicker } from '../ThemePicker';
+import { ToolSettings } from '../tools/ToolSettings';
 import { createDebug } from '@extension/logger';
+import { compareActions } from '@src/compare/actions';
 import { isNewTabPage } from '@src/newTab/override';
+import { isMac } from '@src/shared/keys';
 import { moveRow, partState, permissionsToRelease, permissionsToRequest, rowsInOrder } from '@src/start/part';
 import { saveSettings } from '@src/start/store';
 import { Button } from '@workspace/ui/button';
@@ -28,6 +33,7 @@ import { Switch } from '@workspace/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { ArrowDownIcon, ArrowUpIcon } from 'lucide-react';
 import { useState } from 'react';
+import type { Shortcuts } from '../shell/useShortcuts';
 import type { PermissionsApi } from '../useStart';
 import type { ThemePref } from '@extension/theme';
 import type { HistoryHost } from '@src/history/behaviors';
@@ -50,7 +56,21 @@ export interface SettingsProps {
   /** The build's New Tab override: whether a new tab is ours, so "A new tab opens" means something. */
   newTab: NewTabOverride;
   history: HistoryHost;
+  /** The user's shortcuts (the shell's); absent where the page is drawn without them. */
+  shortcuts?: Shortcuts;
+  /** The shell's own choices (the breadcrumb); absent where the page is drawn without the shell. */
+  shell?: ShellChoices;
 }
+
+export interface ShellChoices {
+  breadcrumb: boolean;
+  setBreadcrumb: (on: boolean) => void;
+}
+
+/** The pages' own shortcuts a user's shortcut may not take: «Compare code»'s actions (compare/actions.ts). */
+const FIXED = compareActions.flatMap(a =>
+  a.shortcut ? [{ chord: a.shortcut, title: `Compare code: ${a.title}` }] : [],
+);
 
 const NEW_TAB: Array<{ value: NewTabChoice; label: string }> = [
   { value: 'start', label: 'Start page' },
@@ -74,6 +94,8 @@ export const SettingsPage = ({
   theme,
   newTab,
   history,
+  shortcuts,
+  shell,
 }: SettingsProps): ReactElement => {
   const [asking, setAsking] = useState<Asking>(null);
   const settings = state.settings;
@@ -247,7 +269,31 @@ export const SettingsPage = ({
           <div className="kit-settings-theme">
             <ThemePicker pref={theme.pref} onChange={theme.onChange} />
           </div>
+          {shell && (
+            <div className="kit-settings-row" data-setting="breadcrumb">
+              <div className="kit-settings-text">
+                <Label htmlFor="settings-breadcrumb" className="kit-settings-label">
+                  Breadcrumb
+                </Label>
+                <span id="settings-breadcrumb-hint" className="kit-settings-hint">
+                  Where you are, in the toolbar: “Tools / Base64”. While it shows, it is the page’s title.
+                </span>
+              </div>
+              <div className="kit-settings-controls">
+                <Switch
+                  id="settings-breadcrumb"
+                  aria-describedby="settings-breadcrumb-hint"
+                  checked={shell.breadcrumb}
+                  onCheckedChange={shell.setBreadcrumb}
+                />
+              </div>
+            </div>
+          )}
         </section>
+
+        {shortcuts && <ShortcutSettings shortcuts={shortcuts} fixed={FIXED} mac={isMac()} />}
+
+        <ToolSettings host={history} />
 
         <HistorySettings host={history} />
 
@@ -257,12 +303,14 @@ export const SettingsPage = ({
           </h2>
           <div className="kit-settings-hint kit-settings-prose">
             <p>
-              Stored in this browser’s extension storage: these settings, your shortcuts, and which tools and sections
-              you opened last (for the Tools tiles and “Last opened tool”). While History is on, the tools keep what you
-              type, paste or open in them, with their results, in this browser’s storage — not in incognito windows,
-              never secrets without a master password — until it is deleted (see History above). Never stored: what you
-              type or paste into the start page’s field. Nothing is sent anywhere until you press Enter on a web search,
-              which goes to your browser’s search engine; an export goes only into the file you save.
+              Stored in this browser’s extension storage: these settings, your start page shortcuts, your keyboard
+              shortcuts, which sidebar groups you opened or closed, and which tools and sections you opened last (for
+              the Tools tiles, “Last opened tool” and the search’s recent places). While History is on, the tools keep
+              what you type, paste or open in them, with their results, in this browser’s storage — not in incognito
+              windows, never secrets without a master password — until it is deleted (see History above). Never stored:
+              what you type or paste into the start page’s field or the search. Nothing is sent anywhere until you press
+              Enter on a web search, which goes to your browser’s search engine; an export goes only into the file you
+              save.
             </p>
             {privacy.map(line => (
               <p key={line}>{line}</p>

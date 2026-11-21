@@ -85,7 +85,8 @@ export default defineManifest({
   },
   // Permissions. `storage` is the page's own: settings in chrome.storage.local — the theme choice (D9: the source of
   // truth, shared by the main page and the editor page through storage.onChanged), the start page's settings, the
-  // user's shortcuts and the recent sections and tools, and the tool history's settings. No install warning.
+  // user's start page shortcuts and the recent sections and tools, the keyboard shortcuts of our pages, which sidebar
+  // groups are open, and the tool history's settings. No install warning.
   // The tool history (D17) is not chrome.storage: what the user types, pastes or opens in a tool, with its results, is
   // kept in the extension's IndexedDB while History is on — never in incognito, never sent, deleted by the user's
   // retention and filters; secrets only encrypted, with the optional master password (its unlocked key lives in

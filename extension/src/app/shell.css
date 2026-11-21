@@ -1,0 +1,21 @@
+/* The shell's own stylesheet, loaded with its lazy chunk (Shell.tsx imports it), never with the start page (a new tab has
+   a byte budget): the component layer's Table and the tools' parts, its Dialog, the sections' frames (settings,
+   «Compare code», the tool history) and the shell's frame of @workspace/dna — the sidebar, the toolbar, the palette, the
+   Tools overview. No rules of its own (src/dna.test.ts holds that); app.css has already set the layers' order.
+
+   Its own Tailwind build: the tools' components are scanned here and not in app.css, so a tool's classes never reach the
+   start page. It scans the extension and the UI kit too — every class any element of the shell carries is generated here
+   again, in Tailwind's order, so a utility of this sheet never overrides an element's other utilities from app.css out
+   of order (two builds sort their utilities each on its own). Tailwind's theme without its preflight (the base is
+   app.css's); the bridge to the tokens, whose variables app.css's theme.css defines at run time. */
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities) source(none);
+@import '@workspace/dna/tailwind.css';
+@import '@workspace/dna/style-gpui-tools.css';
+@import '@workspace/dna/style-gpui-dialog.css';
+@import '@workspace/dna/sections.css';
+@import '@workspace/dna/shell.css';
+
+@source '../../src';
+@source '../../../packages/ui/src';
+@source '../../../packages/tools/ui';

@@ -13,7 +13,7 @@ import { useTheme } from './useTheme';
 import product from '../../product.json';
 import { isNewTabPage } from '@src/newTab/override';
 import { optionalPermissionNames } from '@src/start/part';
-import { toolById } from '@src/tools/registry';
+import { catalogueEntry } from '@src/tools/catalogue';
 import { lazy, Suspense, useLayoutEffect } from 'react';
 import type { Route } from './route';
 import type { PermissionsApi } from './useStart';
@@ -50,7 +50,7 @@ export const titleOf = (route: Route, newTab: boolean): string => {
   if (route.section === 'start' && newTab) return 'New Tab';
   const part =
     route.section === 'tools'
-      ? (toolById(route.tool)?.title ?? 'Tools')
+      ? (catalogueEntry(route.tool)?.title ?? 'Tools')
       : {
           start: 'Start page',
           settings: 'Settings',
@@ -76,7 +76,16 @@ export const App = ({ deps }: { deps: AppDeps }): ReactElement => {
     if (left) window.history.replaceState(window.history.state, '', left);
   }, [route, deps.behaviors.newTab]);
 
-  if (route.section === 'start') return <StartPage state={start.state} held={held} parts={deps.behaviors.parts} />;
+  if (route.section === 'start')
+    return (
+      <StartPage
+        state={start.state}
+        held={held}
+        parts={deps.behaviors.parts}
+        code={deps.behaviors.code}
+        keys={deps.start}
+      />
+    );
   const Frame = isBare(window.location.search) ? Bare : Shell;
   return (
     <Suspense fallback={null}>

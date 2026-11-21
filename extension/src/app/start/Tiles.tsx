@@ -23,6 +23,8 @@ const TileIcon = ({ tile, icons }: { tile: Tile; icons: SiteIcons }): ReactEleme
       </span>
     );
   }
+  // Site icons are on and on their way: the place stays empty rather than showing a letter that turns into an icon.
+  if (icons.waiting) return <span className="kit-tile-icon" aria-hidden="true" />;
   const src = tile.site && !failed ? icons.src(tile.site) : null;
   return (
     <span className="kit-tile-icon" aria-hidden="true">
