@@ -78,21 +78,34 @@ for example — can be a second one without changing a tool.
   to the component, with a default that needs no host (in memory, no-op). This is the "Replaceable Behavior" rule
   applied to the host: the extension's composition root supplies the implementation. A tool rendered with no host at
   all must work.
-- **The host owns** the list of tools (`extension/src/tools/registry.ts` imports each `ui` package lazily by name), the
-  routes, storage, the manifest and the content security policy. A tool's worker, data file or wasm ships inside the
-  tool's package and is loaded from a file, never from `blob:` or `data:`.
+- **The host owns** the list of tools, the routes, storage, the manifest and the content security policy. It finds the
+  tools itself: `extension/src/tools/registry.ts` takes `definition` from every `packages/tools/ui/*/src/definition.ts`
+  (the `ui` package's main export: `id`, `title`, `summary`, `keywords`, `order` — the tool's number in
+  `docs/tools/README.md` — `detect`, its `history` declaration, and `load` for the component, a chunk of its own), so a
+  new tool is new files only and edits no list. The host wraps every tool in the kit's `ToolPage` (title, summary, its
+  history line); the tool's component renders the body from the kit's tool parts. A tool's worker, data file or wasm
+  ships inside the tool's package and is loaded from a file, never from `blob:` or `data:`.
 - **Scopes say who may use what:** `@workspace/*` packages are reusable and never depend on `@extension/*`;
   `@extension/*` packages belong to the extension.
 - **Enforcement** is by folder: `no-restricted-imports` in `eslint.config.js` on `packages/tools/logic/**` (no React,
-  no DOM libraries, no `ui`, no other tool) and on `packages/tools/ui/**` (no other tool, no `@extension/*`). The
-  workspace stays on pnpm + Turborepo; Nx is not adopted (what it would take is recorded in `docs/tools/README.md`).
+  no DOM or UI libraries, no DOM globals, no `ui`, no other tool, no `@extension/*`) and on each
+  `packages/tools/ui/<id>/**` (its own logic only, no other tool, no `@extension/*`, no history core; the blocks are
+  generated from the folders); a logic package's `tsconfig.json` leaves the DOM library out; and
+  `extension/src/tools/shape.test.ts` fails when a tool package breaks the shape (names, exports, the definition, imports
+  outside its package). The workspace stays on pnpm + Turborepo; Nx is not adopted (what it would take is recorded in
+  `docs/tools/README.md`).
 - **The site is a separate repository** and does not consume these packages yet. How they would reach it — the site
   joining this workspace as a second app, a git dependency on a subfolder, or publishing — is not chosen; nothing in a
   tool may assume one of them.
+- **Adding a tool:** `node scripts/new-tool.mjs <id> --order=<n> …` creates both packages and the tool's e2e module
+  (`scripts/e2e-tools/<id>.mjs`, run by `scripts/e2e-check.mjs` without an edit) from one template; the steps from a
+  specification to a finished tool, the tests it needs and the shared files it may touch are `docs/tools/adding-a-tool.md`.
+  The reference is the JSON tool: `packages/tools/logic/json/` and `packages/tools/ui/json/`.
 - **Specifications written before this rule** name `extension/src/tools/<id>/` and `extension/src/tools/shared/`. Read
-  `logic.ts` and its tests as `packages/tools/logic/<id>/`, the component as `packages/tools/ui/<id>/`, shared pure
-  code as `packages/tools/logic/shared/`, shared hooks as `packages/tools/ui/host/`. The JSON tool and the components
-  in `extension/src/components/ui/` still live inside the extension; they move when they are next worked on.
+  `logic.ts` and its tests as `packages/tools/logic/<id>/src/`, the component as `packages/tools/ui/<id>/src/`, shared
+  pure code (`shared/random.ts`, `time.ts`, `hex.ts`, `base64.ts`) as `@workspace/tools-shared/<module>`, the shared hook
+  `useNow` as `@workspace/tools-host`, and the components of `extension/src/components/ui/` as `@workspace/ui/<name>`
+  (`packages/ui/`). Where `docs/tools/README.md` resolves a disagreement between specifications, it wins.
 
 ## Dependencies
 
