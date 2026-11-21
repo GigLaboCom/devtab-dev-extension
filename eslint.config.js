@@ -99,7 +99,9 @@ export default config(
         // The extension's build configs live in tsconfig.node.json, outside the app's tsconfig.json — except
         // manifest.config.ts, which a test of the app imports (src/start/parts/manifest.test.ts), so the app's project
         // already has it.
-        projectService: { allowDefaultProject: ['extension/vite.config.ts', 'extension/vitest.config.ts'] },
+        projectService: {
+          allowDefaultProject: ['extension/vite.config.ts', 'extension/vitest.config.ts', 'extension/build/*.ts'],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
       globals: {
