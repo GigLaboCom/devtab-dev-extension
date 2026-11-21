@@ -1,0 +1,8 @@
+{
+  "extends": "@extension/tsconfig/app",
+  "compilerOptions": {
+    // A tool's component: no `chrome` types — a tool never touches the extension's APIs (D14).
+    "types": []
+  },
+  "include": ["src", "vitest.config.ts"]
+}
