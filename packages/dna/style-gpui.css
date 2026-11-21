@@ -14,10 +14,9 @@
  *
  * Covered: P1 — Button, Badge, Kbd, Tooltip, Popover, Hover Card, Dropdown Menu, Context Menu, Tabs, list rows
  * (own, `kit-list*`); P2 the extension uses — Input, Textarea, Select, Checkbox, Label, Toggle, Toggle Group, Card,
- * Separator, Switch, Table; the scrollbar of Scroll Area (§4.8); the parts the tools share (own, `kit-tool-*`,
- * `kit-result-row*`, `kit-file-drop*`: the tool page frame, a result with its copy action, the file drop zone — any host
- * of the tools wears them, so they live here and not in the extension's frame, ui.css). Not yet: Sidebar (the
- * extension's navigation is the frame, ui.css), Dialog, Sheet, Command, Sonner and the P3 rest — upstream/style-nova.css
+ * Separator, Switch; the scrollbar of Scroll Area (§4.8). In files of their own, next to this one, for pages that need
+ * them: Table and the parts the tools share (style-gpui-tools.css), Dialog (style-gpui-dialog.css). Not yet: Sidebar
+ * (the extension's navigation is its frame, shell.css), Sheet, Command, Sonner and the P3 rest — upstream/style-nova.css
  * has their nova rules.
  */
 @layer components {
@@ -390,12 +389,15 @@
     @apply hover:bg-accent hover:text-accent-foreground data-on:bg-accent data-on:text-accent-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 gap-1 rounded-md border border-transparent text-sm font-normal focus-visible:ring-3 [&_svg:not([class*='size-'])]:size-4;
   }
 
+  /* No background of their own: a plain one here would come after `.cn-toggle`'s pressed (`data-on`) background, at the
+     same specificity (`:where` adds none), and win — a pressed toggle would look unpressed (tests/state-order.test.ts).
+     The button is transparent already (Tailwind's preflight). */
   .cn-toggle-variant-default {
-    @apply bg-transparent;
+    @apply border-transparent;
   }
 
   .cn-toggle-variant-outline {
-    @apply border-input bg-transparent;
+    @apply border-input;
   }
 
   /* Own variant: one segment of gpui-kit's Segmented bar (the Tabs `default` numbers), for a choice of one. */
@@ -420,8 +422,9 @@
     @apply gap-0.5 rounded-md data-[variant=segmented]:bg-tab-bar-segmented data-[variant=segmented]:rounded-lg data-[variant=segmented]:p-1;
   }
 
+  /* A segment is as wide as its label (gpui-kit's Segmented); a page that wants them to share the width says so. */
   .cn-toggle-group-item {
-    @apply data-[variant=segmented]:flex-1;
+    @apply data-[variant=segmented]:flex-none;
   }
 
   /* MARK: Tooltip (§5.2): popover colours with a border and the softer shadow; padding 8 / 2, 14 px on 1.618; no
@@ -437,113 +440,5 @@
 
   .kit-list-item {
     @apply text-foreground hover:bg-list-hover aria-[current=page]:bg-list-active aria-selected:bg-list-active flex h-6.5 items-center gap-2 rounded-md px-2 text-sm no-underline [&_svg:not([class*='size-'])]:size-4;
-  }
-
-  /* MARK: Table (§5.3 «Table»): rows and head 32 tall, cell padding 8 / 4; the head on table_head, 400; row borders,
-     hover and the selected row on the table tokens */
-  .cn-table-container {
-    @apply relative w-full overflow-x-auto;
-  }
-
-  .cn-table {
-    @apply w-full caption-bottom border-collapse text-sm;
-  }
-
-  .cn-table-header {
-    @apply bg-table-head text-table-head-foreground;
-  }
-
-  .cn-table-body {
-    @apply [&_tr:last-child]:border-0;
-  }
-
-  .cn-table-footer {
-    @apply bg-table-head border-table-row-border border-t font-medium [&>tr]:last:border-b-0;
-  }
-
-  .cn-table-row {
-    @apply border-table-row-border hover:bg-table-hover data-[state=selected]:bg-table-active border-b;
-  }
-
-  .cn-table-head {
-    @apply text-table-head-foreground h-8 px-2 text-left align-middle font-normal whitespace-nowrap;
-  }
-
-  .cn-table-cell {
-    @apply h-8 px-2 py-1 align-middle;
-  }
-
-  .cn-table-caption {
-    @apply text-muted-foreground mt-2 text-sm;
-  }
-
-  /* MARK: Tool page — own (D14; no shadcn part): what every tool page has in common, so the tools look like one
-     product — the head (title, summary, the host's history line), a row of options and actions, the panes of input
-     and result (two columns, as the JSON tool; stacked on request), a message under a pane, the empty state */
-  .kit-tool-page {
-    @apply flex min-w-0 flex-col gap-3;
-  }
-
-  .kit-tool-page-head {
-    @apply flex flex-col gap-0.5;
-  }
-
-  .kit-tool-page-title {
-    @apply text-foreground m-0 text-base font-semibold;
-  }
-
-  .kit-tool-page-summary {
-    @apply text-muted-foreground m-0 text-sm;
-  }
-
-  .kit-tool-options {
-    @apply flex flex-wrap items-center gap-2;
-  }
-
-  .kit-tool-panes {
-    @apply grid grid-cols-2 gap-3 data-[layout=stacked]:grid-cols-1;
-  }
-
-  .kit-tool-pane {
-    @apply flex min-w-0 flex-col gap-1;
-  }
-
-  .kit-tool-pane-head {
-    @apply flex min-h-6 items-center justify-between gap-2;
-  }
-
-  .kit-tool-message {
-    @apply text-muted-foreground data-[tone=error]:text-destructive data-[tone=success]:text-success m-0 min-h-5 text-sm;
-  }
-
-  .kit-tool-empty {
-    @apply text-muted-foreground m-0 text-sm;
-  }
-
-  /* MARK: Result row — own: a name, the value in the code font (wrapped anywhere, selectable) and its copy action */
-  .kit-result-rows {
-    @apply grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1;
-  }
-
-  .kit-result-row {
-    @apply col-span-3 grid grid-cols-subgrid items-center;
-  }
-
-  .kit-result-row-label {
-    @apply text-muted-foreground text-sm whitespace-nowrap;
-  }
-
-  .kit-result-row-value {
-    @apply text-foreground font-mono text-code break-all select-text data-empty:text-muted-foreground data-empty:font-sans data-empty:text-sm;
-  }
-
-  /* MARK: File drop zone — own: a dashed input-coloured box (gpui-kit has none; the input's border and radius), the
-     ring of focus while a file is over it */
-  .kit-file-drop {
-    @apply border-input bg-input-background text-muted-foreground data-[dragging=true]:border-ring data-[dragging=true]:bg-accent flex flex-col items-center justify-center gap-2 rounded-md border border-dashed px-4 py-6 text-center text-sm;
-  }
-
-  .kit-file-drop-line {
-    @apply flex flex-wrap items-center justify-center gap-2;
   }
 }

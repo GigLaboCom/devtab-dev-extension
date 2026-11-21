@@ -1,0 +1,497 @@
+/*
+ * @workspace/dna/shell.css — the SHELL around an extension page's sections: the sidebar with its sections and the
+ * places nested under them, the toolbar above the section, the palette over the page, and the Tools section's
+ * overview. A file of its own, not part of ui.css: the extension loads it with the shell's lazy chunk, so the start page
+ * (a new tab, with a byte budget) carries none of it. The site has its own frame and does not import this file.
+ *
+ * Plain CSS on the tokens (no Tailwind needed). The numbers are gpui-kit's (docs/theming-components.md §5.3,
+ * docs/theming-specs/gpui-kit-structure-data.md §2, §11; gpui-kit-overlays-menus.md §8):
+ *   Sidebar   255 wide; group title 32 tall, 12 px at 70 %, 400; item 28 tall, padding 8, gap 8, radius 6, 8 between
+ *             items; hover sidebar_accent at 80 %; active sidebar_accent, 500; the submenu caret a ghost button with a
+ *             16 px chevron turned 90° when open, no animation; nested items behind a 1 px sidebar_border line,
+ *             14 from the start, 10 inside it, 2 above and below, 4 between.
+ *   Toolbar   TitleBar's bottom border and start padding (12) without its fill, a row of 40 holding one 28 control.
+ *   Palette   the command frame (popover surface, 1 px border, radius 8) in a dialog 10 % from the top: a 32 px field
+ *             row with a bottom border and 12 px padding, a list of at most 300 with 4 px padding, rows of 32 (px 8,
+ *             gap 8, 14 px, the selected one accent), group headings 12 px, 500, muted; nothing animates.
+ *
+ *   .kit-shell                 the page: the sidebar + the content column (the sidebar on top below 48rem)
+ *     .kit-sidebar             the side column: .kit-sidebar-brand (a link back to the start page), .kit-sidebar-nav
+ *                              (the sections; scrolls by itself), .kit-sidebar-foot (Settings, the theme; stays in
+ *                              place), .kit-sidebar-group-label
+ *       .kit-nav > li > .kit-nav-item[aria-current='page'][data-trail] (.kit-nav-label — one line, an ellipsis)
+ *       .kit-nav-group         a section with places under it: .kit-nav-row (the link and .kit-nav-toggle
+ *                              [aria-expanded]) and .kit-nav-sub > li > .kit-nav-sub-item[aria-current='page']
+ *     .kit-shell-content       the toolbar over the scrolling area
+ *       .kit-toolbar           one row: .kit-breadcrumb (nav > .kit-breadcrumb-list > .kit-breadcrumb-item with
+ *                              .kit-breadcrumb-link or .kit-breadcrumb-page[aria-current]), .kit-toolbar-find (-icon,
+ *                              -label, a cn-kbd with the shortcut); .kit-shell[data-breadcrumb='on'] keeps the parts'
+ *                              titles for screen readers only
+ *       .kit-main              the scrolling area
+ *   .kit-palette               the palette's dialog (on cn-dialog-content): .kit-palette-field (.kit-palette-icon,
+ *                              .kit-palette-input), the finder's .kit-command-results.kit-palette-results with
+ *                              .kit-command-group (.kit-command-group-label, .kit-command-group-rows),
+ *                              .kit-palette-empty, .kit-palette-hint
+ *   .kit-tools-index           the Tools overview: li > .kit-tools-index-item (-title, -summary); .kit-tools-note
+ *   .kit-shortcut-field        Settings → Shortcuts: the hotkey field of a row
+ */
+@layer components {
+  .kit-shell {
+    display: grid;
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    height: 100%;
+  }
+
+  /* A narrow tab (an options page in a small window): the navigation goes above the section, and takes at most part
+     of the height — a long list scrolls inside it. */
+  @media (width < 48rem) {
+    .kit-shell {
+      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .kit-sidebar {
+      max-height: 45vh;
+      border-inline-end: 0;
+      border-block-end: 1px solid var(--sidebar-border);
+    }
+  }
+
+  .kit-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 2);
+    min-height: 0;
+    padding: calc(var(--spacing) * 2);
+    border-inline-end: 1px solid var(--sidebar-border);
+    background: var(--sidebar);
+    color: var(--sidebar-foreground);
+  }
+
+  .kit-sidebar-brand {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    height: var(--size-control);
+    padding-inline: calc(var(--spacing) * 2);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  a.kit-sidebar-brand {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .kit-sidebar-group-label {
+    display: flex;
+    align-items: center;
+    height: var(--size-control);
+    padding-inline: calc(var(--spacing) * 2);
+    color: color-mix(in oklab, var(--sidebar-foreground) 70%, transparent);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-normal);
+  }
+
+  /* The sections scroll inside the sidebar (34 tools are taller than a window); the brand and the foot stay. The inset
+     keeps the focus ring (3 px) of an item at the edge from being cut off by the scrolling box. */
+  .kit-sidebar-nav {
+    flex: 1;
+    min-height: 0;
+    margin: calc(var(--spacing) * -0.75);
+    padding: calc(var(--spacing) * 0.75);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .kit-sidebar-foot {
+    display: flex;
+    flex-shrink: 0;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 2);
+    margin-block-start: auto;
+  }
+
+  .kit-nav {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .kit-nav-item,
+  .kit-nav-sub-item {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    min-width: 0;
+    height: var(--size-sidebar-item);
+    padding-inline: calc(var(--spacing) * 2);
+    border-radius: var(--radius-md);
+    color: inherit;
+    font-size: var(--text-sm);
+    text-decoration: none;
+  }
+
+  .kit-nav-item:hover,
+  .kit-nav-sub-item:hover {
+    background: color-mix(in oklab, var(--sidebar-accent) 80%, transparent);
+    color: var(--sidebar-accent-foreground);
+  }
+
+  .kit-nav-item[aria-current='page'],
+  .kit-nav-sub-item[aria-current='page'] {
+    background: var(--sidebar-accent);
+    color: var(--sidebar-accent-foreground);
+    font-weight: var(--font-weight-medium);
+  }
+
+  /* The section that holds the current place: named in the weight of the current one, without its fill. */
+  .kit-nav-item[data-trail] {
+    font-weight: var(--font-weight-medium);
+  }
+
+  .kit-nav-item svg {
+    flex-shrink: 0;
+    width: calc(var(--spacing) * 4);
+    height: calc(var(--spacing) * 4);
+  }
+
+  .kit-nav-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kit-nav-group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .kit-nav-row {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 0.5);
+  }
+
+  .kit-nav-row > .kit-nav-item {
+    flex: 1;
+  }
+
+  .kit-nav-toggle {
+    display: inline-grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: var(--size-control-sm);
+    height: var(--size-control-sm);
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: color-mix(in oklab, var(--sidebar-foreground) 70%, transparent);
+    cursor: pointer;
+  }
+
+  .kit-nav-toggle:hover {
+    background: color-mix(in oklab, var(--sidebar-accent) 80%, transparent);
+    color: var(--sidebar-accent-foreground);
+  }
+
+  .kit-nav-toggle svg {
+    width: calc(var(--spacing) * 4);
+    height: calc(var(--spacing) * 4);
+  }
+
+  .kit-nav-toggle[aria-expanded='true'] svg {
+    transform: rotate(90deg);
+  }
+
+  .kit-nav-sub {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 1);
+    margin: calc(var(--spacing) * 1) 0 0 calc(var(--spacing) * 3.5);
+    padding: calc(var(--spacing) * 0.5) 0 calc(var(--spacing) * 0.5) calc(var(--spacing) * 2.5);
+    border-inline-start: 1px solid var(--sidebar-border);
+    list-style: none;
+  }
+
+  .kit-nav-sub[hidden] {
+    display: none;
+  }
+
+  .kit-shell-content {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .kit-toolbar {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    height: calc(var(--spacing) * 10);
+    padding-inline: calc(var(--spacing) * 3);
+    border-block-end: 1px solid var(--border);
+    background: var(--background);
+  }
+
+  /* Where the page is, left; it gives way first, the find button keeps its room (at least its icon and key). */
+  .kit-breadcrumb {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .kit-breadcrumb-list {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 1.5);
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    font-size: var(--text-sm);
+    list-style: none;
+    white-space: nowrap;
+  }
+
+  .kit-breadcrumb-item {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 1.5);
+    min-width: 0;
+  }
+
+  /* The separator is drawn, not read: the list and aria-current say the structure. */
+  .kit-breadcrumb-item + .kit-breadcrumb-item::before {
+    flex-shrink: 0;
+    color: var(--muted-foreground);
+    content: '/' / '';
+  }
+
+  .kit-breadcrumb-link,
+  .kit-breadcrumb-page {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .kit-breadcrumb-link {
+    color: var(--muted-foreground);
+    text-decoration: none;
+  }
+
+  .kit-breadcrumb-link:hover {
+    color: var(--foreground);
+    text-decoration: underline;
+  }
+
+  .kit-breadcrumb-page {
+    color: var(--foreground);
+    font-weight: var(--font-weight-medium);
+  }
+
+  /* While the breadcrumb shows, it is the page's visible title: the parts' own headings stay for screen readers. */
+  .kit-shell[data-breadcrumb='on'] :is(.kit-section-head .kit-section-title, .kit-compare-title, .kit-tool-page-title) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .kit-toolbar-find {
+    display: flex;
+    flex: 0 1 auto;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    width: min(100%, calc(var(--spacing) * 72));
+    min-width: calc(var(--spacing) * 20);
+    margin-inline-start: auto;
+    height: var(--size-sidebar-item);
+    padding-inline: calc(var(--spacing) * 2) calc(var(--spacing) * 1);
+    border: 1px solid var(--input);
+    border-radius: var(--radius-md);
+    background: var(--input-background);
+    color: var(--muted-foreground);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+
+  .kit-toolbar-find:hover {
+    background: color-mix(in oklab, var(--accent) 70%, transparent);
+    color: var(--accent-foreground);
+  }
+
+  .kit-toolbar-find-icon {
+    flex-shrink: 0;
+    width: calc(var(--spacing) * 4);
+    height: calc(var(--spacing) * 4);
+  }
+
+  .kit-toolbar-find-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-align: start;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kit-main {
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  /* Focused when the palette opens a place, so the keys go on in the page; the page itself shows no ring for it. */
+  .kit-main:focus {
+    outline: none;
+  }
+
+  .kit-palette.cn-dialog-content {
+    gap: 0;
+    width: min(calc(100% - var(--spacing) * 8), calc(var(--spacing) * 140));
+    padding: 0;
+    overflow: hidden;
+    background: var(--popover);
+    color: var(--popover-foreground);
+  }
+
+  .kit-palette-field {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    padding-inline: calc(var(--spacing) * 3);
+    border-block-end: 1px solid var(--border);
+  }
+
+  .kit-palette-icon {
+    flex-shrink: 0;
+    width: calc(var(--spacing) * 4);
+    height: calc(var(--spacing) * 4);
+    color: var(--muted-foreground);
+  }
+
+  .kit-palette-input {
+    flex: 1;
+    min-width: 0;
+    height: var(--size-control);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: var(--text-sm);
+  }
+
+  /* The dialog is the field's frame; the caret shows where the keys go. */
+  .kit-palette-input:focus-visible {
+    outline: none;
+  }
+
+  .kit-palette-input::placeholder {
+    color: var(--muted-foreground);
+  }
+
+  /* The finder's rows (ui.css .kit-command-results) inside the palette: in the flow, scrolling, without a frame. */
+  .kit-command-results.kit-palette-results {
+    position: static;
+    max-height: calc(var(--spacing) * 75);
+    overflow-y: auto;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overscroll-behavior: contain;
+  }
+
+  .kit-command-group,
+  .kit-command-group-rows {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .kit-command-group-label {
+    padding: calc(var(--spacing) * 1.5) calc(var(--spacing) * 2);
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--text-xs--line-height);
+  }
+
+  .kit-palette-empty {
+    margin: 0;
+    padding-block: calc(var(--spacing) * 6);
+    color: var(--muted-foreground);
+    font-size: var(--text-sm);
+    text-align: center;
+  }
+
+  .kit-palette-hint {
+    margin: 0;
+    padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+    border-block-start: 1px solid var(--border);
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+  }
+
+  /* Settings → Shortcuts: the field that records a combination (the kit's Input) keeps one width down the list. */
+  .kit-shortcut-field {
+    width: calc(var(--spacing) * 40);
+  }
+
+  .kit-tools-note {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: var(--text-sm);
+  }
+
+  .kit-tools-index {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(calc(var(--spacing) * 64), 1fr));
+    gap: calc(var(--spacing) * 2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .kit-tools-index-item {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 1);
+    height: 100%;
+    padding: calc(var(--spacing) * 3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--card);
+    color: var(--card-foreground);
+    text-decoration: none;
+  }
+
+  .kit-tools-index-item:hover {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  .kit-tools-index-title {
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .kit-tools-index-summary {
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+  }
+}

@@ -70,7 +70,8 @@
           ><a class="kit-nav-item" href="#toolbar-menu">Toolbar menu</a
           ><a class="kit-nav-item" href="#compare">Compare code</a
           ><a class="kit-nav-item" href="#tool-history">Tool history</a
-          ><a class="kit-nav-item" href="#tool-page">Tool page and Table</a></nav
+          ><a class="kit-nav-item" href="#tool-page">Tool page and Table</a
+          ><a class="kit-nav-item" href="#shell">Shell: sidebar, toolbar, palette</a></nav
         >
         <div class="kit-sidebar-foot">
           <label class="cn-label flex items-center select-none" for="theme">Theme</label>
@@ -3159,6 +3160,173 @@ fn main() {
                 </tbody>
                 <caption data-slot="table-caption" class="cn-table-caption">Query parameters (2)</caption>
               </table>
+            </div>
+          </section>
+          <section class="show-group" id="shell">
+            <h2>Shell: sidebar, toolbar, palette, shortcuts</h2>
+            <p class="show-note"
+              >The shell around the sections (shell.css, kit-shell*, kit-sidebar*, kit-nav*, kit-toolbar*, kit-palette*,
+              kit-tools-index*, kit-shortcut-field) and the Dialog of the component layer (style-gpui-dialog.css,
+              cn-dialog-*). The tools nest under Tools behind a 1 px line (the current one filled, a long title cut with
+              an ellipsis), the section on the way to it in the current weight; the chevron turns down when the group is
+              open. The palette and the dialog are shown in place.</p
+            >
+            <div class="show-shell">
+              <div class="kit-shell">
+                <aside class="kit-sidebar">
+                  <div class="kit-sidebar-brand">Product</div>
+                  <nav class="kit-sidebar-nav" aria-label="Sections">
+                    <ul class="kit-nav">
+                      <li
+                        ><a class="kit-nav-item" href="#shell"><span class="kit-nav-label">Compare code</span></a></li
+                      >
+                      <li class="kit-nav-group">
+                        <div class="kit-nav-row">
+                          <a class="kit-nav-item" href="#shell" data-trail><span class="kit-nav-label">Tools</span></a>
+                          <button class="kit-nav-toggle" type="button" aria-expanded="true" aria-label="Tools list">
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              aria-hidden="true">
+                              <path d="m9 18 6-6-6-6" />
+                            </svg>
+                          </button>
+                        </div>
+                        <ul class="kit-nav-sub" aria-label="Tools">
+                          <li
+                            ><a class="kit-nav-sub-item" href="#shell"><span class="kit-nav-label">JSON</span></a></li
+                          >
+                          <li
+                            ><a class="kit-nav-sub-item" href="#shell" aria-current="page"
+                              ><span class="kit-nav-label">Base64</span></a
+                            ></li
+                          >
+                          <li
+                            ><a class="kit-nav-sub-item" href="#shell"
+                              ><span class="kit-nav-label">A tool with a title longer than the sidebar is wide</span></a
+                            ></li
+                          >
+                        </ul>
+                      </li>
+                      <li
+                        ><a class="kit-nav-item" href="#shell"><span class="kit-nav-label">History</span></a></li
+                      >
+                    </ul>
+                  </nav>
+                  <div class="kit-sidebar-foot">
+                    <a class="kit-nav-item" href="#shell"><span class="kit-nav-label">Settings</span></a>
+                  </div>
+                </aside>
+                <div class="kit-shell-content">
+                  <header class="kit-toolbar">
+                    <button class="kit-toolbar-find" type="button" aria-haspopup="dialog">
+                      <svg
+                        class="kit-toolbar-find-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        aria-hidden="true">
+                        <circle cx="11" cy="11" r="8" />
+                        <path d="m21 21-4.3-4.3" />
+                      </svg>
+                      <span class="kit-toolbar-find-label">Find a tool or section…</span>
+                      <kbd class="cn-kbd">⌘K</kbd>
+                    </button>
+                  </header>
+                  <main class="kit-main">
+                    <div class="kit-section">
+                      <p class="kit-tools-note">There is no tool “nope”. These are the tools there are.</p>
+                      <ul class="kit-tools-index">
+                        <li
+                          ><a class="kit-tools-index-item" href="#shell"
+                            ><span class="kit-tools-index-title">JSON</span
+                            ><span class="kit-tools-index-summary">Format, validate and minify JSON.</span></a
+                          ></li
+                        >
+                        <li
+                          ><a class="kit-tools-index-item" href="#shell"
+                            ><span class="kit-tools-index-title">Base64</span
+                            ><span class="kit-tools-index-summary">Encode text to Base64 and decode it back.</span></a
+                          ></li
+                        >
+                      </ul>
+                    </div>
+                  </main>
+                </div>
+              </div>
+            </div>
+            <div class="show-row show-dialogs">
+              <div class="cn-dialog-content kit-palette" role="dialog" aria-label="Find a tool or section">
+                <div class="kit-palette-field">
+                  <svg
+                    class="kit-palette-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.3-4.3" />
+                  </svg>
+                  <input class="kit-palette-input" type="text" placeholder="Find a tool or section, or paste text" />
+                </div>
+                <ul class="kit-command-results kit-palette-results" role="listbox" aria-label="Results">
+                  <li class="kit-command-group" role="presentation">
+                    <div class="kit-command-group-label" id="show-recent">Recent</div>
+                    <ul class="kit-command-group-rows" role="group" aria-labelledby="show-recent">
+                      <li class="kit-command-result" role="option" aria-selected="true"
+                        ><span class="kit-command-result-title">Base64</span
+                        ><span class="kit-command-result-kind">Tool</span><kbd class="cn-kbd">⇧⌘U</kbd
+                        ><kbd class="cn-kbd kit-command-result-enter">Enter</kbd></li
+                      >
+                      <li class="kit-command-result" role="option" aria-selected="false"
+                        ><span class="kit-command-result-title">Compare code</span
+                        ><span class="kit-command-result-kind">Section</span></li
+                      >
+                    </ul>
+                  </li>
+                </ul>
+                <p class="kit-palette-hint"
+                  ><kbd class="cn-kbd">↑</kbd> <kbd class="cn-kbd">↓</kbd> to move, <kbd class="cn-kbd">Enter</kbd> to
+                  open, <kbd class="cn-kbd">Esc</kbd> to close.</p
+                >
+              </div>
+              <div class="cn-dialog-content" role="dialog" aria-labelledby="show-dialog-title">
+                <div class="cn-dialog-header">
+                  <h2 class="cn-dialog-title" id="show-dialog-title">Delete the entries?</h2>
+                  <p class="cn-dialog-description">They cannot be brought back.</p>
+                </div>
+                <div class="cn-dialog-footer">
+                  <button
+                    type="button"
+                    class="cn-button cn-button-variant-outline cn-button-size-default inline-flex shrink-0 items-center justify-center whitespace-nowrap"
+                    >Cancel</button
+                  >
+                  <button
+                    type="button"
+                    class="cn-button cn-button-variant-destructive cn-button-size-default inline-flex shrink-0 items-center justify-center whitespace-nowrap"
+                    >Delete</button
+                  >
+                </div>
+              </div>
+            </div>
+            <div class="kit-settings-row">
+              <div class="kit-settings-text">
+                <label class="kit-settings-label" for="show-hotkey">Base64</label>
+                <p class="kit-settings-note" role="alert"
+                  >⌘K is already “Find a tool or section”. Clear that one first, or choose another. Not saved.</p
+                >
+              </div>
+              <div class="kit-settings-controls">
+                <input
+                  id="show-hotkey"
+                  class="cn-input w-full min-w-0 outline-none kit-shortcut-field"
+                  readonly
+                  value="⇧⌘U" />
+              </div>
             </div>
           </section>
         </div>

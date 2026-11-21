@@ -13,6 +13,10 @@ const ENTRY = `
 @import './tailwind.css';
 @import './style-gpui.css';
 @import './ui.css';
+@import './style-gpui-tools.css';
+@import './style-gpui-dialog.css';
+@import './sections.css';
+@import './shell.css';
 `;
 
 describe('Tailwind v4 over the package', () => {
@@ -21,6 +25,11 @@ describe('Tailwind v4 over the package', () => {
     const css = compiler.build(['bg-primary', 'bg-red-500', 'text-white', 'rounded-md', 'shadow-md']);
     expect(css).toMatch(/\.cn-button-variant-default \{/);
     expect(css).toMatch(/\.kit-shell \{/);
+    expect(css).toMatch(/\.kit-toolbar \{/);
+    expect(css).toMatch(/\.cn-dialog-content \{/);
+    expect(css).toMatch(/\.cn-table-row \{/);
+    expect(css).toMatch(/\.kit-tool-page \{/);
+    expect(css).toMatch(/\.kit-settings-row \{/);
     expect(css).toMatch(/\.bg-primary \{\s*background-color: var\(--primary\);/);
     expect(css).toMatch(/\.rounded-md \{\s*border-radius: var\(--radius-md\);/);
     expect(css).not.toMatch(/\.bg-red-500|\.text-white/);

@@ -91,8 +91,16 @@ describe('every rule fires (failing cases)', () => {
 });
 
 describe('the package’s own pieces keep the contract', () => {
-  it('ui.css (the extension frame)', () => {
+  it('ui.css (the extension frame the start page needs)', () => {
     expect(lintCss(read('ui.css'), { file: 'ui.css' })).toEqual([]);
+  });
+
+  it('sections.css (the frames of the extension’s sections)', () => {
+    expect(lintCss(read('sections.css'), { file: 'sections.css' })).toEqual([]);
+  });
+
+  it('shell.css (the shell around the sections: sidebar, toolbar, palette)', () => {
+    expect(lintCss(read('shell.css'), { file: 'shell.css' })).toEqual([]);
   });
 
   it('menu.css (the toolbar menu’s frame)', () => {
@@ -101,5 +109,13 @@ describe('the package’s own pieces keep the contract', () => {
 
   it('style-gpui.css (the component layer)', () => {
     expect(lintCss(read('style-gpui.css'), { file: 'style-gpui.css', own: ['--radix-'] })).toEqual([]);
+  });
+
+  it('style-gpui-tools.css (the Table and the tools’ parts of the component layer)', () => {
+    expect(lintCss(read('style-gpui-tools.css'), { file: 'style-gpui-tools.css' })).toEqual([]);
+  });
+
+  it('style-gpui-dialog.css (the Dialog of the component layer)', () => {
+    expect(lintCss(read('style-gpui-dialog.css'), { file: 'style-gpui-dialog.css' })).toEqual([]);
   });
 });

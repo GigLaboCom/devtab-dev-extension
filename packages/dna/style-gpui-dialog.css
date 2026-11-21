@@ -1,0 +1,75 @@
+/*
+ * @workspace/dna/style-gpui-dialog.css — the Dialog of the component layer (`cn-dialog-*`, @workspace/ui/dialog), with
+ * gpui-kit's numbers (docs/theming-components.md §5.2; docs/theming-specs/gpui-kit-overlays-menus.md §5): 448 wide and
+ * at most the window less 32, 10 % of the window from the top, the `background` surface with a 1 px border, radius 8
+ * and the dialog shadow, padding 16 and 16 between the parts, a 16 px semibold title at line 1.25, a 14 px muted
+ * description, the footer a right-aligned row with 8 between, the close button a small ghost icon button 8 from the
+ * corner; the overlay is the theme's `overlay`. No entrance animation (gpui-kit's popups appear in one frame).
+ *
+ * A file of its own beside style-gpui.css, imported after it, so a page that never opens a dialog does not carry these
+ * rules (the extension's start route has a byte budget; the extension loads this with the shell's lazy chunk). The base
+ * component's layout utilities are these rules too, for the same reason (packages/ui/src/components/dialog.tsx).
+ */
+@layer components {
+  .cn-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: var(--overlay);
+  }
+
+  .cn-dialog-content {
+    box-sizing: border-box;
+    position: fixed;
+    top: 10%;
+    left: 50%;
+    z-index: 50;
+    display: grid;
+    gap: calc(var(--spacing) * 4);
+    width: min(calc(100% - var(--spacing) * 8), calc(var(--spacing) * 112));
+    max-height: calc(90% - var(--spacing) * 8);
+    padding: calc(var(--spacing) * 4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--background);
+    box-shadow: var(--shadow-dialog);
+    color: var(--foreground);
+    font-size: var(--text-sm);
+    transform: translateX(-50%);
+  }
+
+  .cn-dialog-content:focus-visible {
+    outline: none;
+  }
+
+  .cn-dialog-close {
+    position: absolute;
+    top: calc(var(--spacing) * 2);
+    right: calc(var(--spacing) * 2);
+  }
+
+  .cn-dialog-header {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 2);
+  }
+
+  .cn-dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: calc(var(--spacing) * 2);
+  }
+
+  .cn-dialog-title {
+    margin: 0;
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-semibold);
+    line-height: 1.25;
+  }
+
+  .cn-dialog-description {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: var(--text-sm);
+  }
+}

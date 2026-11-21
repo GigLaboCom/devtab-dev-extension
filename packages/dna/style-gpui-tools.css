@@ -1,0 +1,127 @@
+/*
+ * @workspace/dna/style-gpui-tools.css — the component layer's Table and the parts the tools share (D14), tuned to
+ * gpui-kit like style-gpui.css (2026-11-21: out of style-gpui.css): the tool page frame (`kit-tool-*`), a result with its
+ * copy action (`kit-result-row*`), the file drop zone (`kit-file-drop*`) and shadcn's Table (`cn-table*`). Any host of
+ * the tools wears them, so they are the component layer's and not the extension's frame. A file of its own so a page
+ * that shows no tool does not carry them: the extension loads it with the shell's lazy chunk, never with the start page
+ * (a new tab, with a byte budget); a site that shows tools imports it after style-gpui.css.
+ *
+ * Needs Tailwind v4 with tailwind.css (the token bridge) in the same build, as style-gpui.css does. Rules sit in
+ * `@layer components`.
+ */
+@layer components {
+  /* MARK: Table (§5.3 «Table»): rows and head 32 tall, cell padding 8 / 4; the head on table_head, 400; row borders,
+     the hover of a row a person can act on (`data-interactive`) and the selected row on the table tokens; a long value
+     wraps anywhere rather than widening the table; a container that scrolls takes the focus (the keys scroll it) and
+     shows the focus ring */
+  .cn-table-container {
+    @apply focus-visible:ring-ring/50 relative w-full overflow-x-auto rounded-md outline-none focus-visible:ring-3;
+  }
+
+  .cn-table {
+    @apply w-full caption-bottom border-collapse text-sm;
+  }
+
+  .cn-table-header {
+    @apply bg-table-head text-table-head-foreground;
+  }
+
+  .cn-table-body {
+    @apply [&_tr:last-child]:border-0;
+  }
+
+  .cn-table-footer {
+    @apply bg-table-head border-table-row-border border-t font-medium [&>tr]:last:border-b-0;
+  }
+
+  .cn-table-row {
+    @apply border-table-row-border data-interactive:hover:bg-table-hover data-[state=selected]:bg-table-active border-b;
+  }
+
+  .cn-table-head {
+    @apply text-table-head-foreground h-8 px-2 text-left align-middle font-normal whitespace-nowrap;
+  }
+
+  .cn-table-cell {
+    @apply h-8 px-2 py-1 align-middle wrap-anywhere;
+  }
+
+  .cn-table-caption {
+    @apply text-muted-foreground mt-2 text-sm;
+  }
+
+  /* MARK: Tool page — own (D14; no shadcn part): what every tool page has in common, so the tools look like one
+     product — the head (title, summary, the host's history line), a row of options and actions, the panes of input
+     and result (two columns, as the JSON tool; stacked on request), a message under a pane, the empty state */
+  .kit-tool-page {
+    @apply flex min-w-0 flex-col gap-3;
+  }
+
+  .kit-tool-page-head {
+    @apply flex flex-col gap-0.5;
+  }
+
+  .kit-tool-page-title {
+    @apply text-foreground m-0 text-base font-semibold;
+  }
+
+  .kit-tool-page-summary {
+    @apply text-muted-foreground m-0 text-sm;
+  }
+
+  .kit-tool-options {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .kit-tool-panes {
+    @apply grid grid-cols-2 gap-3 data-[layout=stacked]:grid-cols-1;
+  }
+
+  .kit-tool-pane {
+    @apply flex min-w-0 flex-col gap-1;
+  }
+
+  .kit-tool-pane-head {
+    @apply flex min-h-6 items-center justify-between gap-2;
+  }
+
+  .kit-tool-message {
+    @apply text-muted-foreground data-[tone=error]:text-destructive data-[tone=success]:text-success m-0 min-h-5 text-sm;
+  }
+
+  .kit-tool-empty {
+    @apply text-muted-foreground m-0 text-sm;
+  }
+
+  /* MARK: Result row — own: a name, the value in the code font (wrapped anywhere, selectable) and its copy action */
+  .kit-result-rows {
+    @apply grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1;
+  }
+
+  .kit-result-row {
+    @apply col-span-3 grid grid-cols-subgrid items-center;
+  }
+
+  .kit-result-row-label {
+    @apply text-muted-foreground text-sm whitespace-nowrap;
+  }
+
+  /* The extra slot in its second-line form: under the value, the width of the value and the button (a note, a reason). */
+  .kit-result-row-extra {
+    @apply text-muted-foreground col-span-2 col-start-2 text-xs;
+  }
+
+  .kit-result-row-value {
+    @apply text-foreground font-mono text-code break-all select-text data-empty:text-muted-foreground data-empty:font-sans data-empty:text-sm;
+  }
+
+  /* MARK: File drop zone — own: a dashed input-coloured box (gpui-kit has none; the input's border and radius), the
+     ring of focus while a file is over it */
+  .kit-file-drop {
+    @apply border-input bg-input-background text-muted-foreground data-[dragging=true]:border-ring data-[dragging=true]:bg-accent flex flex-col items-center justify-center gap-2 rounded-md border border-dashed px-4 py-6 text-center text-sm;
+  }
+
+  .kit-file-drop-line {
+    @apply flex flex-wrap items-center justify-center gap-2;
+  }
+}

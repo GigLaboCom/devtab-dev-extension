@@ -95,9 +95,9 @@ describe('tailwind.css maps the tokens, no more, no less', () => {
     }
   });
 
-  it('every var() in theme.css, ui.css, menu.css and style-gpui.css names a token', () => {
+  it('every var() in theme.css, ui.css, sections.css, menu.css, style-gpui.css and style-gpui-tools.css names a token', () => {
     const known = new Set([...Object.keys(BASE), ...Object.keys(Object.values(THEMES)[0]!.tokens)]);
-    for (const file of ['theme.css', 'ui.css', 'menu.css', 'style-gpui.css']) {
+    for (const file of ['theme.css', 'ui.css', 'sections.css', 'menu.css', 'style-gpui.css', 'style-gpui-tools.css']) {
       for (const m of strip(read(file)).matchAll(/var\(\s*(--[a-z0-9-]+)/gi))
         expect(known.has(m[1]!), `${file}: ${m[1]}`).toBe(true);
     }

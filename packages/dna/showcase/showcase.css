@@ -7,7 +7,11 @@
 @import '../theme.css';
 @import '../tailwind.css';
 @import '../style-gpui.css';
+@import '../style-gpui-tools.css';
+@import '../style-gpui-dialog.css';
 @import '../ui.css';
+@import '../sections.css';
+@import '../shell.css';
 @import '../menu.css';
 
 html,
@@ -88,4 +92,21 @@ body {
   height: calc(var(--spacing) * 120);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
+}
+
+/* The shell stands in a box of its own height; the palette and the dialog are shown in place, not over the page. */
+.show-shell {
+  height: calc(var(--spacing) * 100);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.show-dialogs {
+  align-items: flex-start;
+}
+
+.show-dialogs > .cn-dialog-content {
+  position: static;
+  transform: none;
 }
