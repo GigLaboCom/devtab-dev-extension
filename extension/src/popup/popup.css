@@ -1,0 +1,4 @@
+/* The toolbar menu's popup page: the tokens and the base of @workspace/dna, and its frame (menu.css: `kit-menu*`). No
+   Tailwind and no components — the page is a list of buttons; and no rules of its own (src/dna.test.ts holds that). */
+@import '@workspace/dna/theme.css';
+@import '@workspace/dna/menu.css';

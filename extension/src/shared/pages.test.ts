@@ -1,40 +1,44 @@
-import { APP_PAGE, openAppPage } from './pages';
-import { describe, expect, it, vi } from 'vitest';
+import { APP_PAGE, openNewTab, openTab } from './pages';
+import { fakeTabs } from '@src/test/fakes';
+import { describe, expect, it } from 'vitest';
 
 const ORIGIN = 'chrome-extension://test/';
 
-const fakeApi = (contexts: Array<{ tabId: number; windowId: number; documentUrl?: string }>) => ({
-  runtime: {
-    getURL: (path: string) => ORIGIN + path,
-    getContexts: vi.fn(() => Promise.resolve(contexts as chrome.runtime.ExtensionContext[])),
-  },
-  tabs: { create: vi.fn(() => Promise.resolve({})), update: vi.fn(() => Promise.resolve({})) },
-  windows: { update: vi.fn(() => Promise.resolve({})) },
+describe('openNewTab (the toolbar’s "New tab")', () => {
+  it('opens a new tab — the browser’s New Tab page — next to the tab the toolbar was used in', async () => {
+    const api = fakeTabs();
+    await openNewTab(api, { windowId: 3, index: 4, incognito: false });
+    expect(api.tabs.create).toHaveBeenCalledWith({ windowId: 3, index: 5 });
+    expect(api.windows.update).not.toHaveBeenCalled();
+  });
+
+  it('never looks for an open main page: a second click opens a second tab', async () => {
+    const api = fakeTabs();
+    await openNewTab(api, { windowId: 3, index: 0, incognito: false });
+    await openNewTab(api, { windowId: 3, index: 1, incognito: false });
+    expect(api.tabs.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('from an incognito window: the main page by its address, in the regular window Chrome picks, brought forward', async () => {
+    const api = fakeTabs([], null, 7);
+    await openNewTab(api, { windowId: 9, index: 0, incognito: true });
+    expect(api.tabs.create).toHaveBeenCalledWith({ url: ORIGIN + APP_PAGE });
+    expect(api.windows.update).toHaveBeenCalledWith(7, { focused: true });
+  });
+
+  it('opens a new tab in the current window without a tab to start from', async () => {
+    const api = fakeTabs();
+    await openNewTab(api);
+    expect(api.tabs.create).toHaveBeenCalledWith({});
+  });
 });
 
-describe('openAppPage (the toolbar button)', () => {
-  it('opens the main page in a new tab when none is open', async () => {
-    const api = fakeApi([]);
-    await openAppPage(api as never);
-    expect(api.tabs.create).toHaveBeenCalledWith({ url: ORIGIN + APP_PAGE });
-    expect(api.tabs.update).not.toHaveBeenCalled();
-  });
-
-  it('brings an open main page forward — whatever section its hash shows — instead of a second tab', async () => {
-    const api = fakeApi([
-      { tabId: -1, windowId: -1, documentUrl: ORIGIN + 'src/background/index.ts' },
-      { tabId: 7, windowId: 3, documentUrl: ORIGIN + APP_PAGE + '#/tools/json' },
-    ]);
-    await openAppPage(api as never);
-    expect(api.windows.update).toHaveBeenCalledWith(3, { focused: true });
-    expect(api.tabs.update).toHaveBeenCalledWith(7, { active: true });
-    expect(api.tabs.create).not.toHaveBeenCalled();
-  });
-
-  it('opens a tab when Chrome cannot list the contexts', async () => {
-    const api = fakeApi([]);
-    api.runtime.getContexts.mockRejectedValueOnce(new Error('unsupported'));
-    await openAppPage(api as never);
-    expect(api.tabs.create).toHaveBeenCalledTimes(1);
+describe('openTab', () => {
+  it('opens the address next to the tab, or in a regular window from an incognito one', async () => {
+    const api = fakeTabs();
+    await openTab(api, `${ORIGIN}${APP_PAGE}#/tools`, { windowId: 1, index: 0, incognito: false });
+    expect(api.tabs.create).toHaveBeenCalledWith({ windowId: 1, index: 1, url: `${ORIGIN}${APP_PAGE}#/tools` });
+    await openTab(api, `${ORIGIN}${APP_PAGE}#/tools`, { windowId: 5, index: 0, incognito: true });
+    expect(api.tabs.create).toHaveBeenLastCalledWith({ url: `${ORIGIN}${APP_PAGE}#/tools` });
   });
 });

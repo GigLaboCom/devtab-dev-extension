@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en" data-theme="default-light" data-mode="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="color-scheme" content="light dark" />
+    <title>%PRODUCT_NAME%</title>
+    <script src="/theme-boot.js"></script>
+  </head>
+  <body>
+    <!-- The rows come from src/popup/items.ts; this page names none of them. -->
+    <ul id="menu" class="kit-menu" role="menu" aria-label="%PRODUCT_NAME%"></ul>
+    <template id="menu-row">
+      <li role="none"><button class="kit-menu-item" type="button" role="menuitem"></button></li>
+    </template>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
