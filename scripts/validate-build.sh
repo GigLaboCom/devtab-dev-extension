@@ -8,19 +8,31 @@
 # reference boilerplate's build validator). The generic checks (1–8c: dev artifacts, HMR leaks, sources, manifest
 # references, built asset references, icons) are kept as they were, made portable to macOS (no `realpath -m`). The
 # product checks are this extension's own:
-#   9   the surface: a module service worker + the main page + the editor page; no popup, side panel, options page,
-#       content scripts, web-accessible resources…
-#   10  permissions: `storage` only, no host permissions, nothing optional — in particular no `nativeMessaging` while
-#       live review is a stub
+#   9   the surface: a module service worker + the main page (the New Tab page when the build overrides it, and the
+#       options page at its ?options#/settings route — both exactly as their chosen definitions say:
+#       extension/src/newTab/index.ts and extension/src/options/index.ts, read by scripts/entry-pages.mjs) + the editor
+#       page + the toolbar button exactly as its chosen definition says
+#       (extension/src/toolbar/index.ts, read by scripts/toolbar-button.mjs): `action.default_popup` is its popup page or
+#       absent, and the shipped pages are exactly these — without a popup no popup page ships and no script nothing
+#       loads; no side panel, other overrides, content scripts, web-accessible resources…
+#   10  permissions: `storage` plus exactly what the start page's parts declare (required and optional — read from
+#       their definitions by scripts/start-parts.mjs; an optional one is never required), no host permissions — in particular no
+#       `nativeMessaging` while live review is a stub
 #   11  no remote hosts in the built JS beyond a short allowlist (Chrome Web Store: no remotely hosted code)
 #   12  CSP exactly the one manifest.config.ts declares (spikes/extension-e2e's minimum + the iframe pair); no inline
 #       scripts or styles; a service worker that loads no DOM code; no Native Messaging code
 #   13  the editor module: exactly one .wasm — the one packages/review-wasm/pkg holds (sha256) — loaded by the editor
 #       page only; the main page's chunks stay free of it (D3: the wasm loads lazily, the tools never wait for it)
 #   14  the licences of what the editor module embeds (gpui-kit and imara-diff Apache-2.0, the fonts' OFL) ship with it
+#   15  the start route's initial load — what a new tab loads before its first paint: the boot scripts, the main page's
+#       script with its static imports, its stylesheet — stays within a byte budget, and loads none of the chunks the
+#       page imports lazily (the shell, the parts, the tools, the editor's theme files)
+#   16  the toolbar popup, when the chosen button has one, stays light: everything it loads within a byte budget, none
+#       of the main page's or the editor page's own scripts, no React, no wasm
 #
-# Widening the extension (a new permission, a popup, content scripts) is intentional work: update manifest.config.ts
-# AND the allowlists below in the same change.
+# Widening the extension (a new permission, a new page, content scripts) is intentional work: update manifest.config.ts
+# AND the allowlists below in the same change. The start page's permissions and the toolbar button are not lists here:
+# they come from their definitions, which manifest.config.ts reads too.
 #
 # Needs bash ≥ 4, jq, node, unzip (for a zip). Usage: scripts/validate-build.sh <dist-directory-or-zip>  (default: dist)
 
@@ -38,17 +50,43 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 PRODUCT_JSON="$ROOT/extension/product.json"
 # The expected name and description: the one place they live.
 EXPECTED_NAME="$(jq -r '.name' "$PRODUCT_JSON")"
-# Manifest permissions must stay within this set.
-ALLOWED_PERMISSIONS="storage"
+# Manifest permissions: `storage` (the page's own) plus what the start page's parts declare as required; optional
+# permissions: exactly what the parts declare as optional (each with an install warning, asked for when the user turns
+# its part on). The parts' definitions (extension/src/start/parts, with the reason for each permission) are the one
+# source; scripts/start-parts.mjs reads them. A manifest permission no part declares, or a declared one the manifest
+# lacks, fails Check 10.
+START_PARTS_JSON="$(node "$ROOT/scripts/start-parts.mjs")" || { echo -e "${RED}ERROR: scripts/start-parts.mjs failed${NC}"; exit 1; }
+ALLOWED_PERMISSIONS="storage $(jq -r '.required | join(" ")' <<<"$START_PARTS_JSON")"
+ALLOWED_OPTIONAL_PERMISSIONS="$(jq -r '.optional | join(" ")' <<<"$START_PARTS_JSON")"
+# The toolbar button the build must carry: the definition chosen in extension/src/toolbar/index.ts — its popup page, or
+# none (a click goes to the service worker). Checks 9 and 16.
+TOOLBAR_JSON="$(node "$ROOT/scripts/toolbar-button.mjs")" || { echo -e "${RED}ERROR: scripts/toolbar-button.mjs failed${NC}"; exit 1; }
+TOOLBAR_ID="$(jq -r '.id' <<<"$TOOLBAR_JSON")"
+TOOLBAR_POPUP="$(jq -r '.popup // empty' <<<"$TOOLBAR_JSON")"
 # Manifest host_permissions must stay within this set (space-separated; empty = none allowed).
 ALLOWED_HOST_PERMISSIONS=""
 # Every http(s) host literal allowed to appear inside built JS (text only — nothing is fetched from them):
 #   www.w3.org             SVG/XHTML/MathML namespace strings in React output
 #   reactjs.org, react.dev minified React error/docs links
-ALLOWED_JS_HOSTS='^(www\.w3\.org|reactjs\.org|react\.dev)$'
+#   example.com            a reserved example domain (RFC 2606) in a tool's placeholder (url: §8)
+#   www.npmjs.com          the licence banner of hash-wasm (the Hash tool's wasm hashes), kept as its MIT notice
+ALLOWED_JS_HOSTS='^(www\.w3\.org|reactjs\.org|react\.dev|example\.com|www\.npmjs\.com)$'
 # The two extension pages (not manifest entries; vite.config.ts builds them as inputs).
 APP_PAGE="src/app/index.html"
 VIEWER_PAGE="src/viewer/index.html"
+# Whether the build is the New Tab page and how its options page opens: the definitions chosen in
+# extension/src/newTab/index.ts and extension/src/options/index.ts. Check 9.
+ENTRY_JSON="$(node "$ROOT/scripts/entry-pages.mjs")" || { echo -e "${RED}ERROR: scripts/entry-pages.mjs failed${NC}"; exit 1; }
+NEWTAB_ID="$(jq -r '.newTab.id' <<<"$ENTRY_JSON")"
+EXPECTED_OVERRIDES="$(jq -c 'if .newTab.newtab then { newtab: .newTab.newtab } else null end' <<<"$ENTRY_JSON")"
+EXPECTED_OPTIONS="$(jq -c '{ page: .options.page, open_in_tab: .options.openInTab }' <<<"$ENTRY_JSON")"
+# What a new tab loads before its first paint (Check 15), in bytes: JS + CSS + the boot scripts, fonts aside. Measured
+# 466 353 at the start (docs/decisions.md D16: 20 opens, first paint 52 ms median in Chrome for Testing); the budget is
+# that plus about 10 %. Growing past it is a decision: raise it here with the reason.
+START_ROUTE_BUDGET=512000
+# What the toolbar popup loads (Check 16), in bytes: its HTML, JS, CSS and the theme boot script, fonts aside. Measured
+# 105 661 for the menu (2026-11-20; about 95 KB of it the 30 themes' variables); the budget is that plus about 10 %.
+POPUP_BUDGET=116000
 # The editor module the build must ship (packages/review-wasm/scripts/sync.sh puts it there).
 REVIEW_WASM="$ROOT/packages/review-wasm/pkg/review_wasm_bg.wasm"
 # Licence files that must ship under licenses/ (packages/review-wasm/licenses and the IBM Plex OFL of packages/dna,
@@ -221,7 +259,8 @@ check_ref() {  # $1 = label, $2 = relative path (may be empty)
 }
 check_ref "action.default_popup" "$(jq -r '.action.default_popup // empty' "$MANIFEST")"
 check_ref "options_page"         "$(jq -r '.options_page // empty' "$MANIFEST")"
-check_ref "options_ui.page"      "$(jq -r '.options_ui.page // empty' "$MANIFEST")"
+check_ref "options_ui.page"      "$(jq -r '.options_ui.page // empty | split("#")[0] | split("?")[0]' "$MANIFEST")"
+check_ref "chrome_url_overrides.newtab" "$(jq -r '.chrome_url_overrides.newtab // empty' "$MANIFEST")"
 check_ref "background.service_worker" "$(jq -r '.background.service_worker // empty' "$MANIFEST")"
 check_ref "side_panel.default_path" "$(jq -r '.side_panel.default_path // empty' "$MANIFEST")"
 check_ref "main page" "$APP_PAGE"
@@ -346,6 +385,14 @@ walk_chunks() {
             queue+=("$(norm "$(dirname "$f")/$ref")")
         done < <(grep -oE '(from|import)[[:space:]]*\(?[[:space:]]*["'"'"']\.{1,2}/[^"'"'"']+\.js["'"'"']' "$f" \
             | sed -E 's/^.*["'"'"'](\.{1,2}\/[^"'"'"']+)["'"'"']$/\1/')
+        # A worker a chunk loads from its own file (a tool's, D14): `new Worker(new URL("/assets/x.js", import.meta.url))`.
+        while IFS= read -r ref; do
+            case "$ref" in
+                /*) queue+=("$(norm "$INSPECT_DIR$ref")") ;;
+                *) queue+=("$(norm "$(dirname "$f")/$ref")") ;;
+            esac
+        done < <(grep -oE 'new URL\([[:space:]]*["'"'"'][^"'"'"']+\.js["'"'"'][[:space:]]*,[[:space:]]*import\.meta\.url' "$f" \
+            | sed -E 's/^new URL\([[:space:]]*["'"'"']([^"'"'"']+)["'"'"'].*$/\1/')
     done
 }
 # The scripts a page loads (its <script src> and modulepreload <link>s), as absolute paths.
@@ -359,18 +406,45 @@ page_scripts() {
     done < <(grep -oE '<(script|link)[^>]*(src|href)="[^"]+\.js"' "$html" | sed -E 's/^.*(src|href)="([^"]+)"$/\2/')
 }
 
-# Check 9: surface scope — a module service worker + the main page + the editor page
-echo "Check 9: Extension surfaces (service worker + main page + editor page)..."
+# Check 9: surface scope — a module service worker + the main page (New Tab page, options) + the editor page
+echo "Check 9: Extension surfaces (service worker + main page as New Tab ('$NEWTAB_ID') and options + editor page)..."
 SURFACE_ERRORS=()
 [ -n "$(jq -r '.background.service_worker // empty' "$MANIFEST")" ] || SURFACE_ERRORS+=("background.service_worker is missing")
 [ "$(jq -r '.background.type // empty' "$MANIFEST")" = "module" ] || SURFACE_ERRORS+=("background.type is not 'module'")
-# No popup: the toolbar button's click must reach the service worker (action.onClicked opens the main page).
-[ "$(jq -r 'has("action")' "$MANIFEST")" = "true" ] || SURFACE_ERRORS+=("no 'action' (the toolbar button opens the main page)")
-[ -z "$(jq -r '.action.default_popup // empty' "$MANIFEST")" ] || SURFACE_ERRORS+=("action.default_popup is set (the click would never reach the service worker)")
-for page in "$APP_PAGE" "$VIEWER_PAGE"; do
-    [ -f "$INSPECT_DIR/$page" ] || SURFACE_ERRORS+=("$page is not shipped")
-done
-for key in options_page options_ui side_panel content_scripts devtools_page chrome_url_overrides web_accessible_resources \
+# The toolbar button as its definition says: its popup page, or none — then the click reaches the service worker.
+[ "$(jq -r 'has("action")' "$MANIFEST")" = "true" ] || SURFACE_ERRORS+=("no 'action' (the toolbar button)")
+ACTUAL_POPUP="$(jq -r '.action.default_popup // empty' "$MANIFEST")"
+[ "$ACTUAL_POPUP" = "$TOOLBAR_POPUP" ] \
+    || SURFACE_ERRORS+=("action.default_popup is '${ACTUAL_POPUP}', the toolbar button '$TOOLBAR_ID' says '${TOOLBAR_POPUP}'")
+# The pages shipped are exactly the main page, the editor page and the button's popup page, if it has one.
+EXPECTED_PAGES=$(printf '%s\n' "$APP_PAGE" "$VIEWER_PAGE" ${TOOLBAR_POPUP:+"$TOOLBAR_POPUP"} | sort)
+ACTUAL_PAGES=$(cd "$INSPECT_DIR" && find . -name '*.html' | sed 's#^\./##' | sort)
+for page in $(comm -23 <(echo "$EXPECTED_PAGES") <(echo "$ACTUAL_PAGES")); do SURFACE_ERRORS+=("$page is not shipped"); done
+for page in $(comm -13 <(echo "$EXPECTED_PAGES") <(echo "$ACTUAL_PAGES")); do SURFACE_ERRORS+=("unexpected page $page"); done
+# Every script ships for something: the service worker, a page or what they import (a page's script without its
+# page — the popup's when the button has none — is dead weight that says the build and the definition disagree).
+SW_FILE=$(jq -r '.background.service_worker // empty' "$MANIFEST")
+mapfile -t REACHED < <({
+    [ -n "$SW_FILE" ] && walk_chunks "$(norm "$INSPECT_DIR/$SW_FILE")"
+    while IFS= read -r page; do
+        [ -f "$INSPECT_DIR/$page" ] && walk_chunks $(page_scripts "$INSPECT_DIR/$page")
+    done <<<"$EXPECTED_PAGES"
+} | sort -u)
+while IFS= read -r -d '' js; do
+    printf '%s\n' "${REACHED[@]}" | grep -qxF "$(norm "$js")" || SURFACE_ERRORS+=("a script nothing loads: ${js#"$INSPECT_DIR"/}")
+done < <(find "$INSPECT_DIR" -name '*.js' -not -path "$INSPECT_DIR/licenses/*" -print0)
+# The New Tab override as its definition says: the main page and nothing else (no bookmarks or history override), or
+# none at all.
+NTP=$(jq -c '.chrome_url_overrides // null' "$MANIFEST")
+[ "$NTP" = "$EXPECTED_OVERRIDES" ] || SURFACE_ERRORS+=("chrome_url_overrides is $NTP, the New Tab override '$NEWTAB_ID' says $EXPECTED_OVERRIDES")
+[ "$EXPECTED_OVERRIDES" = "null" ] || [ "$EXPECTED_OVERRIDES" = "{\"newtab\":\"$APP_PAGE\"}" ] \
+    || SURFACE_ERRORS+=("the New Tab override '$NEWTAB_ID' names $EXPECTED_OVERRIDES, not the main page")
+# The options entry is the main page's settings route (with the options flag), as its definition says.
+OPTIONS=$(jq -c '.options_ui // null' "$MANIFEST")
+[ "$OPTIONS" = "$EXPECTED_OPTIONS" ] || SURFACE_ERRORS+=("options_ui is $OPTIONS, the options page says $EXPECTED_OPTIONS")
+[[ "$(jq -r '.page' <<<"$EXPECTED_OPTIONS")" == "$APP_PAGE?options"*"#/settings" ]] \
+    || SURFACE_ERRORS+=("the options page is not the main page's settings route with the options flag: $EXPECTED_OPTIONS")
+for key in options_page side_panel content_scripts devtools_page web_accessible_resources \
            sandbox externally_connectable key; do
     if [ "$(jq --arg k "$key" 'has($k)' "$MANIFEST")" = "true" ]; then
         SURFACE_ERRORS+=("unexpected manifest key '$key'")
@@ -380,7 +454,7 @@ if [ ${#SURFACE_ERRORS[@]} -gt 0 ]; then
     fail "surface scope violated (update manifest.config.ts AND this validator together to widen it):"
     printf '  - %s\n' "${SURFACE_ERRORS[@]}"
 else
-    pass "only a module service worker, the toolbar button (no popup), $APP_PAGE and $VIEWER_PAGE"
+    pass "only a module service worker, the toolbar button '$TOOLBAR_ID' (${TOOLBAR_POPUP:-no popup}), $APP_PAGE (New Tab: $NTP; options: $OPTIONS) and $VIEWER_PAGE"
 fi
 
 # Check 10: permission model must not widen
@@ -392,13 +466,37 @@ while IFS= read -r perm; do
         *) BAD_PERMS+=("$perm") ;;
     esac
 done < <(jq -r '(.permissions // [])[]' "$MANIFEST")
-OPTIONAL=$(jq -r '((.optional_permissions // []) + (.optional_host_permissions // [])) | join(" ")' "$MANIFEST")
+BAD_OPTIONAL=()
+while IFS= read -r perm; do
+    case " $ALLOWED_OPTIONAL_PERMISSIONS " in
+        *" $perm "*) ;;
+        *) BAD_OPTIONAL+=("$perm") ;;
+    esac
+done < <(jq -r '(.optional_permissions // [])[], (.optional_host_permissions // [])[]' "$MANIFEST")
+REQUIRED_OPTIONAL=()
+while IFS= read -r perm; do
+    case " $ALLOWED_OPTIONAL_PERMISSIONS " in
+        *" $perm "*) REQUIRED_OPTIONAL+=("$perm") ;;
+    esac
+done < <(jq -r '(.permissions // [])[]' "$MANIFEST")
+MISSING_DECLARED=""
+for perm in $ALLOWED_PERMISSIONS; do
+    jq -e --arg p "$perm" '(.permissions // []) | index($p)' "$MANIFEST" > /dev/null || MISSING_DECLARED+="$perm "
+done
+for perm in $ALLOWED_OPTIONAL_PERMISSIONS; do
+    jq -e --arg p "$perm" '(.optional_permissions // []) | index($p)' "$MANIFEST" > /dev/null \
+        || MISSING_DECLARED+="$perm (optional) "
+done
 if [ ${#BAD_PERMS[@]} -gt 0 ]; then
     fail "permissions outside the allowed set {$ALLOWED_PERMISSIONS}: ${BAD_PERMS[*]}"
-elif [ -n "$OPTIONAL" ]; then
-    fail "optional permissions declared: $OPTIONAL (none allowed yet; nativeMessaging comes with live review)"
+elif [ ${#REQUIRED_OPTIONAL[@]} -gt 0 ]; then
+    fail "required permissions that must stay optional (they warn at install): ${REQUIRED_OPTIONAL[*]}"
+elif [ ${#BAD_OPTIONAL[@]} -gt 0 ]; then
+    fail "optional permissions no start-page part declares (allowed {$ALLOWED_OPTIONAL_PERMISSIONS}): ${BAD_OPTIONAL[*]}"
+elif [ -n "$MISSING_DECLARED" ]; then
+    fail "permissions the start page's parts declare but the manifest lacks: $MISSING_DECLARED"
 else
-    pass "permissions within {$ALLOWED_PERMISSIONS}, nothing optional"
+    pass "permissions within {$ALLOWED_PERMISSIONS}, optional within {$ALLOWED_OPTIONAL_PERMISSIONS}"
 fi
 BAD_HOSTS=()
 while IFS= read -r host; do
@@ -419,7 +517,7 @@ UNEXPECTED_HOSTS=$(grep -rhoE 'https?://[a-zA-Z0-9.-]+' "$INSPECT_DIR" --include
     | sed -E 's#https?://##' | sort -u | grep -vE "$ALLOWED_JS_HOSTS" || true)
 REMOTE_IN_HTML=$(grep -rlE '(src|href)="(https?:)?//' "$INSPECT_DIR" --include='*.html' 2>/dev/null || true)
 if [ -n "$UNEXPECTED_HOSTS" ] || [ -n "$REMOTE_IN_HTML" ]; then
-    fail "unexpected remote references (allowed in JS: w3.org namespaces, React docs links):"
+    fail "unexpected remote references (allowed in JS: w3.org namespaces, React docs links, example.com):"
     [ -n "$UNEXPECTED_HOSTS" ] && echo "$UNEXPECTED_HOSTS" | sed 's/^/  js: /'
     [ -n "$REMOTE_IN_HTML" ] && echo "$REMOTE_IN_HTML" | sed 's/^/  html: /'
 else
@@ -527,6 +625,100 @@ if [ ${#MISSING_LICENSES[@]} -gt 0 ]; then
     fail "missing licence files: ${MISSING_LICENSES[*]}"
 else
     pass "licenses/: $REQUIRED_LICENSES"
+fi
+
+# Check 15: the start route's initial load — what a new tab loads before its first paint
+echo "Check 15: Start route initial load (budget $START_ROUTE_BUDGET bytes, no lazy chunk)..."
+START_ERRORS=()
+static_chunks() {  # like walk_chunks, but static imports only: `import(` (a lazy chunk) is not followed
+    local -a queue=("$@")
+    local -A seen=()
+    local f ref
+    while [ ${#queue[@]} -gt 0 ]; do
+        f="${queue[0]}"; queue=("${queue[@]:1}")
+        [ -n "${seen[$f]:-}" ] && continue
+        seen[$f]=1
+        [ -f "$f" ] || continue
+        printf '%s\n' "$f"
+        while IFS= read -r ref; do
+            queue+=("$(norm "$(dirname "$f")/$ref")")
+        done < <(grep -oE '(from|import)[[:space:]]*["'"'"']\.{1,2}/[^"'"'"']+\.js["'"'"']' "$f" \
+            | sed -E 's/^.*["'"'"'](\.{1,2}\/[^"'"'"']+)["'"'"']$/\1/')
+    done
+}
+if [ -f "$INSPECT_DIR/$APP_PAGE" ]; then
+    mapfile -t START_JS < <(static_chunks $(page_scripts "$INSPECT_DIR/$APP_PAGE") | sort -u)
+    mapfile -t START_OTHER < <(grep -oE '<(script|link)[^>]*(src|href)="[^"]+\.(js|css)"' "$INSPECT_DIR/$APP_PAGE" \
+        | sed -E 's/^.*(src|href)="([^"]+)"$/\2/' | while IFS= read -r ref; do
+            case "$ref" in /*) norm "$INSPECT_DIR$ref" ;; *) norm "$(dirname "$INSPECT_DIR/$APP_PAGE")/$ref" ;; esac
+        done | sort -u)
+    mapfile -t START_FILES < <(printf '%s\n' "${START_JS[@]}" "${START_OTHER[@]}" | sort -u)
+    START_BYTES=0
+    for f in "${START_FILES[@]}"; do
+        [ -f "$f" ] && START_BYTES=$((START_BYTES + $(wc -c < "$f")))
+    done
+    [ "$START_BYTES" -le "$START_ROUTE_BUDGET" ] \
+        || START_ERRORS+=("the start route loads $START_BYTES bytes before its first paint, over the budget of $START_ROUTE_BUDGET")
+    # Every chunk something imports lazily (`import("./x.js")`) must stay out of the initial load.
+    mapfile -t LAZY < <(find "$INSPECT_DIR" -name '*.js' -print0 | xargs -0 grep -ohE 'import\([[:space:]]*["'"'"']\.{1,2}/[^"'"'"']+\.js["'"'"']' \
+        | sed -E 's/^.*\/([^/"'"'"']+\.js)["'"'"']$/\1/' | sort -u)
+    for f in "${START_FILES[@]}"; do
+        for lazy in "${LAZY[@]}"; do
+            [ "$(basename "$f")" = "$lazy" ] && START_ERRORS+=("the start route loads a lazy chunk up front: ${f#"$INSPECT_DIR"/}")
+        done
+        grep -q '__wbindgen' "$f" 2>/dev/null && START_ERRORS+=("the start route loads the editor module: ${f#"$INSPECT_DIR"/}")
+    done
+else
+    START_ERRORS+=("$APP_PAGE is missing")
+fi
+if [ ${#START_ERRORS[@]} -gt 0 ]; then
+    fail "start route:"
+    printf '  - %s\n' "${START_ERRORS[@]}"
+else
+    pass "the start route loads ${#START_FILES[@]} files, $START_BYTES bytes (budget $START_ROUTE_BUDGET), no lazy chunk (${#LAZY[@]} kept lazy)"
+fi
+
+# Check 16: the toolbar popup stays light — it opens on every click of the button
+if [ -n "$TOOLBAR_POPUP" ]; then
+    echo "Check 16: Toolbar popup (budget $POPUP_BUDGET bytes; no main-page or editor script, no React, no wasm)..."
+    POPUP_ERRORS=()
+    POPUP_HTML="$INSPECT_DIR/$TOOLBAR_POPUP"
+    if [ -f "$POPUP_HTML" ]; then
+        mapfile -t POPUP_JS < <(walk_chunks $(page_scripts "$POPUP_HTML") | sort -u)
+        mapfile -t POPUP_FILES < <({
+            printf '%s\n' "${POPUP_JS[@]}" "$(norm "$POPUP_HTML")"
+            grep -oE '<(script|link)[^>]*(src|href)="[^"]+\.(js|css)"' "$POPUP_HTML" \
+                | sed -E 's/^.*(src|href)="([^"]+)"$/\2/' | while IFS= read -r ref; do
+                    case "$ref" in /*) norm "$INSPECT_DIR$ref" ;; *) norm "$(dirname "$POPUP_HTML")/$ref" ;; esac
+                done
+        } | sort -u)
+        POPUP_BYTES=0
+        for f in "${POPUP_FILES[@]}"; do
+            [ -f "$f" ] && POPUP_BYTES=$((POPUP_BYTES + $(wc -c < "$f")))
+        done
+        [ "$POPUP_BYTES" -le "$POPUP_BUDGET" ] \
+            || POPUP_ERRORS+=("the popup loads $POPUP_BYTES bytes, over the budget of $POPUP_BUDGET")
+        # The other pages' own entry scripts (shared small chunks — the theme store, the logger — are fine).
+        OTHER_ENTRIES=$(for page in "$APP_PAGE" "$VIEWER_PAGE"; do
+            grep -oE '<script[^>]*src="[^"]+\.js"' "$INSPECT_DIR/$page" 2>/dev/null | grep 'type="module"' \
+                | sed -E 's/^.*src="([^"]+)"$/\1/' | while IFS= read -r ref; do norm "$INSPECT_DIR$ref"; done
+        done)
+        for f in "${POPUP_JS[@]}"; do
+            grep -qxF "$f" <<<"$OTHER_ENTRIES" && POPUP_ERRORS+=("the popup loads another page's script: ${f#"$INSPECT_DIR"/}")
+            grep -q '__wbindgen' "$f" && POPUP_ERRORS+=("the popup loads the editor module: ${f#"$INSPECT_DIR"/}")
+            grep -q 'react.transitional.element' "$f" && POPUP_ERRORS+=("the popup loads React: ${f#"$INSPECT_DIR"/}")
+        done
+    else
+        POPUP_ERRORS+=("$TOOLBAR_POPUP is missing")
+    fi
+    if [ ${#POPUP_ERRORS[@]} -gt 0 ]; then
+        fail "toolbar popup:"
+        printf '  - %s\n' "${POPUP_ERRORS[@]}"
+    else
+        pass "the popup loads ${#POPUP_FILES[@]} files, $POPUP_BYTES bytes (budget $POPUP_BUDGET); no main-page or editor script, no React, no wasm"
+    fi
+else
+    echo "Check 16: Toolbar popup — the button '$TOOLBAR_ID' has none (Check 9 holds that none ships)"
 fi
 
 # Summary

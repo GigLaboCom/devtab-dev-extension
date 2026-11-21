@@ -2,10 +2,21 @@
 // The e2e check: the BUILT extension (dist/) in Chrome for Testing without a window — the way spikes/extension-e2e
 // loads one (new headless, its own throwaway profile, --load-extension) — then every part of the main page:
 //   1. the extension loads: no manifest errors, install warnings or runtime errors (chrome://extensions' own data);
-//      the service worker runs and listens for the toolbar button;
-//   2. «Compare code» in the default light theme: the wasm editor draws the opening example, then two texts typed in
-//      the fields (language from the shadcn Select) give a coloured diff in the editor (the editor reports `shown` for
-//      the right path; the iframe's pixels have the added-green and removed-red of the diff). The comparison runs in
+//      the service worker runs;
+//   1b. the New Tab page (scripts/e2e-start.mjs): a new tab is the start page and stays light; its field opens tools,
+//      pasted JSON and web searches; shortcuts persist; each switch of Settings hides its part; "last opened tool";
+//      the options entry; the start route's chunks and open time;
+//   1b'. our page opened by its address and the options page (scripts/e2e-own-page.mjs): titles, routes, back and
+//      forward, reload, route-boot.js never redirecting an explicit route, the install warnings, "Extension options"
+//      and openOptionsPage with tabs of ours open;
+//   1c. the toolbar button as its chosen definition says (scripts/e2e-toolbar.mjs): the menu in the real popup — its
+//      items, focus and keys, "New tab" and "Settings", the theme, what it loads and its first paint — or, without a
+//      popup, a new tab;
+//   2. «Compare code» in the default light theme: the wasm editor draws the opening example, then two files dropped on
+//      the page (language from their names, then from the shadcn Select) give a coloured diff in the editor (the editor
+//      reports `shown` for the right path; the iframe's pixels have the added-green and removed-red of the diff). The
+//      drops, the toolbar, edit mode, saving and the examples have their own checks (scripts/e2e-compare.mjs). The
+//      comparison runs in
 //      the module: the editor page receives the two texts and no hunks, the counts on the page are the ones the module
 //      answers with, a request may name a built-in differ (`myers`), an unknown differ name or option comes back as an
 //      error, and a 50 000-line pair is timed in the browser (the report's `browserTiming`);
@@ -16,12 +27,15 @@
 //      a request before the first frame: the module on a page of its own refuses it with an error before run() and
 //      while its window opens, shows one it took before the first frame in that frame, and takes calls from inside its
 //      own callbacks; the editor page answers a request sent before its module has loaded;
-//   3. «Tools» → JSON: an error with its position, then formatting with sorted keys (the shadcn Checkbox);
+//   3. «Tools»: every tool's own checks (scripts/e2e-tools/<id>.mjs, run by scripts/e2e-tools.mjs — a new tool adds a
+//      file there, nothing here); then the JSON tool's controls measured against gpui-kit;
 //   4. «Live review»: the companion notice;
 //   5. the default dark theme repaints the page and the editor; every part again;
 //   6. a theme that is not a default (Tokyo Night) chosen from the theme list reaches the page AND the editor (the
 //      editor's background is that theme's); every part again;
 //   7. the controls measured against gpui-kit (docs/theming-specs): sizes, radii, colours → the report's `measure`;
+//   8. the tool history (scripts/e2e-history.mjs): record, list, open, filter, delete by interval, export, delete
+//      everything, restore byte for byte, the master switch, a master password across two tabs, incognito;
 //   and not a single console error or page error on the way (the CSP's violations land there too).
 // Screenshots of each step go to --shots=<dir> (docs/screenshots/extension-dna/ for the record).
 //
@@ -35,8 +49,14 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { dropFiles, fixtures, pointOn, runCompareChecks } from './e2e-compare.mjs';
+import { runOwnPageChecks } from './e2e-own-page.mjs';
+import { runHistoryChecks } from './e2e-history.mjs';
+import { runStartChecks } from './e2e-start.mjs';
+import { runToolChecks } from './e2e-tools.mjs';
+import { runToolbarChecks } from './e2e-toolbar.mjs';
 
-/* global document, window, addEventListener, chrome, createImageBitmap, OffscreenCanvas, getComputedStyle, location, HTMLTextAreaElement -- page.evaluate callbacks run in the pages */
+/* global document, window, addEventListener, chrome, createImageBitmap, OffscreenCanvas, getComputedStyle, location -- page.evaluate callbacks run in the pages */
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2).filter(a => a !== '--');
@@ -78,7 +98,13 @@ const ctx = await chromium.launchPersistentContext(profile, {
   channel: 'chromium',
   headless: true,
   ignoreDefaultArgs: ['--disable-extensions'],
-  args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`, '--lang=en-US'],
+  // --enable-unsafe-extension-debugging: CDP Extensions.triggerAction, to press the toolbar button (e2e-toolbar.mjs).
+  args: [
+    `--disable-extensions-except=${DIST}`,
+    `--load-extension=${DIST}`,
+    '--lang=en-US',
+    '--enable-unsafe-extension-debugging',
+  ],
   viewport: { width: 1440, height: 900 },
   colorScheme: 'light',
 });
@@ -298,6 +324,7 @@ const tokensOf = (page, names) =>
   );
 
 let failed = false;
+let files = null;
 try {
   // 1. The extension loads.
   const sw =
@@ -305,8 +332,6 @@ try {
     (await ctx.waitForEvent('serviceworker', { timeout: 20_000 }));
   const id = new URL(sw.url()).host;
   check('service worker runs', true, sw.url());
-  const listens = await sw.evaluate(() => chrome.action.onClicked.hasListeners());
-  check('the service worker listens for the toolbar button', listens === true);
 
   const extPage = await ctx.newPage();
   await extPage.goto('chrome://extensions/');
@@ -334,6 +359,13 @@ try {
     info ? `${info.name} ${info.version}, ${info.state}` : 'not found',
   );
 
+  // 1b. The New Tab page.
+  await runStartChecks({ ctx, sw, id, dist: DIST, check, shoot, report, sleep });
+  // 1b'. Our page by its address, the options page.
+  await runOwnPageChecks({ ctx, sw, id, dist: DIST, check, shoot, report, sleep });
+  // 1c. The toolbar button.
+  await runToolbarChecks({ ctx, sw, id, dist: DIST, check, shoot, report, sleep });
+
   const page = await ctx.newPage();
   page.on('console', m => {
     if (m.type() === 'error' || m.type() === 'warning')
@@ -346,16 +378,20 @@ try {
     await page.goto(`${base}#/${section}`);
     await ready();
   };
-  const status = page.locator('.status-line');
-  const frameEl = page.locator('iframe.viewer-frame');
-  const frame = page.frameLocator('iframe.viewer-frame');
+  const status = page.locator('.kit-compare-counts');
+  const frameEl = page.locator('iframe.kit-compare-frame');
+  const frame = page.frameLocator('iframe.kit-compare-frame');
   const editorReady = async () => {
     await status.and(page.locator('[data-viewer-state="ready"]')).waitFor({ timeout: 30_000 });
-    await page.waitForFunction(() => Number(document.querySelector('.status-line')?.dataset.shown) > 0, null, {
+    await page.waitForFunction(() => Number(document.querySelector('.kit-compare-counts')?.dataset.shown) > 0, null, {
       timeout: 15_000,
     });
     await sleep(500); // two frames after show_diff, and the scroll sync settling
   };
+  /** The counts on the page, as the module answered them. */
+  const countsOf = () =>
+    status.evaluate(el => `${el.dataset.changes} changes · +${el.dataset.added} −${el.dataset.removed} lines`);
+  files = fixtures();
   const toolsReady = async () => {
     const input = page.getByLabel('Input');
     await input.waitFor({ timeout: 5_000 });
@@ -372,19 +408,18 @@ try {
   // 2. Compare code — the default light theme.
   await page.goto(`${base}#/compare`);
   await page.waitForFunction(
-    () => document.querySelector('.status-line')?.getAttribute('data-shown-path') === 'example/new.rs',
+    () => document.querySelector('.kit-compare-counts')?.getAttribute('data-shown-path') === 'after.rs',
     null,
     { timeout: 45_000 },
   );
   await editorReady();
-  check('the editor starts and shows the opening example', true, await status.innerText());
+  check('the editor starts and shows the opening example', true, await countsOf());
   check(
     'the page starts in the default light theme',
     (await page.evaluate(() => document.documentElement.dataset.theme)) === 'default-light',
   );
   await shoot(page, '01-compare-light.png');
 
-  const textareaAtRest = await measureOf(page.getByLabel(/^Before/));
   const before = Number(await status.getAttribute('data-shown'));
   const oldText = [
     'def greet(name):',
@@ -406,8 +441,28 @@ try {
     "greet('reviewer')",
     '',
   ].join('\n');
-  await page.getByLabel(/^Before/).fill(oldText);
-  await page.getByLabel(/^After/).fill(newText);
+  // What crosses the iframe boundary, recorded on both sides: the editor page's inbox, the main page's answers.
+  const viewerFrame = page.frames().find(f => f.url().endsWith('/src/viewer/index.html'));
+  await viewerFrame.evaluate(() => {
+    globalThis.__inbox = [];
+    globalThis.addEventListener('message', e => globalThis.__inbox.push(e.data));
+  });
+  await page.evaluate(() => {
+    globalThis.__answers = [];
+    globalThis.addEventListener('message', e => globalThis.__answers.push(e.data));
+  });
+  /** Two texts as two files dropped over the editor: the first is the original. */
+  const compareThroughPage = async (before, after, name = 'probe.py') => {
+    const n = Number(await status.getAttribute('data-shown'));
+    const paths = [files.file(`two/old-${name}`, before), files.file(`two/${name}`, after)];
+    await dropFiles(page, paths, await pointOn(page, 'new'), sleep);
+    await page.waitForFunction(n => Number(document.querySelector('.kit-compare-counts')?.dataset.shown) > n, n, {
+      timeout: 30_000,
+    });
+    await sleep(400);
+    return countsOf();
+  };
+  const summary = await compareThroughPage(oldText, newText);
 
   // The language list open: measured against gpui-kit's Select (docs/theming-specs/gpui-kit-form-controls.md §7).
   // At rest first: an open list hides the rest of the page from the accessibility tree (Radix's aria-hidden).
@@ -427,11 +482,9 @@ try {
       '--muted-foreground',
       '--radius-md',
     ]),
-    buttonPrimary: await measureOf(page.getByRole('button', { name: 'Compare' })),
-    buttonGhostSmall: await measureOf(page.getByText('Open file…').first()),
+    buttonGhostIconSmall: await measureOf(page.locator('[data-side="old"] [data-action="open"]')),
     selectTrigger: await measureOf(language),
     selectChevron: await measureOf(language.locator('svg')),
-    textarea: textareaAtRest,
     navItemActive: await measureOf(page.locator('.kit-nav-item[aria-current="page"]')),
     segmentActive: await measureOf(page.getByRole('radio', { name: 'System' })),
   };
@@ -452,24 +505,11 @@ try {
   await page.getByRole('option', { name: 'Python', exact: true }).click();
   await listbox.waitFor({ state: 'detached', timeout: 5_000 });
   check('the language comes from the shadcn Select', (await language.innerText()).trim() === 'Python');
-
-  // What crosses the iframe boundary, recorded on both sides: the editor page's inbox, the main page's answers.
-  const viewerFrame = page.frames().find(f => f.url().endsWith('/src/viewer/index.html'));
-  await viewerFrame.evaluate(() => {
-    globalThis.__inbox = [];
-    globalThis.addEventListener('message', e => globalThis.__inbox.push(e.data));
-  });
-  await page.evaluate(() => {
-    globalThis.__answers = [];
-    globalThis.addEventListener('message', e => globalThis.__answers.push(e.data));
-  });
-  await page.getByRole('button', { name: 'Compare' }).click();
-  await page.waitForFunction(n => Number(document.querySelector('.status-line')?.dataset.shown) > n, before, {
-    timeout: 10_000,
-  });
-  await sleep(400);
-  const summary = await status.innerText();
-  check('two different texts are compared', /\d+ changes? · \+\d+ −\d+ lines/.test(summary), summary);
+  check(
+    'two different texts are compared',
+    Number(await status.getAttribute('data-shown')) > before && /\d+ changes · \+\d+ −\d+ lines/.test(summary),
+    summary,
+  );
   const [sent] = await viewerFrame.evaluate(() => globalThis.__inbox.filter(m => m?.type === 'viewer/compare'));
   check(
     'the page sends the two texts and no hunks',
@@ -502,7 +542,7 @@ try {
     const started = await page.evaluate(
       ({ id, request }) => {
         globalThis.__answers = [];
-        const frame = document.querySelector('iframe.viewer-frame');
+        const frame = document.querySelector('iframe.kit-compare-frame');
         const started = performance.now();
         frame.contentWindow.postMessage({ type: 'viewer/compare', id, request }, location.origin);
         return started;
@@ -598,25 +638,8 @@ try {
       .map(([name, t]) => `${name}: compare ${t.compareMs} ms, request to answer ${t.roundTripMs} ms`)
       .join('; '),
   );
-  // The same pair through the page itself: the fields, the button, the counts on the status line.
-  // Typing 2.5 MB through `fill` takes longer than the timeout; the value is set the way React's onChange sees it.
-  const setField = (label, value) =>
-    page.getByLabel(label).evaluate((el, text) => {
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, text);
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    }, value);
-  const compareThroughPage = async (before, after) => {
-    await setField(/^Before/, before);
-    await setField(/^After/, after);
-    const n = Number(await status.getAttribute('data-shown'));
-    await page.getByRole('button', { name: 'Compare' }).click();
-    await page.waitForFunction(n => Number(document.querySelector('.status-line')?.dataset.shown) > n, n, {
-      timeout: 20_000,
-    });
-    await sleep(400);
-    return status.innerText();
-  };
-  const bigSummary = await compareThroughPage(bigOld, bigNew);
+  // The same pair through the page itself: two files dropped, the counts on the page.
+  const bigSummary = await compareThroughPage(bigOld, bigNew, 'large.txt');
   check(
     'the page shows the module’s counts for the large pair',
     bigSummary === '150 changes · +100 −100 lines',
@@ -730,7 +753,8 @@ try {
   report.compareLight = light;
   check(
     'the editor shows a coloured diff (added green, removed red)',
-    light.greenishPct > 0.5 && light.reddishPct > 0.2,
+    // The editor has the whole section now (no fields above it): the same diff covers a smaller share of the frame.
+    light.greenishPct > 0.5 && light.reddishPct > 0.1,
     JSON.stringify(light),
   );
   await shoot(page, '03-compare-two-texts.png');
@@ -864,7 +888,7 @@ try {
       addEventListener('message', e => globalThis.__answers.push({ ...e.data, at: performance.now() }));
       // Called from the frame; runs in this (the parent's) realm, so the message's source is the parent window.
       globalThis.__postEarly = () => {
-        const target = document.querySelector('iframe.viewer-frame').contentWindow;
+        const target = document.querySelector('iframe.kit-compare-frame').contentWindow;
         globalThis.__earlySent = { at: performance.now(), readyState: target.document.readyState };
         target.postMessage({ type: 'viewer/compare', id: 777, request }, location.origin);
       };
@@ -898,21 +922,18 @@ try {
           `answered at ${earlyAnswer?.at.toFixed(0)} ms: ${JSON.stringify(earlyAnswer?.shown ?? earlyAnswer)}`,
   );
 
-  // 3. Tools → JSON.
+  // 2c. «Compare code»: drops, the toolbar, edit mode, saving, the examples, the keyboard.
+  await runCompareChecks({ ctx, id, check, shoot, report, sleep });
+
+  // 3. The tools: each tool's own checks (scripts/e2e-tools/<id>.mjs, found by scripts/e2e-tools.mjs), then the
+  // controls of the JSON tool's page measured against gpui-kit.
+  await runToolChecks({ ctx, page, base, id, check, shoot, sleep, report });
   await page.goto(`${base}#/tools/json`);
   const input = page.getByLabel('Input');
-  await input.fill('{"name": "gpui", "tags": ["diff", "tools",], "ok": true}');
-  const invalid = await page.locator('.validity').first().innerText();
-  check('JSON: an error with its position', /Line 1, column 43: trailing comma/.test(invalid), invalid);
   await input.fill('{"name":"example","tags":["diff","tools"],"nested":{"b":2,"a":1},"ok":true}');
-  await page.getByLabel('Sort keys').check();
+  report.measure.textarea = await measureOf(input);
+  if (!(await page.getByLabel('Sort keys').isChecked())) await page.getByLabel('Sort keys').check();
   await page.getByRole('button', { name: 'Format' }).click();
-  const formatted = await page.getByLabel('Result').inputValue();
-  check(
-    'JSON: format with sorted keys',
-    formatted.includes('"nested": {\n    "a": 1,\n    "b": 2\n  }') &&
-      formatted.indexOf('"ok"') < formatted.indexOf('"tags"'),
-  );
   await page.mouse.move(0, 0);
   await sleep(400); // the checkbox's 180 ms colour transition
   report.measure.buttonOutline = await measureOf(page.getByRole('button', { name: 'Minify' }));
@@ -936,7 +957,7 @@ try {
   const pageDark = await page.evaluate(() => document.documentElement.dataset.theme);
   check(
     'the dark theme repaints the page and the editor',
-    pageDark === 'default-dark' && dark.meanLuminance < lightExample.meanLuminance - 60 && dark.greenishPct > 0.2,
+    pageDark === 'default-dark' && dark.meanLuminance < lightExample.meanLuminance - 60 && dark.greenishPct > 0.1,
     `page ${pageDark}; editor luminance ${lightExample.meanLuminance} → ${dark.meanLuminance}`,
   );
   await shoot(page, '06-compare-dark.png');
@@ -979,6 +1000,9 @@ try {
   await pickFromList('Dark theme', 'Default Dark');
   await page.getByRole('radio', { name: 'System' }).click();
 
+  // 8. The tool history (scripts/e2e-history.mjs). Last: allowing incognito there reloads the extension.
+  await runHistoryChecks({ ctx, sw, id, check, shoot, report, sleep, root: ROOT });
+
   // The service worker's own errors, after everything ran.
   const after = await (async () => {
     const p = await ctx.newPage();
@@ -1004,6 +1028,7 @@ try {
 } catch (error) {
   check('the run finished', false, String(error?.stack ?? error));
 } finally {
+  files?.cleanup();
   await ctx.close();
   rmSync(profile, { recursive: true, force: true });
   failed = report.checks.some(c => !c.ok);
