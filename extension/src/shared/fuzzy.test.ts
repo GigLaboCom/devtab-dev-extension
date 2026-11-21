@@ -46,7 +46,8 @@ describe('the ranking table', () => {
 describe('thresholds: honest and quiet', () => {
   it('one or two letters stay strict: a prefix or a word start, never a substring', () => {
     expect(first('od', 5)).toEqual([]);
-    expect(first('ev', 5)).toEqual([]);
+    // Inside "review" only ('ev' starts a word since Cron's keyword "every minute", so it matches Cron there).
+    expect(first('ie', 5)).toEqual([]);
     expect(first('co', 1)).toEqual(['Compare code']);
   });
 

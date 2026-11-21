@@ -270,6 +270,17 @@ describe('the YAML and JSON tool’s history', () => {
   const entriesOf = async (host: ReturnType<typeof memoryHost>, kinds?: string[]) =>
     (await host.history.forOwner('yaml-json', definition.history!).list(kinds ? { kinds } : {})).entries;
 
+  /** The entries once the history has stopped changing (two equal counts 60 ms apart). */
+  const settled = async (host: Parameters<typeof entriesOf>[0]): Promise<Awaited<ReturnType<typeof entriesOf>>> => {
+    let before = -1;
+    for (;;) {
+      const now = await entriesOf(host);
+      if (now.length === before) return now;
+      before = now.length;
+      await new Promise(resolve => setTimeout(resolve, 60));
+    }
+  };
+
   it('records an edit as a snapshot when the page goes away', async () => {
     const host = memoryHost();
     const { unmount } = render(<YamlJsonTool host={host} />);
@@ -332,7 +343,9 @@ describe('the YAML and JSON tool’s history', () => {
     await waitFor(async () => expect(await entriesOf(host, ['to-json'])).toHaveLength(1), WAIT);
     first.unmount();
     await act(async () => undefined);
-    const entries = await entriesOf(host);
+    // An unmounted page ends its history session asynchronously: count the entries once they have stopped arriving,
+    // or a slow machine counts one too few here and blames the reopening below for it.
+    const entries = await settled(host);
     const copied = entries.find(e => e.label?.endsWith('copied'))!;
     expect(copied.label).toBe('YAML 1.1 → JSON · Minified · 5 characters · copied');
 
@@ -344,7 +357,7 @@ describe('the YAML and JSON tool’s history', () => {
     await result('{"a":true}');
     second.unmount();
     await act(async () => undefined);
-    expect(await entriesOf(host)).toHaveLength(entries.length);
+    expect(await settled(host)).toHaveLength(entries.length);
   });
 
   it('records text handed over from the start page as the visit’s first edit', async () => {

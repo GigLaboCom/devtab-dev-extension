@@ -93,7 +93,7 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
   await compareReady();
   check(
     'Text Diff: Enter on it in the field opens «Compare code» — one entry in the tab’s history',
-    firstRow.startsWith('Text Diff') && enterWent && (await entries()) === fromStart + 1,
+    firstRow.startsWith('Text Diff') && enterWent && (await entries()) === Math.min(fromStart + 1, 50), // 50: as §2.2 below
     `${firstRow}; ${await hash()}; entries ${fromStart} → ${await entries()}`,
   );
   await page.evaluate(() => history.back());
@@ -150,7 +150,7 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
   check(
     'Text Diff: §2.1 its entry opens «Compare code», marked current in the sidebar; one entry in the history',
     cardWent &&
-      (await entries()) === fromTools + 1 &&
+      (await entries()) === Math.min(fromTools + 1, 50) && // Chrome keeps 50 entries: as §2.2 below
       current.includes('Compare code') &&
       !current.includes('Text Diff'),
     `${await hash()}; entries ${fromTools} → ${await entries()}; current ${JSON.stringify(current)}`,
