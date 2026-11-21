@@ -3,7 +3,7 @@
  * Base edits: no `hover:bg-muted`, `focus-visible:ring-[3px]` and `disabled:opacity-50` in the base (the style sets
  * hover, focus and disabled the gpui-kit way); one more variant, `segmented` — a segment of gpui-kit's Segmented bar.
  */
-import { cn } from '@src/lib/utils';
+import { cn } from '../lib/utils';
 import { cva } from 'class-variance-authority';
 import { Toggle as TogglePrimitive } from 'radix-ui';
 import type { VariantProps } from 'class-variance-authority';

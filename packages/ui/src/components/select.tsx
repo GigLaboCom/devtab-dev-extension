@@ -9,7 +9,7 @@
  * Radix locks the page scroll with react-remove-scroll, which the CSP refuses; the extension aliases it to a no-op
  * (src/shared/csp/removeScroll.tsx).
  */
-import { cn } from '@src/lib/utils';
+import { cn } from '../lib/utils';
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 import { Select as SelectPrimitive } from 'radix-ui';
 import type { ComponentProps, ReactElement } from 'react';

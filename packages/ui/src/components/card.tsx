@@ -2,7 +2,7 @@
  * shadcn/ui Card, Radix base (shadcn-ui/ui e62c9435) — gpui-kit's GroupBox (theming-components.md §6); the look is
  * `cn-card*` in @workspace/dna/style-gpui.css. Base edit: no `cn-font-heading` on the title (the style sets the face).
  */
-import { cn } from '@src/lib/utils';
+import { cn } from '../lib/utils';
 import type { ComponentProps, ReactElement } from 'react';
 
 export const Card = ({

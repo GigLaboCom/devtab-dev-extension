@@ -3,7 +3,7 @@
  * `cn-button*` in @workspace/dna/style-gpui.css. Base edits (theming-components.md §2.4): no `disabled:opacity-50`
  * (gpui-kit recolours a disabled button, §4.7) and no `transition-all` (hover and press are instant).
  */
-import { cn } from '@src/lib/utils';
+import { cn } from '../lib/utils';
 import { cva } from 'class-variance-authority';
 import { Slot } from 'radix-ui';
 import type { VariantProps } from 'class-variance-authority';

@@ -1,0 +1,40 @@
+{
+  "name": "@workspace/ui",
+  "version": "0.1.0",
+  "description": "The UI kit (D14): shadcn/ui components on the Radix base, styled at run time by @workspace/dna/style-gpui.css (the `cn-*` and `kit-*` classes), plus the parts the tools share — the tool page frame, the copy button, the result row, the file drop zone, the table. Reusable outside the extension: no `@extension/*`, no `chrome`.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./utils": "./src/lib/utils.ts",
+    "./testing": "./src/testing/setup.ts",
+    "./*": "./src/components/*.tsx"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "1.70.0",
+    "radix-ui": "^1.8.1",
+    "tailwind-merge": "^3.7.0"
+  },
+  "peerDependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "jsdom": "^25.0.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

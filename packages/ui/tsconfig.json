@@ -1,0 +1,8 @@
+{
+  "extends": "@extension/tsconfig/app",
+  "compilerOptions": {
+    // Components for any page: no `chrome` types — the kit never touches the extension's APIs.
+    "types": []
+  },
+  "include": ["src", "vitest.config.ts"]
+}

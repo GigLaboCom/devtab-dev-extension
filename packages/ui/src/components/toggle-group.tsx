@@ -5,7 +5,7 @@
  * is not offered.
  */
 import { toggleVariants } from './toggle';
-import { cn } from '@src/lib/utils';
+import { cn } from '../lib/utils';
 import { ToggleGroup as ToggleGroupPrimitive } from 'radix-ui';
 import { createContext, useContext } from 'react';
 import type { VariantProps } from 'class-variance-authority';

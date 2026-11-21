@@ -3,7 +3,7 @@
  * Base edits: no `disabled:opacity-50` (gpui-kit fades the field's colours, §4.7) and the placeholder colour moves to
  * the style.
  */
-import { cn } from '@src/lib/utils';
+import { cn } from '../lib/utils';
 import type { ComponentProps, ReactElement } from 'react';
 
 export const Textarea = ({ className, ...props }: ComponentProps<'textarea'>): ReactElement => (
