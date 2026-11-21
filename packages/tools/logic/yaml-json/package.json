@@ -1,0 +1,26 @@
+{
+  "name": "@workspace/tool-logic-yaml-json",
+  "version": "0.1.0",
+  "description": "The YAML and JSON tool's logic (D14, docs/tools/specs/yaml-json.md): YAML to JSON printed from the document tree, JSON to YAML built from the literals as written (an exact JSON scanner of its own), the shape-only detect. The yaml library is reached only through a dynamic import. Pure TypeScript: no React, no DOM, no chrome.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@workspace/tools-shared": "workspace:*",
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
