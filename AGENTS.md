@@ -65,8 +65,9 @@ for example — can be a second one without changing a tool.
   - `packages/tools/logic/<id>/` (`@workspace/tool-logic-<id>`) — pure TypeScript: no React, no `chrome.*`, no DOM
     unless the specification says the tool cannot work without one (then the `Document` comes in as a parameter). It
     depends on nothing of ours except `packages/tools/logic/shared/`. Unit tests run in Node.
-  - `packages/tools/ui/<id>/` (`@workspace/tool-ui-<id>`) — the React component and the tool's definition (`id`,
-    `title`, `summary`, `keywords`, `detect`). It imports its own logic package, the UI kit and the style package.
+  - `packages/tools/ui/<id>/` (`@workspace/tool-ui-<id>`) — the React component, the tool's definition (`id`,
+    `title`, `summary`, `keywords`, …) and, when it recognises pasted text, its `detect` module (`src/detect.ts`, the
+    package's `./detect` export). It imports its own logic package, the UI kit and the style package.
 - **Shared packages:** `packages/tools/logic/shared/` (`@workspace/tools-shared`: randomness, time, hex, Base64, the
   JSON scanner, DER — pure code), `packages/tools/ui/host/` (`@workspace/tools-host`: the host contract and shared
   hooks), `packages/ui/` (`@workspace/ui`: the components), `packages/dna/` (`@workspace/dna`: styles).
@@ -81,8 +82,14 @@ for example — can be a second one without changing a tool.
 - **The host owns** the list of tools, the routes, storage, the manifest and the content security policy. It finds the
   tools itself: `extension/src/tools/registry.ts` takes `definition` from every `packages/tools/ui/*/src/definition.ts`
   (the `ui` package's main export: `id`, `title`, `summary`, `keywords`, `order` — the tool's number in
-  `docs/tools/README.md` — `detect`, its `history` declaration, and `load` for the component, a chunk of its own), so a
-  new tool is new files only and edits no list. The host wraps every tool in the kit's `ToolPage` (title, summary, its
+  `docs/tools/README.md` — its `history` declaration, its `output`, and `load` for the component, a chunk of its own), so
+  a new tool is new files only and edits no list. **The definition is data**: at run time it imports its history
+  declaration and nothing else (no logic, no library, no `detect`), and `history.ts` exports the declaration alone. The
+  build reads the definitions into a catalogue (`extension/build/toolCatalogue.ts`: id, title, keywords, suggested
+  shortcut) — the only thing of a tool on the start page, whose first load must not grow with the number of tools
+  (`pnpm validate:growth`); `detect` is `src/detect.ts`, which the host loads lazily with all the others
+  (`extension/src/tools/detectors.ts`) when pasted text needs it. `extension/src/tools/shape.test.ts` holds this shape;
+  `node scripts/adapt-tool.mjs <id>` moves a package written before it into it. The host wraps every tool in the kit's `ToolPage` (title, summary, its
   history line); the tool's component renders the body from the kit's tool parts. A tool's worker, data file or wasm
   ships inside the tool's package and is loaded from a file, never from `blob:` or `data:`.
 - **Scopes say who may use what:** `@workspace/*` packages are reusable and never depend on `@extension/*`;
@@ -97,7 +104,7 @@ for example — can be a second one without changing a tool.
 - **The site is a separate repository** and does not consume these packages yet. How they would reach it — the site
   joining this workspace as a second app, a git dependency on a subfolder, or publishing — is not chosen; nothing in a
   tool may assume one of them.
-- **Adding a tool:** `node scripts/new-tool.mjs <id> --order=<n> …` creates both packages and the tool's e2e module
+- **Adding a tool:** `node scripts/new-tool.mjs <id> --order=<n> [--detect] [--generates=lines|text] …` creates both packages and the tool's e2e module
   (`scripts/e2e-tools/<id>.mjs`, run by `scripts/e2e-check.mjs` without an edit) from one template; the steps from a
   specification to a finished tool, the tests it needs and the shared files it may touch are `docs/tools/adding-a-tool.md`.
   The reference is the JSON tool: `packages/tools/logic/json/` and `packages/tools/ui/json/`.
@@ -106,6 +113,12 @@ for example — can be a second one without changing a tool.
   pure code (`shared/random.ts`, `time.ts`, `hex.ts`, `base64.ts`) as `@workspace/tools-shared/<module>`, the shared hook
   `useNow` as `@workspace/tools-host`, and the components of `extension/src/components/ui/` as `@workspace/ui/<name>`
   (`packages/ui/`). Where `docs/tools/README.md` resolves a disagreement between specifications, it wins.
+
+## Defaults
+
+Every default of the product — settings, the start page's pieces, shortcuts, the composition roots, the tools'
+starting state, limits and budgets — is listed in the developer documents' `defaults.md`, whose tables are the output of
+`node scripts/defaults.mjs`. A change of a default updates that document in the same change (re-run the script).
 
 ## Dependencies
 
