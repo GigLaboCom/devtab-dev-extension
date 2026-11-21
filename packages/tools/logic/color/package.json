@@ -1,0 +1,27 @@
+{
+  "name": "@workspace/tool-logic-color",
+  "version": "0.1.0",
+  "description": "The Color tool's logic (D14, docs/tools/specs/color.md): parse every CSS Color 4 notation, convert, gamut-map, name, WCAG contrast, detect. Pure TypeScript: no React, no DOM, no chrome.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@workspace/tools-shared": "workspace:*",
+    "culori": "4.0.2"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/culori": "4.0.1",
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
