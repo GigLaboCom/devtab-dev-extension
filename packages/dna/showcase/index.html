@@ -62,6 +62,7 @@
           ><a class="kit-nav-item" href="#checkbox">Checkbox</a
           ><a class="kit-nav-item" href="#toggle">Toggle and Toggle Group</a
           ><a class="kit-nav-item" href="#tabs">Tabs</a><a class="kit-nav-item" href="#select">Select</a
+          ><a class="kit-nav-item" href="#combobox">Combobox</a
           ><a class="kit-nav-item" href="#menu">Dropdown Menu and Context Menu</a
           ><a class="kit-nav-item" href="#overlays">Tooltip, Popover, Hover Card</a
           ><a class="kit-nav-item" href="#card">Card and Separator</a
@@ -1170,6 +1171,102 @@ fn main() {
                     aria-hidden="true">
                     <use href="#i-chevron-down" /></svg></button></div></div
           ></section>
+          <section class="show-group" id="combobox"
+            ><h2>Combobox</h2
+            ><p class="show-note"
+              >A field with a list to search (the time zone picker of Unix Time and Cron): the field is an Input, the
+              list and its rows are the Select's. Shown open three times: whole, with a pinned row and the chosen one
+              highlighted; filtered by what is typed; with nothing that matches.</p
+            ><div class="show-row"
+              ><div class="relative w-80"
+                ><input
+                  type="text"
+                  role="combobox"
+                  aria-expanded="true"
+                  aria-label="Time zone"
+                  class="cn-input w-full min-w-0 outline-none"
+                  value="UTC" /><ul
+                  role="listbox"
+                  aria-label="Time zones"
+                  class="cn-select-content kit-combobox-list relative"
+                  ><li
+                    role="option"
+                    aria-selected="false"
+                    data-state="unchecked"
+                    data-pinned-last=""
+                    class="cn-select-item kit-combobox-item"
+                    ><span class="kit-combobox-label"
+                      >Europe/Berlin<span class="kit-combobox-badge">Your time zone</span></span
+                    ><span class="kit-combobox-hint">UTC+01:00</span></li
+                  ><li
+                    role="option"
+                    aria-selected="true"
+                    data-highlighted=""
+                    data-state="checked"
+                    class="cn-select-item kit-combobox-item"
+                    ><span class="kit-combobox-label">UTC</span><span class="kit-combobox-hint">UTC+00:00</span></li
+                  ><li
+                    role="option"
+                    aria-selected="false"
+                    data-state="unchecked"
+                    class="cn-select-item kit-combobox-item"
+                    ><span class="kit-combobox-label">Africa/Abidjan</span
+                    ><span class="kit-combobox-hint">UTC+00:00</span></li
+                  ><li
+                    role="option"
+                    aria-selected="false"
+                    data-state="unchecked"
+                    class="cn-select-item kit-combobox-item"
+                    ><span class="kit-combobox-label">Africa/Accra</span
+                    ><span class="kit-combobox-hint">UTC+00:00</span></li
+                  ><li
+                    role="option"
+                    aria-selected="false"
+                    data-state="unchecked"
+                    class="cn-select-item kit-combobox-item"
+                    ><span class="kit-combobox-label">Africa/Addis_Ababa</span
+                    ><span class="kit-combobox-hint">UTC+03:00</span></li
+                  ></ul
+                ></div
+              ><div class="flex w-80 flex-col gap-6"
+                ><div class="relative w-full"
+                  ><input
+                    type="text"
+                    role="combobox"
+                    aria-expanded="true"
+                    aria-label="Time zone, filtered"
+                    class="cn-input w-full min-w-0 outline-none"
+                    value="kolkata" /><ul
+                    role="listbox"
+                    aria-label="Time zones"
+                    class="cn-select-content kit-combobox-list relative"
+                    ><li
+                      role="option"
+                      aria-selected="false"
+                      data-highlighted=""
+                      data-state="unchecked"
+                      class="cn-select-item kit-combobox-item"
+                      ><span class="kit-combobox-label">Asia/Kolkata</span
+                      ><span class="kit-combobox-hint">UTC+05:30</span></li
+                    ></ul
+                  ></div
+                ><div class="relative w-full"
+                  ><input
+                    type="text"
+                    role="combobox"
+                    aria-expanded="true"
+                    aria-label="Time zone, nothing matches"
+                    class="cn-input w-full min-w-0 outline-none"
+                    value="atlantis" /><ul
+                    role="listbox"
+                    aria-label="Time zones"
+                    class="cn-select-content kit-combobox-list relative"
+                    ><li role="presentation" class="kit-combobox-empty">No time zones match.</li></ul
+                  ></div
+                ></div
+              ></div
+            ></section
+          >
           <section class="show-group" id="menu"
             ><h2>Dropdown Menu and Context Menu</h2
             ><p class="show-note">Shown open. The row under the pointer takes the focus, as in the real menu.</p

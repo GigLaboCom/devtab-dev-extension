@@ -1,7 +1,8 @@
 /*
  * @workspace/dna/style-gpui-tools.css — the component layer's Table and the parts the tools share (D14), tuned to
  * gpui-kit like style-gpui.css (2026-11-21: out of style-gpui.css): the tool page frame (`kit-tool-*`), a result with its
- * copy action (`kit-result-row*`), the file drop zone (`kit-file-drop*`) and shadcn's Table (`cn-table*`). Any host of
+ * copy action (`kit-result-row*`), the file drop zone (`kit-file-drop*`), the list to search (`kit-combobox*`) and
+ * shadcn's Table (`cn-table*`). Any host of
  * the tools wears them, so they are the component layer's and not the extension's frame. A file of its own so a page
  * that shows no tool does not carry them: the extension loads it with the shell's lazy chunk, never with the start page
  * (a new tab, with a byte budget); a site that shows tools imports it after style-gpui.css.
@@ -123,5 +124,33 @@
 
   .kit-file-drop-line {
     @apply flex flex-wrap items-center justify-center gap-2;
+  }
+
+  /* MARK: Combobox — own: a field with a list to search (the time zone picker of Unix Time and Cron, moved into the kit
+     2026-11-21). The field is the Input (`cn-input`), the list and its rows the Select's (`cn-select-content`,
+     `cn-select-item`); these place the list under the field, at most 320 tall, and lay out a row: the name, a badge
+     after it, a hint at the end; a line under the last pinned row */
+  .kit-combobox-list {
+    @apply absolute top-full left-0 z-50 mt-1.5 max-h-80 w-full overflow-y-auto p-1;
+  }
+
+  .kit-combobox-item {
+    @apply relative flex w-full cursor-default items-center select-none data-pinned-last:border-border data-pinned-last:mb-1 data-pinned-last:border-b;
+  }
+
+  .kit-combobox-label {
+    @apply min-w-0 flex-1 truncate;
+  }
+
+  .kit-combobox-badge {
+    @apply text-muted-foreground ml-2 text-xs;
+  }
+
+  .kit-combobox-hint {
+    @apply text-muted-foreground ml-3 shrink-0 font-mono text-xs;
+  }
+
+  .kit-combobox-empty {
+    @apply text-muted-foreground px-1.75 py-1 text-sm;
   }
 }
