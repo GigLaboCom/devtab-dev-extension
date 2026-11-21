@@ -1,6 +1,6 @@
 /**
  * The JSON tool's logic (roadmap 1D: format, validate with the error's position, minify, sort keys). Pure functions —
- * the component (JsonTool.tsx) only wires them to the page. `JSON.parse` does the parsing; its messages differ between
+ * the component (@workspace/tool-ui-json, JsonTool.tsx) only wires them to the page. `JSON.parse` does the parsing; its messages differ between
  * engines and do not always carry a position, so the position of an error comes from `locateJsonError`, a small
  * strict scanner of RFC 8259 that stops at the first problem.
  */
