@@ -1,0 +1,8 @@
+{
+  "extends": "@extension/tsconfig/app",
+  "compilerOptions": {
+    // A tool's host contract: no `chrome` types — a tool never touches the extension's APIs.
+    "types": []
+  },
+  "include": ["lib"]
+}

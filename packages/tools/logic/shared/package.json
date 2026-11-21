@@ -1,0 +1,27 @@
+{
+  "name": "@workspace/tools-shared",
+  "version": "0.1.0",
+  "description": "Pure code shared by the tools and their hosts (D14): randomness (random), bytes as hex (hex), Base64 (base64), instants for people (time) — the modules the tool specifications name — and the tool history (D17): the record envelope, the filter model, the HistoryStore seam with its in-memory default and shared contract suite, the archive format, the cipher seam (WebCrypto) and the history factory every tool records through.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./base64": "./base64.ts",
+    "./hex": "./hex.ts",
+    "./random": "./random.ts",
+    "./time": "./time.ts",
+    "./history": "./history/index.ts",
+    "./history/contract": "./history/contract.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
