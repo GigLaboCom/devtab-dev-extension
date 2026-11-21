@@ -54,7 +54,12 @@ describe('thresholds: honest and quiet', () => {
   it('nothing rather than weak matches: no subsequence that does not begin at a word start, no near miss under four', () => {
     expect(first('zzzz', 5)).toEqual([]);
     expect(first('xjq', 5)).toEqual([]);
-    expect(first('ash', 5)).toEqual(['Hash']); // a substring, not a scatter of letters elsewhere
+    // A substring, not a scatter of letters elsewhere: every place found holds "ash" whole, in its title or in a
+    // keyword. Not a fixed list of titles: a new tool whose keyword happens to contain it (a "backslash") must not
+    // break this.
+    const ash = findDestinations('ash', DESTINATIONS, 5);
+    expect(ash.map(d => d.title)).toContain('Hash');
+    expect(ash.every(d => [d.title, ...d.keywords].some(text => text.toLowerCase().includes('ash')))).toBe(true);
     expect(first('hsah', 5)).toEqual(['Hash']); // near miss
     expect(first('hsa', 5)).toEqual([]); // three letters: no near miss
   });
