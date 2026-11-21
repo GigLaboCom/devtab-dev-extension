@@ -20,6 +20,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}'],
+    // What jsdom lacks and the pages use (Blob.text, scrollIntoView).
+    setupFiles: ['src/test/setup.ts'],
     // Process CSS, so a `?raw` CSS import is the file's text (by default vitest stubs CSS to '', and the style check in
     // src/dna.test.ts would lint an empty string) — as in the second sibling extension.
     css: { include: [/.+/] },

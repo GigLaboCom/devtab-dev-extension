@@ -7,26 +7,14 @@
 @import '@workspace/dna/style-gpui.css';
 @import '@workspace/dna/ui.css';
 
+/* Tailwind finds classes in this package by itself; the UI kit and the tools' components are packages of their own. */
+@source '../../../packages/ui/src';
+@source '../../../packages/tools/ui';
+
 html,
 body,
 #root {
   height: 100%;
-}
-
-/* «Compare code»: the line under the fields and the editor's frame. */
-.status-line {
-  min-height: calc(var(--spacing) * 5);
-  color: var(--muted-foreground);
-  font-size: var(--text-sm);
-}
-
-.viewer-frame {
-  flex: 1;
-  width: 100%;
-  min-height: calc(var(--spacing) * 90);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--background);
 }
 
 /* The theme picker at the foot of the navigation. */

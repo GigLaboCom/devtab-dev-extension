@@ -5,14 +5,26 @@
  * written here has a rule in the package (a class without one renders as nothing).
  */
 import { lintCss, lintHtml, lintInlineStyles } from '@workspace/dna/lint';
+import dnaMenu from '@workspace/dna/menu.css?raw';
 import dnaStyle from '@workspace/dna/style-gpui.css?raw';
 import dnaUi from '@workspace/dna/ui.css?raw';
 import { describe, expect, it } from 'vitest';
 
 const raw = (files: Record<string, unknown>) => Object.entries(files as Record<string, string>);
 const CSS = raw(import.meta.glob('./**/*.css', { query: '?raw', import: 'default', eager: true }));
+// The UI kit and the tools' own packages (D14) hold to the same contract as the extension's pages.
 const TSX = raw(
-  import.meta.glob(['./**/*.tsx', '!./**/*.test.tsx'], { query: '?raw', import: 'default', eager: true }),
+  import.meta.glob(
+    [
+      './**/*.tsx',
+      '!./**/*.test.tsx',
+      '../../packages/ui/src/**/*.tsx',
+      '!../../packages/ui/src/**/*.test.tsx',
+      '../../packages/tools/ui/**/*.tsx',
+      '!../../packages/tools/ui/**/*.test.tsx',
+    ],
+    { query: '?raw', import: 'default', eager: true },
+  ),
 );
 const HTML = raw(import.meta.glob('./**/*.html', { query: '?raw', import: 'default', eager: true }));
 
@@ -23,6 +35,8 @@ const DNA_IMPORTS = [
   '@workspace/dna/style-gpui.css',
   '@workspace/dna/ui.css',
 ];
+// The toolbar menu's popup page takes its own frame instead of the main page's.
+const IMPORTS = [...DNA_IMPORTS, '@workspace/dna/menu.css'];
 // Radix publishes its measurements as custom properties (`--radix-select-trigger-width`); the components read them.
 const OWN = ['--radix-'];
 
@@ -60,15 +74,15 @@ const classesOf = (source: string): string[] => {
 
 describe('the extension’s styling keeps the @workspace/dna contract', () => {
   it('finds its sources', () => {
-    expect(CSS.map(([file]) => file)).toEqual(['./app/app.css', './viewer/viewer.css']);
+    expect(CSS.map(([file]) => file)).toEqual(['./app/app.css', './popup/popup.css', './viewer/viewer.css']);
     // vitest.config.ts processes CSS: without it a `?raw` CSS import is '' and the lint below proves nothing.
     for (const [file, css] of CSS) expect(css.length, file).toBeGreaterThan(300);
     expect(TSX.length).toBeGreaterThanOrEqual(10);
-    expect(HTML).toHaveLength(2);
+    expect(HTML).toHaveLength(3);
   });
 
   it.each(CSS)('%s: tokens only', (file, css) => {
-    expect(lintCss(css, { file, own: OWN, imports: DNA_IMPORTS })).toEqual([]);
+    expect(lintCss(css, { file, own: OWN, imports: IMPORTS })).toEqual([]);
   });
 
   it.each(TSX)('%s: Tailwind classes name tokens only', (file, source) => {
@@ -91,6 +105,32 @@ describe('the extension’s styling keeps the @workspace/dna contract', () => {
     expect([...at].sort((a, b) => a - b)).toEqual(at);
   });
 
+  it('the main page’s own stylesheet keeps to the theme picker: page frames are kit-* rules', () => {
+    // The layout of a page (the shell, the start page, settings, «Compare code») is the package's `kit-*` frame
+    // (ui.css), so the contract below and the package's own lint cover it; a class of a new prefix here would go around
+    // both.
+    const app = CSS.find(([file]) => file === './app/app.css')![1]
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/@import[^;]*;/g, '');
+    const own = new Set([...app.matchAll(/\.([a-z][\w-]*)/gi)].map(m => m[1]));
+    expect([...own].sort()).toEqual(['theme-field', 'theme-field-label', 'theme-picker', 'theme-swatch']);
+  });
+
+  it('the toolbar menu’s popup takes the tokens, the base and its frame (menu.css) only — no rules of its own', () => {
+    // Light: no Tailwind, no components, not the main page's frame. Its look is the package's `kit-menu*`.
+    const popup = CSS.find(([file]) => file === './popup/popup.css')![1];
+    expect([...popup.matchAll(/@import '([^']+)';/g)].map(m => m[1])).toEqual([
+      '@workspace/dna/theme.css',
+      '@workspace/dna/menu.css',
+    ]);
+    expect(
+      popup
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/@import[^;]*;/g, '')
+        .trim(),
+    ).toBe('');
+  });
+
   it('the editor page takes the tokens and the base only (no Tailwind, no components)', () => {
     const viewer = CSS.find(([file]) => file === './viewer/viewer.css')![1];
     expect([...viewer.matchAll(/@import '([^']+)';/g)].map(m => m[1])).toEqual(['@workspace/dna/theme.css']);
@@ -99,12 +139,20 @@ describe('the extension’s styling keeps the @workspace/dna contract', () => {
 
 describe('every cn-* and kit-* class written here has a rule in @workspace/dna', () => {
   const defined = new Set(
-    [dnaStyle, dnaUi].flatMap(css =>
+    [dnaStyle, dnaUi, dnaMenu].flatMap(css =>
       [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/\.((?:cn|kit)-[\w-]+)/g)].map(m => m[1]!),
     ),
   );
   it.each(TSX)('%s', (_file, source) => {
     const used = classesOf(source).filter(c => /^(?:cn|kit)-/.test(c));
+    expect(used.filter(c => !defined.has(c))).toEqual([]);
+  });
+
+  // A page that builds its rows from a <template> (the toolbar menu) writes its classes in the HTML.
+  it.each(HTML)('%s', (_file, html) => {
+    const used = [...html.matchAll(/\sclass="([^"]*)"/g)]
+      .flatMap(m => m[1]!.split(/\s+/))
+      .filter(c => /^(?:cn|kit)-/.test(c));
     expect(used.filter(c => !defined.has(c))).toEqual([]);
   });
 });

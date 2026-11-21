@@ -4,7 +4,7 @@
  * the `nativeMessaging` permission and has no code that uses it.
  */
 import { routeHash } from '../route';
-import { Card, CardContent, CardHeader, CardTitle } from '@src/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/card';
 import type { ReactElement } from 'react';
 
 export const LiveReviewPage = (): ReactElement => (

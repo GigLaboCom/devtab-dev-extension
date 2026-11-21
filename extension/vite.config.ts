@@ -1,5 +1,7 @@
 import manifest from './manifest.config';
 import product from './product.json';
+import { toolbarButton } from './src/toolbar';
+import { pagesOf } from './src/toolbar/button';
 import { crx } from '@crxjs/vite-plugin';
 import { IS_DEV, IS_PROD } from '@extension/env';
 import { watchPublicPlugin, watchRebuildPlugin } from '@extension/hmr';
@@ -29,7 +31,7 @@ const crxWatchRebuildFix = (): Plugin => ({
   },
 });
 
-/** `%PRODUCT_NAME%` in the pages' <title> → the working name from product.json (the one place it lives). */
+/** `%PRODUCT_NAME%` in the pages' <title> → the product's name from product.json (the one place it lives). */
 const productName = (): Plugin => ({
   name: 'extension:product-name',
   transformIndexHtml: html => html.replaceAll('%PRODUCT_NAME%', product.name),
@@ -76,6 +78,8 @@ export default defineConfig({
       '@src': resolve(__dirname, 'src'),
       ...CSP_ALIASES,
     },
+    // The UI kit and the tools' packages bring React as a peer: one copy on the page, whichever package asks.
+    dedupe: ['react', 'react-dom'],
   },
   publicDir,
   plugins: [
@@ -103,11 +107,15 @@ export default defineConfig({
   build: {
     outDir,
     emptyOutDir: true,
-    // The two pages are not manifest entries: the main page opens in a tab, the editor page in its iframe.
+    // The main page (a tab: the New Tab page and the options) and the editor page (its iframe), plus the pages the chosen
+    // toolbar button needs (src/toolbar/index.ts): the menu's popup page, or none — then nothing of it is built.
     rollupOptions: {
       input: {
         app: resolve(__dirname, 'src/app/index.html'),
         viewer: resolve(__dirname, 'src/viewer/index.html'),
+        ...Object.fromEntries(
+          Object.entries(pagesOf(toolbarButton)).map(([name, page]) => [name, resolve(__dirname, page)]),
+        ),
       },
     },
     // The editor module is ~20 MB of wasm: a file of its own (`?url`), never inlined.

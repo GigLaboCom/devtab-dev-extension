@@ -1,59 +1,98 @@
 /**
- * The main page's shell: the three parts of the extension in a side navigation, the theme picker, and the current
- * part. The frame is @workspace/dna/ui.css (`kit-*`); each part is its own module under sections/, built from the
- * shadcn/ui components in src/components/ui; the tools come from tools/registry.ts.
+ * The main page — also the browser's New Tab page when the build overrides it (src/newTab), and the options page. On the
+ * start route it is the start page alone (the field and the tiles, sections/StartPage.tsx), in the first chunk; every
+ * other route is the shell (the side navigation, the theme picker and the current part, Shell.tsx), loaded on first use
+ * so a new tab never waits for it — or, when the address asks for it (`?bare`: the options page in Chrome's dialog), the
+ * part without the shell. The frame is @workspace/dna/ui.css (`kit-*`); the start page's seams come from
+ * src/start/behaviors.ts.
  */
-import { routeHash, useRoute } from './route';
-import { ComparePage } from './sections/ComparePage';
-import { LiveReviewPage } from './sections/LiveReviewPage';
-import { ToolsPage } from './sections/ToolsPage';
-import { ThemePicker } from './ThemePicker';
+import { addressLeavingOptions, isBare, isNewTabLoad, routeHash, useRoute } from './route';
+import { StartPage } from './sections/StartPage';
+import { useHeldPermissions, useLateNewTabChoice, useRecordVisit, useStartState } from './useStart';
 import { useTheme } from './useTheme';
 import product from '../../product.json';
-import { Columns2Icon, GitPullRequestIcon, WrenchIcon } from 'lucide-react';
-import type { SectionId } from './route';
+import { isNewTabPage } from '@src/newTab/override';
+import { optionalPermissionNames } from '@src/start/part';
+import { toolById } from '@src/tools/registry';
+import { lazy, Suspense, useLayoutEffect } from 'react';
+import type { Route } from './route';
+import type { PermissionsApi } from './useStart';
 import type { ThemeDeps } from './useTheme';
-import type { LucideIcon } from 'lucide-react';
+import type { HistoryHost } from '@src/history/behaviors';
+import type { StartBehaviors } from '@src/start/behaviors';
+import type { StartStoreDeps } from '@src/start/store';
 import type { ReactElement } from 'react';
 
-const SECTIONS: Array<{ id: SectionId; label: string; icon: LucideIcon }> = [
-  { id: 'compare', label: 'Compare code', icon: Columns2Icon },
-  { id: 'tools', label: 'Tools', icon: WrenchIcon },
-  { id: 'review', label: 'Live review', icon: GitPullRequestIcon },
-];
+const Shell = lazy(() => import('./Shell'));
+const Bare = lazy(() => import('./Shell').then(m => ({ default: m.Bare })));
 
-export const App = ({ theme }: { theme: ThemeDeps }): ReactElement => {
+let memoryHistory: Promise<HistoryHost> | undefined;
+/** The default when the page is given no history: one in memory, nothing kept (a test, a host without storage). */
+const inMemoryHistory = (): Promise<HistoryHost> =>
+  (memoryHistory ??= Promise.all([import('@src/history/behaviors'), import('@src/tools/registry')]).then(([m, r]) =>
+    m.memoryHistoryHost(r.TOOLS),
+  ));
+
+export interface AppDeps {
+  theme: ThemeDeps;
+  start: StartStoreDeps;
+  permissions: PermissionsApi;
+  behaviors: StartBehaviors;
+  /** The tool history (src/history/behaviors.ts), loaded with the shell; absent: an in-memory one. */
+  history?: () => Promise<HistoryHost>;
+}
+
+/**
+ * The tab's title: Chrome's own wording on a new tab (the start page at the address a new tab opens, where a new tab is
+ * ours), the part's name elsewhere — the start page opened by its address included.
+ */
+export const titleOf = (route: Route, newTab: boolean): string => {
+  if (route.section === 'start' && newTab) return 'New Tab';
+  const part =
+    route.section === 'tools'
+      ? (toolById(route.tool)?.title ?? 'Tools')
+      : {
+          start: 'Start page',
+          settings: 'Settings',
+          compare: 'Compare code',
+          review: 'Live review',
+          history: 'History',
+        }[route.section];
+  return `${part} — ${product.name}`;
+};
+
+export const App = ({ deps }: { deps: AppDeps }): ReactElement => {
   const route = useRoute();
-  const [pref, setPref] = useTheme(theme);
+  const hash = routeHash(route);
+  const [pref, setPref] = useTheme(deps.theme);
+  const start = useStartState(deps.start);
+  const held = useHeldPermissions(deps.permissions, optionalPermissionNames(deps.behaviors.parts));
+  useLateNewTabChoice(deps.start, deps.behaviors, start);
+  useRecordVisit(deps.start, hash, route);
+  // Before the first paint, so a tab opened on a route never shows the static "New Tab" of index.html.
+  useLayoutEffect(() => {
+    document.title = titleOf(route, isNewTabPage(deps.behaviors.newTab) && isNewTabLoad(window.location));
+    const left = addressLeavingOptions(window.location, route);
+    if (left) window.history.replaceState(window.history.state, '', left);
+  }, [route, deps.behaviors.newTab]);
 
+  if (route.section === 'start') return <StartPage state={start.state} held={held} parts={deps.behaviors.parts} />;
+  const Frame = isBare(window.location.search) ? Bare : Shell;
   return (
-    <div className="kit-shell">
-      <aside className="kit-sidebar">
-        <div className="kit-sidebar-brand">{product.name}</div>
-        <nav aria-label="Sections">
-          <ul className="kit-nav">
-            {SECTIONS.map(({ id, label, icon: SectionIcon }) => (
-              <li key={id}>
-                <a
-                  className="kit-nav-item"
-                  href={routeHash({ section: id })}
-                  aria-current={route.section === id ? 'page' : undefined}>
-                  <SectionIcon aria-hidden="true" />
-                  <span>{label}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        <div className="kit-sidebar-foot">
-          <ThemePicker pref={pref} onChange={setPref} />
-        </div>
-      </aside>
-      <main className="kit-main">
-        {route.section === 'compare' && <ComparePage />}
-        {route.section === 'tools' && <ToolsPage toolId={route.tool} />}
-        {route.section === 'review' && <LiveReviewPage />}
-      </main>
-    </div>
+    <Suspense fallback={null}>
+      <Frame
+        route={route}
+        history={deps.history ?? inMemoryHistory}
+        theme={{ pref, onChange: setPref }}
+        settings={{
+          state: start.state,
+          held,
+          parts: deps.behaviors.parts,
+          store: deps.start,
+          permissions: deps.permissions,
+          newTab: deps.behaviors.newTab,
+        }}
+      />
+    </Suspense>
   );
 };

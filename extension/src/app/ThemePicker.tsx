@@ -7,9 +7,9 @@
  * list shows each theme's colours without a single colour in the code.
  */
 import { themesOf } from '@extension/theme';
-import { Label } from '@src/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@src/components/ui/select';
-import { ToggleGroup, ToggleGroupItem } from '@src/components/ui/toggle-group';
+import { Label } from '@workspace/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
+import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { MonitorIcon, MoonIcon, SunIcon } from 'lucide-react';
 import type { ThemeMode, ThemePref } from '@extension/theme';
 import type { LucideIcon } from 'lucide-react';
