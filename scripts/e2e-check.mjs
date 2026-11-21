@@ -29,6 +29,10 @@
 //      own callbacks; the editor page answers a request sent before its module has loaded;
 //   3. «Tools»: every tool's own checks (scripts/e2e-tools/<id>.mjs, run by scripts/e2e-tools.mjs — a new tool adds a
 //      file there, nothing here); then the JSON tool's controls measured against gpui-kit;
+//   3b. the shell (scripts/e2e-shell.mjs): the tools nested under Tools in the sidebar, the toolbar and the palette (by
+//      click and by ⌘K / Ctrl+K, «Compare code» with the editor focused included, keyboard only, focus back), the start
+//      page's field taking the same shortcut, the editor's height under the toolbar, the theme following the system
+//      when none is chosen (CDP emulates the scheme), the user's shortcuts set in Settings;
 //   4. «Live review»: the companion notice;
 //   5. the default dark theme repaints the page and the editor; every part again;
 //   6. a theme that is not a default (Tokyo Night) chosen from the theme list reaches the page AND the editor (the
@@ -40,7 +44,10 @@
 // Screenshots of each step go to --shots=<dir> (docs/screenshots/extension-dna/ for the record).
 //
 // Usage:
-//   pnpm test:e2e [-- <dist>] [--shots=<dir>] [--json=<file>]
+//   pnpm test:e2e [-- <dist>] [--shots=<dir>] [--json=<file>] [--only=<step or tool>,…]
+//   --only  run only these after the extension has loaded: a tool's id (its module of scripts/e2e-tools/, e.g.
+//           `--only=jwt`), or a step — start, own-page, toolbar, compare (2–2c), tools (3: every tool and the JSON
+//           controls), shell, themes (4–6), history. The console-error check runs over what ran.
 // Needs a build (pnpm build) and Playwright with Chrome for Testing: `pnpm e2e:setup` puts both under .state/
 // (Playwright is NOT a workspace dependency, as in the second sibling extension). Elsewhere: PLAYWRIGHT_DIR=<a
 // directory with node_modules/playwright>, PLAYWRIGHT_BROWSERS_PATH=<its browsers>.
@@ -53,8 +60,10 @@ import { dropFiles, fixtures, pointOn, runCompareChecks } from './e2e-compare.mj
 import { runOwnPageChecks } from './e2e-own-page.mjs';
 import { runHistoryChecks } from './e2e-history.mjs';
 import { runStartChecks } from './e2e-start.mjs';
-import { runToolChecks } from './e2e-tools.mjs';
+import { runToolChecks, toolCheckModules } from './e2e-tools.mjs';
 import { runToolbarChecks } from './e2e-toolbar.mjs';
+import { themeFromList, themeMode, withSettings } from './e2e-theme.mjs';
+import { runShellChecks } from './e2e-shell.mjs';
 
 /* global document, window, addEventListener, chrome, createImageBitmap, OffscreenCanvas, getComputedStyle, location -- page.evaluate callbacks run in the pages */
 
@@ -63,6 +72,12 @@ const argv = process.argv.slice(2).filter(a => a !== '--');
 const flag = name => argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 const DIST = resolve(argv.find(a => !a.startsWith('--')) ?? join(ROOT, 'dist'));
 const SHOTS = flag('shots') ? resolve(flag('shots')) : null;
+const ONLY = flag('only')
+  ?.split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+/** Does this run include the step (all of them without --only)? */
+const want = step => !ONLY || ONLY.includes(step);
 const JSON_OUT = resolve(flag('json') ?? join(ROOT, '.state/e2e/report.json'));
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= join(ROOT, '.state/extension-e2e/browsers');
 
@@ -360,11 +375,11 @@ try {
   );
 
   // 1b. The New Tab page.
-  await runStartChecks({ ctx, sw, id, dist: DIST, check, shoot, report, sleep });
+  if (want('start')) await runStartChecks({ ctx, sw, id, dist: DIST, check, shoot, report, sleep });
   // 1b'. Our page by its address, the options page.
-  await runOwnPageChecks({ ctx, sw, id, dist: DIST, check, shoot, report, sleep });
+  if (want('own-page')) await runOwnPageChecks({ ctx, sw, id, dist: DIST, check, shoot, report, sleep });
   // 1c. The toolbar button.
-  await runToolbarChecks({ ctx, sw, id, dist: DIST, check, shoot, report, sleep });
+  if (want('toolbar')) await runToolbarChecks({ ctx, sw, id, dist: DIST, check, shoot, report, sleep });
 
   const page = await ctx.newPage();
   page.on('console', m => {
@@ -399,609 +414,626 @@ try {
     await page.getByRole('button', { name: 'Format' }).click();
   };
   const reviewReady = () => page.getByRole('heading', { name: 'Companion app required' }).waitFor({ timeout: 5_000 });
-  const pickFromList = async (label, option) => {
-    await page.getByLabel(label, { exact: true }).click();
-    await page.getByRole('option', { name: option, exact: true }).click();
-    await page.getByRole('listbox').waitFor({ state: 'detached', timeout: 5_000 });
-  };
 
-  // 2. Compare code — the default light theme.
-  await page.goto(`${base}#/compare`);
-  await page.waitForFunction(
-    () => document.querySelector('.kit-compare-counts')?.getAttribute('data-shown-path') === 'after.rs',
-    null,
-    { timeout: 45_000 },
-  );
-  await editorReady();
-  check('the editor starts and shows the opening example', true, await countsOf());
-  check(
-    'the page starts in the default light theme',
-    (await page.evaluate(() => document.documentElement.dataset.theme)) === 'default-light',
-  );
-  await shoot(page, '01-compare-light.png');
-
-  const before = Number(await status.getAttribute('data-shown'));
-  const oldText = [
-    'def greet(name):',
-    '    """Say hello."""',
-    "    print('Hello, ' + name)",
-    '',
-    'def unused():',
-    '    return None',
-    '',
-    "greet('world')",
-    '',
-  ].join('\n');
-  const newText = [
-    'def greet(name: str) -> None:',
-    '    """Say hello."""',
-    "    print(f'Hello, {name}!')",
-    '',
-    "greet('world')",
-    "greet('reviewer')",
-    '',
-  ].join('\n');
-  // What crosses the iframe boundary, recorded on both sides: the editor page's inbox, the main page's answers.
-  const viewerFrame = page.frames().find(f => f.url().endsWith('/src/viewer/index.html'));
-  await viewerFrame.evaluate(() => {
-    globalThis.__inbox = [];
-    globalThis.addEventListener('message', e => globalThis.__inbox.push(e.data));
-  });
-  await page.evaluate(() => {
-    globalThis.__answers = [];
-    globalThis.addEventListener('message', e => globalThis.__answers.push(e.data));
-  });
-  /** Two texts as two files dropped over the editor: the first is the original. */
-  const compareThroughPage = async (before, after, name = 'probe.py') => {
-    const n = Number(await status.getAttribute('data-shown'));
-    const paths = [files.file(`two/old-${name}`, before), files.file(`two/${name}`, after)];
-    await dropFiles(page, paths, await pointOn(page, 'new'), sleep);
-    await page.waitForFunction(n => Number(document.querySelector('.kit-compare-counts')?.dataset.shown) > n, n, {
-      timeout: 30_000,
-    });
-    await sleep(400);
-    return countsOf();
-  };
-  const summary = await compareThroughPage(oldText, newText);
-
-  // The language list open: measured against gpui-kit's Select (docs/theming-specs/gpui-kit-form-controls.md §7).
-  // At rest first: an open list hides the rest of the page from the accessibility tree (Radix's aria-hidden).
-  const language = page.getByLabel('Language', { exact: true });
-  report.measure = {
-    theme: 'default-light',
-    tokens: await tokensOf(page, [
-      '--primary',
-      '--primary-foreground',
-      '--button',
-      '--button-foreground',
-      '--input',
-      '--input-background',
-      '--foreground',
-      '--popover',
-      '--accent',
-      '--muted-foreground',
-      '--radius-md',
-    ]),
-    buttonGhostIconSmall: await measureOf(page.locator('[data-side="old"] [data-action="open"]')),
-    selectTrigger: await measureOf(language),
-    selectChevron: await measureOf(language.locator('svg')),
-    navItemActive: await measureOf(page.locator('.kit-nav-item[aria-current="page"]')),
-    segmentActive: await measureOf(page.getByRole('radio', { name: 'System' })),
-  };
-  await language.click();
-  const listbox = page.getByRole('listbox');
-  await listbox.waitFor({ timeout: 5_000 });
-  await sleep(250); // the 150 ms entrance
-  await page.mouse.move(0, 0);
-  const content = page.locator('[data-slot="select-content"]');
-  report.measure.selectContent = await measureOf(content);
-  report.measure.selectViewport = await measureOf(content.locator('[data-radix-select-viewport]'));
-  report.measure.selectItemChecked = await measureOf(page.getByRole('option', { name: 'Rust', exact: true }));
-  report.measure.selectItem = await measureOf(page.getByRole('option', { name: 'Python', exact: true }));
-  await page.getByRole('option', { name: 'Python', exact: true }).hover();
-  await sleep(100);
-  report.measure.selectItemHover = await measureOf(page.getByRole('option', { name: 'Python', exact: true }));
-  await shoot(page, '02-compare-language-list.png');
-  await page.getByRole('option', { name: 'Python', exact: true }).click();
-  await listbox.waitFor({ state: 'detached', timeout: 5_000 });
-  check('the language comes from the shadcn Select', (await language.innerText()).trim() === 'Python');
-  check(
-    'two different texts are compared',
-    Number(await status.getAttribute('data-shown')) > before && /\d+ changes · \+\d+ −\d+ lines/.test(summary),
-    summary,
-  );
-  const [sent] = await viewerFrame.evaluate(() => globalThis.__inbox.filter(m => m?.type === 'viewer/compare'));
-  check(
-    'the page sends the two texts and no hunks',
-    sent?.request?.oldText === oldText &&
-      sent.request.newText === newText &&
-      sent.request.language === 'python' &&
-      !('hunks' in sent.request) &&
-      !('options' in sent.request),
-    JSON.stringify({ id: sent?.id, keys: Object.keys(sent?.request ?? {}) }),
-  );
-  const answer = (await page.evaluate(() => globalThis.__answers)).find(
-    m => m?.type === 'viewer/shown' && m.id === sent?.id,
-  )?.shown;
-  report.compareAnswer = answer;
-  check(
-    // Lines 2–6 of the old text become line 2 of the new one: one modification, not a modification and a deletion.
-    'the counts on the page are the module’s answer (Histogram: 3 changes, +3 −5)',
-    answer?.lineDiffer === 'histogram' &&
-      answer.changes === 3 &&
-      answer.added === 3 &&
-      answer.removed === 5 &&
-      summary === `${answer.changes} changes · +${answer.added} −${answer.removed} lines`,
-    JSON.stringify(answer),
-  );
-
-  // Requests the page itself never makes, sent to the editor page the way the page does: named variants as data.
-  let probeId = 1_000_000;
-  const probe = async (request, timeout = 20_000) => {
-    const id = ++probeId;
-    const started = await page.evaluate(
-      ({ id, request }) => {
-        globalThis.__answers = [];
-        const frame = document.querySelector('iframe.kit-compare-frame');
-        const started = performance.now();
-        frame.contentWindow.postMessage({ type: 'viewer/compare', id, request }, location.origin);
-        return started;
-      },
-      { id, request },
-    );
+  if (want('compare')) {
+    // 2. Compare code — the default light theme.
+    await page.goto(`${base}#/compare`);
     await page.waitForFunction(
-      id => globalThis.__answers.some(m => m?.id === id && (m.type === 'viewer/shown' || m.type === 'viewer/error')),
-      id,
-      { timeout },
+      () => document.querySelector('.kit-compare-counts')?.getAttribute('data-shown-path') === 'after.rs',
+      null,
+      { timeout: 45_000 },
     );
-    const answered = await page.evaluate(() => performance.now());
-    const message = (await page.evaluate(() => globalThis.__answers)).find(m => m?.id === id);
-    return { ...message, roundTripMs: +(answered - started).toFixed(1) };
-  };
-  const pythonRequest = { path: 'probe.py', language: 'python', oldText, newText };
-  const myers = await probe({ ...pythonRequest, options: { lineDiffer: 'myers' } });
-  check(
-    'a request can name a built-in differ (myers)',
-    myers.type === 'viewer/shown' && myers.shown.lineDiffer === 'myers' && myers.shown.changes === 3,
-    JSON.stringify(myers.shown ?? myers),
-  );
-  const shownBefore = await status.getAttribute('data-shown');
-  const unknown = await probe({ ...pythonRequest, options: { lineDiffer: 'nope' } });
-  check(
-    'an unknown differ name is an error reported to the page, not a fallback',
-    unknown.type === 'viewer/error' &&
-      unknown.message.includes('unknown lineDiffer "nope"; built in: histogram, myers') &&
-      !(await page.evaluate(() => globalThis.__answers)).some(m => m?.type === 'viewer/shown'),
-    unknown.message,
-  );
-  const typo = await probe({ ...pythonRequest, options: { lineDifer: 'myers' } });
-  check(
-    'an unknown option is refused too',
-    typo.type === 'viewer/error' && typo.message.includes('unknown field `lineDifer`'),
-    typo.message,
-  );
-  check(
-    'the page ignores answers to requests it did not make',
-    (await status.getAttribute('data-shown')) === shownBefore,
-  );
-
-  // The cost of the comparison on the editor page's thread: a 50 000-line pair, unique lines, in every thousand a
-  // modification, a deletion and an insertion (crates/review-view/examples/measure.rs times the same pair natively).
-  const [bigOld, bigNew] = await page.evaluate(lines => {
-    const base = i => `    let value_${i} = compute(${i}, "row ${i}");`;
-    const before = [];
-    const after = [];
-    for (let i = 0; i < lines; i++) {
-      before.push(base(i));
-      const k = i % 1000;
-      if (k === 100) after.push(`    let value_${i} = compute(${i}, "row ${i}") + 1;`);
-      else if (k === 400) continue;
-      else if (k === 700) after.push(base(i), `    log("inserted after ${i}");`);
-      else after.push(base(i));
-    }
-    return [before.join('\n') + '\n', after.join('\n') + '\n'];
-  }, 50_000);
-  report.browserTiming = { lines: 50_000, bytes: [bigOld.length, bigNew.length], runs: {} };
-  for (const lineDiffer of ['histogram', 'myers']) {
-    const runs = [];
-    for (let run = 0; run < 5; run++) {
-      const result = await probe({
-        path: 'large.rs',
-        language: 'text',
-        oldText: bigOld,
-        newText: bigNew,
-        options: { lineDiffer },
-      });
-      runs.push({
-        changes: result.shown?.changes,
-        compareMs: result.shown?.compareMs,
-        roundTripMs: result.roundTripMs,
-      });
-    }
-    report.browserTiming.runs[lineDiffer] = runs;
-  }
-  const median = values => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
-  const timing = Object.fromEntries(
-    Object.entries(report.browserTiming.runs).map(([name, runs]) => [
-      name,
-      {
-        compareMs: +median(runs.map(r => r.compareMs)).toFixed(1),
-        roundTripMs: median(runs.map(r => r.roundTripMs)),
-      },
-    ]),
-  );
-  report.browserTiming.median = timing;
-  check(
-    'a 50 000-line pair is compared in the browser (150 changes)',
-    Object.values(report.browserTiming.runs).every(runs => runs.every(r => r.changes === 150)),
-    Object.entries(timing)
-      .map(([name, t]) => `${name}: compare ${t.compareMs} ms, request to answer ${t.roundTripMs} ms`)
-      .join('; '),
-  );
-  // The same pair through the page itself: two files dropped, the counts on the page.
-  const bigSummary = await compareThroughPage(bigOld, bigNew, 'large.txt');
-  check(
-    'the page shows the module’s counts for the large pair',
-    bigSummary === '150 changes · +100 −100 lines',
-    bigSummary,
-  );
-  // Scroll the editor to the first changes (rows 100–130): both sides move together, the rows stay level.
-  const box = await frameEl.boundingBox();
-  await page.mouse.move(box.x + box.width * 0.75, box.y + box.height / 2);
-  await page.mouse.wheel(0, 1980);
-  await sleep(600);
-  await shoot(page, '13-compare-50000-lines.png');
-  // The end of a long file. The view keeps both sides level with blank spacer rows; the editor once laid out the rows
-  // of its viewport as if those rows were not there, so at the end of a long file it drew too few lines, or none
-  // (docs/extension-structure.md §11.8). The large pair with its last line modified: that line's tint must stand at
-  // the bottom of both sides, on one row, however the side is scrolled to the end.
-  const scrollToEnd = async how => {
-    const frameBox = await frameEl.boundingBox();
-    const right = { x: frameBox.x + frameBox.width * 0.75, y: frameBox.y + frameBox.height / 2 };
-    if (how === 'wheel') {
-      await page.mouse.move(right.x, right.y);
-      for (let i = 0; i < 30; i++) await page.mouse.wheel(0, 100_000);
-    } else if (how === 'top') {
-      await page.mouse.move(right.x, right.y);
-      for (let i = 0; i < 30; i++) await page.mouse.wheel(0, -100_000);
-    } else if (how === 'drag') {
-      // The thumb of the new side's scroll bar, at the top of the track at the frame's right edge. A turn of the wheel
-      // shows the bar; the frame's pixels tell where the thumb is. Then the thumb is dragged past the track's end.
-      await page.mouse.move(right.x, right.y);
-      await page.mouse.wheel(0, 200);
-      await sleep(150);
-      const found = (await paneEnds(await frameEl.screenshot())).thumb;
-      report.endOfFile.dragThumb = found;
-      const thumb = found
-        ? { x: frameBox.x + found.x, y: frameBox.y + found.y }
-        : { x: frameBox.x + frameBox.width - 8, y: frameBox.y + 20 };
-      await page.mouse.move(thumb.x, thumb.y, { steps: 3 });
-      await page.mouse.down();
-      await page.mouse.move(thumb.x, frameBox.y + frameBox.height + 40, { steps: 20 });
-      await page.mouse.up();
-    } else {
-      // The editor in wasm takes the bindings of a platform other than macOS.
-      await page.mouse.click(right.x, right.y);
-      await page.keyboard.press('Control+End');
-    }
-    await sleep(700);
-  };
-  const endPair = [bigOld, bigNew.replace(/\);\n$/, ') + 1;\n')];
-  report.endOfFile = {};
-  for (const how of ['wheel', 'drag', 'keys']) {
-    const shown = await probe({ path: 'large-end.rs', language: 'text', oldText: endPair[0], newText: endPair[1] });
-    await sleep(400);
-    // A new comparison keeps the offset the editors had; each way starts from the top.
-    const thumbAtShow = (await paneEnds(await frameEl.screenshot())).thumb;
-    await scrollToEnd('top');
-    await scrollToEnd(how);
-    const ends = await paneEnds(await frameEl.screenshot());
-    report.endOfFile[how] = { ...ends, thumbAtShow };
-    await shoot(page, `15-end-of-large-pair-${how}.png`);
+    await editorReady();
+    check('the editor starts and shows the opening example', true, await countsOf());
     check(
-      `scrolled to the end by ${how}, the last line of the 50 000-line pair is drawn on both sides, level`,
-      shown.shown?.changes === 151 &&
-        ends.old.blue !== null &&
-        ends.new.blue !== null &&
-        Math.abs(ends.old.blue - ends.new.blue) <= 1,
-      `the last line's tint ends at y=${ends.old.blue} (old) and y=${ends.new.blue} (new) of ${ends.height}; ` +
-        `text ends at y=${ends.old.ink} and y=${ends.new.ink}`,
+      'the page starts in the default light theme',
+      (await page.evaluate(() => document.documentElement.dataset.theme)) === 'default-light',
     );
-  }
-  // The cases next to it, each scrolled to the end by the wheel: spacer rows at the very start, a file that ends with
-  // a spacer block (no newline at the end), a file shorter than the editor, no spacer rows at all, a pure insertion
-  // and a pure deletion at the end, and 60 deleted lines 40 lines before the end (crates/review-view/examples/window.rs
-  // has the same pairs). Neither side may be blank at the end.
-  const numbered = (from, to) =>
-    Array.from({ length: to - from }, (_, k) => `    let value_${from + k} = compute(${from + k}, "row ${from + k}");`);
-  const lines = list => list.join('\n') + '\n';
-  const added = n => Array.from({ length: n }, (_, k) => `    // added ${k}`);
-  const shortNew = numbered(0, 10);
-  shortNew.splice(3, 1);
-  shortNew.splice(6, 0, ...added(3));
-  const endCases = {
-    'delete-near-end': [lines(numbered(0, 50_000)), lines([...numbered(0, 49_900), ...numbered(49_960, 50_000)])],
-    'delete-end': [lines(numbered(0, 50_000)), lines(numbered(0, 49_940))],
-    'insert-end': [lines(numbered(0, 49_940)), lines(numbered(0, 50_000))],
-    start: [lines(numbered(0, 2_000)), lines([...added(60), ...numbered(0, 2_000)])],
-    'end-block': [numbered(0, 2_000).join('\n'), numbered(0, 2_060).join('\n')],
-    short: [lines(numbered(0, 10)), lines(shortNew)],
-    'no-spacers': [
-      lines(numbered(0, 2_000)),
-      lines(numbered(0, 2_000).map((l, i) => (i % 100 === 50 ? `${l} // changed` : l))),
-    ],
-  };
-  for (const [name, [before, after]] of Object.entries(endCases)) {
-    await probe({ path: `${name}.rs`, language: 'text', oldText: before, newText: after });
-    await sleep(400);
-    await scrollToEnd('wheel');
-    const ends = await paneEnds(await frameEl.screenshot());
-    report.endOfFile[name] = ends;
-    await shoot(page, `16-end-${name}.png`);
-    // Text, or a band of spacer or changed rows; a stray line of a border is neither.
-    const drawn = side => side.ink !== null || side.filled > 4;
-    check(
-      `the end of ${name}.rs is drawn on both sides`,
-      drawn(ends.old) && drawn(ends.new),
-      `old: text to y=${ends.old.ink}, ${ends.old.filled} filled rows; new: text to y=${ends.new.ink}, ` +
-        `${ends.new.filled} filled rows`,
-    );
-  }
-  // Back to the two texts, for the screenshot of them.
-  await compareThroughPage(oldText, newText);
-  const light = await pixelStats(await frameEl.screenshot());
-  report.compareLight = light;
-  check(
-    'the editor shows a coloured diff (added green, removed red)',
-    // The editor has the whole section now (no fields above it): the same diff covers a smaller share of the frame.
-    light.greenishPct > 0.5 && light.reddishPct > 0.1,
-    JSON.stringify(light),
-  );
-  await shoot(page, '03-compare-two-texts.png');
+    await shoot(page, '01-compare-light.png');
 
-  // 2b. A request that arrives before the editor's first frame. The module first, called as early as a page can call
-  // it: on a page of its own (the module files served by route, never fetched from the network).
-  const earlyRequest = { path: 'early.py', language: 'python', oldText, newText };
-  const moduleRun = async (body, shot) => {
-    const modulePage = await ctx.newPage();
-    const messages = [];
-    modulePage.on('console', m => messages.push(`${m.type()}: ${m.text()}`));
-    modulePage.on('pageerror', e => messages.push(`pageerror: ${e}`));
-    await modulePage.goto(`${MODULE_ORIGIN}/`);
-    try {
-      const result = await modulePage.evaluate(body, earlyRequest);
-      await sleep(600);
-      const pixels = shot ? await pixelStats(await modulePage.screenshot()) : null;
-      if (shot) await shoot(modulePage, shot);
-      return { ...result, pixels, panics: messages.filter(m => /panicked|RuntimeError|unreachable/.test(m)) };
-    } finally {
-      await modulePage.close();
-    }
-  };
-  // Before init, after init, right after run(), then every task until the module takes the request.
-  const polled = await moduleRun(async request => {
-    const events = [];
-    globalThis.__reviewEvent = (name, detail) => events.push({ name, detail, at: performance.now() });
-    const m = await import('/review_wasm.js');
-    const attempt = () => {
-      try {
-        m.compare_texts(JSON.stringify(request));
-        return null;
-      } catch (error) {
-        return String(error);
-      }
-    };
-    const beforeInit = attempt();
-    await m.default({ module_or_path: '/review_wasm_bg.wasm' });
-    const beforeRun = attempt();
-    m.run(JSON.stringify({}));
-    const afterRun = attempt();
-    const tick = () =>
-      new Promise(resolve => {
-        const channel = new MessageChannel();
-        channel.port1.onmessage = () => resolve();
-        channel.port2.postMessage(0);
-      });
-    let refused = 0;
-    let lastRefusal = null;
-    for (let i = 0; i < 20_000; i++) {
-      await tick();
-      const error = attempt();
-      if (!error) break;
-      refused++;
-      lastRefusal = error;
-    }
-    const acceptedAt = performance.now();
-    const firstFrameBefore = events.some(e => e.name === 'first-frame');
-    while (!events.some(e => e.name === 'first-frame') && performance.now() - acceptedAt < 10_000) await tick();
-    return {
-      beforeInit,
-      beforeRun,
-      afterRun,
-      refused,
-      lastRefusal,
-      acceptedBeforeFirstFrame: !firstFrameBefore,
-      events: events.map(e => ({ name: e.name, detail: e.detail })),
-    };
-  }, '14-module-request-before-first-frame.png');
-  report.earlyModule = polled;
-  const polledShown = polled.events.find(e => e.name === 'shown');
-  check(
-    'the module refuses a request before run() with an error, never a panic',
-    /__wbindgen|undefined/.test(polled.beforeInit ?? '') &&
-      polled.beforeRun === 'compare_texts: the window is not open yet' &&
-      polled.afterRun === 'compare_texts: the window is not open yet' &&
-      polled.panics.length === 0,
-    JSON.stringify({ beforeInit: polled.beforeInit, beforeRun: polled.beforeRun, afterRun: polled.afterRun }),
-  );
-  check(
-    'a request the module takes before its first frame is shown in that frame',
-    polled.acceptedBeforeFirstFrame &&
-      JSON.parse(polledShown?.detail ?? '{}').changes === 3 &&
-      polled.events.map(e => e.name).join(',') === 'shown,first-frame' &&
-      polled.pixels.greenishPct > 0.5,
-    `refused ${polled.refused}× while the window opened; then ${polled.events.map(e => e.name).join(' → ')}; ` +
-      JSON.stringify(polled.pixels),
-  );
-  // From inside the module's own callbacks: `first-frame` and `shown` reach the page after the module's call returns,
-  // so the page may answer synchronously with another export.
-  const nested = await moduleRun(async request => {
-    const events = [];
-    const results = [];
-    const m = await import('/review_wasm.js');
-    globalThis.__reviewEvent = (name, detail) => {
-      events.push(name === 'shown' ? `shown ${JSON.parse(detail).path}` : name);
-      const next =
-        name === 'first-frame' ? 'from-first-frame.py' : detail.includes('from-first-frame') ? 'from-shown.py' : null;
-      if (!next) return;
-      try {
-        m.compare_texts(JSON.stringify({ ...request, path: next }));
-        results.push(`${next}: ok`);
-      } catch (error) {
-        results.push(`${next}: ${error}`);
-      }
-    };
-    await m.default({ module_or_path: '/review_wasm_bg.wasm' });
-    m.run(JSON.stringify({}));
-    const started = performance.now();
-    while (!events.includes('shown from-shown.py') && performance.now() - started < 10_000)
-      await new Promise(resolve => setTimeout(resolve, 20));
-    return { events, results };
-  });
-  report.earlyNested = nested;
-  check(
-    'the page may call the module from inside its first-frame and shown callbacks',
-    nested.events.join(',') === 'first-frame,shown from-first-frame.py,shown from-shown.py' &&
-      [...nested.results].sort().join(',') === 'from-first-frame.py: ok,from-shown.py: ok' &&
-      nested.panics.length === 0,
-    `${nested.events.join(' → ')}; ${nested.results.join(', ')}${nested.panics.length ? `; ${nested.panics[0]}` : ''}`,
-  );
-
-  // Then the editor page of the extension, asked before its module has even loaded: the main page posts the request
-  // the moment the editor page's script has run (its DOMContentLoaded, seen from inside the frame), long before the
-  // first frame and `viewer/ready`. A message posted before any script of the page runs has no listener to reach.
-  const earlyPage = await ctx.newPage();
-  earlyPage.on('pageerror', e => report.console.push({ type: 'pageerror', text: String(e) }));
-  await earlyPage.addInitScript(request => {
-    if (window === window.top) {
+    const before = Number(await status.getAttribute('data-shown'));
+    const oldText = [
+      'def greet(name):',
+      '    """Say hello."""',
+      "    print('Hello, ' + name)",
+      '',
+      'def unused():',
+      '    return None',
+      '',
+      "greet('world')",
+      '',
+    ].join('\n');
+    const newText = [
+      'def greet(name: str) -> None:',
+      '    """Say hello."""',
+      "    print(f'Hello, {name}!')",
+      '',
+      "greet('world')",
+      "greet('reviewer')",
+      '',
+    ].join('\n');
+    // What crosses the iframe boundary, recorded on both sides: the editor page's inbox, the main page's answers.
+    const viewerFrame = page.frames().find(f => f.url().endsWith('/src/viewer/index.html'));
+    await viewerFrame.evaluate(() => {
+      globalThis.__inbox = [];
+      globalThis.addEventListener('message', e => globalThis.__inbox.push(e.data));
+    });
+    await page.evaluate(() => {
       globalThis.__answers = [];
-      addEventListener('message', e => globalThis.__answers.push({ ...e.data, at: performance.now() }));
-      // Called from the frame; runs in this (the parent's) realm, so the message's source is the parent window.
-      globalThis.__postEarly = () => {
-        const target = document.querySelector('iframe.kit-compare-frame').contentWindow;
-        globalThis.__earlySent = { at: performance.now(), readyState: target.document.readyState };
-        target.postMessage({ type: 'viewer/compare', id: 777, request }, location.origin);
-      };
-    } else if (location.pathname.endsWith('/src/viewer/index.html')) {
-      addEventListener('DOMContentLoaded', () => window.parent.__postEarly(), { once: true });
-    }
-  }, earlyRequest);
-  await earlyPage.goto(`${base}#/compare`);
-  const early = await earlyPage
-    .waitForFunction(() => globalThis.__answers.some(m => m.id === 777), null, { timeout: 30_000 })
-    .then(() => earlyPage.evaluate(() => ({ sent: globalThis.__earlySent, answers: globalThis.__answers })))
-    .catch(async () => ({
-      timedOut: true,
-      ...(await earlyPage.evaluate(() => ({ sent: globalThis.__earlySent, answers: globalThis.__answers }))),
-    }));
-  await earlyPage.close();
-  const earlyAnswer = early.answers?.find(m => m.id === 777);
-  const readyAt = early.answers?.find(m => m.type === 'viewer/ready')?.at;
-  report.earlyPage = { sent: early.sent, answer: earlyAnswer, readyAt, timedOut: !!early.timedOut };
-  check(
-    'the editor page answers a request sent before its module loaded',
-    !early.timedOut &&
-      early.sent?.at < readyAt &&
-      earlyAnswer?.type === 'viewer/shown' &&
-      earlyAnswer.shown.path === 'early.py' &&
-      earlyAnswer.shown.changes === 3,
-    early.timedOut
-      ? `no answer in 30 s (sent at ${early.sent?.at?.toFixed(0)} ms, page ${early.sent?.readyState}; ` +
-          `viewer/ready at ${readyAt?.toFixed(0)} ms)`
-      : `sent at ${early.sent.at.toFixed(0)} ms (${early.sent.readyState}), viewer/ready at ${readyAt.toFixed(0)} ms, ` +
-          `answered at ${earlyAnswer?.at.toFixed(0)} ms: ${JSON.stringify(earlyAnswer?.shown ?? earlyAnswer)}`,
-  );
+      globalThis.addEventListener('message', e => globalThis.__answers.push(e.data));
+    });
+    /** Two texts as two files dropped over the editor: the first is the original. */
+    const compareThroughPage = async (before, after, name = 'probe.py') => {
+      const n = Number(await status.getAttribute('data-shown'));
+      const paths = [files.file(`two/old-${name}`, before), files.file(`two/${name}`, after)];
+      await dropFiles(page, paths, await pointOn(page, 'new'), sleep);
+      await page.waitForFunction(n => Number(document.querySelector('.kit-compare-counts')?.dataset.shown) > n, n, {
+        timeout: 30_000,
+      });
+      await sleep(400);
+      return countsOf();
+    };
+    const summary = await compareThroughPage(oldText, newText);
 
-  // 2c. «Compare code»: drops, the toolbar, edit mode, saving, the examples, the keyboard.
-  await runCompareChecks({ ctx, id, check, shoot, report, sleep });
+    // The language list open: measured against gpui-kit's Select (docs/theming-specs/gpui-kit-form-controls.md §7).
+    // At rest first: an open list hides the rest of the page from the accessibility tree (Radix's aria-hidden).
+    const language = page.getByLabel('Language', { exact: true });
+    report.measure = {
+      theme: 'default-light',
+      tokens: await tokensOf(page, [
+        '--primary',
+        '--primary-foreground',
+        '--button',
+        '--button-foreground',
+        '--input',
+        '--input-background',
+        '--foreground',
+        '--popover',
+        '--accent',
+        '--muted-foreground',
+        '--radius-md',
+      ]),
+      buttonGhostIconSmall: await measureOf(page.locator('[data-side="old"] [data-action="open"]')),
+      selectTrigger: await measureOf(language),
+      selectChevron: await measureOf(language.locator('svg')),
+      navItemActive: await measureOf(page.locator('.kit-nav-item[aria-current="page"]')),
+      // The theme's mode bar lives in Settings → Appearance (no picker in the sidebar).
+      segmentActive: await withSettings(ctx, base, settings =>
+        measureOf(settings.getByRole('radio', { name: 'System' })),
+      ),
+    };
+    await language.click();
+    const listbox = page.getByRole('listbox');
+    await listbox.waitFor({ timeout: 5_000 });
+    await sleep(250); // the 150 ms entrance
+    await page.mouse.move(0, 0);
+    const content = page.locator('[data-slot="select-content"]');
+    report.measure.selectContent = await measureOf(content);
+    report.measure.selectViewport = await measureOf(content.locator('[data-radix-select-viewport]'));
+    report.measure.selectItemChecked = await measureOf(page.getByRole('option', { name: 'Rust', exact: true }));
+    report.measure.selectItem = await measureOf(page.getByRole('option', { name: 'Python', exact: true }));
+    await page.getByRole('option', { name: 'Python', exact: true }).hover();
+    await sleep(100);
+    report.measure.selectItemHover = await measureOf(page.getByRole('option', { name: 'Python', exact: true }));
+    await shoot(page, '02-compare-language-list.png');
+    await page.getByRole('option', { name: 'Python', exact: true }).click();
+    await listbox.waitFor({ state: 'detached', timeout: 5_000 });
+    check('the language comes from the shadcn Select', (await language.innerText()).trim() === 'Python');
+    check(
+      'two different texts are compared',
+      Number(await status.getAttribute('data-shown')) > before && /\d+ changes · \+\d+ −\d+ lines/.test(summary),
+      summary,
+    );
+    const [sent] = await viewerFrame.evaluate(() => globalThis.__inbox.filter(m => m?.type === 'viewer/compare'));
+    check(
+      'the page sends the two texts and no hunks',
+      sent?.request?.oldText === oldText &&
+        sent.request.newText === newText &&
+        sent.request.language === 'python' &&
+        !('hunks' in sent.request) &&
+        !('options' in sent.request),
+      JSON.stringify({ id: sent?.id, keys: Object.keys(sent?.request ?? {}) }),
+    );
+    const answer = (await page.evaluate(() => globalThis.__answers)).find(
+      m => m?.type === 'viewer/shown' && m.id === sent?.id,
+    )?.shown;
+    report.compareAnswer = answer;
+    check(
+      // Lines 2–6 of the old text become line 2 of the new one: one modification, not a modification and a deletion.
+      'the counts on the page are the module’s answer (Histogram: 3 changes, +3 −5)',
+      answer?.lineDiffer === 'histogram' &&
+        answer.changes === 3 &&
+        answer.added === 3 &&
+        answer.removed === 5 &&
+        summary === `${answer.changes} changes · +${answer.added} −${answer.removed} lines`,
+      JSON.stringify(answer),
+    );
+
+    // Requests the page itself never makes, sent to the editor page the way the page does: named variants as data.
+    let probeId = 1_000_000;
+    const probe = async (request, timeout = 20_000) => {
+      const id = ++probeId;
+      const started = await page.evaluate(
+        ({ id, request }) => {
+          globalThis.__answers = [];
+          const frame = document.querySelector('iframe.kit-compare-frame');
+          const started = performance.now();
+          frame.contentWindow.postMessage({ type: 'viewer/compare', id, request }, location.origin);
+          return started;
+        },
+        { id, request },
+      );
+      await page.waitForFunction(
+        id => globalThis.__answers.some(m => m?.id === id && (m.type === 'viewer/shown' || m.type === 'viewer/error')),
+        id,
+        { timeout },
+      );
+      const answered = await page.evaluate(() => performance.now());
+      const message = (await page.evaluate(() => globalThis.__answers)).find(m => m?.id === id);
+      return { ...message, roundTripMs: +(answered - started).toFixed(1) };
+    };
+    const pythonRequest = { path: 'probe.py', language: 'python', oldText, newText };
+    const myers = await probe({ ...pythonRequest, options: { lineDiffer: 'myers' } });
+    check(
+      'a request can name a built-in differ (myers)',
+      myers.type === 'viewer/shown' && myers.shown.lineDiffer === 'myers' && myers.shown.changes === 3,
+      JSON.stringify(myers.shown ?? myers),
+    );
+    const shownBefore = await status.getAttribute('data-shown');
+    const unknown = await probe({ ...pythonRequest, options: { lineDiffer: 'nope' } });
+    check(
+      'an unknown differ name is an error reported to the page, not a fallback',
+      unknown.type === 'viewer/error' &&
+        unknown.message.includes('unknown lineDiffer "nope"; built in: histogram, myers') &&
+        !(await page.evaluate(() => globalThis.__answers)).some(m => m?.type === 'viewer/shown'),
+      unknown.message,
+    );
+    const typo = await probe({ ...pythonRequest, options: { lineDifer: 'myers' } });
+    check(
+      'an unknown option is refused too',
+      typo.type === 'viewer/error' && typo.message.includes('unknown field `lineDifer`'),
+      typo.message,
+    );
+    check(
+      'the page ignores answers to requests it did not make',
+      (await status.getAttribute('data-shown')) === shownBefore,
+    );
+
+    // The cost of the comparison on the editor page's thread: a 50 000-line pair, unique lines, in every thousand a
+    // modification, a deletion and an insertion (crates/review-view/examples/measure.rs times the same pair natively).
+    const [bigOld, bigNew] = await page.evaluate(lines => {
+      const base = i => `    let value_${i} = compute(${i}, "row ${i}");`;
+      const before = [];
+      const after = [];
+      for (let i = 0; i < lines; i++) {
+        before.push(base(i));
+        const k = i % 1000;
+        if (k === 100) after.push(`    let value_${i} = compute(${i}, "row ${i}") + 1;`);
+        else if (k === 400) continue;
+        else if (k === 700) after.push(base(i), `    log("inserted after ${i}");`);
+        else after.push(base(i));
+      }
+      return [before.join('\n') + '\n', after.join('\n') + '\n'];
+    }, 50_000);
+    report.browserTiming = { lines: 50_000, bytes: [bigOld.length, bigNew.length], runs: {} };
+    for (const lineDiffer of ['histogram', 'myers']) {
+      const runs = [];
+      for (let run = 0; run < 5; run++) {
+        const result = await probe({
+          path: 'large.rs',
+          language: 'text',
+          oldText: bigOld,
+          newText: bigNew,
+          options: { lineDiffer },
+        });
+        runs.push({
+          changes: result.shown?.changes,
+          compareMs: result.shown?.compareMs,
+          roundTripMs: result.roundTripMs,
+        });
+      }
+      report.browserTiming.runs[lineDiffer] = runs;
+    }
+    const median = values => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
+    const timing = Object.fromEntries(
+      Object.entries(report.browserTiming.runs).map(([name, runs]) => [
+        name,
+        {
+          compareMs: +median(runs.map(r => r.compareMs)).toFixed(1),
+          roundTripMs: median(runs.map(r => r.roundTripMs)),
+        },
+      ]),
+    );
+    report.browserTiming.median = timing;
+    check(
+      'a 50 000-line pair is compared in the browser (150 changes)',
+      Object.values(report.browserTiming.runs).every(runs => runs.every(r => r.changes === 150)),
+      Object.entries(timing)
+        .map(([name, t]) => `${name}: compare ${t.compareMs} ms, request to answer ${t.roundTripMs} ms`)
+        .join('; '),
+    );
+    // The same pair through the page itself: two files dropped, the counts on the page.
+    const bigSummary = await compareThroughPage(bigOld, bigNew, 'large.txt');
+    check(
+      'the page shows the module’s counts for the large pair',
+      bigSummary === '150 changes · +100 −100 lines',
+      bigSummary,
+    );
+    // Scroll the editor to the first changes (rows 100–130): both sides move together, the rows stay level.
+    const box = await frameEl.boundingBox();
+    await page.mouse.move(box.x + box.width * 0.75, box.y + box.height / 2);
+    await page.mouse.wheel(0, 1980);
+    await sleep(600);
+    await shoot(page, '13-compare-50000-lines.png');
+    // The end of a long file. The view keeps both sides level with blank spacer rows; the editor once laid out the rows
+    // of its viewport as if those rows were not there, so at the end of a long file it drew too few lines, or none
+    // (docs/extension-structure.md §11.8). The large pair with its last line modified: that line's tint must stand at
+    // the bottom of both sides, on one row, however the side is scrolled to the end.
+    const scrollToEnd = async how => {
+      const frameBox = await frameEl.boundingBox();
+      const right = { x: frameBox.x + frameBox.width * 0.75, y: frameBox.y + frameBox.height / 2 };
+      if (how === 'wheel') {
+        await page.mouse.move(right.x, right.y);
+        for (let i = 0; i < 30; i++) await page.mouse.wheel(0, 100_000);
+      } else if (how === 'top') {
+        await page.mouse.move(right.x, right.y);
+        for (let i = 0; i < 30; i++) await page.mouse.wheel(0, -100_000);
+      } else if (how === 'drag') {
+        // The thumb of the new side's scroll bar, at the top of the track at the frame's right edge. A turn of the wheel
+        // shows the bar; the frame's pixels tell where the thumb is. Then the thumb is dragged past the track's end.
+        await page.mouse.move(right.x, right.y);
+        await page.mouse.wheel(0, 200);
+        await sleep(150);
+        const found = (await paneEnds(await frameEl.screenshot())).thumb;
+        report.endOfFile.dragThumb = found;
+        const thumb = found
+          ? { x: frameBox.x + found.x, y: frameBox.y + found.y }
+          : { x: frameBox.x + frameBox.width - 8, y: frameBox.y + 20 };
+        await page.mouse.move(thumb.x, thumb.y, { steps: 3 });
+        await page.mouse.down();
+        await page.mouse.move(thumb.x, frameBox.y + frameBox.height + 40, { steps: 20 });
+        await page.mouse.up();
+      } else {
+        // The editor in wasm takes the bindings of a platform other than macOS.
+        await page.mouse.click(right.x, right.y);
+        await page.keyboard.press('Control+End');
+      }
+      await sleep(700);
+    };
+    const endPair = [bigOld, bigNew.replace(/\);\n$/, ') + 1;\n')];
+    report.endOfFile = {};
+    for (const how of ['wheel', 'drag', 'keys']) {
+      const shown = await probe({ path: 'large-end.rs', language: 'text', oldText: endPair[0], newText: endPair[1] });
+      await sleep(400);
+      // A new comparison keeps the offset the editors had; each way starts from the top.
+      const thumbAtShow = (await paneEnds(await frameEl.screenshot())).thumb;
+      await scrollToEnd('top');
+      await scrollToEnd(how);
+      const ends = await paneEnds(await frameEl.screenshot());
+      report.endOfFile[how] = { ...ends, thumbAtShow };
+      await shoot(page, `15-end-of-large-pair-${how}.png`);
+      check(
+        `scrolled to the end by ${how}, the last line of the 50 000-line pair is drawn on both sides, level`,
+        shown.shown?.changes === 151 &&
+          ends.old.blue !== null &&
+          ends.new.blue !== null &&
+          Math.abs(ends.old.blue - ends.new.blue) <= 1,
+        `the last line's tint ends at y=${ends.old.blue} (old) and y=${ends.new.blue} (new) of ${ends.height}; ` +
+          `text ends at y=${ends.old.ink} and y=${ends.new.ink}`,
+      );
+    }
+    // The cases next to it, each scrolled to the end by the wheel: spacer rows at the very start, a file that ends with
+    // a spacer block (no newline at the end), a file shorter than the editor, no spacer rows at all, a pure insertion
+    // and a pure deletion at the end, and 60 deleted lines 40 lines before the end (crates/review-view/examples/window.rs
+    // has the same pairs). Neither side may be blank at the end.
+    const numbered = (from, to) =>
+      Array.from(
+        { length: to - from },
+        (_, k) => `    let value_${from + k} = compute(${from + k}, "row ${from + k}");`,
+      );
+    const lines = list => list.join('\n') + '\n';
+    const added = n => Array.from({ length: n }, (_, k) => `    // added ${k}`);
+    const shortNew = numbered(0, 10);
+    shortNew.splice(3, 1);
+    shortNew.splice(6, 0, ...added(3));
+    const endCases = {
+      'delete-near-end': [lines(numbered(0, 50_000)), lines([...numbered(0, 49_900), ...numbered(49_960, 50_000)])],
+      'delete-end': [lines(numbered(0, 50_000)), lines(numbered(0, 49_940))],
+      'insert-end': [lines(numbered(0, 49_940)), lines(numbered(0, 50_000))],
+      start: [lines(numbered(0, 2_000)), lines([...added(60), ...numbered(0, 2_000)])],
+      'end-block': [numbered(0, 2_000).join('\n'), numbered(0, 2_060).join('\n')],
+      short: [lines(numbered(0, 10)), lines(shortNew)],
+      'no-spacers': [
+        lines(numbered(0, 2_000)),
+        lines(numbered(0, 2_000).map((l, i) => (i % 100 === 50 ? `${l} // changed` : l))),
+      ],
+    };
+    for (const [name, [before, after]] of Object.entries(endCases)) {
+      await probe({ path: `${name}.rs`, language: 'text', oldText: before, newText: after });
+      await sleep(400);
+      await scrollToEnd('wheel');
+      const ends = await paneEnds(await frameEl.screenshot());
+      report.endOfFile[name] = ends;
+      await shoot(page, `16-end-${name}.png`);
+      // Text, or a band of spacer or changed rows; a stray line of a border is neither.
+      const drawn = side => side.ink !== null || side.filled > 4;
+      check(
+        `the end of ${name}.rs is drawn on both sides`,
+        drawn(ends.old) && drawn(ends.new),
+        `old: text to y=${ends.old.ink}, ${ends.old.filled} filled rows; new: text to y=${ends.new.ink}, ` +
+          `${ends.new.filled} filled rows`,
+      );
+    }
+    // Back to the two texts, for the screenshot of them.
+    await compareThroughPage(oldText, newText);
+    const light = await pixelStats(await frameEl.screenshot());
+    report.compareLight = light;
+    check(
+      'the editor shows a coloured diff (added green, removed red)',
+      // The editor has the whole section now (no fields above it): the same diff covers a smaller share of the frame.
+      light.greenishPct > 0.5 && light.reddishPct > 0.1,
+      JSON.stringify(light),
+    );
+    await shoot(page, '03-compare-two-texts.png');
+
+    // 2b. A request that arrives before the editor's first frame. The module first, called as early as a page can call
+    // it: on a page of its own (the module files served by route, never fetched from the network).
+    const earlyRequest = { path: 'early.py', language: 'python', oldText, newText };
+    const moduleRun = async (body, shot) => {
+      const modulePage = await ctx.newPage();
+      const messages = [];
+      modulePage.on('console', m => messages.push(`${m.type()}: ${m.text()}`));
+      modulePage.on('pageerror', e => messages.push(`pageerror: ${e}`));
+      await modulePage.goto(`${MODULE_ORIGIN}/`);
+      try {
+        const result = await modulePage.evaluate(body, earlyRequest);
+        await sleep(600);
+        const pixels = shot ? await pixelStats(await modulePage.screenshot()) : null;
+        if (shot) await shoot(modulePage, shot);
+        return { ...result, pixels, panics: messages.filter(m => /panicked|RuntimeError|unreachable/.test(m)) };
+      } finally {
+        await modulePage.close();
+      }
+    };
+    // Before init, after init, right after run(), then every task until the module takes the request.
+    const polled = await moduleRun(async request => {
+      const events = [];
+      globalThis.__reviewEvent = (name, detail) => events.push({ name, detail, at: performance.now() });
+      const m = await import('/review_wasm.js');
+      const attempt = () => {
+        try {
+          m.compare_texts(JSON.stringify(request));
+          return null;
+        } catch (error) {
+          return String(error);
+        }
+      };
+      const beforeInit = attempt();
+      await m.default({ module_or_path: '/review_wasm_bg.wasm' });
+      const beforeRun = attempt();
+      m.run(JSON.stringify({}));
+      const afterRun = attempt();
+      const tick = () =>
+        new Promise(resolve => {
+          const channel = new MessageChannel();
+          channel.port1.onmessage = () => resolve();
+          channel.port2.postMessage(0);
+        });
+      let refused = 0;
+      let lastRefusal = null;
+      for (let i = 0; i < 20_000; i++) {
+        await tick();
+        const error = attempt();
+        if (!error) break;
+        refused++;
+        lastRefusal = error;
+      }
+      const acceptedAt = performance.now();
+      const firstFrameBefore = events.some(e => e.name === 'first-frame');
+      while (!events.some(e => e.name === 'first-frame') && performance.now() - acceptedAt < 10_000) await tick();
+      return {
+        beforeInit,
+        beforeRun,
+        afterRun,
+        refused,
+        lastRefusal,
+        acceptedBeforeFirstFrame: !firstFrameBefore,
+        events: events.map(e => ({ name: e.name, detail: e.detail })),
+      };
+    }, '14-module-request-before-first-frame.png');
+    report.earlyModule = polled;
+    const polledShown = polled.events.find(e => e.name === 'shown');
+    check(
+      'the module refuses a request before run() with an error, never a panic',
+      /__wbindgen|undefined/.test(polled.beforeInit ?? '') &&
+        polled.beforeRun === 'compare_texts: the window is not open yet' &&
+        polled.afterRun === 'compare_texts: the window is not open yet' &&
+        polled.panics.length === 0,
+      JSON.stringify({ beforeInit: polled.beforeInit, beforeRun: polled.beforeRun, afterRun: polled.afterRun }),
+    );
+    check(
+      'a request the module takes before its first frame is shown in that frame',
+      polled.acceptedBeforeFirstFrame &&
+        JSON.parse(polledShown?.detail ?? '{}').changes === 3 &&
+        polled.events.map(e => e.name).join(',') === 'shown,first-frame' &&
+        polled.pixels.greenishPct > 0.5,
+      `refused ${polled.refused}× while the window opened; then ${polled.events.map(e => e.name).join(' → ')}; ` +
+        JSON.stringify(polled.pixels),
+    );
+    // From inside the module's own callbacks: `first-frame` and `shown` reach the page after the module's call returns,
+    // so the page may answer synchronously with another export.
+    const nested = await moduleRun(async request => {
+      const events = [];
+      const results = [];
+      const m = await import('/review_wasm.js');
+      globalThis.__reviewEvent = (name, detail) => {
+        events.push(name === 'shown' ? `shown ${JSON.parse(detail).path}` : name);
+        const next =
+          name === 'first-frame' ? 'from-first-frame.py' : detail.includes('from-first-frame') ? 'from-shown.py' : null;
+        if (!next) return;
+        try {
+          m.compare_texts(JSON.stringify({ ...request, path: next }));
+          results.push(`${next}: ok`);
+        } catch (error) {
+          results.push(`${next}: ${error}`);
+        }
+      };
+      await m.default({ module_or_path: '/review_wasm_bg.wasm' });
+      m.run(JSON.stringify({}));
+      const started = performance.now();
+      while (!events.includes('shown from-shown.py') && performance.now() - started < 10_000)
+        await new Promise(resolve => setTimeout(resolve, 20));
+      return { events, results };
+    });
+    report.earlyNested = nested;
+    check(
+      'the page may call the module from inside its first-frame and shown callbacks',
+      nested.events.join(',') === 'first-frame,shown from-first-frame.py,shown from-shown.py' &&
+        [...nested.results].sort().join(',') === 'from-first-frame.py: ok,from-shown.py: ok' &&
+        nested.panics.length === 0,
+      `${nested.events.join(' → ')}; ${nested.results.join(', ')}${nested.panics.length ? `; ${nested.panics[0]}` : ''}`,
+    );
+
+    // Then the editor page of the extension, asked before its module has even loaded: the main page posts the request
+    // the moment the editor page's script has run (its DOMContentLoaded, seen from inside the frame), long before the
+    // first frame and `viewer/ready`. A message posted before any script of the page runs has no listener to reach.
+    const earlyPage = await ctx.newPage();
+    earlyPage.on('pageerror', e => report.console.push({ type: 'pageerror', text: String(e) }));
+    await earlyPage.addInitScript(request => {
+      if (window === window.top) {
+        globalThis.__answers = [];
+        addEventListener('message', e => globalThis.__answers.push({ ...e.data, at: performance.now() }));
+        // Called from the frame; runs in this (the parent's) realm, so the message's source is the parent window.
+        globalThis.__postEarly = () => {
+          const target = document.querySelector('iframe.kit-compare-frame').contentWindow;
+          globalThis.__earlySent = { at: performance.now(), readyState: target.document.readyState };
+          target.postMessage({ type: 'viewer/compare', id: 777, request }, location.origin);
+        };
+      } else if (location.pathname.endsWith('/src/viewer/index.html')) {
+        addEventListener('DOMContentLoaded', () => window.parent.__postEarly(), { once: true });
+      }
+    }, earlyRequest);
+    await earlyPage.goto(`${base}#/compare`);
+    const early = await earlyPage
+      .waitForFunction(() => globalThis.__answers.some(m => m.id === 777), null, { timeout: 30_000 })
+      .then(() => earlyPage.evaluate(() => ({ sent: globalThis.__earlySent, answers: globalThis.__answers })))
+      .catch(async () => ({
+        timedOut: true,
+        ...(await earlyPage.evaluate(() => ({ sent: globalThis.__earlySent, answers: globalThis.__answers }))),
+      }));
+    await earlyPage.close();
+    const earlyAnswer = early.answers?.find(m => m.id === 777);
+    const readyAt = early.answers?.find(m => m.type === 'viewer/ready')?.at;
+    report.earlyPage = { sent: early.sent, answer: earlyAnswer, readyAt, timedOut: !!early.timedOut };
+    check(
+      'the editor page answers a request sent before its module loaded',
+      !early.timedOut &&
+        early.sent?.at < readyAt &&
+        earlyAnswer?.type === 'viewer/shown' &&
+        earlyAnswer.shown.path === 'early.py' &&
+        earlyAnswer.shown.changes === 3,
+      early.timedOut
+        ? `no answer in 30 s (sent at ${early.sent?.at?.toFixed(0)} ms, page ${early.sent?.readyState}; ` +
+            `viewer/ready at ${readyAt?.toFixed(0)} ms)`
+        : `sent at ${early.sent.at.toFixed(0)} ms (${early.sent.readyState}), viewer/ready at ${readyAt.toFixed(0)} ms, ` +
+            `answered at ${earlyAnswer?.at.toFixed(0)} ms: ${JSON.stringify(earlyAnswer?.shown ?? earlyAnswer)}`,
+    );
+
+    // 2c. «Compare code»: drops, the toolbar, edit mode, saving, the examples, the keyboard.
+    await runCompareChecks({ ctx, id, check, shoot, report, sleep });
+  }
 
   // 3. The tools: each tool's own checks (scripts/e2e-tools/<id>.mjs, found by scripts/e2e-tools.mjs), then the
   // controls of the JSON tool's page measured against gpui-kit.
-  await runToolChecks({ ctx, page, base, id, check, shoot, sleep, report });
-  await page.goto(`${base}#/tools/json`);
-  const input = page.getByLabel('Input');
-  await input.fill('{"name":"example","tags":["diff","tools"],"nested":{"b":2,"a":1},"ok":true}');
-  report.measure.textarea = await measureOf(input);
-  if (!(await page.getByLabel('Sort keys').isChecked())) await page.getByLabel('Sort keys').check();
-  await page.getByRole('button', { name: 'Format' }).click();
-  await page.mouse.move(0, 0);
-  await sleep(400); // the checkbox's 180 ms colour transition
-  report.measure.buttonOutline = await measureOf(page.getByRole('button', { name: 'Minify' }));
-  report.measure.checkboxChecked = await measureOf(page.getByLabel('Sort keys'));
-  report.measure.listItemActive = await measureOf(page.locator('.kit-list-item[aria-current="page"]'));
-  await shoot(page, '04-tools-light.png');
+  if (want('tools') || ONLY?.some(name => toolCheckModules().includes(`${name}.mjs`)))
+    await runToolChecks({ ctx, page, base, id, check, shoot, sleep, report, only: want('tools') ? undefined : ONLY });
+  if (want('tools')) {
+    await page.goto(`${base}#/tools/json`);
+    const input = page.getByLabel('Input');
+    await input.fill('{"name":"example","tags":["diff","tools"],"nested":{"b":2,"a":1},"ok":true}');
+    report.measure ??= {};
+    report.measure.textarea = await measureOf(input);
+    if (!(await page.getByLabel('Sort keys').isChecked())) await page.getByLabel('Sort keys').check();
+    await page.getByRole('button', { name: 'Format' }).click();
+    await page.mouse.move(0, 0);
+    await sleep(400); // the checkbox's 180 ms colour transition
+    report.measure.buttonOutline = await measureOf(page.getByRole('button', { name: 'Minify' }));
+    report.measure.checkboxChecked = await measureOf(page.getByLabel('Sort keys'));
+    // The current tool in the sidebar's Tools list (the Tools page has no list of its own since 2026-11-21).
+    report.measure.navSubItemActive = await measureOf(page.locator('.kit-nav-sub-item[aria-current="page"]'));
+    await shoot(page, '04-tools-light.png');
+  }
 
-  // 4. Live review.
-  await openSection('review', reviewReady);
-  check('live review shows the companion notice', true);
-  await shoot(page, '05-review-light.png');
+  // 3b. The shell: the tools nested under Tools, the toolbar and the palette, the theme by the system, the shortcuts.
+  if (want('shell')) await runShellChecks({ ctx, id, check, shoot, report, sleep });
 
-  // 5. The default dark theme: the page and the editor follow the switch (through chrome.storage).
-  await openSection('compare', editorReady);
-  const lightExample = await pixelStats(await frameEl.screenshot());
-  await page.getByRole('radio', { name: 'Dark' }).click();
-  await frame.locator('html[data-mode="dark"]').waitFor({ timeout: 5_000 });
-  await sleep(500);
-  const dark = await pixelStats(await frameEl.screenshot());
-  report.compareDark = dark;
-  const pageDark = await page.evaluate(() => document.documentElement.dataset.theme);
-  check(
-    'the dark theme repaints the page and the editor',
-    pageDark === 'default-dark' && dark.meanLuminance < lightExample.meanLuminance - 60 && dark.greenishPct > 0.1,
-    `page ${pageDark}; editor luminance ${lightExample.meanLuminance} → ${dark.meanLuminance}`,
-  );
-  await shoot(page, '06-compare-dark.png');
-  await openSection('tools/json', toolsReady);
-  await shoot(page, '07-tools-dark.png');
-  await openSection('review', reviewReady);
-  await shoot(page, '08-review-dark.png');
+  if (want('themes')) {
+    // 4. Live review.
+    await openSection('review', reviewReady);
+    check('live review shows the companion notice', true);
+    await shoot(page, '05-review-light.png');
 
-  // 6. A theme that is not a default, from the list: the page and the editor (with gpui-kit's theme file).
-  await openSection('compare', editorReady);
-  await page.getByLabel('Dark theme', { exact: true }).click();
-  await page.getByRole('listbox').waitFor({ timeout: 5_000 });
-  await sleep(250);
-  const darkOptions = await page.getByRole('option').count();
-  await shoot(page, '09-theme-list-open.png');
-  check(
-    'the dark theme list offers every dark theme of themes.index.json',
-    darkOptions === THEME_INDEX.filter(t => t.mode === 'dark').length,
-    `${darkOptions} options`,
-  );
-  await page.getByRole('option', { name: OTHER_THEME.name, exact: true }).click();
-  await frame.locator(`html[data-theme="${OTHER_THEME.id}"]`).waitFor({ timeout: 5_000 });
-  await sleep(800);
-  const pageOther = await page.evaluate(() => document.documentElement.dataset.theme);
-  const editorBg = await dominantColor(await frameEl.screenshot());
-  report.otherTheme = { id: OTHER_THEME.id, page: pageOther, editorDominant: editorBg, expected: OTHER_EDITOR_BG };
-  check(
-    `a theme from the list (${OTHER_THEME.name}) reaches the page and the editor`,
-    pageOther === OTHER_THEME.id && near(editorBg.color, OTHER_EDITOR_BG),
-    `page ${pageOther}; editor background ${editorBg.color} (${Math.round(editorBg.share * 100)} % of the frame), ` +
-      `the theme's input_background over background ${OTHER_EDITOR_BG}`,
-  );
-  await shoot(page, '10-compare-tokyo-night.png');
-  await openSection('tools/json', toolsReady);
-  await shoot(page, '11-tools-tokyo-night.png');
-  await openSection('review', reviewReady);
-  await shoot(page, '12-review-tokyo-night.png');
+    // 5. The default dark theme, chosen in Settings in another tab: the page and the editor follow the switch (through
+    // chrome.storage) without a reload.
+    await openSection('compare', editorReady);
+    const lightExample = await pixelStats(await frameEl.screenshot());
+    await themeMode(ctx, base, 'Dark');
+    await frame.locator('html[data-mode="dark"]').waitFor({ timeout: 5_000 });
+    await sleep(500);
+    const dark = await pixelStats(await frameEl.screenshot());
+    report.compareDark = dark;
+    const pageDark = await page.evaluate(() => document.documentElement.dataset.theme);
+    check(
+      'the dark theme repaints the page and the editor',
+      pageDark === 'default-dark' && dark.meanLuminance < lightExample.meanLuminance - 60 && dark.greenishPct > 0.1,
+      `page ${pageDark}; editor luminance ${lightExample.meanLuminance} → ${dark.meanLuminance}`,
+    );
+    await shoot(page, '06-compare-dark.png');
+    await openSection('tools/json', toolsReady);
+    await shoot(page, '07-tools-dark.png');
+    await openSection('review', reviewReady);
+    await shoot(page, '08-review-dark.png');
 
-  // Back to the defaults for the next run's profile (each run has its own profile; this only tidies the report).
-  await pickFromList('Dark theme', 'Default Dark');
-  await page.getByRole('radio', { name: 'System' }).click();
+    // 6. A theme that is not a default, from the list in Settings: the page and the editor (with gpui-kit's theme file).
+    await openSection('compare', editorReady);
+    const darkOptions = await withSettings(ctx, base, async settings => {
+      await settings.getByLabel('Dark theme', { exact: true }).click();
+      await settings.getByRole('listbox').waitFor({ timeout: 5_000 });
+      await sleep(250);
+      await shoot(settings, '09-theme-list-open.png');
+      const count = await settings.getByRole('option').count();
+      await settings.getByRole('option', { name: OTHER_THEME.name, exact: true }).click();
+      return count;
+    });
+    check(
+      'the dark theme list offers every dark theme of themes.index.json',
+      darkOptions === THEME_INDEX.filter(t => t.mode === 'dark').length,
+      `${darkOptions} options`,
+    );
+    await frame.locator(`html[data-theme="${OTHER_THEME.id}"]`).waitFor({ timeout: 5_000 });
+    await sleep(800);
+    const pageOther = await page.evaluate(() => document.documentElement.dataset.theme);
+    const editorBg = await dominantColor(await frameEl.screenshot());
+    report.otherTheme = { id: OTHER_THEME.id, page: pageOther, editorDominant: editorBg, expected: OTHER_EDITOR_BG };
+    check(
+      `a theme from the list (${OTHER_THEME.name}) reaches the page and the editor`,
+      pageOther === OTHER_THEME.id && near(editorBg.color, OTHER_EDITOR_BG),
+      `page ${pageOther}; editor background ${editorBg.color} (${Math.round(editorBg.share * 100)} % of the frame), ` +
+        `the theme's input_background over background ${OTHER_EDITOR_BG}`,
+    );
+    await shoot(page, '10-compare-tokyo-night.png');
+    await openSection('tools/json', toolsReady);
+    await shoot(page, '11-tools-tokyo-night.png');
+    await openSection('review', reviewReady);
+    await shoot(page, '12-review-tokyo-night.png');
+
+    // Back to the defaults for the next run's profile (each run has its own profile; this only tidies the report).
+    await themeFromList(ctx, base, 'Dark theme', 'Default Dark');
+    await themeMode(ctx, base, 'System');
+  }
 
   // 8. The tool history (scripts/e2e-history.mjs). Last: allowing incognito there reloads the extension.
-  await runHistoryChecks({ ctx, sw, id, check, shoot, report, sleep, root: ROOT });
+  if (want('history')) await runHistoryChecks({ ctx, sw, id, check, shoot, report, sleep, root: ROOT });
 
   // The service worker's own errors, after everything ran.
   const after = await (async () => {

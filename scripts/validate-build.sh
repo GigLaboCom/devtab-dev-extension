@@ -280,7 +280,8 @@ else
 fi
 
 # Check 8b: every local asset referenced from inside the built files must exist —
-#   HTML src/href (script, modulepreload, stylesheet…), relative JS imports between chunks, CSS url().
+#   HTML src/href (script, modulepreload, stylesheet…), relative JS imports between chunks, the preload lists of lazy
+#   chunks (`__vite__mapDeps`), CSS url().
 # A missing chunk loads as a blank page with no build error, so catch it here.
 echo "Check 8b: Built asset references (HTML / JS imports / CSS url)..."
 BROKEN_REFS=()
@@ -318,6 +319,12 @@ while IFS= read -r -d '' js; do
     while IFS= read -r ref; do
         check_asset_ref "$js" "$ref"
     done < <(grep -oE '["'"'"']/assets/[^"'"'"']+["'"'"']' "$js" | tr -d "\"'" | sort -u)
+    # What a lazy chunk needs besides itself, as the bundler lists it for its preload helper: the
+    # `__vite__mapDeps` array names chunks and stylesheets relative to the extension's root ("assets/x.css"; the helper
+    # prepends "/"). A stylesheet that only a lazy chunk needs (the shell's) is referenced nowhere else.
+    while IFS= read -r ref; do
+        check_asset_ref "$js" "/$ref"
+    done < <(grep -oE '__vite__mapDeps=[^;]*' "$js" | grep -oE '["'"'"']assets/[^"'"'"']+["'"'"']' | tr -d "\"'" | sort -u)
 done < <(find "$INSPECT_DIR" -name '*.js' -print0)
 while IFS= read -r -d '' css; do
     while IFS= read -r ref; do

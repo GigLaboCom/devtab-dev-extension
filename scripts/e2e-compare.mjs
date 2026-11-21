@@ -27,6 +27,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { at, readDefinitions, ROOT } from './read-definitions.mjs';
+import { themeMode } from './e2e-theme.mjs';
 
 const median = values => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 
@@ -635,7 +636,8 @@ export const runCompareChecks = async ({ ctx, id, check, shoot, report, sleep })
     );
 
     // ---- dark -------------------------------------------------------------------------------------------------------
-    await page.getByRole('radio', { name: 'Dark' }).click();
+    // Chosen in Settings in another tab: the page and its editor follow through chrome.storage.
+    await themeMode(ctx, base, 'Dark');
     await page.frameLocator('iframe.kit-compare-frame').locator('html[data-mode="dark"]').waitFor({ timeout: 5_000 });
     await sleep(600);
     await shoot(page, 'compare-11-example-dark.png');
@@ -651,7 +653,7 @@ export const runCompareChecks = async ({ ctx, id, check, shoot, report, sleep })
     await press(page, 'new', 'clear');
     await sleep(300);
     await shoot(page, 'compare-14-empty-dark.png');
-    await page.getByRole('radio', { name: 'System' }).click();
+    await themeMode(ctx, base, 'System');
     await page.close();
 
     // ---- Save through the download fallback, Open through the file input --------------------------------------------

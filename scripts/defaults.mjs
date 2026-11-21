@@ -1,0 +1,379 @@
+#!/usr/bin/env node
+// Every default of the product, read from the code itself — the settings' default objects, the start page's part
+// definitions, the shortcut actions and their default keys per platform, the composition roots, the tools' definitions,
+// the limits and budgets — and printed as the tables of the defaults document (the developer documents' defaults.md),
+// so that document is this output plus its hand-written columns, and re-running it shows whether the document is stale.
+// The script reads code only (it never reads docs/).
+//
+// Usage: node scripts/defaults.mjs [--json]
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const fromExtension = createRequire(join(ROOT, 'extension/package.json'));
+const esbuild = createRequire(fromExtension.resolve('vite'))('esbuild');
+const at = path => JSON.stringify(join(ROOT, path));
+const src = text => readFileSync(join(ROOT, text), 'utf8');
+
+/** Bundles a TypeScript entry of the workspace (with `@src/…` and the tools' catalogue) and imports its default export. */
+const load = async (entry, catalogue = []) => {
+  const { outputFiles } = await esbuild.build({
+    stdin: { contents: entry, resolveDir: join(ROOT, 'extension'), loader: 'ts' },
+    bundle: true,
+    write: false,
+    format: 'esm',
+    platform: 'node',
+    logLevel: 'silent',
+    absWorkingDir: join(ROOT, 'extension'),
+    plugins: [
+      {
+        name: 'workspace',
+        setup(build) {
+          build.onResolve({ filter: /^@src\// }, args => ({
+            path: join(ROOT, 'extension/src', args.path.slice(5)).replace(/(\.tsx?)?$/, m => m || '.ts'),
+          }));
+          build.onResolve({ filter: /^virtual:tool-catalogue$/ }, () => ({ path: 'catalogue', namespace: 'virtual' }));
+          build.onLoad({ filter: /.*/, namespace: 'virtual' }, () => ({
+            contents: `export const CATALOGUE = ${JSON.stringify(catalogue)};`,
+            loader: 'js',
+          }));
+          // Lazy imports (a part's code, a component) are not followed: the defaults are in the definitions.
+          build.onResolve({ filter: /.*/ }, args =>
+            args.kind === 'dynamic-import' ? { path: args.path, external: true } : undefined,
+          );
+        },
+      },
+    ],
+  });
+  const dir = mkdtempSync(join(tmpdir(), 'defaults-'));
+  try {
+    const file = join(dir, 'entry.mjs');
+    writeFileSync(file, outputFiles[0].text);
+    return (await import(pathToFileURL(file).href)).default;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+// The tools: each definition, bundled on its own (the catalogue plugin's way).
+const toolDirs = readdirSync(join(ROOT, 'packages/tools/ui'), { withFileTypes: true })
+  .filter(e => e.isDirectory() && existsSync(join(ROOT, 'packages/tools/ui', e.name, 'src/definition.ts')))
+  .map(e => e.name);
+const tools = [];
+for (const id of toolDirs) {
+  const d = await load(
+    `import { definition } from ${at(`packages/tools/ui/${id}/src/definition.ts`)};
+     export default { ...definition, load: undefined };`,
+  );
+  if (d) tools.push({ ...d, detects: existsSync(join(ROOT, 'packages/tools/ui', id, 'src/detect.ts')) });
+}
+tools.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+const catalogue = tools.map(({ id, title, keywords, shortcut }) => ({
+  id,
+  title,
+  keywords,
+  ...(shortcut ? { shortcut } : {}),
+}));
+
+const code = await load(
+  `
+  import { DEFAULT_SETTINGS, SETTINGS_KEY, SHORTCUTS_KEY, RECENT_KEY, START_CACHE_KEY, MAX_SHORTCUTS, MAX_RECENT } from ${at('extension/src/start/settings.ts')};
+  import { START_PARTS } from ${at('extension/src/start/parts/index.ts')};
+  import { MAX_TILES } from ${at('extension/src/start/tileSources.ts')};
+  import { DEFAULT_PREF, THEME_STORAGE_KEY } from '@extension/theme';
+  import { DEFAULT_SHELL, SHELL_KEY, SHELL_CACHE_KEY } from ${at('extension/src/shell/settings.ts')};
+  import { shortcutActions, suggestedKeys } from ${at('extension/src/shortcuts/actions.ts')};
+  import { resolveBindings, DEFAULT_SHORTCUTS } from ${at('extension/src/shortcuts/bindings.ts')};
+  import { SHORTCUT_KEYS_KEY } from ${at('extension/src/shortcuts/store.ts')};
+  import { DESTINATIONS } from ${at('extension/src/shared/destinations.ts')};
+  import { TOOL_CATALOGUE } from ${at('extension/src/tools/catalogue.ts')};
+  import { DEFAULT_HISTORY_SETTINGS, HISTORY_SETTINGS_KEY, RETENTION_DAYS, BUDGET_MIB, IDLE_LOCK_MINUTES } from ${at('extension/src/history/settings.ts')};
+  import { DEFAULT_MAX_BLOB_BYTES, IDLE_MS, MIN_GAP_MS, SESSION_IDLE_MS, LABEL_MAX, TEXT_MAX } from ${at('packages/tools/logic/shared/history/factory.ts')};
+  import { TOOL_SETTINGS_KEY } from ${at('extension/src/tools/settings.ts')};
+  import { AUTO_COPY } from ${at('packages/tools/ui/host/lib/autoCopy.ts')};
+  import { MAX_BYTES as COMPARE_MAX_BYTES } from ${at('extension/src/compare/files.ts')};
+  import { toolbarButton, pageOpener } from ${at('extension/src/toolbar/index.ts')};
+  import { newTab } from ${at('extension/src/newTab/index.ts')};
+  import { optionsPage } from ${at('extension/src/options/index.ts')};
+  const actions = shortcutActions(DESTINATIONS, suggestedKeys(TOOL_CATALOGUE));
+  const resolved = mac => {
+    const r = resolveBindings(actions, DEFAULT_SHORTCUTS, mac);
+    return Object.fromEntries(actions.map(a => [a.id, r.bindings.get(a.id) ?? null]));
+  };
+  export default {
+    start: { settings: DEFAULT_SETTINGS, keys: { SETTINGS_KEY, SHORTCUTS_KEY, RECENT_KEY, START_CACHE_KEY }, MAX_SHORTCUTS, MAX_RECENT, MAX_TILES,
+      parts: START_PARTS.map(p => ({ id: p.id, kind: p.kind, title: p.title, defaultOn: p.defaultOn, loadAt: p.loadAt,
+        optional: p.permissions.filter(q => q.optional).map(q => q.name), required: p.permissions.filter(q => !q.optional).map(q => q.name) })) },
+    theme: { pref: DEFAULT_PREF, key: THEME_STORAGE_KEY },
+    shell: { settings: DEFAULT_SHELL, key: SHELL_KEY, cache: SHELL_CACHE_KEY },
+    shortcuts: { key: SHORTCUT_KEYS_KEY, actions: actions.map(a => ({ id: a.id, title: a.title, group: a.group })), mac: resolved(true), other: resolved(false) },
+    history: { settings: DEFAULT_HISTORY_SETTINGS, key: HISTORY_SETTINGS_KEY, choices: { RETENTION_DAYS, BUDGET_MIB, IDLE_LOCK_MINUTES },
+      factory: { DEFAULT_MAX_BLOB_BYTES, IDLE_MS, MIN_GAP_MS, SESSION_IDLE_MS, LABEL_MAX, TEXT_MAX } },
+    toolSettings: { key: TOOL_SETTINGS_KEY, autoCopy: AUTO_COPY },
+    compare: { maxBytes: COMPARE_MAX_BYTES },
+    roots: { toolbarButton: toolbarButton.id, newTab: newTab.id, optionsPage: optionsPage.id, pageOpener: pageOpener.id ?? null },
+  };
+`,
+  catalogue,
+);
+
+/** The one line of each composition root that picks an implementation: `export { x as y }` and the implementations it imports. */
+const ROOT_FILES = [
+  'extension/src/toolbar/index.ts',
+  'extension/src/newTab/index.ts',
+  'extension/src/options/index.ts',
+  'extension/src/start/behaviors.ts',
+  'extension/src/start/parts/index.ts',
+  'extension/src/shell/behaviors.ts',
+  'extension/src/compare/behaviors.ts',
+  'extension/src/history/behaviors.ts',
+];
+const picks = ROOT_FILES.map(file => ({
+  file,
+  lines: src(file)
+    .split('\n')
+    .filter(l => /^export \{ \w+ as \w+ \}|^import \{[^}]+\} from '\.\.?\//.test(l) && !/^import type/.test(l)),
+}));
+
+const budget = (file, name) => Number(new RegExp(`${name}\\s*=\\s*([\\d_]+)`).exec(src(file))?.[1].replaceAll('_', ''));
+const budgets = {
+  startRoute: budget('scripts/validate-build.sh', 'START_ROUTE_BUDGET'),
+  popup: budget('scripts/validate-build.sh', 'POPUP_BUDGET'),
+  firstPaint: budget('scripts/e2e-start.mjs', 'FIRST_PAINT_BUDGET'),
+  fieldReady: budget('scripts/e2e-start.mjs', 'READY_BUDGET'),
+  popupPaint: budget('scripts/e2e-toolbar.mjs', 'POPUP_PAINT_BUDGET'),
+  perTool: budget('scripts/start-route-growth.mjs', 'PER_TOOL_LIMIT'),
+};
+
+const state = (() => {
+  try {
+    const head = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT }).toString().trim();
+    const dirty = execFileSync('git', ['status', '--porcelain'], { cwd: ROOT }).toString().trim() !== '';
+    return `${head}${dirty ? ' + uncommitted changes' : ''}`;
+  } catch {
+    return 'unknown';
+  }
+})();
+
+const result = { generated: new Date().toISOString().slice(0, 10), state, ...code, tools, picks, budgets };
+if (process.argv.includes('--json')) {
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  process.exit(0);
+}
+
+// The tables, in the document's form (Markdown; the hand-written columns are left to the document).
+const keyName = chord => {
+  const k = chord.code?.replace(/^Key|^Digit/, '') ?? chord.key;
+  return { Comma: ',', Period: '.', Slash: '/' }[k] ?? k.toUpperCase();
+};
+const chordLabel = (chord, mac) => {
+  if (!chord) return '—';
+  if (mac) return `${chord.alt ? '⌥' : ''}${chord.shift ? '⇧' : ''}${chord.mod ? '⌘' : ''}${keyName(chord)}`;
+  return [chord.mod && 'Ctrl', chord.alt && 'Alt', chord.shift && 'Shift', keyName(chord)].filter(Boolean).join('+');
+};
+const row = cells => `| ${cells.join(' | ')} |`;
+const table = (head, rows) => [row(head), row(head.map(() => '---')), ...rows.map(row)].join('\n');
+const yes = v => (v ? 'да' : 'нет');
+const out = [];
+const h = text => out.push(`\n### ${text}\n`);
+
+out.push(`<!-- node scripts/defaults.mjs — ${result.generated}, ${result.state} -->`);
+h('Новая вкладка и стартовая страница');
+out.push(
+  table(
+    ['Что', 'По умолчанию', 'Хранится'],
+    [
+      [
+        'Что открывает новая вкладка',
+        `\`${code.start.settings.newTab}\``,
+        `\`${code.start.keys.SETTINGS_KEY}.newTab\``,
+      ],
+      [
+        'Порядок строк',
+        code.start.settings.order.length ? code.start.settings.order.join(', ') : 'порядок корня сборки',
+        `\`${code.start.keys.SETTINGS_KEY}.order\``,
+      ],
+      ['Ярлыки, не больше', String(code.start.MAX_SHORTCUTS), `\`${code.start.keys.SHORTCUTS_KEY}\``],
+      ['Недавние места, не больше', String(code.start.MAX_RECENT), `\`${code.start.keys.RECENT_KEY}\``],
+      ['Плиток в строке, не больше', String(code.start.MAX_TILES), '—'],
+    ],
+  ),
+);
+h('Части стартовой страницы (в порядке корня сборки `extension/src/start/parts/index.ts`)');
+out.push(
+  table(
+    ['id', 'Название', 'Вид', 'Включена', 'Код грузится', 'Разрешения'],
+    code.start.parts.map(p => [
+      `\`${p.id}\``,
+      p.title,
+      p.kind === 'row' ? 'строка' : 'настройка',
+      yes(p.defaultOn),
+      p.loadAt === 'start' ? 'сразу' : 'после первой отрисовки',
+      [...p.required.map(n => `${n} (обяз.)`), ...p.optional.map(n => `${n} (необяз.)`)].join(', ') || '—',
+    ]),
+  ),
+);
+h('Тема');
+out.push(
+  table(
+    ['Что', 'По умолчанию', 'Хранится'],
+    [
+      ['Режим', `\`${code.theme.pref.mode}\``, `\`${code.theme.key}.mode\``],
+      ['Светлая тема', `\`${code.theme.pref.light}\``, `\`${code.theme.key}.light\``],
+      ['Тёмная тема', `\`${code.theme.pref.dark}\``, `\`${code.theme.key}.dark\``],
+    ],
+  ),
+);
+h('Оболочка');
+out.push(
+  table(
+    ['Что', 'По умолчанию', 'Хранится'],
+    [
+      [
+        'Группа Tools в боковой панели',
+        Object.keys(code.shell.settings.open).length
+          ? JSON.stringify(code.shell.settings.open)
+          : 'закрыта; открывается сама на странице инструмента',
+        `\`${code.shell.key}.open\``,
+      ],
+      ['Хлебные крошки', yes(code.shell.settings.breadcrumb), `\`${code.shell.key}.breadcrumb\``],
+    ],
+  ),
+);
+h('Сочетания клавиш (сочетания приложения, по умолчанию)');
+out.push(
+  table(
+    ['Действие', 'Группа', 'macOS', 'Windows / Linux'],
+    code.shortcuts.actions.map(a => [
+      `${a.title} (\`${a.id}\`)`,
+      a.group,
+      chordLabel(code.shortcuts.mac[a.id], true),
+      chordLabel(code.shortcuts.other[a.id], false),
+    ]),
+  ),
+);
+h('История инструментов');
+const hs = code.history.settings;
+out.push(
+  table(
+    ['Что', 'По умолчанию', 'Варианты', 'Хранится'],
+    [
+      ['История', hs.on ? 'включена' : 'выключена', 'вкл / выкл', `\`${code.history.key}.on\``],
+      [
+        'Срок',
+        `${hs.retentionDays} дней`,
+        code.history.choices.RETENTION_DAYS.join(', '),
+        `\`${code.history.key}.retentionDays\``,
+      ],
+      [
+        'Бюджет',
+        `${hs.budgetMiB} МиБ`,
+        code.history.choices.BUDGET_MIB.join(', '),
+        `\`${code.history.key}.budgetMiB\``,
+      ],
+      [
+        'Запирание после простоя',
+        `${hs.idleLockMinutes} мин`,
+        code.history.choices.IDLE_LOCK_MINUTES.join(', '),
+        `\`${code.history.key}.idleLockMinutes\``,
+      ],
+      ['Выключены для инструментов', hs.off.length ? hs.off.join(', ') : 'ни один', '—', `\`${code.history.key}.off\``],
+      ['Мастер-пароль', 'не задан', '—', 'связки ключей в базе истории'],
+      ['Предел одного блоба', `${code.history.factory.DEFAULT_MAX_BLOB_BYTES / 1024 / 1024} МиБ`, '—', '—'],
+      [
+        'Снимок ввода',
+        `после ${code.history.factory.IDLE_MS / 1000} с покоя, не чаще раза в ${code.history.factory.MIN_GAP_MS / 1000} с`,
+        '—',
+        '—',
+      ],
+      ['Сессия кончается', `после ${code.history.factory.SESSION_IDLE_MS / 60000} мин паузы`, '—', '—'],
+    ],
+  ),
+);
+h('Настройки инструментов');
+out.push(
+  table(
+    ['Что', 'По умолчанию', 'Хранится'],
+    [
+      [
+        'Copy automatically after generating',
+        'выключено',
+        `\`${code.toolSettings.key}\` (\`all.${code.toolSettings.autoCopy}\`, \`tools.<id>.${code.toolSettings.autoCopy}\`)`,
+      ],
+    ],
+  ),
+);
+h('Корни сборки (что выбрано)');
+out.push(
+  table(
+    ['Корень', 'Строки выбора'],
+    picks.map(p => [`\`${p.file}\``, p.lines.map(l => `\`${l.trim()}\``).join('<br>') || '—']),
+  ),
+);
+out.push(
+  `\nВыбрано: кнопка на панели — \`${code.roots.toolbarButton}\`, подмена новой вкладки — \`${code.roots.newTab}\`, страница настроек — \`${code.roots.optionsPage}\`, как кнопка открывает нашу страницу — \`${code.roots.pageOpener}\`.`,
+);
+h('Инструменты');
+out.push(
+  table(
+    ['id', 'Название', '№', 'detect', 'Сочетание', 'Результат', 'История: виды (секретные — *)'],
+    tools.map(t => [
+      `\`${t.id}\``,
+      t.title,
+      String(t.order),
+      yes(t.detects),
+      t.shortcut ? JSON.stringify(t.shortcut) : 'нет',
+      t.output.origin === 'generated' ? `создаётся (${t.output.copies}), автокопия применима` : 'из ввода',
+      t.history ? t.history.kinds.map(k => `${k.id}${k.secret ? '*' : ''}`).join(', ') || 'ничего' : 'ничего',
+    ]),
+  ),
+);
+h('Пределы инструментов (числа из их логики)');
+const limits = tools.map(t => {
+  const dir = join(ROOT, 'packages/tools/logic', t.id, 'src');
+  const found = existsSync(dir)
+    ? readdirSync(dir)
+        .filter(f => /\.ts$/.test(f) && !/\.test\.ts$/.test(f))
+        .flatMap(f => [
+          ...readFileSync(join(dir, f), 'utf8').matchAll(
+            /^export const ((?:MAX|LIVE|MIN|SETTLE|DEBOUNCE|DEFAULT_CHUNK|WORD_LIST_SIZE|TIMEOUT|LONG_TIMEOUT)[A-Z_]*) = ([\d\s*+_().-]+);/gm,
+          ),
+        ])
+        .map(m => `${m[1]} = ${Number(Function(`return ${m[2].replaceAll('_', '')}`)()).toLocaleString('en-US')}`)
+    : [];
+  return [`\`${t.id}\``, found.join('<br>') || '—'];
+});
+out.push(table(['Инструмент', 'Константы'], limits));
+h('Пределы и бюджеты');
+out.push(
+  table(
+    ['Что', 'Число', 'Где держится'],
+    [
+      ['Стартовый маршрут до первой отрисовки', `${budgets.startRoute} байт`, '`scripts/validate-build.sh`, Check 15'],
+      [
+        'Рост стартового маршрута на инструмент',
+        `≤ ${budgets.perTool} байт, только запись каталога`,
+        '`scripts/start-route-growth.mjs`',
+      ],
+      ['Меню под кнопкой', `${budgets.popup} байт`, '`scripts/validate-build.sh`, Check 16'],
+      ['Первая отрисовка новой вкладки, p90 из 20', `${budgets.firstPaint} мс`, '`scripts/e2e-start.mjs`'],
+      ['Готовность поля, p90 из 20', `${budgets.fieldReady} мс`, '`scripts/e2e-start.mjs`'],
+      ['Первая отрисовка меню, p90 из 10', `${budgets.popupPaint} мс`, '`scripts/e2e-toolbar.mjs`'],
+      [
+        'Файл одной стороны «Compare code»',
+        `${code.compare.maxBytes / 1024 / 1024} МБ`,
+        '`extension/src/compare/files.ts`',
+      ],
+      [
+        'Подпись / текст записи истории',
+        `${code.history.factory.LABEL_MAX} / ${code.history.factory.TEXT_MAX} знаков`,
+        '`packages/tools/logic/shared/history/factory.ts`',
+      ],
+    ],
+  ),
+);
+process.stdout.write(`${out.join('\n')}\n`);

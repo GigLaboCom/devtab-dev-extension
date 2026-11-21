@@ -25,6 +25,7 @@
 
 /* global document, window, location, chrome, DataTransfer, ClipboardEvent, MutationObserver -- page.evaluate callbacks run in the pages */
 
+import { runAssemblyChecks } from './e2e-start-assembly.mjs';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -150,15 +151,51 @@ export const runStartChecks = async ({ ctx, sw, id, dist, check, shoot, report, 
       .flatMap(f => [...readFileSync(join(dist, 'assets', f), 'utf8').matchAll(/import\(\s*["']\.\/([^"']+\.js)["']/g)])
       .map(m => m[1]),
   );
-  const loaded = loads.get(first) ?? [];
-  const extra = loaded.filter(
-    path => lazy.has(path.split('/').pop()) || path.endsWith('.wasm') || path.startsWith('/src/viewer/'),
+  // The one chunk the start page loads by design after its first paint: the listener for the user's shortcuts
+  // (extension/src/shortcuts/startKeys.ts) and what it imports. It must come after the first paint, never before.
+  const afterPaintEntry = readdirSync(join(dist, 'assets')).find(f => /^startKeys-.*\.js$/.test(f));
+  const afterPaint = new Set(
+    afterPaintEntry
+      ? [
+          afterPaintEntry,
+          ...[
+            ...readFileSync(join(dist, 'assets', afterPaintEntry), 'utf8').matchAll(/from\s*["']\.\/([^"']+\.js)["']/g),
+          ].map(m => m[1]),
+        ]
+      : [],
   );
-  report.startRoute = { loaded, lazyChunks: lazy.size };
+  const loaded = loads.get(first) ?? [];
+  // After its first load the start page loads the code of the parts that are on and, after its first paint, the
+  // shortcut listener and the tools' `detect` (scripts/e2e-start-assembly.mjs checks each); never the shell, the tools'
+  // definitions or components, the history, the editor page or the wasm.
+  const extra = loaded.filter(
+    path =>
+      (lazy.has(path.split('/').pop()) &&
+        /^(Shell|registry|behaviors|viewer)-|Tool-[\w-]{8}\.js$/.test(path.split('/').pop())) ||
+      path.endsWith('.wasm') ||
+      path.startsWith('/src/viewer/'),
+  );
+  // When it comes cannot be timed from here: resource timing leaves chrome-extension:// files out, and the request
+  // event's clock in Node and the page's clock differ by tens of milliseconds. What is checked: the page asked for it
+  // (the listener is there) and the page's first load does not name it — no <script> or modulepreload in the HTML
+  // (validate-build.sh Check 15 holds the static import graph). That it waits for the first paint is the code's
+  // (StartPage.tsx: afterFirstPaint, then import()).
+  const html = readFileSync(join(dist, 'src/app/index.html'), 'utf8');
+  const lateTiming = {
+    requested: [...afterPaint].filter(n => loaded.some(path => path.endsWith(`/${n}`))),
+    // Its own chunk; what it imports from the first load (the entry chunk) is there already.
+    namedInHtml: afterPaintEntry && html.includes(afterPaintEntry),
+  };
+  report.startRoute = { loaded, lazyChunks: lazy.size, afterPaint: [...afterPaint], lateTiming };
   check(
-    'the start route loads no lazy chunk (shell, parts, tools, theme files), no editor page and no wasm',
+    'the start route loads no shell, no tool’s definition or component, no history, no editor page and no wasm',
     loaded.length > 0 && extra.length === 0,
     extra.length ? extra.join(', ') : `${loaded.length} files: ${loaded.join(' ')}`,
+  );
+  check(
+    'the start page loads its shortcut listener lazily, never in its first load',
+    !!afterPaintEntry && lateTiming.requested.includes(afterPaintEntry) && !lateTiming.namedInHtml,
+    JSON.stringify(lateTiming),
   );
   await shoot(first, 'start-01-light-wide.png');
 
@@ -187,6 +224,9 @@ export const runStartChecks = async ({ ctx, sw, id, dist, check, shoot, report, 
     timing.fcp.p90 <= FIRST_PAINT_BUDGET && timing.ready.p90 <= READY_BUDGET,
     `first paint median ${timing.fcp.median} / p90 ${timing.fcp.p90} ms; field ready median ${timing.ready.median} / p90 ${timing.ready.p90} ms`,
   );
+
+  // Assembled from what is kept: what loads when, no layout jump, the sets of pieces, a paste before `detect`.
+  await runAssemblyChecks({ ctx, dist, base, newTab, field, region, loads, check, shoot, sleep, report });
 
   // Typing a tool's name opens it.
   await field(first).fill('json');

@@ -22,9 +22,10 @@ export const toolCheckModules = () =>
     .filter(name => name.endsWith('.mjs'))
     .sort();
 
+/** Runs every tool's module, or only those named in `args.only` (tool ids: `pnpm test:e2e --only=<id>`). */
 export const runToolChecks = async args => {
   const ran = [];
-  for (const name of toolCheckModules()) {
+  for (const name of toolCheckModules().filter(n => !args.only || args.only.includes(n.replace(/\.mjs$/, '')))) {
     const module = await import(pathToFileURL(join(DIR, name)).href);
     if (typeof module.default !== 'function') {
       args.check(
