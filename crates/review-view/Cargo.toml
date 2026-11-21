@@ -12,6 +12,10 @@ default = ["view"]
 view = ["dep:gpui", "dep:gpui-component", "dep:lsp-types", "dep:web-time"]
 # Read access to the view's two editors, for probes and examples that look inside it. Not in the shipped module.
 inspect = ["view"]
+# The view's own tests (editing, the comparison following the edits) in gpui's test app, natively:
+# `cargo test -p review-view --features view-tests`. A feature, not dev-dependencies, so `--no-default-features`
+# stays a build without gpui and the module never carries gpui's test support.
+view-tests = ["view", "gpui/test-support"]
 # The `window` example: the view in a native window (`cargo run -p review-view --features window-example --example
 # window`). Kept behind a feature so `cargo test` and the wasm module never build the native platform.
 window-example = ["inspect", "dep:gpui_platform", "dep:gpui-kit-assets", "gpui-component/syntect"]

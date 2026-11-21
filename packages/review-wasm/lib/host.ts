@@ -6,7 +6,20 @@
  * ships as a separate file the page fetches from the extension itself (`?url`: never inlined, never remote).
  */
 import { createReviewController } from './controller';
-import init, { compare_texts, run, set_theme, show_diff } from '../pkg/review_wasm.js';
+import init, {
+  compare_texts,
+  focus_side,
+  focused_side,
+  mark_saved,
+  run,
+  set_editable,
+  set_language,
+  set_side,
+  set_theme,
+  show_diff,
+  side_text,
+  swap_sides,
+} from '../pkg/review_wasm.js';
 import wasmUrl from '../pkg/review_wasm_bg.wasm?url';
 import type { ControllerHooks, ReviewController } from './controller';
 import type { RunOptions } from './types';
@@ -17,7 +30,23 @@ declare global {
 }
 
 export const startReview = async (options: RunOptions, hooks: ControllerHooks = {}): Promise<ReviewController> => {
-  const controller = createReviewController({ run, set_theme, compare_texts, show_diff }, hooks);
+  const controller = createReviewController(
+    {
+      run,
+      set_theme,
+      compare_texts,
+      show_diff,
+      set_side,
+      set_language,
+      swap_sides,
+      set_editable,
+      side_text,
+      mark_saved,
+      focused_side,
+      focus_side,
+    },
+    hooks,
+  );
   globalThis.__reviewEvent = (name, detail) => controller.onModuleEvent(name, detail ?? '');
   await init({ module_or_path: wasmUrl });
   run(JSON.stringify(options));

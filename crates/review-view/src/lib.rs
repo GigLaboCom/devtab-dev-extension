@@ -10,7 +10,9 @@
 //! - [`line_differ`]: the `LineDiffer` seam and its built-in implementations;
 //! - [`compare`]: the implementations one comparison runs with, and options naming built-ins as data;
 //! - [`alignment`]: the blank rows that keep both sides level;
-//! - `view` (feature `view`, gpui): the view itself.
+//! - [`sides`]: which side the user may edit and whether its text moved away from what was loaded or saved;
+//! - `view` (feature `view`, gpui): the view itself — read-only by default, a side editable on request, the comparison
+//!   following the edits.
 //!
 //! Everything but the view is free of gpui: `cargo test --no-default-features` checks the seams without building it.
 
@@ -19,6 +21,7 @@ pub mod compare;
 pub mod hunks;
 pub mod line_differ;
 pub mod lines;
+pub mod sides;
 
 #[cfg(feature = "view")]
 mod diff_view;
@@ -29,8 +32,10 @@ mod view;
 #[cfg(all(feature = "window-example", not(target_family = "wasm")))]
 use gpui_platform as _;
 
+pub use alignment::DiffSide;
 pub use compare::{CompareOptions, Comparison, UnknownVariant};
 pub use hunks::{DiffStats, HunkKind, LineHunk};
 pub use line_differ::{HistogramLineDiffer, LineDiffer, MyersLineDiffer};
+pub use sides::{SideState, Sides};
 #[cfg(feature = "view")]
-pub use view::{DiffDocument, ReviewEvent, ReviewView, ReviewViewBuilder, Shown, Texts};
+pub use view::{DiffDocument, RECOMPARE_DELAY, ReviewEvent, ReviewView, ReviewViewBuilder, Shown, ShownCause, Texts};

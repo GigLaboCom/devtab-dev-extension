@@ -9,8 +9,8 @@
 # None found: build it (crates/review-wasm/build.sh) and run this again. The spike's module (spikes/review-wasm) is
 # not a source any more: it lacks compare_texts.
 #
-# The module is checked before it is used, also when a copy already in pkg/ is kept: the JS must export run /
-# set_theme / compare_texts / show_diff (the host wrapper's contract, lib/host.ts and lib/glue.d.ts). pkg/SOURCE
+# The module is checked before it is used, also when a copy already in pkg/ is kept: the JS must export every function
+# of the host wrapper's contract (lib/host.ts and lib/glue.d.ts; the list is `exports` below). pkg/SOURCE
 # records where it came from and the sha256 of both files; scripts/validate-build.sh checks that the extension ships
 # exactly this wasm. Files are copied only when they differ, so a rebuild keeps their mtime.
 #
@@ -21,7 +21,7 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd -P)"
 repo="$(cd "$here/../.." && pwd -P)"
 out="$here/pkg"
-exports="run set_theme compare_texts show_diff"
+exports="run set_theme compare_texts show_diff set_side set_language swap_sides set_editable side_text mark_saved focused_side focus_side"
 
 # Fails unless the module's JS exports every function of the contract.
 check_exports() {

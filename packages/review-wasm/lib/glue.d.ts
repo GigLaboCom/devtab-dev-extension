@@ -1,4 +1,4 @@
-// Types of the module's wasm-bindgen JS (pkg/review_wasm.js, built with --no-typescript): the four exports of
+// Types of the module's wasm-bindgen JS (pkg/review_wasm.js, built with --no-typescript): the exports of
 // crates/review-wasm/src/lib.rs and the init function.
 declare module '*/pkg/review_wasm.js' {
   const init: (options?: { module_or_path?: string | URL | Request }) => Promise<unknown>;
@@ -7,4 +7,12 @@ declare module '*/pkg/review_wasm.js' {
   export const set_theme: (dark: boolean, name?: string | null, sourceJson?: string | null) => void;
   export const compare_texts: (requestJson: string) => void;
   export const show_diff: (payloadJson: string) => void;
+  export const set_side: (requestJson: string) => void;
+  export const set_language: (language: string) => void;
+  export const swap_sides: () => void;
+  export const set_editable: (side: string, editable: boolean, focus: boolean) => void;
+  export const side_text: (side: string) => string;
+  export const mark_saved: (side: string, text: string) => void;
+  export const focused_side: () => string | undefined;
+  export const focus_side: (side: string) => void;
 }

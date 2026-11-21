@@ -60,6 +60,26 @@ export interface DiffPayload extends Texts {
   diagnostics?: DiagnosticPayload[];
 }
 
+/** A side of the view: `old` — the original, on the left; `new` — the changed text, on the right. */
+export type Side = 'old' | 'new';
+
+/** One side as the view reports it. */
+export interface SideShown {
+  /** The user may edit it (read-only otherwise, the default). */
+  editable: boolean;
+  /** Its text differs from what was loaded into it or last saved (`mark_saved`). */
+  modified: boolean;
+  empty: boolean;
+}
+
+/** `set_side(request_json)`: one side's new text, compared with the other side as it is now. */
+export interface SideRequest {
+  side: Side;
+  text: string;
+  /** What the editor's status line names from now on. */
+  path?: string;
+}
+
 /** What the editor now shows: the `shown` event's detail. */
 export interface DiffShown {
   path: string;
@@ -71,8 +91,13 @@ export interface DiffShown {
   removed: number;
   /** The differ that computed the hunks; null when they came with `show_diff`. */
   lineDiffer: string | null;
-  /** How long the comparison took inside the module; null for `show_diff`. */
+  /** How long the differ took inside the module; null for `show_diff`. */
   compareMs: number | null;
+  /** The whole comparison inside the module: reading both sides, the differ, the new hunks in the view. */
+  updateMs: number | null;
+  /** `request`: a call of the page; `edit`: the user's edit, compared once the typing paused. */
+  cause: 'request' | 'edit';
+  sides: Record<Side, SideShown>;
 }
 
 /** `run(options_json)`. */
@@ -95,10 +120,18 @@ export type ReviewEventName = 'first-frame' | 'shown' | 'error';
 export type ReviewEvent =
   { name: 'first-frame' } | { name: 'shown'; shown: DiffShown } | { name: 'error'; message: string };
 
-/** The four exports, as the host wrapper calls them. A refused call throws. */
+/** The exports, as the host wrapper calls them. A refused call throws. */
 export interface ReviewModule {
   run: (optionsJson: string) => void;
   set_theme: (dark: boolean, name: string | undefined, sourceJson: string | undefined) => void;
   compare_texts: (requestJson: string) => void;
   show_diff: (payloadJson: string) => void;
+  set_side: (requestJson: string) => void;
+  set_language: (language: string) => void;
+  swap_sides: () => void;
+  set_editable: (side: Side, editable: boolean, focus: boolean) => void;
+  side_text: (side: Side) => string;
+  mark_saved: (side: Side, text: string) => void;
+  focused_side: () => string | undefined;
+  focus_side: (side: Side) => void;
 }

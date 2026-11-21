@@ -5,19 +5,35 @@
 //! Exports (wasm-bindgen):
 //!
 //! - `run(options_json)` — start: an empty view, drawn in the given theme;
-//! - `set_theme(dark, name, theme_set_json)` — switch the theme at run time;
+//! - `set_theme(dark, name, theme_set_json)` — switch the theme at run time; called after `run()` but before gpui has
+//!   finished launching (the browser's graphics start asynchronously), it is kept and applied at launch;
 //! - `compare_texts(request_json)` — `{path, language, oldText, newText, options?}`: the view compares the two texts
 //!   (`options` name built-in variants, e.g. `{"lineDiffer": "myers"}`) and shows them;
 //! - `show_diff(payload_json)` — `{path, language, oldText, newText, hunks, diagnostics?}`: hunks computed elsewhere
-//!   (OpenIDEA's `vcs_line_hunks` in live review), shown as given.
+//!   (OpenIDEA's `vcs_line_hunks` in live review), shown as given;
+//! - `set_side(request_json)` — `{side, text, path?}`: one side's new text (`side` is `old` or `new`), compared with the
+//!   other side as it is now;
+//! - `set_language(language)` — highlight both sides as another language;
+//! - `swap_sides()` — the sides trade places;
+//! - `set_editable(side, editable, focus)` — let the user edit a side, or make it read-only again (default);
+//! - `side_text(side)` — a side's text as it is now, edits included;
+//! - `mark_saved(side, text)` — the host saved `text` for the side: no longer modified;
+//! - `focused_side()` / `focus_side(side)` — which side has the keyboard; give it to one.
 //!
-//! A call the module refuses (bad JSON, an unknown option or variant, no window yet) throws a string. Outbound:
+//! A call the module refuses (bad JSON, an unknown option, variant or side, no window yet) throws a string. Outbound:
 //! `globalThis.__reviewEvent(name, detail)` for `first-frame` (detail empty), `shown` (detail: JSON
-//! `{path, changes, added, removed, lineDiffer, compareMs}`, the last two `null` for `show_diff`) and `error` (a
-//! theme file that does not parse).
+//! `{path, changes, added, removed, lineDiffer, compareMs, updateMs, cause, sides}` — `lineDiffer`, `compareMs` and
+//! `updateMs` `null` for `show_diff`; `cause` `request` for a call above, `edit` when the user's edit was compared once
+//! the typing paused; `sides.old` / `sides.new` = `{editable, modified, empty}`) and `error` (a theme file that does
+//! not parse).
 #![cfg(target_family = "wasm")]
 
-use std::{borrow::Cow, cell::RefCell, rc::Rc, sync::Arc};
+use std::{
+    borrow::Cow,
+    cell::{Cell, RefCell},
+    rc::Rc,
+    sync::Arc,
+};
 
 use gpui::*;
 use gpui_component::{
@@ -25,7 +41,7 @@ use gpui_component::{
     highlighter::{Diagnostic, DiagnosticSeverity},
     theme::{Theme, ThemeMode, ThemeRegistry, ThemeSet},
 };
-use review_view::{CompareOptions, DiffDocument, LineHunk, ReviewEvent, ReviewView, Shown, Texts};
+use review_view::{CompareOptions, DiffDocument, DiffSide, LineHunk, ReviewEvent, ReviewView, Shown, Texts};
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 
@@ -41,6 +57,10 @@ const MONO_FONT: &str = "JetBrains Mono";
 thread_local! {
     static APPLICATION: RefCell<Option<ApplicationHandle>> = const { RefCell::new(None) };
     static VIEW: RefCell<Option<(AnyWindowHandle, WeakEntity<ReviewView>)>> = const { RefCell::new(None) };
+    /// A theme chosen while gpui is still launching: `run()` returns before the browser's graphics are up, and gpui-kit
+    /// (its `ThemeRegistry`) exists only once `launch` has run. `launch` applies it; `None` once launched.
+    static PENDING_THEME: RefCell<Option<PendingTheme>> = const { RefCell::new(None) };
+    static LAUNCHED: Cell<bool> = const { Cell::new(false) };
 }
 
 // ---- host page boundary -------------------------------------------------------------------
@@ -121,7 +141,26 @@ impl From<DiagnosticPayload> for Diagnostic {
     }
 }
 
+/// `set_side`: one side's new text.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SidePayload {
+    side: String,
+    text: String,
+    #[serde(default)]
+    path: Option<String>,
+}
+
+fn side_named(export: &str, name: &str) -> Result<DiffSide, JsValue> {
+    DiffSide::from_name(name)
+        .ok_or_else(|| JsValue::from_str(&format!("{export}: unknown side \"{name}\"; the sides are old, new")))
+}
+
 fn shown_detail(shown: &Shown) -> String {
+    let side = |side: DiffSide| {
+        let state = shown.sides[side.index()];
+        serde_json::json!({ "editable": state.editable, "modified": state.modified, "empty": state.empty })
+    };
     serde_json::json!({
         "path": shown.path,
         "changes": shown.stats.changes,
@@ -129,6 +168,9 @@ fn shown_detail(shown: &Shown) -> String {
         "removed": shown.stats.removed,
         "lineDiffer": shown.line_differ,
         "compareMs": shown.compare_time.map(|t| t.as_secs_f64() * 1000.0),
+        "updateMs": shown.update_time.map(|t| t.as_secs_f64() * 1000.0),
+        "cause": shown.cause.name(),
+        "sides": { "old": side(DiffSide::Old), "new": side(DiffSide::New) },
     })
     .to_string()
 }
@@ -215,8 +257,26 @@ fn theme_mode(dark: bool) -> ThemeMode {
 
 // ---- exports ------------------------------------------------------------------------------
 
+/// The arguments of a `set_theme` that came before gpui had launched.
+struct PendingTheme {
+    dark: bool,
+    name: Option<String>,
+    source_json: Option<String>,
+}
+
 #[wasm_bindgen]
 pub fn set_theme(dark: bool, name: Option<String>, source_json: Option<String>) {
+    if !LAUNCHED.get() {
+        // The latest choice wins; `launch` applies it before the first window.
+        PENDING_THEME.with(|pending| {
+            *pending.borrow_mut() = Some(PendingTheme {
+                dark,
+                name,
+                source_json,
+            });
+        });
+        return;
+    }
     APPLICATION.with(|application| {
         if let Some(handle) = application.borrow().as_ref() {
             handle.update(|cx| {
@@ -254,6 +314,71 @@ pub fn show_diff(payload_json: String) -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
+pub fn set_side(request_json: String) -> Result<(), JsValue> {
+    let request: SidePayload =
+        serde_json::from_str(&request_json).map_err(|err| JsValue::from_str(&format!("set_side: {err}")))?;
+    let side = side_named("set_side", &request.side)?;
+    let shown = with_view("set_side", |view, window, cx| {
+        Ok(view.set_text(side, request.text, request.path, window, cx))
+    })?;
+    notify_host("shown", &shown_detail(&shown));
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub fn set_language(language: String) -> Result<(), JsValue> {
+    let shown = with_view("set_language", |view, _, cx| Ok(view.set_language(language, cx)))?;
+    notify_host("shown", &shown_detail(&shown));
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub fn swap_sides() -> Result<(), JsValue> {
+    let shown = with_view("swap_sides", |view, window, cx| Ok(view.swap(window, cx)))?;
+    notify_host("shown", &shown_detail(&shown));
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub fn set_editable(side: String, editable: bool, focus: bool) -> Result<(), JsValue> {
+    let side = side_named("set_editable", &side)?;
+    with_view("set_editable", |view, window, cx| {
+        view.set_editable(side, editable, focus, window, cx);
+        Ok(())
+    })
+}
+
+#[wasm_bindgen]
+pub fn side_text(side: String) -> Result<String, JsValue> {
+    let side = side_named("side_text", &side)?;
+    with_view("side_text", |view, _, cx| Ok(view.text(side, cx)))
+}
+
+#[wasm_bindgen]
+pub fn mark_saved(side: String, text: String) -> Result<(), JsValue> {
+    let side = side_named("mark_saved", &side)?;
+    let shown = with_view("mark_saved", |view, _, cx| Ok(view.mark_saved(side, text, cx)))?;
+    notify_host("shown", &shown_detail(&shown));
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub fn focused_side() -> Result<Option<String>, JsValue> {
+    with_view("focused_side", |view, window, cx| {
+        Ok(view.focused_side(window, cx).map(|side| side.name().to_owned()))
+    })
+}
+
+#[wasm_bindgen]
+pub fn focus_side(side: String) -> Result<(), JsValue> {
+    let side = side_named("focus_side", &side)?;
+    with_view("focus_side", |view, window, cx| {
+        view.focus(side, window, cx);
+        Ok(())
+    })
+}
+
+#[wasm_bindgen]
 pub fn run(options_json: Option<String>) -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
     gpui_web::init_logging();
@@ -284,12 +409,45 @@ pub fn run(options_json: Option<String>) -> Result<(), JsValue> {
         gpui_component::init(cx);
 
         // gpui-kit picks its key bindings at compile time and wasm is never `target_os = "macos"`, so in a browser
-        // on a Mac only Ctrl+C would copy.
+        // on a Mac only the Ctrl bindings would work. The Mac bindings an editable side needs: clipboard, undo and
+        // redo, selection, moving and deleting by line and by word (as gpui-kit binds them on macOS).
         if matches!(cx.platform_info().os, OperatingSystem::Mac | OperatingSystem::Ios) {
+            use gpui_component::input::{
+                Copy, Cut, DeleteToBeginningOfLine, DeleteToEndOfLine, DeleteToNextWordEnd, DeleteToPreviousWordStart,
+                MoveEnd, MoveHome, MoveToEnd, MoveToNextWord, MoveToPreviousWord, MoveToStart, Redo, SelectAll,
+                SelectToEnd, SelectToEndOfLine, SelectToNextWordEnd, SelectToPreviousWordStart, SelectToStart,
+                SelectToStartOfLine, Undo,
+            };
+            let input = Some("Input");
             cx.bind_keys([
-                KeyBinding::new("cmd-c", gpui_component::input::Copy, Some("Input")),
-                KeyBinding::new("cmd-a", gpui_component::input::SelectAll, Some("Input")),
+                KeyBinding::new("cmd-c", Copy, input),
+                KeyBinding::new("cmd-x", Cut, input),
+                KeyBinding::new("cmd-a", SelectAll, input),
+                KeyBinding::new("cmd-z", Undo, input),
+                KeyBinding::new("cmd-shift-z", Redo, input),
+                KeyBinding::new("cmd-left", MoveHome, input),
+                KeyBinding::new("cmd-right", MoveEnd, input),
+                KeyBinding::new("cmd-up", MoveToStart, input),
+                KeyBinding::new("cmd-down", MoveToEnd, input),
+                KeyBinding::new("alt-left", MoveToPreviousWord, input),
+                KeyBinding::new("alt-right", MoveToNextWord, input),
+                KeyBinding::new("shift-cmd-left", SelectToStartOfLine, input),
+                KeyBinding::new("shift-cmd-right", SelectToEndOfLine, input),
+                KeyBinding::new("cmd-shift-up", SelectToStart, input),
+                KeyBinding::new("cmd-shift-down", SelectToEnd, input),
+                KeyBinding::new("alt-shift-left", SelectToPreviousWordStart, input),
+                KeyBinding::new("alt-shift-right", SelectToNextWordEnd, input),
+                KeyBinding::new("cmd-backspace", DeleteToBeginningOfLine, input),
+                KeyBinding::new("cmd-delete", DeleteToEndOfLine, input),
+                KeyBinding::new("alt-backspace", DeleteToPreviousWordStart, input),
+                KeyBinding::new("alt-delete", DeleteToNextWordEnd, input),
             ]);
+        } else {
+            // Paste stays the browser's: its `paste` event hands the text over without a clipboard permission
+            // (gpui-pre-web's register_paste), while gpui-kit's Paste action reads navigator.clipboard, which an
+            // extension page may only do after Chrome's prompt. Cmd+V on a Mac is not bound in wasm, so it is the
+            // browser's already.
+            cx.bind_keys([KeyBinding::new("ctrl-v", NoAction, Some("Input"))]);
         }
 
         // The browser platform has no font database, and `.SystemUIFont` resolves to IBM Plex Sans there: it must
@@ -309,12 +467,26 @@ pub fn run(options_json: Option<String>) -> Result<(), JsValue> {
             options.font_size,
             cx,
         );
+        // A theme chosen while the graphics were starting is newer than the one `run()` was given.
+        if let Some(theme) = PENDING_THEME.with(|pending| pending.borrow_mut().take()) {
+            apply_theme(
+                theme_mode(theme.dark),
+                theme.name.as_deref(),
+                theme.source_json.as_deref(),
+                None,
+                cx,
+            );
+        }
+        LAUNCHED.set(true);
 
         cx.open_window(WindowOptions::default(), |window, cx| {
             // The composition root of the comparison: every seam at its default.
             let view = cx.new(|cx| ReviewView::builder().build(window, cx));
             cx.subscribe(&view, |_, event, _| match event {
                 ReviewEvent::FirstFrame => notify_host_later("first-frame", String::new()),
+                // The user's edit, compared once the typing paused: the page learns the counts and which side is
+                // modified; the text stays here until the page asks for it.
+                ReviewEvent::Recompared(shown) => notify_host_later("shown", shown_detail(shown)),
             })
             .detach();
             VIEW.with(|slot| *slot.borrow_mut() = Some((window.window_handle(), view.downgrade())));

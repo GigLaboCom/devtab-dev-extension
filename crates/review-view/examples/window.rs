@@ -275,6 +275,8 @@ fn main() {
                         })
                         .detach();
                     }
+                    // Both sides stay read-only here: no edits to follow.
+                    ReviewEvent::Recompared(_) => {}
                 })
                 .detach();
                 cx.new(|cx| Root::new(view, window, cx))
