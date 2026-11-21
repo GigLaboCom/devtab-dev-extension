@@ -1,0 +1,25 @@
+{
+  "name": "@workspace/tool-logic-number-base",
+  "version": "0.1.0",
+  "description": "The Number Bases tool's logic (D14, docs/tools/specs/number-base.md). Pure TypeScript: no React, no DOM, no chrome.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@workspace/tools-shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
