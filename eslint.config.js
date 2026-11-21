@@ -9,6 +9,25 @@ import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 import { config, configs as tsConfigs, parser as tsParser } from 'typescript-eslint';
+import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+/**
+ * The tools' packages (D14), read from the folders: one block per tool below lets it import its own logic and nothing
+ * of another tool, so adding a tool edits no line here.
+ */
+const toolIds = layer => {
+  const dir = join(import.meta.dirname, 'packages/tools', layer);
+  return existsSync(dir)
+    ? readdirSync(dir, { withFileTypes: true })
+        .filter(e => e.isDirectory() && !['shared', 'host'].includes(e.name))
+        .map(e => e.name)
+    : [];
+};
+/** What a tool's package never imports, whichever layer (D14). */
+const NOT_THE_EXTENSION = { group: ['@extension/*', '@src/*'], message: 'Tools never import the extension (D14).' };
+/** Globals of a page that tool logic does without (D14: no DOM unless the specification says so; then a parameter). */
+const DOM_GLOBALS = ['window', 'document', 'navigator', 'location', 'localStorage', 'sessionStorage', 'indexedDB'];
 
 export default config(
   {
@@ -77,8 +96,10 @@ export default config(
       sourceType: 'module',
       parserOptions: {
         ecmaFeatures: { jsx: true },
-        // The extension's build configs live in tsconfig.node.json, outside the app's tsconfig.json.
-        projectService: { allowDefaultProject: ['extension/*.config.ts'] },
+        // The extension's build configs live in tsconfig.node.json, outside the app's tsconfig.json — except
+        // manifest.config.ts, which a test of the app imports (src/start/parts/manifest.test.ts), so the app's project
+        // already has it.
+        projectService: { allowDefaultProject: ['extension/vite.config.ts', 'extension/vitest.config.ts'] },
         tsconfigRootDir: import.meta.dirname,
       },
       globals: {
@@ -124,6 +145,115 @@ export default config(
     },
     linterOptions: {
       reportUnusedDisableDirectives: 'error',
+    },
+  },
+  {
+    // D14: a tool's logic is pure TypeScript — no React, no DOM, no UI layer, no other tool, nothing of the extension, no
+    // chrome. `shared` is the pure code every tool may use (but not the history core: that is the host's).
+    files: ['packages/tools/logic/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['react', 'react/*', 'react-dom', 'react-dom/*'], message: 'Tool logic has no React (D14).' },
+            {
+              group: ['@testing-library/*', 'radix-ui', '@radix-ui/*', 'lucide-react', 'jsdom'],
+              message:
+                'Tool logic uses no DOM or UI library (D14); a Document, if the specification needs one, is a parameter.',
+            },
+            {
+              group: [
+                '@workspace/tools-host',
+                '@workspace/tool-ui-*',
+                '@workspace/ui',
+                '@workspace/ui/*',
+                '@workspace/dna',
+                '@workspace/dna/*',
+              ],
+              message: 'Tool logic never imports the ui layer (D14).',
+            },
+            { group: ['@workspace/tool-logic-*'], message: 'A tool never imports another tool (D14).' },
+            NOT_THE_EXTENSION,
+          ],
+        },
+      ],
+      'no-restricted-globals': ['error', { name: 'chrome', message: 'Tools never touch chrome.* (D14).' }],
+    },
+  },
+  {
+    // The DOM stays out of a tool's logic (its tsconfig leaves the DOM library out too); its tests may build fixtures.
+    files: ['packages/tools/logic/**/*.{ts,tsx}'],
+    ignores: ['packages/tools/logic/shared/**', 'packages/tools/logic/**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        { name: 'chrome', message: 'Tools never touch chrome.* (D14).' },
+        ...DOM_GLOBALS.map(name => ({
+          name,
+          message: 'Tool logic has no DOM (D14): take what you need as a parameter.',
+        })),
+      ],
+    },
+  },
+  {
+    // D14: a tool's component and the host contract — nothing of the extension, no chrome. A tool records through its
+    // host (ToolHost.history), never through a store of its own (D17): only the host contract imports the history core.
+    files: ['packages/tools/ui/**/*.{ts,tsx}', 'extension/src/tools/**/*.{ts,tsx}'],
+    ignores: ['packages/tools/ui/host/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@workspace/tools-shared/history', '@src/history', '@src/history/*'],
+              message: 'Record through ToolHost.history (@workspace/tools-host), never a store (D17).',
+            },
+            { group: ['@workspace/tool-ui-*'], message: 'A tool never imports another tool (D14).' },
+          ],
+        },
+      ],
+      'no-restricted-globals': ['error', { name: 'chrome', message: 'Tools never touch chrome.* (D14).' }],
+    },
+  },
+  // One block per tool's component: its own logic, never another tool's; never the extension (D14, D17).
+  ...toolIds('ui').map(id => ({
+    files: [`packages/tools/ui/${id}/**/*.{ts,tsx}`],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@workspace/tools-shared/history'],
+              message: 'Record through ToolHost.history (@workspace/tools-host), never a store (D17).',
+            },
+            {
+              group: ['@workspace/tool-ui-*', '@workspace/tool-logic-*', `!@workspace/tool-logic-${id}`],
+              message: `A tool never imports another tool (D14): ${id} imports only @workspace/tool-logic-${id}.`,
+            },
+            NOT_THE_EXTENSION,
+          ],
+        },
+      ],
+    },
+  })),
+  {
+    files: ['packages/tools/ui/host/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['@extension/*', '@src/*'], message: 'The host contract never imports the extension (D14).' },
+          ],
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        { name: 'chrome', message: 'The host contract never touches chrome.* (D14).' },
+      ],
     },
   },
   {
