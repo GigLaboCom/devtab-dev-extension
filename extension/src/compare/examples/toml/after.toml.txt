@@ -1,0 +1,28 @@
+# Settings of the photo organiser.
+[library]
+path = "~/Pictures/Library"
+import_mode = "move"
+skip_duplicates = true
+watch_folders = ["~/Downloads", "~/Desktop"]
+
+[export]
+default_folder = "~/Pictures/Export"
+keep_metadata = false
+max_width = 2048
+
+[thumbnails]
+size = 256
+quality = 85
+format = "webp"
+
+[[albums]]
+name = "Holidays"
+filter = "tag:holiday"
+
+[[albums]]
+name = "Family"
+filter = "tag:family"
+
+[[albums]]
+name = "Starred"
+filter = "rating>=4"

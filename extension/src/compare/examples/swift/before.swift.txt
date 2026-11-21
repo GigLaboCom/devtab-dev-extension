@@ -1,0 +1,27 @@
+import Foundation
+
+/// A recipe with ingredients scaled by servings.
+struct Recipe {
+    let name: String
+    var servings: Int
+    var ingredients: [String: Double]
+
+    func scaled(to people: Int) -> Recipe {
+        let factor = Double(people) / Double(servings)
+        var copy = self
+        copy.servings = people
+        copy.ingredients = ingredients.mapValues { $0 * factor }
+        return copy
+    }
+
+    var isVegetarian: Bool {
+        !ingredients.keys.contains("meat")
+    }
+
+    func describe() -> String {
+        "\(name) for \(servings)"
+    }
+}
+
+let soup = Recipe(name: "Soup", servings: 2, ingredients: ["carrot": 2, "onion": 1])
+print(soup.scaled(to: 4).describe())

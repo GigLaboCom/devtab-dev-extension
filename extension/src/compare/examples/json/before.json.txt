@@ -1,0 +1,29 @@
+{
+  "name": "orders-service",
+  "version": "1.4.2",
+  "port": 8080,
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "orders",
+    "pool": 10
+  },
+  "cache": {
+    "enabled": true,
+    "ttlSeconds": 300
+  },
+  "features": {
+    "giftWrap": false,
+    "splitShipments": true,
+    "legacyCheckout": true
+  },
+  "logging": {
+    "level": "info",
+    "format": "text"
+  },
+  "retries": 3,
+  "timeouts": {
+    "connectMs": 2000,
+    "readMs": 5000
+  }
+}

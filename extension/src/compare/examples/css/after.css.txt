@@ -1,0 +1,43 @@
+/* Styles of the garden club pages. */
+:root {
+  --green: #2f7d4a;
+  --paper: #fbfaf5;
+  --ink: #1f2420;
+  --muted: #6b6f6a;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 17px/1.6 Georgia, serif;
+}
+
+nav a {
+  margin-left: 16px;
+  color: var(--green);
+  text-decoration: none;
+}
+
+nav a:hover,
+nav a:focus-visible {
+  text-decoration: underline;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 2px solid var(--green);
+}
+
+section {
+  max-width: 640px;
+  margin: 32px auto;
+}
+
+footer {
+  padding: 24px;
+  color: var(--muted);
+  text-align: center;
+}

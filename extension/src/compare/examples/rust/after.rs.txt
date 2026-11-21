@@ -1,0 +1,44 @@
+use std::collections::BTreeMap;
+
+/// A shelf in a small storeroom.
+pub struct Shelf {
+    pub id: u32,
+    pub items: BTreeMap<String, u32>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum TakeError {
+    Missing,
+    NotEnough { have: u32 },
+}
+
+impl Shelf {
+    pub fn new(id: u32) -> Self {
+        Self { id, items: BTreeMap::new() }
+    }
+
+    pub fn total(&self) -> u32 {
+        self.items.values().sum()
+    }
+
+    pub fn add(&mut self, name: &str, count: u32) {
+        *self.items.entry(name.to_string()).or_insert(0) += count;
+    }
+
+    pub fn take(&mut self, name: &str, count: u32) -> Result<u32, TakeError> {
+        let have = self.items.get_mut(name).ok_or(TakeError::Missing)?;
+        if *have < count {
+            return Err(TakeError::NotEnough { have: *have });
+        }
+        *have -= count;
+        Ok(*have)
+    }
+}
+
+fn main() {
+    let mut shelf = Shelf::new(7);
+    shelf.add("bolts", 40);
+    shelf.add("nuts", 25);
+    let left = shelf.take("bolts", 12);
+    println!("shelf {} holds {} ({left:?} bolts left)", shelf.id, shelf.total());
+}

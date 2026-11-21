@@ -1,0 +1,36 @@
+# Services of the local development setup.
+version: 2
+
+services:
+  db:
+    image: local/postgres:16
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  web:
+    image: local/web:1.9
+    ports:
+      - "3000:3000"
+    environment:
+      LOG_LEVEL: debug
+      API_BASE: /api
+    depends_on:
+      - api
+
+  api:
+    image: local/api:2.1
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_HOST: db
+      DATABASE_POOL: 10
+      CACHE_HOST: cache
+    depends_on:
+      - db
+      - cache
+
+  cache:
+    image: local/cache:7
+
+volumes:
+  db-data: {}

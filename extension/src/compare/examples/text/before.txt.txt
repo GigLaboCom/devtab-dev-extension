@@ -1,0 +1,22 @@
+Release notes, version 2.3
+
+Highlights
+- Faster start-up on large projects.
+- The search panel remembers the last query.
+- Exported reports keep their column widths.
+
+Fixes
+- A crash when a folder name ended with a space.
+- Tooltips no longer stay open after the window loses focus.
+- The progress bar showed 99 % for finished tasks.
+
+Known issues
+- Printing a report with more than 500 rows is slow.
+- The dark theme uses the wrong colour for links in tables.
+
+Upgrading
+Install the new version over the old one. Settings are kept.
+Back up your templates first if you edited them by hand.
+Version 2.3 reads projects saved by any 2.x version.
+
+Thanks to everyone who reported problems on the forum.

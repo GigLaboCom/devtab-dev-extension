@@ -1,0 +1,33 @@
+# tally
+
+Count words, lines and characters in text files.
+
+## Install
+
+Download the archive for your system and put `tally` on your `PATH`.
+
+## Usage
+
+```sh
+tally notes.txt
+tally --lines *.md
+```
+
+| Flag | What it counts |
+| --- | --- |
+| `--lines` | lines |
+| `--words` | words |
+| `--chars` | characters |
+
+## Options
+
+- `--total` prints one sum for all files.
+- `--quiet` hides the file names.
+
+## Exit codes
+
+`0` when every file was read, `1` when one was missing.
+
+## Licence
+
+MIT, see `LICENSE`.

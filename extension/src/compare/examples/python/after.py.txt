@@ -1,0 +1,33 @@
+"""Summaries of daily temperature readings."""
+import csv
+from statistics import mean, median
+
+
+def load(path):
+    with open(path, newline="", encoding="utf-8") as f:
+        return [row for row in csv.DictReader(f)]
+
+
+def by_city(rows):
+    cities = {}
+    for row in rows:
+        if not row["celsius"]:
+            continue
+        cities.setdefault(row["city"], []).append(float(row["celsius"]))
+    return cities
+
+
+def report(cities):
+    for name, values in sorted(cities.items()):
+        print(f"{name}: avg {mean(values):.1f} C, median {median(values):.1f} C over {len(values)} days")
+
+
+def warmest(cities):
+    return max(cities, key=lambda name: mean(cities[name]))
+
+
+if __name__ == "__main__":
+    rows = load("readings.csv")
+    cities = by_city(rows)
+    report(cities)
+    print("warmest:", warmest(cities))

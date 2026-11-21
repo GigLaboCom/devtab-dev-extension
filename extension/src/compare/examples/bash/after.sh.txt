@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Back up a folder into a dated archive.
+set -euo pipefail
+
+source_dir="${1:-$HOME/Documents}"
+target_dir="${2:-$HOME/Backups}"
+keep="${KEEP:-14}"
+stamp="$(date +%Y-%m-%d-%H%M)"
+
+log() {
+    echo "[backup $(date +%T)] $*" >&2
+}
+
+if [[ ! -d "$source_dir" ]]; then
+    log "no such folder: $source_dir"
+    exit 1
+fi
+
+mkdir -p "$target_dir"
+
+# Keep the newest archives only.
+ls -1t "$target_dir"/backup-*.tar.gz 2>/dev/null | tail -n +"$keep" | xargs -r rm --
+
+archive="$target_dir/backup-$stamp.tar.gz"
+log "archiving $source_dir"
+tar -czf "$archive" -C "$(dirname "$source_dir")" "$(basename "$source_dir")"
+
+size="$(du -h "$archive" | cut -f1)"
+log "wrote $archive ($size)"

@@ -1,0 +1,28 @@
+// Helpers for prices in a shopping cart.
+const TAX_RATE = 0.2;
+const CURRENCY = new Intl.NumberFormat('en', { style: 'currency', currency: 'EUR' });
+
+export function subtotal(lines) {
+  return lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
+}
+
+export function format(amount) {
+  return CURRENCY.format(amount);
+}
+
+export function discount(amount, code) {
+  if (code === 'WELCOME') return amount * 0.15;
+  if (code === 'BULK' && amount > 500) return 50;
+  if (code === 'STAFF') return amount * 0.3;
+  return 0;
+}
+
+export function tax(amount) {
+  return amount * TAX_RATE;
+}
+
+export function total(lines, code) {
+  const sum = subtotal(lines);
+  const net = Math.max(0, sum - discount(sum, code));
+  return format(net + tax(net));
+}

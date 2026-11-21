@@ -1,0 +1,34 @@
+// A small store of events with listeners.
+export interface Event {
+  id: string;
+  kind: 'created' | 'updated' | 'deleted' | 'restored';
+  at: number;
+}
+
+type Listener = (event: Event) => void;
+
+export class EventLog {
+  private events: Event[] = [];
+  private listeners = new Set<Listener>();
+
+  constructor(private readonly limit = 1000) {}
+
+  get size(): number {
+    return this.events.length;
+  }
+
+  add(event: Event): void {
+    this.events.push(event);
+    if (this.events.length > this.limit) this.events.shift();
+    for (const listener of this.listeners) listener(event);
+  }
+
+  subscribe(listener: Listener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  since(time: number): Event[] {
+    return this.events.filter(e => e.at > time);
+  }
+}

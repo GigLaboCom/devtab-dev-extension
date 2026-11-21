@@ -1,214 +1,595 @@
 /**
- * «Compare code» (D11): two texts or two files → the editor page in the iframe (src/viewer/), whose wasm module
- * compares them (crates/review-view: the comparison lives in Rust, D13) and shows them side by side → the counts come
- * back with the module's answer. Works without any companion — the part a store reviewer can try as it is. Opens with
- * an example so the editor shows a real diff from the first second. Nothing typed or opened here is stored.
+ * «Compare code» (D11): a toolbar and the two-editor view filling the rest. The editors are the page: text gets in by
+ * dropping files (anywhere on the section, the editor included), opening files, pasting, or typing into a side
+ * switched to edit mode; with nothing loaded the example of the selected language is shown. The editor page in the
+ * iframe (src/viewer/) owns the two texts and compares them in its wasm module (crates/review-view: the comparison
+ * lives in Rust, D13) — on a request, and by itself as the user edits. This page keeps what it says about each side
+ * (compare/state.ts), and its toolbar is the list of compare/actions.ts. Nothing opened or typed here is stored; the
+ * only writes are the user's Save and Save as.
  */
-import newSample from '@src/compare/fixtures/new.rs?raw';
-import oldSample from '@src/compare/fixtures/old.rs?raw';
+import { sideWord } from '@src/compare/actions';
+import { collectDrop } from '@src/compare/files';
 import { LANGUAGES, languageOfFile } from '@src/compare/languages';
-import { Button } from '@src/components/ui/button';
-import { Label } from '@src/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@src/components/ui/select';
-import { Textarea } from '@src/components/ui/textarea';
+import {
+  SIDES,
+  initialState,
+  isEmptyComparison,
+  languageAfter,
+  other,
+  place,
+  reduce,
+  sideName,
+} from '@src/compare/state';
 import { VIEWER_PAGE } from '@src/shared/pages';
-import { isFromViewer } from '@src/shared/viewerProtocol';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { DiffShown } from '@extension/review-wasm';
-import type { ToViewer } from '@src/shared/viewerProtocol';
-import type { ChangeEvent, ReactElement } from 'react';
+import { chordOf, isFromViewer, isMac, sameChord } from '@src/shared/viewerProtocol';
+import { Button } from '@workspace/ui/button';
+import { Label } from '@workspace/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@workspace/ui/tooltip';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import type { ActionContext, CompareAction, ComparePort } from '@src/compare/actions';
+import type { CompareBehaviors } from '@src/compare/behaviors';
+import type { SideText } from '@src/compare/files';
+import type { Arrival, CompareState, Side, Tone } from '@src/compare/state';
+import type { DroppedEntry, KeyChord, ToViewer } from '@src/shared/viewerProtocol';
+import type { DragEvent, ReactElement } from 'react';
 
-type ViewerState = 'loading' | 'ready' | 'error';
+/** The language of the example the page opens with. */
+export const DEFAULT_LANGUAGE = 'rust';
 
-const SidePanel = ({
+const ROLE: Record<Side, string> = { old: 'Original', new: 'Changed' };
+
+const keyLabel = (chord: KeyChord, mac: boolean): string =>
+  [chord.mod ? (mac ? '⌘' : 'Ctrl+') : '', chord.shift ? (mac ? '⇧' : 'Shift+') : '', chord.key.toUpperCase()].join('');
+
+/** Where the texts of the module's status line come from: the changed side's name, else the original's. */
+const pathOf = (state: CompareState): string => state.sides.new.fileName ?? state.sides.old.fileName ?? 'untitled';
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select, textarea, iframe, [tabindex]';
+
+const ActionButton = ({
+  action,
   side,
-  label,
-  text,
-  fileName,
-  onText,
-  onFile,
+  state,
+  mac,
+  onRun,
 }: {
-  side: 'old' | 'new';
-  label: string;
-  text: string;
-  fileName: string;
-  onText: (text: string) => void;
-  onFile: (file: File) => void;
+  action: CompareAction;
+  side: Side | null;
+  state: CompareState;
+  mac: boolean;
+  onRun: (action: CompareAction, side: Side | null) => void;
 }): ReactElement => {
-  const fieldId = `compare-${side}`;
+  const Icon = action.icon;
+  const pressed = action.pressed?.(state, side);
+  const label = side ? `${action.title} (${sideWord(side)} side)` : action.title;
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex min-h-6 items-center justify-between gap-2">
-        <Label htmlFor={fieldId}>
-          {label}
-          {fileName && <span className="font-normal text-muted-foreground"> · {fileName}</span>}
-        </Label>
-        <Button asChild variant="ghost" size="sm">
-          <label>
-            Open file…
-            <input
-              type="file"
-              className="sr-only"
-              onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                const file = e.target.files?.[0];
-                if (file) onFile(file);
-                e.target.value = '';
-              }}
-            />
-          </label>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={label}
+          aria-pressed={pressed === undefined ? undefined : pressed}
+          data-action={action.id}
+          data-pressed={pressed ? '' : undefined}
+          className="kit-compare-action"
+          disabled={!action.enabled(state, side)}
+          onClick={() => onRun(action, side)}>
+          <Icon aria-hidden="true" />
         </Button>
-      </div>
-      <Textarea
-        id={fieldId}
-        className="h-42.5 resize-y font-mono text-code field-sizing-fixed [tab-size:4]"
-        spellCheck={false}
-        value={text}
-        onChange={e => onText(e.target.value)}
-      />
-    </div>
+      </TooltipTrigger>
+      <TooltipContent>
+        {action.title}
+        {action.shortcut && <kbd className="cn-kbd">{keyLabel(action.shortcut, mac)}</kbd>}
+      </TooltipContent>
+    </Tooltip>
   );
 };
 
-export const ComparePage = (): ReactElement => {
-  const [oldText, setOldText] = useState(oldSample);
-  const [newText, setNewText] = useState(newSample);
-  const [oldName, setOldName] = useState('example/old.rs');
-  const [newName, setNewName] = useState('example/new.rs');
-  const [language, setLanguage] = useState('rust');
-  const [viewer, setViewer] = useState<ViewerState>('loading');
-  // What the module reports for the latest request: the counts come from the comparison it ran.
-  const [result, setResult] = useState<DiffShown | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // How many results the editor has reported (on the status line as data-shown, for the e2e check).
-  const [shown, setShown] = useState({ count: 0, path: '' });
+export const ComparePage = ({ behaviors }: { behaviors: CompareBehaviors }): ReactElement => {
+  const [state, dispatch] = useReducer(reduce, DEFAULT_LANGUAGE, initialState);
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const frame = useRef<HTMLIFrameElement>(null);
+  const mac = useMemo(() => isMac(), []);
+  const sideActions = behaviors.actions.filter(a => a.scope === 'side');
+  const commonActions = behaviors.actions.filter(a => a.scope === 'common');
 
-  // The comparison runs in the editor page's module and answers asynchronously; only the latest request may show
-  // its result.
-  const request = useRef(0);
-  const compare = useCallback(() => {
-    const id = ++request.current;
-    setError(null);
-    const message: ToViewer = {
-      type: 'viewer/compare',
-      id,
-      request: { path: newName || oldName || 'untitled', language, oldText, newText },
+  // ---- the editor page: requests, reads, answers --------------------------------------------------------------
+  const viewerReady = useRef(false);
+  // Messages for an editor that has not drawn yet; a full comparison drops what waited before it.
+  const outbox = useRef<ToViewer[]>([]);
+  const nextId = useRef(0);
+  // The latest request that changes what is shown: only its answer (or an edit's) is taken.
+  const latest = useRef(0);
+  const reads = useRef(new Map<number, { resolve: (text: string) => void; reject: (error: Error) => void }>());
+  const [shown, setShown] = useState({ count: 0, path: '' });
+
+  const post = useCallback((message: ToViewer) => {
+    if (viewerReady.current) frame.current?.contentWindow?.postMessage(message, location.origin);
+    else outbox.current = message.type === 'viewer/compare' ? [message] : [...outbox.current, message];
+  }, []);
+  const request = useCallback(
+    (make: (id: number) => ToViewer) => {
+      const id = ++nextId.current;
+      latest.current = id;
+      post(make(id));
+    },
+    [post],
+  );
+  const read = useCallback(
+    (side: Side) =>
+      new Promise<string>((resolve, reject) => {
+        if (!viewerReady.current) return reject(new Error('The editor is still loading.'));
+        const id = ++nextId.current;
+        reads.current.set(id, { resolve, reject });
+        post({ type: 'viewer/read', id, side });
+      }),
+    [post],
+  );
+  const say = useCallback(
+    (text: string, tone: Tone = 'info') => dispatch({ type: 'notice', notice: { tone, text } }),
+    [],
+  );
+
+  // ---- the example ---------------------------------------------------------------------------------------------
+  // Bumped whenever the user's own text arrives, so an example still loading does not land over it.
+  const generation = useRef(0);
+  const showExample = useCallback(
+    async (language: string) => {
+      const ticket = ++generation.current;
+      const pair = await behaviors.examples.load(language);
+      if (ticket !== generation.current) return;
+      if (!pair) {
+        dispatch({ type: 'language', language });
+        request(id => ({ type: 'viewer/set-language', id, language }));
+        return;
+      }
+      for (const side of SIDES)
+        if (stateRef.current.sides[side].editable)
+          post({ type: 'viewer/set-editable', side, editable: false, focus: false });
+      dispatch({
+        type: 'example',
+        language,
+        names: { old: pair.before.name, new: pair.after.name },
+        empty: { old: !pair.before.text, new: !pair.after.text },
+      });
+      request(id => ({
+        type: 'viewer/compare',
+        id,
+        request: { path: pair.after.name, language, oldText: pair.before.text, newText: pair.after.text },
+      }));
+    },
+    [behaviors.examples, post, request],
+  );
+  useEffect(() => {
+    void showExample(DEFAULT_LANGUAGE);
+  }, [showExample]);
+
+  // ---- what the actions may do (ComparePort) -------------------------------------------------------------------
+  const lastSide = useRef<Side>('new');
+  const confirmLoss = useCallback(
+    async (sides: readonly Side[]) => {
+      const losing = sides.filter(side => stateRef.current.sides[side].modified);
+      if (!losing.length) return true;
+      const which = losing.length === 2 ? 'both sides' : `the ${sideWord(losing[0]!)} side`;
+      return behaviors.confirmDiscard(`Replace the unsaved edits of ${which}? They are not saved anywhere.`);
+    },
+    [behaviors],
+  );
+
+  const port: ComparePort = useMemo(
+    () => ({
+      async load(texts: readonly SideText[], side: Side | null, origin: Arrival['origin']) {
+        const placed = place(texts, side, origin);
+        if ('problem' in placed) return say(placed.problem, 'error');
+        const { arrivals } = placed;
+        if (!(await confirmLoss(arrivals.map(a => a.side)))) return say('Kept the edits; nothing was replaced.');
+        generation.current++;
+        const before = stateRef.current;
+        const language = languageAfter(before, arrivals, languageOfFile);
+        for (const { side: target } of arrivals)
+          if (before.sides[target].editable)
+            post({ type: 'viewer/set-editable', side: target, editable: false, focus: false });
+        dispatch({ type: 'arrived', arrivals, language });
+        const after = reduce(before, { type: 'arrived', arrivals, language });
+        const textOf = (target: Side): string | undefined => arrivals.find(a => a.side === target)?.text.text;
+        const first = arrivals[0]!;
+        if (arrivals.length === 2 || before.sides[other(first.side)].origin === 'example') {
+          // Both sides change: the other side's example goes too.
+          request(id => ({
+            type: 'viewer/compare',
+            id,
+            request: { path: pathOf(after), language, oldText: textOf('old') ?? '', newText: textOf('new') ?? '' },
+          }));
+        } else {
+          if (language !== before.language) request(id => ({ type: 'viewer/set-language', id, language }));
+          request(id => ({
+            type: 'viewer/set-side',
+            id,
+            request: { side: first.side, text: first.text.text, path: pathOf(after) },
+          }));
+        }
+        const named = arrivals.map(
+          a => a.text.fileName ?? (origin === 'clipboard' ? 'The clipboard’s text' : 'The dropped text'),
+        );
+        say(
+          arrivals.length === 2
+            ? `Comparing ${named[0]} (original) with ${named[1]} (changed).`
+            : `${named[0]} is on the ${sideWord(first.side)} side.`,
+          'success',
+        );
+      },
+      read,
+      setEditable(side: Side, editable: boolean) {
+        lastSide.current = side;
+        dispatch({ type: 'editable', side, editable });
+        if (editable) frame.current?.contentWindow?.focus();
+        post({ type: 'viewer/set-editable', side, editable, focus: editable });
+        say(
+          editable
+            ? `Editing the ${sideWord(side)} side: the comparison follows your edits. Escape, then Tab leaves the editor.`
+            : `The ${sideWord(side)} side is read-only again; your edits stay.`,
+        );
+      },
+      async clear(side: Side) {
+        if (!(await confirmLoss([side]))) return;
+        generation.current++;
+        const before = stateRef.current;
+        if (before.sides[side].editable) post({ type: 'viewer/set-editable', side, editable: false, focus: false });
+        dispatch({ type: 'cleared', side });
+        if (before.sides[other(side)].origin === 'example')
+          request(id => ({
+            type: 'viewer/compare',
+            id,
+            request: { path: 'untitled', language: before.language, oldText: '', newText: '' },
+          }));
+        else
+          request(id => ({
+            type: 'viewer/set-side',
+            id,
+            request: { side, text: '', path: pathOf(reduce(before, { type: 'cleared', side })) },
+          }));
+      },
+      swap() {
+        dispatch({ type: 'swapped' });
+        request(id => ({ type: 'viewer/swap', id }));
+        say('Swapped the sides.');
+      },
+      saved(side: Side, text: string, fileName: string, handle: FileSystemFileHandle | null) {
+        dispatch({ type: 'saved', side, fileName, handle });
+        request(id => ({ type: 'viewer/mark-saved', id, side, text }));
+      },
+      say,
+    }),
+    [confirmLoss, post, read, request, say],
+  );
+
+  const runAction = useCallback(
+    (action: CompareAction, side: Side | null) => {
+      if (side) lastSide.current = side;
+      const context: ActionContext = { side, state: stateRef.current, page: port, behaviors };
+      if (!action.enabled(context.state, side)) return;
+      action
+        .run(context)
+        .catch((error: unknown) => say(error instanceof Error ? error.message : String(error), 'error'));
+    },
+    [behaviors, port, say],
+  );
+  const runShortcut = useCallback(
+    (chord: KeyChord, side: Side | null): boolean => {
+      const action = behaviors.actions.find(a => a.shortcut && sameChord(a.shortcut, chord));
+      if (!action) return false;
+      runAction(action, action.scope === 'side' ? (side ?? lastSide.current) : null);
+      return true;
+    },
+    [behaviors.actions, runAction],
+  );
+
+  // ---- drops --------------------------------------------------------------------------------------------------
+  const [dragging, setDragging] = useState(false);
+  const [over, setOver] = useState<Side | null>(null);
+  const handleDrop = useCallback(
+    async (entries: readonly DroppedEntry[], side: Side | null) => {
+      setDragging(false);
+      setOver(null);
+      if (!entries.length) return;
+      const incoming = await behaviors.texts.drop(entries);
+      if (incoming.problems.length) return say(`Nothing was opened: ${incoming.problems.join('; ')}.`, 'error');
+      await port.load(incoming.texts, side, entries.every(e => e.text !== null) ? 'dropped' : 'file');
+    },
+    [behaviors.texts, port, say],
+  );
+  const dropOn = (side: Side) => (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void collectDrop(event.dataTransfer).then(entries => handleDrop(entries, side));
+  };
+  const dragOver = (side: Side) => (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    if (over !== side) setOver(side);
+  };
+
+  // Window-wide: a drag entering the page shows the drop targets; a drop beside them never navigates the tab away.
+  useEffect(() => {
+    const carriesText = (event: globalThis.DragEvent): boolean =>
+      !!event.dataTransfer &&
+      (event.dataTransfer.types.includes('Files') || event.dataTransfer.types.includes('text/plain'));
+    const onEnter = (event: globalThis.DragEvent): void => {
+      if (carriesText(event)) setDragging(true);
     };
-    frame.current?.contentWindow?.postMessage(message, location.origin);
-  }, [oldText, newText, oldName, newName, language]);
+    const onOver = (event: globalThis.DragEvent): void => {
+      if (carriesText(event)) event.preventDefault();
+    };
+    const onLeave = (event: globalThis.DragEvent): void => {
+      if (!event.relatedTarget) {
+        setDragging(false);
+        setOver(null);
+      }
+    };
+    const onDrop = (event: globalThis.DragEvent): void => {
+      if (!event.dataTransfer) return;
+      event.preventDefault();
+      void collectDrop(event.dataTransfer).then(entries => handleDrop(entries, null));
+    };
+    window.addEventListener('dragenter', onEnter);
+    window.addEventListener('dragover', onOver);
+    window.addEventListener('dragleave', onLeave);
+    window.addEventListener('drop', onDrop);
+    return () => {
+      window.removeEventListener('dragenter', onEnter);
+      window.removeEventListener('dragover', onOver);
+      window.removeEventListener('dragleave', onLeave);
+      window.removeEventListener('drop', onDrop);
+    };
+  }, [handleDrop]);
 
-  // The first comparison goes out as soon as the editor has drawn its first frame.
-  const compareRef = useRef(compare);
-  compareRef.current = compare;
+  // ---- keyboard: the shortcuts, Tab into and out of the editor -------------------------------------------------
+  const tabbed = useRef({ at: -Infinity, backwards: false });
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Tab') tabbed.current = { at: performance.now(), backwards: event.shiftKey };
+      const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-side]') : null;
+      const side = (target?.dataset.side as Side | undefined) ?? null;
+      if (runShortcut(chordOf(event, mac), side)) event.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mac, runShortcut]);
+  const leaveEditor = useCallback((backwards: boolean) => {
+    const all = [...document.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+      el => el.tabIndex >= 0 && el.offsetParent !== null,
+    );
+    const at = all.indexOf(frame.current!);
+    const target = backwards ? all[at - 1] : (all[at + 1] ?? all[0]);
+    target?.focus();
+  }, []);
+  const enterEditor = (): void => {
+    // Keyboard only: a click places the caret itself.
+    if (performance.now() - tabbed.current.at > 300) return;
+    post({ type: 'viewer/focus', side: tabbed.current.backwards ? 'new' : 'old' });
+  };
+
+  // ---- the editor page's messages ------------------------------------------------------------------------------
+  const handlers = useRef({ runShortcut, handleDrop, leaveEditor });
+  handlers.current = { runShortcut, handleDrop, leaveEditor };
   useEffect(() => {
     const onMessage = (event: MessageEvent): void => {
       if (event.origin !== location.origin || event.source !== frame.current?.contentWindow) return;
-      if (!isFromViewer(event.data)) return;
-      if (event.data.type === 'viewer/ready') {
-        setViewer('ready');
-        compareRef.current();
-      } else if (event.data.type === 'viewer/shown') {
-        if (event.data.id !== request.current) return;
-        const { shown: answer } = event.data;
-        setResult(answer);
-        setShown(s => ({ count: s.count + 1, path: answer.path }));
-      } else if (event.data.type === 'viewer/error') {
-        if (event.data.id !== undefined && event.data.id !== request.current) return;
-        setError(event.data.message);
-        setViewer(state => (state === 'loading' ? 'error' : state));
+      const data: unknown = event.data;
+      if (!isFromViewer(data)) return;
+      switch (data.type) {
+        case 'viewer/ready': {
+          viewerReady.current = true;
+          dispatch({ type: 'viewer', viewer: 'ready' });
+          const keys = behaviors.actions.flatMap(a => (a.shortcut ? [a.shortcut] : []));
+          for (const message of [{ type: 'viewer/keys', keys } as ToViewer, ...outbox.current])
+            frame.current?.contentWindow?.postMessage(message, location.origin);
+          outbox.current = [];
+          return;
+        }
+        case 'viewer/shown': {
+          if (data.id === undefined ? data.shown.cause !== 'edit' : data.id !== latest.current) return;
+          dispatch({ type: 'shown', shown: data.shown });
+          setShown(s => ({ count: s.count + 1, path: data.shown.path }));
+          return;
+        }
+        case 'viewer/text':
+          reads.current.get(data.id)?.resolve(data.text);
+          reads.current.delete(data.id);
+          return;
+        case 'viewer/error': {
+          const pending = data.id !== undefined ? reads.current.get(data.id) : undefined;
+          if (pending) {
+            pending.reject(new Error(data.message));
+            reads.current.delete(data.id!);
+          } else if (data.id === undefined) {
+            if (!viewerReady.current) dispatch({ type: 'viewer', viewer: 'error' });
+            dispatch({ type: 'notice', notice: { tone: 'error', text: data.message } });
+          } else if (data.id === latest.current) {
+            dispatch({ type: 'notice', notice: { tone: 'error', text: data.message } });
+          }
+          return;
+        }
+        case 'viewer/drag':
+          setDragging(true);
+          return;
+        case 'viewer/drop':
+          void handlers.current.handleDrop(data.entries, data.side);
+          return;
+        case 'viewer/key':
+          if (data.side) lastSide.current = data.side;
+          handlers.current.runShortcut(data.chord, data.side);
+          return;
+        case 'viewer/leave':
+          handlers.current.leaveEditor(data.backwards);
       }
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, []);
+  }, [behaviors.actions]);
 
-  const openFile = (setText: (t: string) => void, setName: (n: string) => void) => (file: File) => {
-    file
-      .text()
-      .then(text => {
-        setText(text);
-        setName(file.name);
-        const detected = languageOfFile(file.name);
-        if (detected) setLanguage(detected);
-      })
-      .catch(e => setError(`Could not read ${file.name}: ${String(e)}`));
+  const onLanguage = (language: string): void => {
+    if (stateRef.current.example !== null) void showExample(language);
+    else {
+      dispatch({ type: 'language', language });
+      request(id => ({ type: 'viewer/set-language', id, language }));
+    }
   };
 
+  // ---- rendering ------------------------------------------------------------------------------------------------
+  const { counts, notice } = state;
+  const empty = state.viewer === 'ready' && isEmptyComparison(state);
+  const noticeText =
+    notice?.text ??
+    (state.example !== null
+      ? 'This is an example. Drop two files, open or paste a text on each side, or edit one, to compare your own. ' +
+        'Nothing you open or type here is stored or sent.'
+      : '');
+
   return (
-    <section className="kit-section h-full" aria-labelledby="compare-title">
-      <header className="kit-section-head">
-        <div>
-          <h1 id="compare-title" className="kit-section-title">
+    <TooltipProvider>
+      <section className="kit-compare" aria-labelledby="compare-title">
+        <div className="kit-compare-bar">
+          <h1 id="compare-title" className="kit-compare-title">
             Compare code
           </h1>
-          <p className="kit-section-hint">
-            Paste two versions or open two files. Nothing leaves this page and nothing is stored.
+          <p className="kit-compare-notice" role="status" data-tone={notice?.tone ?? 'info'}>
+            {state.viewer === 'error' ? `The editor could not start. ${noticeText}` : noticeText}
           </p>
+          <div className="kit-compare-tools">
+            <Label htmlFor="compare-language" className="sr-only">
+              Language
+            </Label>
+            <Select value={state.language} onValueChange={onLanguage}>
+              <SelectTrigger id="compare-language" className="min-w-36" size="sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LANGUAGES.map(l => (
+                  <SelectItem key={l.id} value={l.id}>
+                    {l.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {commonActions.map(action => (
+              <ActionButton key={action.id} action={action} side={null} state={state} mac={mac} onRun={runAction} />
+            ))}
+            <span
+              className="kit-compare-counts"
+              data-viewer-state={state.viewer}
+              data-shown={shown.count}
+              data-shown-path={shown.path}
+              data-changes={counts?.changes}
+              data-added={counts?.added}
+              data-removed={counts?.removed}
+              title={
+                counts
+                  ? `${counts.changes} changed blocks; ${counts.added} lines added, ${counts.removed} removed`
+                  : undefined
+              }>
+              {state.viewer === 'loading' && 'Loading the editor…'}
+              {state.viewer === 'ready' &&
+                counts &&
+                (counts.changes === 0 ? (
+                  'No differences'
+                ) : (
+                  <>
+                    {`${counts.changes} ${counts.changes === 1 ? 'change' : 'changes'}`}
+                    <span className="kit-compare-added">+{counts.added}</span>
+                    <span className="kit-compare-removed">−{counts.removed}</span>
+                  </>
+                ))}
+            </span>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Label htmlFor="compare-language" className="text-muted-foreground">
-            Language
-          </Label>
-          <Select value={language} onValueChange={setLanguage}>
-            <SelectTrigger id="compare-language" className="min-w-36">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LANGUAGES.map(l => (
-                <SelectItem key={l.id} value={l.id}>
-                  {l.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button onClick={compare} disabled={viewer !== 'ready'}>
-            Compare
-          </Button>
+
+        <div className="kit-compare-sides">
+          {SIDES.map(side => {
+            const meta = state.sides[side];
+            return (
+              <div
+                key={side}
+                className="kit-compare-side"
+                role="group"
+                aria-label={`${ROLE[side]} side`}
+                data-side={side}
+                onFocus={() => (lastSide.current = side)}>
+                <span className="kit-compare-side-role">{ROLE[side]}</span>
+                <span className="kit-compare-side-name" title={meta.fileName ?? undefined} data-origin={meta.origin}>
+                  {sideName(meta)}
+                </span>
+                {meta.origin === 'example' && <span className="kit-compare-badge">Example</span>}
+                {meta.editable && (
+                  <span className="kit-compare-badge" data-badge="editing">
+                    Editing
+                  </span>
+                )}
+                {meta.modified && (
+                  <span className="kit-compare-badge" data-badge="modified" title="Edited, not saved">
+                    Edited
+                  </span>
+                )}
+                <div className="kit-compare-side-actions">
+                  {sideActions.map(action => (
+                    <ActionButton
+                      key={action.id}
+                      action={action}
+                      side={side}
+                      state={state}
+                      mac={mac}
+                      onRun={runAction}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </header>
 
-      <div className="grid grid-cols-2 gap-3">
-        <SidePanel
-          side="old"
-          label="Before"
-          text={oldText}
-          fileName={oldName}
-          onText={text => {
-            setOldText(text);
-            setOldName('');
-          }}
-          onFile={openFile(setOldText, setOldName)}
-        />
-        <SidePanel
-          side="new"
-          label="After"
-          text={newText}
-          fileName={newName}
-          onText={text => {
-            setNewText(text);
-            setNewName('');
-          }}
-          onFile={openFile(setNewText, setNewName)}
-        />
-      </div>
+        <div className="kit-compare-view">
+          <iframe
+            ref={frame}
+            className="kit-compare-frame"
+            src={`/${VIEWER_PAGE}`}
+            title="Side-by-side comparison"
+            onFocus={enterEditor}
+          />
+          {empty && !dragging && (
+            <div className="kit-compare-empty">
+              <p className="kit-compare-empty-title">Nothing to compare</p>
+              <p className="kit-compare-empty-hint">
+                Drop one or two files here, open or paste a text on each side, or switch a side to Edit and type.
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void showExample(state.language)}>
+                Show the example
+              </Button>
+            </div>
+          )}
+        </div>
 
-      <div
-        className="status-line"
-        role="status"
-        data-viewer-state={viewer}
-        data-shown={shown.count}
-        data-shown-path={shown.path}>
-        {viewer === 'loading' && 'Loading the editor…'}
-        {viewer === 'error' && `The editor could not start${error ? `: ${error}` : '.'}`}
-        {viewer === 'ready' &&
-          result &&
-          (result.changes === 0
-            ? 'No differences.'
-            : `${result.changes} ${result.changes === 1 ? 'change' : 'changes'} · +${result.added} −${result.removed} lines`)}
-        {viewer === 'ready' && error && <span className="text-destructive"> · {error}</span>}
-      </div>
-
-      <iframe ref={frame} className="viewer-frame" src={`/${VIEWER_PAGE}`} title="Side-by-side comparison" />
-    </section>
+        {dragging && (
+          <div className="kit-compare-drop" data-testid="drop-targets">
+            {SIDES.map(side => (
+              <div
+                key={side}
+                className="kit-compare-drop-target"
+                data-side={side}
+                data-over={over === side ? '' : undefined}
+                onDragOver={dragOver(side)}
+                onDrop={dropOn(side)}>
+                <span className="kit-compare-drop-label">
+                  {`Drop to open as the ${sideWord(side)} text`}
+                  <span className="kit-compare-drop-hint">Two files at once: the first is the original</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </TooltipProvider>
   );
 };

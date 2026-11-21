@@ -1,0 +1,29 @@
+{
+  "name": "orders-service",
+  "version": "1.5.0",
+  "port": 8080,
+  "logging": {
+    "level": "info",
+    "format": "json"
+  },
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "orders",
+    "pool": 20,
+    "statementTimeoutMs": 15000
+  },
+  "cache": {
+    "enabled": true,
+    "ttlSeconds": 300
+  },
+  "features": {
+    "giftWrap": true,
+    "splitShipments": true
+  },
+  "retries": 3,
+  "timeouts": {
+    "connectMs": 2000,
+    "readMs": 5000
+  }
+}

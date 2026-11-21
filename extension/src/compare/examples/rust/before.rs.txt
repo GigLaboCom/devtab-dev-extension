@@ -1,0 +1,42 @@
+use std::collections::HashMap;
+
+/// A shelf in a small storeroom.
+pub struct Shelf {
+    pub id: u32,
+    pub items: HashMap<String, u32>,
+}
+
+impl Shelf {
+    pub fn new(id: u32) -> Self {
+        Self { id, items: HashMap::new() }
+    }
+
+    pub fn add(&mut self, name: &str, count: u32) {
+        *self.items.entry(name.to_string()).or_insert(0) += count;
+    }
+
+    pub fn take(&mut self, name: &str, count: u32) -> bool {
+        match self.items.get_mut(name) {
+            Some(have) if *have >= count => {
+                *have -= count;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub fn total(&self) -> u32 {
+        self.items.values().sum()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+}
+
+fn main() {
+    let mut shelf = Shelf::new(7);
+    shelf.add("bolts", 40);
+    shelf.add("nuts", 25);
+    println!("shelf {} holds {}", shelf.id, shelf.total());
+}

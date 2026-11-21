@@ -1,0 +1,34 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace Booking
+{
+    // Rooms booked for a day.
+    public class Calendar
+    {
+        private readonly Dictionary<(string Room, DateOnly Day), string> bookings = new();
+
+        public int Count => bookings.Count;
+
+        public bool Book(string room, DateOnly day, string guest)
+        {
+            if (bookings.ContainsKey((room, day)))
+            {
+                return false;
+            }
+            bookings[(room, day)] = guest;
+            return true;
+        }
+
+        public void Cancel(string room, DateOnly day)
+        {
+            bookings.Remove((room, day));
+        }
+
+        public bool IsFree(string room, DateOnly day) => !bookings.ContainsKey((room, day));
+
+        public IEnumerable<string> Guests(DateOnly day) =>
+            bookings.Where(b => b.Key.Day == day).Select(b => b.Value);
+    }
+}

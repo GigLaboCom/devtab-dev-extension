@@ -1,0 +1,25 @@
+import Foundation
+
+/// A recipe with ingredients scaled by servings.
+struct Recipe: Codable {
+    let name: String
+    var servings: Int
+    var ingredients: [String: Double]
+    var minutes: Int = 30
+
+    func describe() -> String {
+        "\(name) for \(servings), \(minutes) min"
+    }
+
+    func scaled(to people: Int) -> Recipe {
+        precondition(people > 0, "a recipe serves someone")
+        let factor = Double(people) / Double(servings)
+        var copy = self
+        copy.servings = people
+        copy.ingredients = ingredients.mapValues { ($0 * factor * 10).rounded() / 10 }
+        return copy
+    }
+}
+
+let soup = Recipe(name: "Soup", servings: 2, ingredients: ["carrot": 2, "onion": 1])
+print(soup.scaled(to: 4).describe())

@@ -1,0 +1,37 @@
+import { useState } from 'react';
+
+interface Item {
+  id: number;
+  title: string;
+  done: boolean;
+}
+
+export function TodoList({ initial }: { initial: Item[] }) {
+  const [items, setItems] = useState(initial);
+  const left = items.filter(item => !item.done).length;
+
+  const remove = (id: number) => setItems(items.filter(item => item.id !== id));
+
+  const toggle = (id: number) =>
+    setItems(items.map(item => (item.id === id ? { ...item, done: !item.done } : item)));
+
+  return (
+    <section className="todo" aria-labelledby="todo-title">
+      <h2 id="todo-title">To do</h2>
+      <p>{left === 0 ? 'All done' : `${left} left`}</p>
+      <ul>
+        {items.map(item => (
+          <li key={item.id}>
+            <label>
+              <input type="checkbox" checked={item.done} onChange={() => toggle(item.id)} />
+              {item.title}
+            </label>
+            <button aria-label={`Remove ${item.title}`} onClick={() => remove(item.id)}>
+              Remove
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}

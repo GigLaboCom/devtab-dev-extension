@@ -1,0 +1,33 @@
+# A playlist of songs with durations in seconds.
+class Playlist
+  include Enumerable
+
+  attr_reader :name, :songs
+
+  def initialize(name)
+    @name = name
+    @songs = []
+  end
+
+  def each(&block)
+    @songs.each(&block)
+  end
+
+  def add(title, seconds)
+    raise ArgumentError, "a song lasts" unless seconds.positive?
+
+    @songs << { title: title, seconds: seconds }
+  end
+
+  def duration
+    @songs.sum { |song| song[:seconds] }
+  end
+
+  def to_s
+    "#{name}: #{songs.size} songs, #{duration / 60} min"
+  end
+end
+
+list = Playlist.new("Morning")
+list.add("Sunrise", 210)
+puts list

@@ -1,0 +1,30 @@
+package fitness
+
+data class Workout(val name: String, val minutes: Int, val calories: Int)
+
+class Journal {
+    private val workouts = mutableListOf<Workout>()
+
+    fun log(workout: Workout) {
+        workouts += workout
+    }
+
+    fun totalMinutes(): Int = workouts.sumOf { it.minutes }
+
+    fun longest(): Workout? = workouts.maxByOrNull { it.minutes }
+
+    fun byName(name: String): List<Workout> =
+        workouts.filter { it.name == name }
+
+    fun clear() {
+        workouts.clear()
+    }
+}
+
+fun main() {
+    val journal = Journal()
+    journal.log(Workout("run", 30, 300))
+    journal.log(Workout("swim", 45, 400))
+    println("Total: ${journal.totalMinutes()} min")
+    println("Longest: ${journal.longest()?.name}")
+}

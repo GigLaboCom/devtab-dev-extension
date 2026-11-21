@@ -1,0 +1,36 @@
+package library;
+
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+/** Books lent from a small library. */
+public class Loans {
+    private final Set<String> lent = new LinkedHashSet<>();
+    private final int limit;
+
+    public Loans(int limit) {
+        if (limit <= 0) {
+            throw new IllegalArgumentException("limit must be positive");
+        }
+        this.limit = limit;
+    }
+
+    public int count() {
+        return lent.size();
+    }
+
+    public boolean lend(String isbn) {
+        if (lent.size() >= limit || lent.contains(isbn)) {
+            return false;
+        }
+        return lent.add(isbn);
+    }
+
+    public void giveBack(String isbn) {
+        lent.remove(isbn);
+    }
+
+    public String summary() {
+        return String.format("Lent: %d of %d", lent.size(), limit);
+    }
+}

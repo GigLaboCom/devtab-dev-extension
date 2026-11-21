@@ -1,0 +1,32 @@
+-- Members and their orders.
+CREATE TABLE members (
+    id         INTEGER PRIMARY KEY,
+    name       TEXT NOT NULL,
+    email      TEXT NOT NULL UNIQUE,
+    joined_on  DATE NOT NULL
+);
+
+CREATE TABLE orders (
+    id         INTEGER PRIMARY KEY,
+    member_id  INTEGER NOT NULL REFERENCES members (id),
+    total      NUMERIC(10, 2) NOT NULL CHECK (total >= 0),
+    status     TEXT NOT NULL DEFAULT 'open',
+    placed_at  TIMESTAMP NOT NULL
+);
+
+-- Members who never ordered.
+SELECT name FROM members AS m
+WHERE NOT EXISTS (SELECT 1 FROM orders AS o WHERE o.member_id = m.id);
+
+CREATE INDEX orders_by_member ON orders (member_id, placed_at);
+
+-- Members who ordered this year, with their spending.
+SELECT m.name,
+       COUNT(o.id)  AS orders,
+       SUM(o.total) AS spent
+FROM members AS m
+JOIN orders AS o ON o.member_id = m.id
+WHERE o.placed_at >= DATE '2026-01-01'
+  AND o.status <> 'cancelled'
+GROUP BY m.name
+ORDER BY spent DESC;

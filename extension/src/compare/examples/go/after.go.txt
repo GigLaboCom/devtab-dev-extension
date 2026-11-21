@@ -1,0 +1,49 @@
+package queue
+
+import (
+	"errors"
+	"sync"
+)
+
+// ErrEmpty is returned when there is nothing to take.
+var ErrEmpty = errors.New("queue is empty")
+
+// ErrFull is returned when the queue holds its limit.
+var ErrFull = errors.New("queue is full")
+
+// Queue is a first-in first-out list of jobs.
+type Queue struct {
+	mu    sync.Mutex
+	jobs  []string
+	limit int
+}
+
+// Len reports how many jobs wait.
+func (q *Queue) Len() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return len(q.jobs)
+}
+
+// Push adds a job at the end, unless the queue is full.
+func (q *Queue) Push(job string) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.limit > 0 && len(q.jobs) >= q.limit {
+		return ErrFull
+	}
+	q.jobs = append(q.jobs, job)
+	return nil
+}
+
+// Pop takes the first job.
+func (q *Queue) Pop() (string, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.jobs) == 0 {
+		return "", ErrEmpty
+	}
+	job := q.jobs[0]
+	q.jobs = q.jobs[1:]
+	return job, nil
+}

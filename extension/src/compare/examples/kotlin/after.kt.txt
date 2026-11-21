@@ -1,0 +1,30 @@
+package fitness
+
+import java.time.LocalDate
+
+data class Workout(val name: String, val minutes: Int, val calories: Int, val day: LocalDate)
+
+class Journal {
+    private val workouts = mutableListOf<Workout>()
+
+    fun log(workout: Workout) {
+        require(workout.minutes > 0) { "a workout takes some time" }
+        workouts += workout
+    }
+
+    fun longest(): Workout? = workouts.maxByOrNull { it.minutes }
+
+    fun totalMinutes(): Int = workouts.sumOf { it.minutes }
+
+    fun thisWeek(today: LocalDate): List<Workout> =
+        workouts.filter { it.day.isAfter(today.minusDays(7)) }
+}
+
+fun main() {
+    val journal = Journal()
+    val today = LocalDate.now()
+    journal.log(Workout("run", 30, 300, today))
+    journal.log(Workout("swim", 45, 400, today))
+    println("Total: ${journal.totalMinutes()} min")
+    println("Longest: ${journal.longest()?.name}")
+}

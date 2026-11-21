@@ -1,0 +1,35 @@
+# tally
+
+Count words, lines and characters in text files and in standard input.
+
+## Usage
+
+```sh
+tally notes.txt
+tally --lines *.md
+cat draft.txt | tally --words
+```
+
+| Flag | What it counts |
+| --- | --- |
+| `--lines` | lines |
+| `--words` | words |
+| `--bytes` | bytes |
+| `--chars` | characters |
+
+## Install
+
+Download the archive for your system and put `tally` on your `PATH`.
+
+## Options
+
+- `--total` prints one sum for all files.
+- `--json` prints the counts as JSON.
+
+## Exit codes
+
+`0` when every file was read, `1` when one was missing.
+
+## Licence
+
+MIT, see `LICENSE`.

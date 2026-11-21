@@ -1,0 +1,34 @@
+<?php
+
+declare(strict_types=1);
+
+// A simple counter of page visits.
+final class VisitCounter
+{
+    private array $visits = [];
+
+    public function hit(string $page): void
+    {
+        $this->visits[$page] = ($this->visits[$page] ?? 0) + 1;
+    }
+
+    public function count(string $page): int
+    {
+        return $this->visits[$page] ?? 0;
+    }
+
+    public function reset(): void
+    {
+        $this->visits = [];
+    }
+
+    public function top(int $n): array
+    {
+        arsort($this->visits);
+        return array_slice($this->visits, 0, $n, true);
+    }
+}
+
+$counter = new VisitCounter();
+$counter->hit('/home');
+echo $counter->count('/home'), PHP_EOL;

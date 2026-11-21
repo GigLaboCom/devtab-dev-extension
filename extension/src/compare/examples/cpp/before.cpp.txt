@@ -1,0 +1,35 @@
+#include <map>
+#include <string>
+#include <vector>
+
+// Scores of players in a tournament.
+class Scoreboard {
+public:
+    void record(const std::string& player, int points) {
+        scores_[player] += points;
+    }
+
+    int score(const std::string& player) const {
+        auto it = scores_.find(player);
+        return it == scores_.end() ? 0 : it->second;
+    }
+
+    std::vector<std::string> players() const {
+        std::vector<std::string> names;
+        for (const auto& entry : scores_) {
+            names.push_back(entry.first);
+        }
+        return names;
+    }
+
+    void reset() {
+        scores_.clear();
+    }
+
+    std::size_t size() const {
+        return scores_.size();
+    }
+
+private:
+    std::map<std::string, int> scores_;
+};

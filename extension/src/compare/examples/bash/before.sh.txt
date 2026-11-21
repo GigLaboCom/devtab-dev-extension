@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Back up a folder into a dated archive.
+set -euo pipefail
+
+source_dir="${1:-$HOME/Documents}"
+target_dir="${2:-$HOME/Backups}"
+stamp="$(date +%Y-%m-%d)"
+
+log() {
+    echo "[backup] $*"
+}
+
+mkdir -p "$target_dir"
+
+archive="$target_dir/backup-$stamp.tar.gz"
+log "archiving $source_dir"
+tar -czf "$archive" -C "$(dirname "$source_dir")" "$(basename "$source_dir")"
+
+# Keep the last seven archives.
+ls -1t "$target_dir"/backup-*.tar.gz | tail -n +8 | xargs -r rm --
+
+size="$(du -h "$archive" | cut -f1)"
+log "wrote $archive ($size)"

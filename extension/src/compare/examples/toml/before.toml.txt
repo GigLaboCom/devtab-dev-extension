@@ -1,0 +1,27 @@
+# Settings of the photo organiser.
+[library]
+path = "~/Pictures/Library"
+import_mode = "copy"
+skip_duplicates = true
+
+[thumbnails]
+size = 256
+quality = 80
+format = "jpeg"
+
+[export]
+default_folder = "~/Pictures/Export"
+keep_metadata = true
+max_width = 2048
+
+[sync]
+enabled = false
+interval_minutes = 30
+
+[[albums]]
+name = "Holidays"
+filter = "tag:holiday"
+
+[[albums]]
+name = "Family"
+filter = "tag:family"

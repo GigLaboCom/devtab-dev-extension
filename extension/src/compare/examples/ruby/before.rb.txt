@@ -1,0 +1,33 @@
+# A playlist of songs with durations in seconds.
+class Playlist
+  attr_reader :name, :songs
+
+  def initialize(name)
+    @name = name
+    @songs = []
+  end
+
+  def add(title, seconds)
+    @songs << { title: title, seconds: seconds }
+  end
+
+  def remove(title)
+    @songs.reject! { |song| song[:title] == title }
+  end
+
+  def duration
+    @songs.sum { |song| song[:seconds] }
+  end
+
+  def shuffle
+    @songs.shuffle
+  end
+
+  def to_s
+    "#{name}: #{songs.size} songs"
+  end
+end
+
+list = Playlist.new("Morning")
+list.add("Sunrise", 210)
+puts list

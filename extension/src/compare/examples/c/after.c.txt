@@ -1,0 +1,43 @@
+#include <stdbool.h>
+#include <stddef.h>
+#include <string.h>
+
+#define CAPACITY 256
+
+/* A fixed-size ring buffer of bytes. */
+typedef struct {
+    unsigned char data[CAPACITY];
+    size_t head;
+    size_t tail;
+    size_t count;
+} ring_t;
+
+void ring_init(ring_t *r) {
+    memset(r, 0, sizeof *r);
+}
+
+bool ring_empty(const ring_t *r) {
+    return r->count == 0;
+}
+
+bool ring_pop(ring_t *r, unsigned char *out) {
+    if (r->count == 0) {
+        return false;
+    }
+    *out = r->data[r->tail];
+    r->tail = (r->tail + 1) % CAPACITY;
+    r->count--;
+    return true;
+}
+
+bool ring_push(ring_t *r, unsigned char byte) {
+    if (r->count == CAPACITY) {
+        /* Full: drop the oldest byte to make room. */
+        r->tail = (r->tail + 1) % CAPACITY;
+        r->count--;
+    }
+    r->data[r->head] = byte;
+    r->head = (r->head + 1) % CAPACITY;
+    r->count++;
+    return true;
+}

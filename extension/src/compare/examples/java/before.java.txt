@@ -1,0 +1,38 @@
+package library;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/** Books lent from a small library. */
+public class Loans {
+    private final List<String> lent = new ArrayList<>();
+    private final int limit;
+
+    public Loans(int limit) {
+        this.limit = limit;
+    }
+
+    public boolean lend(String isbn) {
+        if (lent.size() >= limit) {
+            return false;
+        }
+        lent.add(isbn);
+        return true;
+    }
+
+    public void giveBack(String isbn) {
+        lent.remove(isbn);
+    }
+
+    public int count() {
+        return lent.size();
+    }
+
+    public boolean isLent(String isbn) {
+        return lent.contains(isbn);
+    }
+
+    public String summary() {
+        return "Lent: " + lent.size() + " of " + limit;
+    }
+}
