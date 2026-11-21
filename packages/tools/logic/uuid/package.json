@@ -1,0 +1,26 @@
+{
+  "name": "@workspace/tool-logic-uuid",
+  "version": "0.1.0",
+  "description": "The UUID / ULID tool's logic (D14, docs/tools/specs/uuid.md): UUID v4, v7, v5, v3, nil, max and ULID generation, parsing of every UUID version and ULID, notations, detect. Pure TypeScript: no React, no DOM, no chrome.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@noble/hashes": "2.4.0",
+    "@workspace/tools-shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
