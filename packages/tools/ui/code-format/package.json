@@ -1,0 +1,39 @@
+{
+  "name": "@workspace/tool-ui-code-format",
+  "version": "0.1.0",
+  "description": "The Code Formatter tool's component and definition (D14, docs/tools/specs/code-format.md): the definition is the main export, the component loads when the tool is opened. Formatting runs in two module workers shipped in this package: Prettier's worker imports only the chosen language's Prettier modules, files of this package, on first use; the XML worker carries saxes and the printer. Records into the tool history through its host.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/definition.ts",
+    "./detect": "./src/detect.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@workspace/tool-logic-code-format": "workspace:*",
+    "@workspace/tools-host": "workspace:*",
+    "@workspace/ui": "workspace:*",
+    "lucide-react": "1.70.0",
+    "prettier": "3.9.10",
+    "saxes": "6.0.0"
+  },
+  "peerDependencies": {
+    "react": "^19.2.8"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "jsdom": "^25.0.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

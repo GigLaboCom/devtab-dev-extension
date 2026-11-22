@@ -1,0 +1,27 @@
+{
+  "name": "@workspace/tool-logic-code-format",
+  "version": "0.1.0",
+  "description": "The Code Formatter tool's logic (D14, docs/tools/specs/code-format.md): the languages and their Prettier modules, the options, recognising a language in pasted text, Prettier's errors mapped to their place and the XML printer. No library at run time: Prettier and saxes are handed in by the tool's worker (the tests load them in Node). Pure TypeScript: no React, no DOM, no chrome.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@workspace/tools-shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/node": "^22.20.1",
+    "prettier": "3.9.10",
+    "saxes": "6.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
