@@ -9,7 +9,8 @@
 //   - for the whole module: every request of the browser context outside the extension's files (Playwright and CDP),
 //     a canary that a script would set on the parent and the top window, a message it would post, a value it would
 //     write to chrome.storage or localStorage, the top page's address, and the console;
-//   - links (http, https, mailto, a fragment, a relative address, a forbidden scheme) by click and by keyboard;
+//   - links (http, https, a fragment, a relative address, a forbidden scheme) by click and by keyboard; a mailto: link
+//     by its attributes only — a click would hand it to the mail program of the machine that runs the checks;
 //   - §12: a megabyte of Markdown and the pathological shapes, timed with the longest task;
 //   - the library only on the tool's page (requests), no eval in it; history (D17); light and dark screenshots.
 // Every remote address is a reserved name (*.invalid, example.com) or a local port where nothing listens, and a route
@@ -354,7 +355,13 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     const before = page.url();
     const https = await newTab(() => links.getByRole('link', { name: 'https' }).click());
     const http = await newTab(() => links.getByRole('link', { name: 'http', exact: true }).click());
-    const mail = await newTab(() => links.getByRole('link', { name: 'mail' }).click());
+    // Never clicked: the browser hands a mailto: address to the system's mail program, which opens a message there.
+    const mailLink = links.getByRole('link', { name: 'mail' });
+    const mail = {
+      href: await mailLink.getAttribute('href'),
+      target: await mailLink.getAttribute('target'),
+      rel: await mailLink.getAttribute('rel'),
+    };
     const inactive = [];
     for (const name of ['frag', 'rel', 'scheme'])
       inactive.push(await newTab(() => links.locator('.md-link-inactive', { hasText: name }).click()));
@@ -383,6 +390,9 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
         https.noOpener === true &&
         http?.url === 'http://ok.invalid/h' &&
         http.noOpener === true &&
+        mail.href === 'mailto:someone@mail.invalid' &&
+        mail.target === '_blank' &&
+        mail.rel === 'noopener noreferrer' &&
         inactive.every(x => x === null) &&
         js === null &&
         focused === 'https' &&
@@ -395,10 +405,7 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
           JSON.stringify(['https://example.com/docs', 'http://ok.invalid/h', 'https://example.com/docs']),
       JSON.stringify(after),
     );
-    timings.mailto = mail;
-    // A mailto: link is handed to the system's mail program in its new tab: Playwright reports it as a request, it is
-    // not one to the network.
-    const expectedOutside = [...routed, 'mailto:someone@mail.invalid'];
+    const expectedOutside = [...routed];
 
     // ---- §6 rows.
     const rows = {};
