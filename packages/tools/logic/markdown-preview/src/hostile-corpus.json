@@ -1,0 +1,317 @@
+[
+  {
+    "name": "script element",
+    "markdown": "<script>parent.__mdPwned=1;top.__mdPwned=1;top.postMessage(\"md-pwned\",\"*\")</script>",
+    "expect": "text"
+  },
+  {
+    "name": "script element with a source of the package",
+    "markdown": "<script src=\"/assets/index.js\"></script>",
+    "expect": "text"
+  },
+  {
+    "name": "img with onerror",
+    "markdown": "<img src=\"http://img.invalid/a.png\" onerror=\"parent.__mdPwned=1;top.__mdPwned=1;top.postMessage(\"md-pwned\",\"*\")\">",
+    "expect": "text"
+  },
+  {
+    "name": "svg with onload and a script",
+    "markdown": "<svg onload=\"parent.__mdPwned=1;top.__mdPwned=1;top.postMessage(\"md-pwned\",\"*\")\"><script>parent.__mdPwned=1;top.__mdPwned=1;top.postMessage(\"md-pwned\",\"*\")</script></svg>",
+    "expect": "text"
+  },
+  {
+    "name": "anchor with onclick",
+    "markdown": "<a href=\"#\" onclick=\"parent.__mdPwned=1;top.__mdPwned=1;top.postMessage(\"md-pwned\",\"*\")\">x</a>",
+    "expect": "text"
+  },
+  {
+    "name": "body onload",
+    "markdown": "<body onload=\"parent.__mdPwned=1;top.__mdPwned=1;top.postMessage(\"md-pwned\",\"*\")\">",
+    "expect": "text"
+  },
+  {
+    "name": "details ontoggle",
+    "markdown": "<details open ontoggle=\"parent.__mdPwned=1;top.__mdPwned=1;top.postMessage(\"md-pwned\",\"*\")\"><summary>More</summary>x</details>",
+    "expect": "text"
+  },
+  {
+    "name": "HTML block of several lines",
+    "markdown": "<div\nonmouseover=\"parent.__mdPwned=1;top.__mdPwned=1;top.postMessage(\"md-pwned\",\"*\")\">\n\n*md*\n\n</div>",
+    "expect": "text"
+  },
+  {
+    "name": "HTML comment hiding a script",
+    "markdown": "<!-- --><script>parent.__mdPwned=1;top.__mdPwned=1;top.postMessage(\"md-pwned\",\"*\")</script><!-- -->",
+    "expect": "text"
+  },
+  {
+    "name": "CDATA and processing instruction",
+    "markdown": "<![CDATA[<script>x</script>]]><?php echo 1 ?>",
+    "expect": "text"
+  },
+  {
+    "name": "picture with srcset",
+    "markdown": "<picture><source srcset=\"http://img.invalid/a.webp 1x\"><img src=\"http://img.invalid/b.png\" srcset=\"http://img.invalid/c.png 2x\"></picture>",
+    "expect": "text"
+  },
+  {
+    "name": "video with src and poster",
+    "markdown": "<video src=\"http://media.invalid/v.mp4\" poster=\"http://img.invalid/p.png\" autoplay></video>",
+    "expect": "text"
+  },
+  {
+    "name": "audio with source",
+    "markdown": "<audio autoplay><source src=\"http://media.invalid/a.mp3\"></audio>",
+    "expect": "text"
+  },
+  {
+    "name": "iframe",
+    "markdown": "<iframe src=\"http://frame.invalid/\" srcdoc=\"<script>parent.__mdPwned=1</script>\"></iframe>",
+    "expect": "text"
+  },
+  {
+    "name": "object",
+    "markdown": "<object data=\"http://object.invalid/x.swf\"></object>",
+    "expect": "text"
+  },
+  {
+    "name": "embed",
+    "markdown": "<embed src=\"http://embed.invalid/x\">",
+    "expect": "text"
+  },
+  {
+    "name": "link stylesheet",
+    "markdown": "<link rel=\"stylesheet\" href=\"http://css.invalid/a.css\">",
+    "expect": "text"
+  },
+  {
+    "name": "link dns-prefetch and preconnect",
+    "markdown": "<link rel=\"dns-prefetch\" href=\"//dns.invalid\"><link rel=\"preconnect\" href=\"http://preconnect.invalid\">",
+    "expect": "text"
+  },
+  {
+    "name": "link prefetch and preload",
+    "markdown": "<link rel=\"prefetch\" href=\"http://prefetch.invalid/a\"><link rel=\"preload\" as=\"image\" href=\"http://preload.invalid/a.png\">",
+    "expect": "text"
+  },
+  {
+    "name": "style with @import and url()",
+    "markdown": "<style>@import url(http://css.invalid/import.css); body { background: url(http://css.invalid/bg.png) }</style>",
+    "expect": "text"
+  },
+  {
+    "name": "inline style with url()",
+    "markdown": "<div style=\"background:url(http://css.invalid/inline.png);position:fixed;inset:0\">x</div>",
+    "expect": "text"
+  },
+  {
+    "name": "svg use and image",
+    "markdown": "<svg><use href=\"http://svg.invalid/s.svg#a\"/><image href=\"http://img.invalid/svg.png\"/></svg>",
+    "expect": "text"
+  },
+  {
+    "name": "meta refresh",
+    "markdown": "<meta http-equiv=\"refresh\" content=\"0;url=http://nav.invalid/\">",
+    "expect": "text"
+  },
+  {
+    "name": "base",
+    "markdown": "<base href=\"http://base.invalid/\">",
+    "expect": "text"
+  },
+  {
+    "name": "form with action",
+    "markdown": "<form action=\"http://form.invalid/\" method=\"post\"><input name=\"q\"><button>Go</button></form>",
+    "expect": "text"
+  },
+  {
+    "name": "anchor with ping",
+    "markdown": "<a href=\"http://ok.invalid/\" ping=\"http://ping.invalid/\">ping</a>",
+    "expect": "text"
+  },
+  {
+    "name": "input type image",
+    "markdown": "<input type=\"image\" src=\"http://img.invalid/input.png\">",
+    "expect": "text"
+  },
+  {
+    "name": "background attribute",
+    "markdown": "<table background=\"http://img.invalid/table.png\"><tr><td>x</td></tr></table>",
+    "expect": "text"
+  },
+  {
+    "name": "markup imitating the extension's interface",
+    "markdown": "<div style=\"position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2147483647;background:white\">Settings — enter your master password <input type=\"password\"></div>",
+    "expect": "text"
+  },
+  {
+    "name": "entities spelling a script",
+    "markdown": "&lt;script&gt;parent.__mdPwned=1&lt;/script&gt; &#60;img src=x onerror=alert(1)&#62;",
+    "expect": "text"
+  },
+  {
+    "name": "javascript: link",
+    "markdown": "[x](javascript:parent.__mdPwned=1;top.__mdPwned=1;top.postMessage(\"md-pwned\",\"*\"))",
+    "expect": "source"
+  },
+  {
+    "name": "javascript: link, mixed case",
+    "markdown": "[x](JaVaScRiPt:alert(1))",
+    "expect": "source"
+  },
+  {
+    "name": "javascript: link, entity for a letter",
+    "markdown": "[x](&#106;avascript:alert(1))",
+    "expect": "source"
+  },
+  {
+    "name": "javascript: link, entity for the colon",
+    "markdown": "[x](javascript&colon;alert(1))",
+    "expect": "source"
+  },
+  {
+    "name": "javascript: link, tab as an entity",
+    "markdown": "[x](java&#x09;script:alert(1))",
+    "expect": "inactive"
+  },
+  {
+    "name": "javascript: link, tab as a percent escape",
+    "markdown": "[x](java%09script:alert(1))",
+    "expect": "inactive"
+  },
+  {
+    "name": "javascript: link, line break inside brackets",
+    "markdown": "[x](<java\nscript:alert(1)>)",
+    "expect": "source"
+  },
+  {
+    "name": "javascript: link, leading control character",
+    "markdown": "[x](\u0001javascript:alert(1))",
+    "expect": "source"
+  },
+  {
+    "name": "javascript: link, leading control character as an entity",
+    "markdown": "[x](&#1;javascript:alert(1))",
+    "expect": "inactive"
+  },
+  {
+    "name": "javascript: link, leading space in brackets",
+    "markdown": "[x](< javascript:alert(1)>)",
+    "expect": "source"
+  },
+  {
+    "name": "javascript: link in angle brackets",
+    "markdown": "[x](<javascript:alert(1)>)",
+    "expect": "source"
+  },
+  {
+    "name": "javascript: autolink",
+    "markdown": "<javascript:alert(1)>",
+    "expect": "text"
+  },
+  {
+    "name": "javascript: reference definition",
+    "markdown": "[x]\n\n[x]: javascript:alert(1)",
+    "expect": "source"
+  },
+  {
+    "name": "javascript: image",
+    "markdown": "![x](javascript:alert(1))",
+    "expect": "source"
+  },
+  {
+    "name": "vbscript: link",
+    "markdown": "[x](vbscript:msgbox(1))",
+    "expect": "source"
+  },
+  {
+    "name": "vbscript: link, mixed case",
+    "markdown": "[x](VbScRiPt:msgbox(1))",
+    "expect": "source"
+  },
+  {
+    "name": "data: link",
+    "markdown": "[x](data:text/html;base64,PHNjcmlwdD5wYXJlbnQuX19tZFB3bmVkPTE8L3NjcmlwdD4=)",
+    "expect": "source"
+  },
+  {
+    "name": "data: link, upper case",
+    "markdown": "[x](DATA:text/html,<script>alert(1)</script>)",
+    "expect": "source"
+  },
+  {
+    "name": "data: autolink",
+    "markdown": "<data:text/html,x>",
+    "expect": "text"
+  },
+  {
+    "name": "file: link",
+    "markdown": "[x](file:///etc/passwd)",
+    "expect": "source"
+  },
+  {
+    "name": "unknown scheme",
+    "markdown": "[x](chrome://settings) [y](chrome-extension://abc/x.html) [z](blob:http://x.invalid/1)",
+    "expect": "inactive"
+  },
+  {
+    "name": "protocol-relative link",
+    "markdown": "[x](//nav.invalid/x)",
+    "expect": "inactive"
+  },
+  {
+    "name": "link title breaking out of its attribute",
+    "markdown": "[x](http://ok.invalid/ \"a\\\" onmouseover=\\\"parent.__mdPwned=1;top.__mdPwned=1;top.postMessage(\"md-pwned\",\"*\")\")",
+    "expect": "link"
+  },
+  {
+    "name": "link text with a tag",
+    "markdown": "[<img src=x onerror=parent.__mdPwned=1;top.__mdPwned=1;top.postMessage(\"md-pwned\",\"*\")>](http://ok.invalid/)",
+    "expect": "text"
+  },
+  {
+    "name": "fence info breaking out of its class",
+    "markdown": "```\" onclick=\"parent.__mdPwned=1;top.__mdPwned=1;top.postMessage(\"md-pwned\",\"*\")\ncode\n```",
+    "expect": "code"
+  },
+  {
+    "name": "fence info with a handler",
+    "markdown": "```js onmouseover=alert(1)\ncode\n```",
+    "expect": "code"
+  },
+  {
+    "name": "remote image",
+    "markdown": "![a](http://img.invalid/md.png)",
+    "expect": "image"
+  },
+  {
+    "name": "remote image by reference",
+    "markdown": "![a][r]\n\n[r]: http://img.invalid/ref.png",
+    "expect": "image"
+  },
+  {
+    "name": "image inside a link",
+    "markdown": "[![a](http://img.invalid/in-link.png)](http://ok.invalid/)",
+    "expect": "image"
+  },
+  {
+    "name": "protocol-relative image",
+    "markdown": "![a](//img.invalid/proto-relative.png)",
+    "expect": "image"
+  },
+  {
+    "name": "image on a local port",
+    "markdown": "![a](http://127.0.0.1:9/img.png)",
+    "expect": "image"
+  },
+  {
+    "name": "data: svg image with a script",
+    "markdown": "![a](data:image/svg+xml,%3Csvg%20onload%3Dalert(1)%3E)",
+    "expect": "source"
+  },
+  {
+    "name": "image alt with a tag",
+    "markdown": "![<img src=x onerror=parent.__mdPwned=1;top.__mdPwned=1;top.postMessage(\"md-pwned\",\"*\")>](http://img.invalid/alt.png)",
+    "expect": "image"
+  }
+]

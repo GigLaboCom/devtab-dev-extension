@@ -1,0 +1,179 @@
+/*
+ * The preview frame's document (docs/tools/specs/markdown-preview.md §5.7): a file of the build, linked from the frame's
+ * srcdoc — the frame's own policy and the page's allow stylesheets and fonts of the extension's files and nothing
+ * inline. The tokens, the faces and the base come from @workspace/dna/theme.css; the frame's <html> wears the embedding
+ * page's `data-theme` and `data-mode` (FramedDocument.tsx), so every theme reaches it. Only the elements the allowlist
+ * builds (§5.6) have rules here.
+ */
+@import '@workspace/dna/theme.css';
+
+html {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Chrome gives every extension page — this frame's document is one (it keeps the extension's origin) — an unlayered
+   `body { font-family: system-ui; font-size: 75% }`, which beats theme.css's layered base. One step more specific, the
+   base's face and size win again (as ui.css does for the extension's own pages). */
+:root > body.md-preview {
+  margin: 0;
+  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  overflow-wrap: anywhere;
+}
+
+.md-preview > :first-child {
+  margin-top: 0;
+}
+
+.md-preview > :last-child {
+  margin-bottom: 0;
+}
+
+.md-empty {
+  color: var(--muted-foreground);
+}
+
+.md-preview :is(p, ul, ol, blockquote, pre, table, hr) {
+  margin: 0 0 calc(var(--spacing) * 3);
+}
+
+/* Headings on the type scale: two steps with a rule under them, then weight alone. */
+.md-preview :is(h1, h2, h3, h4, h5, h6) {
+  margin: calc(var(--spacing) * 5) 0 calc(var(--spacing) * 2);
+  font-weight: 600;
+}
+
+.md-preview h1 {
+  padding-bottom: calc(var(--spacing) * 1);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-lg);
+  line-height: var(--text-lg--line-height);
+}
+
+.md-preview h2 {
+  padding-bottom: calc(var(--spacing) * 1);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+}
+
+.md-preview :is(h3, h4) {
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+}
+
+.md-preview :is(h5, h6) {
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+}
+
+.md-preview :is(ul, ol) {
+  padding-left: calc(var(--spacing) * 6);
+}
+
+.md-preview li > :is(ul, ol, p) {
+  margin-bottom: 0;
+}
+
+.md-preview li.task-list-item {
+  list-style: none;
+}
+
+.md-preview li.task-list-item > input,
+.md-preview li.task-list-item > p > input {
+  margin: 0 calc(var(--spacing) * 1.5) 0 calc(var(--spacing) * -5);
+  vertical-align: middle;
+  accent-color: var(--primary);
+}
+
+.md-preview blockquote {
+  padding: 0 calc(var(--spacing) * 3);
+  border-left: calc(var(--spacing) * 1) solid var(--border);
+  color: var(--muted-foreground);
+}
+
+.md-preview :not(pre) > code {
+  padding: 0 calc(var(--spacing) * 1);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+}
+
+.md-preview pre {
+  overflow-x: auto;
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--muted);
+}
+
+.md-preview hr {
+  height: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+/* Separate borders, each cell drawing its right and bottom: Chrome lays out collapsed borders in time that grows with
+   the square of the columns (a megabyte of `|a|a|…` held the page for minutes; separate borders — about a second). */
+.md-preview table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.md-preview tr > :first-child {
+  border-left: 1px solid var(--border);
+}
+
+.md-preview thead tr > *,
+.md-preview table > :first-child > tr:first-child > * {
+  border-top: 1px solid var(--border);
+}
+
+.md-preview :is(th, td) {
+  padding: calc(var(--spacing) * 1) calc(var(--spacing) * 3);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.md-preview th {
+  background: var(--table-head);
+  color: var(--table-head-foreground);
+  font-weight: 600;
+}
+
+.md-preview .md-align-left {
+  text-align: left;
+}
+
+.md-preview .md-align-center {
+  text-align: center;
+}
+
+.md-preview .md-align-right {
+  text-align: right;
+}
+
+/* §5.5: where an image would be — a dashed frame with its alternative text; the address that was not loaded on hover. */
+.md-preview .md-image {
+  display: inline-block;
+  padding: 0 calc(var(--spacing) * 1.5);
+  border: 1px dashed var(--muted-foreground);
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+}
+
+/* §5.4: a link that does not open — its text, a dashed underline, the address on hover. */
+.md-preview .md-link-inactive {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-color: var(--muted-foreground);
+  text-underline-offset: 0.2em;
+  cursor: help;
+}
