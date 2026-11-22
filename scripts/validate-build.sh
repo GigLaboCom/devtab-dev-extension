@@ -70,7 +70,11 @@ ALLOWED_HOST_PERMISSIONS=""
 #   reactjs.org, react.dev minified React error/docs links
 #   example.com            a reserved example domain (RFC 2606) in a tool's placeholder (url: §8)
 #   www.npmjs.com          the licence banner of hash-wasm (the Hash tool's wasm hashes), kept as its MIT notice
-ALLOWED_JS_HOSTS='^(www\.w3\.org|reactjs\.org|react\.dev|example\.com|www\.npmjs\.com)$'
+#   github.com             the licence banner of markdown-it (the Markdown Preview tool), kept as its MIT notice
+#   prettier.io, git.io, evilmartians.com
+#                          the texts of the formatter's own errors and warnings, in its modules as published (*.mjs,
+#                          copied byte for byte: the Code Formatter tool)
+ALLOWED_JS_HOSTS='^(www\.w3\.org|reactjs\.org|react\.dev|example\.com|www\.npmjs\.com|github\.com|prettier\.io|git\.io|evilmartians\.com)$'
 # The two extension pages (not manifest entries; vite.config.ts builds them as inputs).
 APP_PAGE="src/app/index.html"
 VIEWER_PAGE="src/viewer/index.html"
@@ -191,7 +195,7 @@ fi
 # Check 3: no @extension/hmr reload-client injections (dev-only watchRebuildPlugin output — a prod dist must never
 # open ws://localhost:<port> or carry __HMR_ID / __HMR_URL markers), and no dev CSP
 echo "Check 3: HMR reload-client injections..."
-HMR_REFS=$(grep -rlE '__HMR_ID|__HMR_URL|ws://localhost' "$INSPECT_DIR" --include='*.js' --include='*.json' 2>/dev/null || true)
+HMR_REFS=$(grep -rlE '__HMR_ID|__HMR_URL|ws://localhost' "$INSPECT_DIR" --include='*.js' --include='*.mjs' --include='*.json' 2>/dev/null || true)
 if [ -n "$HMR_REFS" ]; then
     fail "files carry the dev reload client or the dev CSP (built with pnpm dev, not pnpm build):"
     echo "$HMR_REFS" | sed 's/^/  /'
@@ -440,6 +444,16 @@ mapfile -t REACHED < <({
 while IFS= read -r -d '' js; do
     printf '%s\n' "${REACHED[@]}" | grep -qxF "$(norm "$js")" || SURFACE_ERRORS+=("a script nothing loads: ${js#"$INSPECT_DIR"/}")
 done < <(find "$INSPECT_DIR" -name '*.js' -not -path "$INSPECT_DIR/licenses/*" -print0)
+# A module shipped as published (`*.mjs`: a library's own file a tool's worker imports by its address) is a script
+# too. It is loaded when a reached chunk names its address; one that nothing names is a script nothing loads.
+while IFS= read -r -d '' mjs; do
+    name=${mjs#"$INSPECT_DIR"/}
+    named=0
+    for chunk in "${REACHED[@]}"; do
+        if [ -f "$chunk" ] && grep -qF -- "$name" "$chunk"; then named=1; break; fi
+    done
+    [ "$named" = 1 ] || SURFACE_ERRORS+=("a script nothing loads: $name")
+done < <(find "$INSPECT_DIR" -name '*.mjs' -not -path "$INSPECT_DIR/licenses/*" -print0)
 # The New Tab override as its definition says: the main page and nothing else (no bookmarks or history override), or
 # none at all.
 NTP=$(jq -c '.chrome_url_overrides // null' "$MANIFEST")
@@ -520,11 +534,11 @@ fi
 
 # Check 11: no unexpected remote hosts embedded in the built JS or HTML (no remotely hosted code)
 echo "Check 11: Remote endpoints in built JS / HTML..."
-UNEXPECTED_HOSTS=$(grep -rhoE 'https?://[a-zA-Z0-9.-]+' "$INSPECT_DIR" --include='*.js' 2>/dev/null \
+UNEXPECTED_HOSTS=$(grep -rhoE 'https?://[a-zA-Z0-9.-]+' "$INSPECT_DIR" --include='*.js' --include='*.mjs' 2>/dev/null \
     | sed -E 's#https?://##' | sort -u | grep -vE "$ALLOWED_JS_HOSTS" || true)
 REMOTE_IN_HTML=$(grep -rlE '(src|href)="(https?:)?//' "$INSPECT_DIR" --include='*.html' 2>/dev/null || true)
 if [ -n "$UNEXPECTED_HOSTS" ] || [ -n "$REMOTE_IN_HTML" ]; then
-    fail "unexpected remote references (allowed in JS: w3.org namespaces, React docs links, example.com):"
+    fail "unexpected remote references (allowed in JS: the hosts listed at ALLOWED_JS_HOSTS, as text only):"
     [ -n "$UNEXPECTED_HOSTS" ] && echo "$UNEXPECTED_HOSTS" | sed 's/^/  js: /'
     [ -n "$REMOTE_IN_HTML" ] && echo "$REMOTE_IN_HTML" | sed 's/^/  html: /'
 else
@@ -581,7 +595,7 @@ if [ -n "$SW" ] && [ -f "$INSPECT_DIR/$SW" ]; then
     done < <(walk_chunks "$(norm "$INSPECT_DIR/$SW")")
 fi
 # Live review is a stub: no Native Messaging code may ship before the permission and the companion exist.
-NM_REFS=$(grep -rlE 'connectNative|sendNativeMessage|nativeMessaging' "$INSPECT_DIR" --include='*.js' 2>/dev/null || true)
+NM_REFS=$(grep -rlE 'connectNative|sendNativeMessage|nativeMessaging' "$INSPECT_DIR" --include='*.js' --include='*.mjs' 2>/dev/null || true)
 [ -z "$NM_REFS" ] || BUILD_ERRORS+=("Native Messaging code shipped: $(echo "$NM_REFS" | tr '\n' ' ')")
 if [ ${#BUILD_ERRORS[@]} -gt 0 ]; then
     fail "build invariants:"
