@@ -7,7 +7,7 @@ title = "extension gitleaks config"
 # The default rules.
 useDefault = true
 
-[allowlist]
+[[allowlists]]
 description = "Build output, lockfiles and binary assets"
 paths = [
   '''(^|/)target/''',
@@ -15,4 +15,14 @@ paths = [
   '''(^|/)Cargo\.lock$''',
   '''(^|/)pnpm-lock\.yaml$''',
   '''\.(webp|png|jpg|svg|ttf|woff2|wasm)$''',
+]
+
+# The cURL to Code tool reads commands that carry credentials, so its tests are full of made-up ones
+# (-u 'ann:pa:ss', Authorization: Bearer t0k). Only the two rules about curl, only in that tool's tests.
+[[allowlists]]
+description = "Made-up credentials in the commands the cURL to Code tool's tests convert"
+targetRules = ["curl-auth-user", "curl-auth-header"]
+paths = [
+  '''(^|/)packages/tools/(logic|ui)/curl-to-code/src/[^/]+\.test\.tsx?$''',
+  '''(^|/)scripts/e2e-tools/curl-to-code\.mjs$''',
 ]
