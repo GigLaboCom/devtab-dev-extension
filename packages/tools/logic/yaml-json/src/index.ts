@@ -10,6 +10,12 @@ export { jsonToYaml, yamlToJson } from './convert';
 export { loadConverter } from './load';
 export type { Converter } from './load';
 export { ALIASES_EXPANDED, LOST_IN_JSON, describeNotes } from './notes';
-export { MAX_DEPTH, decodeTextFile, isInexactNumber, parseJsonTree, positionOf } from './json-scan';
-export type { Indent, JsonErrorInfo, JsonNode, JsonTreeResult, Layout } from './json-scan';
+export {
+  MAX_DEPTH,
+  decodeTextFile,
+  isInexactNumber,
+  parseJsonTree,
+  positionOf,
+} from '@workspace/tools-shared/json-scan';
+export type { Indent, JsonErrorInfo, JsonNode, JsonTreeResult, Layout } from '@workspace/tools-shared/json-scan';
 export * from './types';

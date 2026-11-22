@@ -19,14 +19,21 @@ THIS SOFTWARE.
  *
  * Neither direction builds JavaScript values: `toJS` + `JSON.stringify` would round numbers beyond 2^53, move
  * integer-like keys to the front and lose `1E400`. YAML → JSON prints JSON straight from the library's document tree,
- * with its own alias table, merge keys and limits; JSON → YAML reads the JSON with the exact scanner (json-scan.ts)
- * and builds YAML nodes from the literals as written.
+ * with its own alias table, merge keys and limits; JSON → YAML reads the JSON with the shared exact scanner
+ * (@workspace/tools-shared/json-scan) and builds YAML nodes from the literals as written.
  */
-import { MAX_DEPTH, JSON_NUMBER, errorAt, isInexactNumber, parseJsonTree, positionsIn } from './json-scan';
 import { ALIAS_BUDGET } from './types';
+import {
+  MAX_DEPTH,
+  JSON_NUMBER,
+  errorAt,
+  isInexactNumber,
+  parseJsonTree,
+  positionsIn,
+} from '@workspace/tools-shared/json-scan';
 import { Document, Pair, Scalar, YAMLMap, YAMLSeq, isAlias, isMap, isScalar, isSeq, parseAllDocuments } from 'yaml';
-import type { JsonNode, Layout } from './json-scan';
 import type { ConvertNotes, ConvertResult, JsonToYamlOptions, YamlNote, YamlToJsonOptions } from './types';
+import type { JsonNode, Layout } from '@workspace/tools-shared/json-scan';
 import type { Alias, Node, ParsedNode, ScalarTag, Schema, Tags } from 'yaml';
 
 const TIMESTAMP = 'tag:yaml.org,2002:timestamp';

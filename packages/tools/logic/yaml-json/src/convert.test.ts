@@ -5,8 +5,8 @@
 import { jsonToYaml, yamlToJson } from './convert';
 import { describeNotes } from './notes';
 import { describe, expect, it } from 'vitest';
-import type { Layout } from './json-scan';
 import type { ConvertResult, YamlVersion } from './types';
+import type { Layout } from '@workspace/tools-shared/json-scan';
 
 const y2j = (text: string, version: YamlVersion = '1.2', layout: Layout = 'minify'): ConvertResult =>
   yamlToJson(text, { version, layout });
