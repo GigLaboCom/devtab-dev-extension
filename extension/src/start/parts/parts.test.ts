@@ -267,7 +267,7 @@ describe('what the page and the settings derive from the parts', () => {
     const full = pageContext(DEFINITIONS, on, held, code);
     expect(full.webSearch).toBeDefined();
     expect(full.siteIcons.src('https://a.example/')).toMatch(/_favicon/);
-    expect(full.matcher.match('b64', DESTINATIONS).map(f => f.destination.title)).toEqual(['Base64']);
+    expect(full.matcher.match('b64', DESTINATIONS).map(f => f.destination.title)).toEqual(['Base64', 'Base64 Image']);
     await full.recognise?.ready();
     expect(full.recognise?.recognise('{"a": 1}')).toBe('json');
     expect(pageContext(DEFINITIONS, on, new Set(), code).siteIcons.src('https://a.example/')).toBeNull();

@@ -39,7 +39,8 @@ describe('the start page field', () => {
         r.kind === 'open' ? r.destination.title : r.text,
       );
     expect(b64()).toEqual([]);
-    expect(b64(fuzzyMatcher)).toEqual(['Base64']);
+    // Every tool whose title has b, 6, 4 in order: Base64 (№ 2) and Base64 Image (№ 27), in registry order.
+    expect(b64(fuzzyMatcher)).toEqual(['Base64', 'Base64 Image']);
   });
 });
 
