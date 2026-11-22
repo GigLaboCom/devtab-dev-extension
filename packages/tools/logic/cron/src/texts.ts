@@ -32,7 +32,15 @@ export const noRunsText = (why: NoRuns): string =>
     ? `No runs after now: the last year in the expression is ${why.lastYear}.`
     : why.kind === 'no-such-day'
       ? `This never runs: no selected month has day ${why.day}.`
-      : 'This never runs: no matching day in a full 400-year calendar cycle.';
+      : why.kind === 'never-in-years'
+        ? `This never runs: no matching day in ${yearsText(why.years)}, the years the expression allows.`
+        : 'This never runs: no matching day in a full 400-year calendar cycle.';
+
+/** The years of a year field, for the sentence above: up to three named, more as a range with their count. */
+const yearsText = (years: readonly number[]): string =>
+  years.length <= 3
+    ? years.join(years.length === 2 ? ' and ' : ', ')
+    : `${years.length} years from ${years[0]} to ${years[years.length - 1]}`;
 
 /** §5.9: the Note column. */
 export const RUN_NOTES: Readonly<Record<Run['kind'], string>> = {

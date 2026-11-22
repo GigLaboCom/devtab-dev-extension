@@ -173,12 +173,17 @@ export const nextRuns = (cron: ParsedCron, nowMs: number, zone: string, count: n
   return [...found.values()].sort((a, b) => a.epochMs - b.epochMs).slice(0, count);
 };
 
-export type NoRuns = { kind: 'past'; lastYear: number } | { kind: 'no-such-day'; day: number } | { kind: 'never' };
+export type NoRuns =
+  | { kind: 'past'; lastYear: number }
+  | { kind: 'no-such-day'; day: number }
+  | { kind: 'never-in-years'; years: number[] }
+  | { kind: 'never' };
 
 /**
  * §5.8 «Нет запусков», called when `nextRuns` returned nothing: every year of the field is past; or only the day of
  * month decides, without special values, and its smallest day is longer than every selected month (February: 29); or
- * no day matches in the whole horizon.
+ * no day matches: in the years of the year field, when there is one (only those were searched), or in the whole
+ * horizon.
  */
 export const whyNoRuns = (cron: ParsedCron, nowMs: number, zone: string): NoRuns => {
   if (cron.years) {
@@ -191,6 +196,11 @@ export const whyNoRuns = (cron: ParsedCron, nowMs: number, zone: string): NoRuns
     const day = Math.min(...cron.dom.days);
     const longest = Math.max(...[...cron.months].map(m => (m === 2 ? 29 : monthLength(2001, m))));
     if (day > longest) return { kind: 'no-such-day', day };
+  }
+  if (cron.years) {
+    // The years still to come: only those were searched (a past one may well have had the day).
+    const now = wallClock(nowMs, zone).year;
+    return { kind: 'never-in-years', years: [...cron.years].filter(y => y >= now).sort((a, b) => a - b) };
   }
   return { kind: 'never' };
 };

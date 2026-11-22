@@ -519,6 +519,25 @@ describe('§10, no runs, the horizon and speed', () => {
     expect(noRunsText(whyNoRuns(cron, NOW, 'UTC'))).toBe('No runs after now: the last year in the expression is 2020.');
   });
 
+  it('0 0 0 29 2 ? 2027: never in the years of the year field — only those were searched, so the text names them', () => {
+    const cron = parse('0 0 0 29 2 ? 2027');
+    expect(nextRuns(cron, NOW, 'UTC', 10)).toEqual([]);
+    expect(whyNoRuns(cron, NOW, 'UTC')).toEqual({ kind: 'never-in-years', years: [2027] });
+    expect(noRunsText(whyNoRuns(cron, NOW, 'UTC'))).toBe(
+      'This never runs: no matching day in 2027, the years the expression allows.',
+    );
+    // A past year that had the day is not named: only the years to come were searched.
+    expect(noRunsText(whyNoRuns(parse('0 0 0 29 2 ? 2024,2027'), NOW, 'UTC'))).toBe(
+      'This never runs: no matching day in 2027, the years the expression allows.',
+    );
+    expect(noRunsText({ kind: 'never-in-years', years: [2027, 2029] })).toBe(
+      'This never runs: no matching day in 2027 and 2029, the years the expression allows.',
+    );
+    expect(noRunsText({ kind: 'never-in-years', years: [2027, 2029, 2030, 2031] })).toBe(
+      'This never runs: no matching day in 4 years from 2027 to 2031, the years the expression allows.',
+    );
+  });
+
   it('0 0 L-30 2 *: never, after the whole 400-year cycle', () => {
     const cron = parse('0 0 L-30 2 *');
     const start = performance.now();
