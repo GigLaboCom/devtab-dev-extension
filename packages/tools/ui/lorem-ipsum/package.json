@@ -1,0 +1,35 @@
+{
+  "name": "@workspace/tool-ui-lorem-ipsum",
+  "version": "0.1.0",
+  "description": "The Lorem Ipsum tool's component and definition (D14, docs/tools/specs/lorem-ipsum.md): the definition is the main export, the component loads when the tool is opened.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/definition.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@workspace/tool-logic-lorem-ipsum": "workspace:*",
+    "@workspace/tools-host": "workspace:*",
+    "@workspace/ui": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.2.8"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "jsdom": "^25.0.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
