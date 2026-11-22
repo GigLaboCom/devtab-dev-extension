@@ -21,3 +21,5 @@ packages/theme/gpui-themes
 
 # The built showcase page of the style package (pnpm --filter @workspace/dna showcase)
 packages/dna/showcase/dist
+# the official JSON-Schema-Test-Suite as published (the JSON Schema tool's tests read its literals as written)
+packages/tools/logic/json-schema/test-suite

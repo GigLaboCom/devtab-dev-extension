@@ -74,7 +74,9 @@ ALLOWED_HOST_PERMISSIONS=""
 #   prettier.io, git.io, evilmartians.com
 #                          the texts of the formatter's own errors and warnings, in its modules as published (*.mjs,
 #                          copied byte for byte: the Code Formatter tool)
-ALLOWED_JS_HOSTS='^(www\.w3\.org|reactjs\.org|react\.dev|example\.com|www\.npmjs\.com|github\.com|prettier\.io|git\.io|evilmartians\.com)$'
+#   json-schema.org        the identifiers of the JSON Schema drafts and their meta-schemas ($schema, $id,
+#                          $vocabulary), which the JSON Schema tool matches and writes; never fetched
+ALLOWED_JS_HOSTS='^(www\.w3\.org|reactjs\.org|react\.dev|example\.com|www\.npmjs\.com|github\.com|prettier\.io|git\.io|evilmartians\.com|json-schema\.org)$'
 # The two extension pages (not manifest entries; vite.config.ts builds them as inputs).
 APP_PAGE="src/app/index.html"
 VIEWER_PAGE="src/viewer/index.html"
