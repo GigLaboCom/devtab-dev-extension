@@ -1,0 +1,26 @@
+{
+  "name": "@workspace/tool-logic-sql-format",
+  "version": "0.1.0",
+  "description": "The SQL Formatter tool's logic (D14, docs/tools/specs/sql-format.md): the dialects and options, the unclosed-comment check, the library's errors in words, the dialect hint, detectSql, the token check that formatting never changes the query, and formatting with sql-formatter (called from the tool's workers only). Pure TypeScript: no React, no DOM, no chrome.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@workspace/tools-shared": "workspace:*",
+    "sql-formatter": "15.9.0"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
