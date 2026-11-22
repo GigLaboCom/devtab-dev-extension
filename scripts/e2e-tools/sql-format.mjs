@@ -509,16 +509,22 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
   await said(LARGE);
   const inList = await runOn('Run', LARGE);
   const TOO_DEEP = 'the query is nested too deeply to lay out';
-  // 1000 levels take seconds (the parser is superlinear in depth): the time limit may stop them on a busy machine.
+  // Deeper than MAX_NESTING (200) brackets is refused before the library, at the 201st bracket (docs/tools/limits.md):
+  // the parser costs about the square of the depth (1,000 levels took 14 s) and overflows its stack.
+  const NESTED = /^Line 1, column \d+: brackets nest more than 200 levels deep: the formatter would take too long$/;
   const formattedOrRefused = Object.values(deep).every(
-    r => r.lines > 1 || r.status === TOO_DEEP || r.status.startsWith('Formatting took longer than'),
+    r => r.lines > 1 || NESTED.test(r.status) || r.status === TOO_DEEP,
   );
   check(
-    `${T}: pathological inputs — nesting formats or is refused in words (the parser's stack in a worker), never a crash; 200 nested subqueries (§12) format; an IN list of 200 000 values formats by Run into a summary; the page never stalls`,
+    `${T}: pathological inputs — nesting up to 200 brackets formats, deeper is refused in words at once (MAX_NESTING), never a crash; 200 nested subqueries (§12) format; an IN list of 200 000 values formats by Run into a summary; the page never stalls`,
     formattedOrRefused &&
       deep['100 parentheses'].lines > 100 &&
       deep['200 subqueries'].lines > 200 &&
-      deep['5000 parentheses'].status === TOO_DEEP &&
+      deep['200 parentheses'].lines > 1 &&
+      NESTED.test(deep['400 parentheses'].status) &&
+      NESTED.test(deep['1000 parentheses'].status) &&
+      NESTED.test(deep['5000 parentheses'].status) &&
+      NESTED.test(deep['400 subqueries'].status) &&
       /^Result: [\d.]+ MB, 200,007 lines\. Too large to show here\.$/.test(inList.summary) &&
       Math.max(inList.longest, ...Object.values(deep).map(r => r.longest)) < 1_500,
     `${Object.entries(deep)

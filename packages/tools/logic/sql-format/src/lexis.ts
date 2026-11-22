@@ -258,6 +258,31 @@ const lineEnd = (text: string, at: number): number => {
 };
 
 /**
+ * Where brackets nest deeper than `max`: the offset of the first `(` or `[` that opens level `max + 1`, or null. Only
+ * code counts — strings, quoted names and comments of the dialect are skipped (a `[` that quotes a name in Transact-SQL
+ * is a quoted name). One pass, linear: it runs before the library, whose parser costs about the square of the depth.
+ */
+export const bracketsDeeperThan = (text: string, dialect: SqlDialect, max: number): number | null => {
+  let depth = 0;
+  let found: number | null = null;
+  const code = (from: number, to: number): void => {
+    for (let i = from; i < to && found === null; i++) {
+      const c = text.charCodeAt(i);
+      if (c === 40 || c === 91) {
+        if (++depth > max) found = i;
+      } else if ((c === 41 || c === 93) && depth > 0) depth--;
+    }
+  };
+  let at = 0;
+  scanSql(text, dialect, span => {
+    code(at, span.start);
+    at = span.end;
+  });
+  code(at, text.length);
+  return found;
+};
+
+/**
  * Walks the text once and reports every span that is not SQL code, in order. Quote openers are found by their first
  * character; an unclosed string or comment runs to the end of the text (`closed: false`) and is the last span.
  */

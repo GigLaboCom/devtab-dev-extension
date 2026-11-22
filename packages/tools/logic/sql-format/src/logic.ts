@@ -50,6 +50,14 @@ export const SETTLE_MS = 150;
  * Node (§12) and a little more in Chrome; a run past this limit is a pathological input, not a slow machine.
  */
 export const TIME_LIMIT_MS = 15_000;
+/**
+ * The deepest nesting of brackets the tool hands to the library (§15: a limit chosen by the implementer, not in the
+ * specification). The library's parser costs about the square of the depth and recurses: in a worker of Chrome 159,
+ * nested parentheses, calls or IN lists take 120–150 ms at 100 levels, 0.5–0.56 s at 200, 0.9 s at 256, 3.4 s at 500,
+ * 14 s or a stack overflow at 1,000; nested subqueries are cheap but overflow the stack from about 450. 200 keeps §12's
+ * "200 nested subqueries format". Deeper input is refused before the library sees it.
+ */
+export const MAX_NESTING = 200;
 
 /** The dialects in the order of the Dialect list (§4); the first is the default. */
 export const DIALECTS: readonly SqlDialect[] = [
@@ -159,6 +167,8 @@ const tokenText = (token: string): string => {
 const LEXER_ERROR = /^Parse error: Unexpected "[\s\S]*?" at line (\d+) column (\d+)/;
 const PARSER_ERROR = /^Parse error at token: ([\s\S]*?) at line (\d+) column (\d+)/;
 export const TOO_DEEP = 'the query is nested too deeply to lay out';
+/** Said at the bracket that opens level MAX_NESTING + 1, before the library is called (format.ts). */
+export const NESTED_TOO_DEEP = `brackets nest more than ${MAX_NESTING} levels deep: the formatter would take too long`;
 
 /** §5 п. 9: the dialects to try for what the text shows of another syntax, outside its strings and comments. */
 const HINTS: ReadonlyArray<[RegExp, string]> = [

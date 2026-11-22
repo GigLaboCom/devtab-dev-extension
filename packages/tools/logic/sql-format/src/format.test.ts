@@ -4,7 +4,9 @@
  * And what §5 and §6 state that §10 leaves out: every dialect formats, comments and quoted text come out as written,
  * multi-line comments byte for byte, parameters per dialect, several statements, CRLF.
  */
-import { DEFAULT_OPTIONS, DIALECTS, describeError, formatSql } from './index';
+import { DEFAULT_OPTIONS, DIALECTS, MAX_NESTING, describeError, formatSql } from './index';
+import { bracketsDeeperThan } from './lexis';
+import { GROWTH_BOUND, growth } from '@workspace/tools-shared/growth';
 import * as library from 'sql-formatter';
 import { describe, expect, it } from 'vitest';
 import type { DialectOptions, SqlOptions, SqlResult } from './index';
@@ -325,8 +327,41 @@ describe('what §5 and §6 state beyond §10', () => {
     expect(fmt('select 1 -- c\n')).toBe(lines('SELECT', '  1 -- c'));
   });
 
-  it('thousands of nested parentheses: the parser runs out of stack — an error in words, not a crash (§15)', () => {
-    expect(err(`select ${'('.repeat(5000)}1${')'.repeat(5000)}`)).toBe('the query is nested too deeply to lay out');
+  it('thousands of nested parentheses: refused at the bracket past MAX_NESTING, before the library (§15)', () => {
+    expect(err(`select ${'('.repeat(5000)}1${')'.repeat(5000)}`)).toBe(
+      'Line 1, column 208: brackets nest more than 200 levels deep: the formatter would take too long',
+    );
+  });
+
+  it('MAX_NESTING: 200 nested subqueries format (§12), 201 brackets are refused at the 201st', () => {
+    const subqueries = (n: number) => `${'select * from ('.repeat(n)}select 1${') x'.repeat(n)}`;
+    expect(MAX_NESTING).toBe(200);
+    expect(fmt(subqueries(200)).split('\n').length).toBeGreaterThan(200);
+    expect(err(subqueries(201))).toBe(
+      `Line 1, column ${15 * 201}: brackets nest more than 200 levels deep: the formatter would take too long`,
+    );
+    // Two siblings of 150 levels each are 150 deep, not 300.
+    expect(fmt(`select ${'('.repeat(150)}1${')'.repeat(150)} + ${'('.repeat(150)}2${')'.repeat(150)}`)).toContain('2');
+  });
+
+  it('brackets in strings, quoted names and comments do not count; square brackets in code do', () => {
+    const deepText = `'${'('.repeat(300)}'`;
+    expect(fmt(`select ${deepText}`)).toBe(lines('SELECT', `  ${deepText}`));
+    expect(fmt(`select 1 -- ${'('.repeat(300)}`)).toBe(lines('SELECT', `  1 -- ${'('.repeat(300)}`));
+    expect(fmt(`select 1 /* ${'['.repeat(300)} */`)).toContain('/* [[[');
+    expect(fmt(`select "${'('.repeat(300)}" from t`, { dialect: 'postgresql' })).toContain('"(((');
+    expect(bracketsDeeperThan(`select [${'('.repeat(300)}] from t`, 'transactsql', 200)).toBeNull();
+    expect(bracketsDeeperThan(`select a${'['.repeat(201)}`, 'postgresql', 200)).toBe(208);
+    // A closing bracket without an opening one does not make room for more.
+    expect(bracketsDeeperThan(`${')'.repeat(50)}${'('.repeat(201)}`, 'sql', 200)).toBe(250);
+  });
+
+  it('the bracket scan is linear in the text', () => {
+    const make = (n: number) =>
+      `select ${'(1 + '.repeat(100)}'${'('.repeat(n)}'${')'.repeat(100)} -- ${'['.repeat(n)}\n`;
+    expect(growth(text => bracketsDeeperThan(text, 'postgresql', MAX_NESTING), make, 64 * 1024)).toBeLessThan(
+      GROWTH_BOUND,
+    );
   });
 
   it('the library’s own disable comments print the text between as it stands', () => {

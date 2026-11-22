@@ -27,8 +27,15 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  *    library re-indents every line of a block comment over several lines, and breaks a line comment at U+2028);
  * 3. the result is compared with the input token by token (tokens.ts); a difference is an error, never a result.
  */
-import { LEXIS, scanSql } from './lexis';
-import { UNCLOSED_COMMENT, findUnclosedComment, libraryOptions, mapLibraryError } from './logic';
+import { LEXIS, bracketsDeeperThan, scanSql } from './lexis';
+import {
+  MAX_NESTING,
+  NESTED_TOO_DEEP,
+  UNCLOSED_COMMENT,
+  findUnclosedComment,
+  libraryOptions,
+  mapLibraryError,
+} from './logic';
 import { firstChange } from './tokens';
 import { errorAt } from '@workspace/tools-shared/json-scan';
 import { formatDialect } from 'sql-formatter';
@@ -116,6 +123,8 @@ export const formatSql = (text: string, options: SqlOptions, dialect: DialectOpt
   if (text.trim() === '') return { ok: true, text: '' };
   const unclosed = findUnclosedComment(text, options.dialect);
   if (unclosed !== null) return { ok: false, error: errorAt(text, UNCLOSED_COMMENT, unclosed) };
+  const deep = bracketsDeeperThan(text, options.dialect, MAX_NESTING);
+  if (deep !== null) return { ok: false, error: errorAt(text, NESTED_TOO_DEEP, deep) };
 
   const { guarded, placeholders } = guardComments(text, options.dialect);
   let printed: string;
