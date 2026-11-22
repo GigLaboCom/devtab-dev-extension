@@ -4,7 +4,7 @@
 //   - Settings → Tools: one switch, off, listing the tools it applies to; flipping it upserts `autoCopy` into the entry
 //     of each of them in chrome.storage.local, and a tool page already open follows it live;
 //   - switched on, Generate in Password Generator, UUID / ULID and Random String puts the result on the clipboard — a batch all of it,
-//     one per line — and the copy button says Copied; a change of an option, opening a tool's page and opening an entry
+//     one per line — and Lorem Ipsum its one text; the copy button says Copied; a change of an option, opening a tool's page and opening an entry
 //     from History copy nothing; switched off, Generate copies nothing.
 // The clipboard is the test browser's own (a browser without a window keeps its own — the machine's is never touched),
 // read and written with the permission granted through CDP (Browser.grantPermissions), as the compare checks do; a
@@ -155,6 +155,26 @@ export default async ({ ctx, page, base, id, check, sleep, report }) => {
         strings.every(s => s.length === 20) &&
         (await read(rs)) === strings.join('\n') &&
         (await rs.locator('[aria-live="polite"]').textContent()) === '10 strings generated and copied',
+    );
+
+    // Lorem Ipsum, one text: it opens with a text shown and copies nothing, nor does a change of Count; Generate does.
+    await put(rs, 'sentinel-lorem-ipsum');
+    const li = await open('#/tools/lorem-ipsum');
+    await li.locator('[data-status]').waitFor();
+    await li.getByLabel('Count', { exact: true }).fill('2');
+    await sleep(500);
+    check(
+      `${T}: switched on, opening Lorem Ipsum (its text already shown) and a change of Count copy nothing`,
+      (await read(li)) === 'sentinel-lorem-ipsum',
+    );
+    await generate(li);
+    await li.getByRole('button', { name: 'Copied', exact: true }).waitFor({ timeout: 3000 });
+    const lorem = await li.locator('#lorem-ipsum-result').inputValue();
+    check(
+      `${T}: Generate in Lorem Ipsum copies its text as shown, and the line under it says copied`,
+      lorem.split('\n\n').length === 2 &&
+        (await read(li)) === lorem &&
+        (await li.locator('[data-status]').textContent()).endsWith(' · copied'),
     );
     await uu.bringToFront();
 
