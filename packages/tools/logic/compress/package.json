@@ -1,0 +1,28 @@
+{
+  "name": "@workspace/tool-logic-compress",
+  "version": "0.1.0",
+  "description": "The Compress / Decompress tool's logic (D14, docs/tools/specs/compress.md): gzip, zlib and raw deflate through the browser's CompressionStream and DecompressionStream, zstd and brotli through drivers of their wasm modules (given in, not imported), several gzip members and data after the end as gunzip reads them, the output limit, the text check and the gzip header. Pure TypeScript: no React, no DOM, no chrome.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@workspace/tools-shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@tootallnate/brotli-wasm": "0.1.0",
+    "@tootallnate/zstd-wasm": "0.1.0",
+    "@types/node": "^22.20.1",
+    "brotli": "2.1.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
