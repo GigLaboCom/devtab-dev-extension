@@ -18,6 +18,7 @@ import {
   formatSize,
   imageDimensions,
   imageTypeOf,
+  parseImageInput,
   previewRefusal,
   sniffImage,
   svgHasActiveContent,
@@ -42,6 +43,7 @@ import {
   utf8,
 } from './testing/images';
 import { bytesToBase64 } from '@workspace/tools-shared/base64';
+import { GROWTH_BOUND, growth } from '@workspace/tools-shared/growth';
 import { describe, expect, it } from 'vitest';
 import type { DecodeImageResult, DecodedImage } from './index';
 
@@ -256,11 +258,11 @@ describe('§7 detectBase64Image', () => {
     expect(detectBase64Image(`iVBORw0KGgo${'A'.repeat(MAX_INPUT_CHARS)}`)).toBe(false);
     expect(detectBase64Image('iVBORw0KGgo AAAA!')).toBe(false);
   });
-  it('a megabyte of the worst input is one pass', () => {
-    const worst = `iVBORw0KGgo${'A '.repeat(512 * 1024)}!`;
-    const t = performance.now();
-    expect(detectBase64Image(worst)).toBe(false);
-    expect(performance.now() - t).toBeLessThan(1000);
+  it('a megabyte of the worst input is one pass', { timeout: 60_000 }, () => {
+    const worst = (n: number) => `iVBORw0KGgo${'A '.repeat(n / 2)}!`;
+    expect(detectBase64Image(worst(1024 * 1024))).toBe(false);
+    // The shape of the cost (`growth`): a megabyte against eight inputs of 128 Ki — linear about 1, quadratic about 8.
+    expect(growth(detectBase64Image, worst, 128 * 1024)).toBeLessThan(GROWTH_BOUND);
   });
 });
 
@@ -438,8 +440,27 @@ describe('§5 Decode: reading the input', () => {
       '<img src="https://example.com/a.png" alt="">',
       'blob:chrome-extension://abc/123',
       'file:///tmp/a.png',
+      '//localhost/a.png',
+      '//cdn/img',
+      'url(//example.com/a.png)',
+      '<img src="//example.com:8080/a.png?x=1#y">',
     ])
       expect(failed(text).error).toEqual({ message: ADDRESS });
+  });
+  it('bare Base64 that starts with // is Base64, not an address (bytes ff f…)', () => {
+    for (const [text, bytes] of [
+      ['//79', [0xff, 0xfe, 0xfd]],
+      ['//8=', [0xff, 0xff]],
+      ['  //79\n//79  ', [0xff, 0xfe, 0xfd, 0xff, 0xfe, 0xfd]],
+      ['url(//79)', [0xff, 0xfe, 0xfd]],
+      ['<img src="//79">', [0xff, 0xfe, 0xfd]],
+    ] as const) {
+      const read = parseImageInput(text);
+      expect(read.ok && [...read.bytes], text).toEqual(bytes);
+    }
+    // Decoded, and then refused for what the bytes are — never as an address.
+    expect(failed('//79').error).toEqual({ message: NOT_AN_IMAGE });
+    expect(failed(`//${bytesToBase64(png).slice(2)}`).error.message).not.toBe(ADDRESS);
   });
   it('the Base64 errors of the shared reader, with their places', () => {
     expect(failed('iVBORw0KG').error.message).toBe('one character too many at the end');

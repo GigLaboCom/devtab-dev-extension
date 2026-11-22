@@ -2,7 +2,8 @@
  * Decode's input as bytes (docs/tools/specs/base64-image.md §3, §5 «Decode, разбор ввода»): a data: URI in any legal
  * spelling — upper-case scheme, parameters, `;base64` with spaces before it, a percent-encoded body, white space and
  * line breaks inside — or bare Base64 of either alphabet, and either of them pasted whole as a CSS `url(…)` or an
- * `<img src>`. An address (`https:`, `//`, `blob:`, `file:`) is refused in words: the tool never fetches anything.
+ * `<img src>`. An address (`https:`, `blob:`, `file:`, or `//` and what is not Base64) is refused in words: the tool never
+ * fetches anything.
  *
  * Positions of a Base64 error are offsets into the text as typed (UTF-16), with line and column; a body with
  * percent-escapes has none (the escapes change the offsets). Base64 is read by the platform's forgiving-base64 (`atob`)
@@ -121,7 +122,11 @@ const srcValue = (text: string, start: number): { value: string; at: number } | 
   return { value, at: start + m.index + m[0].length - value.length - quoted };
 };
 
-const ADDRESS_START = /^(?:https?:|ftp:|file:|blob:|chrome-extension:|\/\/)/i;
+/**
+ * An address by its scheme (Base64 has no `:`). A network-path reference (`//host/a.png`) is told by what follows:
+ * `//79` is valid Base64 (bytes ff fe fd) and is decoded; `//` followed by what is not Base64 is an address.
+ */
+const ADDRESS_START = /^(?:https?:|ftp:|file:|blob:|chrome-extension:)/i;
 
 /** A data: URI at `at` of the input, by the Fetch standard's «data: URL processor» (§5 step 2). */
 const dataUri = (input: string, uri: string, at: number, shape: InputShape): ParsedInput => {
@@ -180,6 +185,7 @@ export const parseImageInput = (input: string): ParsedInput => {
   if (ADDRESS_START.test(value)) return { ok: false, error: { message: ADDRESS } };
   if (/^data:/i.test(value)) return dataUri(input, value, at, shape === 'base64' ? 'data-uri' : shape);
   const parsed = decodeBase64(value);
-  if (!parsed.ok) return failure(input, parsed.error, at);
+  if (!parsed.ok)
+    return value.startsWith('//') ? { ok: false, error: { message: ADDRESS } } : failure(input, parsed.error, at);
   return { ok: true, bytes: parsed.bytes, declaredMime: null, shape };
 };

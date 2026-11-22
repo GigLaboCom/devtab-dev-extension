@@ -254,6 +254,11 @@ describe('the Base64 Image tool, Decode', () => {
     expect(errorLine()).toBe('a data URI needs a comma before the data');
     typeIn('https://example.com/a.png');
     expect(errorLine()).toMatch(/^This is an address, not image data: this tool never fetches anything\./);
+    typeIn('//example.com/a.png');
+    expect(errorLine()).toMatch(/^This is an address, not image data/);
+    // Bare Base64 that starts with `//` is decoded, then named for what its bytes are.
+    typeIn('//79');
+    expect(errorLine()).toBe('not an image this tool recognises (PNG, JPEG, GIF, WebP, AVIF, BMP, ICO, SVG)');
     typeIn('aGVsbG8=');
     expect(errorLine()).toBe('not an image this tool recognises (PNG, JPEG, GIF, WebP, AVIF, BMP, ICO, SVG)');
     expect(preview()).toBeNull();

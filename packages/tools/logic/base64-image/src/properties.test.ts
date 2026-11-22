@@ -4,6 +4,7 @@
 import { decodeBase64, decodeImageInput, describeImage, formatOutput, svgActiveIn, svgDimensions } from './index';
 import { ascii, concat, makeFtyp, randomBytes, seeded, utf8 } from './testing/images';
 import { bytesToBase64, parseBase64 } from '@workspace/tools-shared/base64';
+import { GROWTH_BOUND, growth } from '@workspace/tools-shared/growth';
 import { describe, expect, it } from 'vitest';
 import type { LineLength, OutputForm } from './index';
 
@@ -82,18 +83,12 @@ describe('the fast Base64 path', () => {
 });
 
 describe('linear on the worst inputs (a megabyte each)', () => {
-  /** Time per character of a 1 MiB input against a 64 KiB one: a quadratic scan grows 16 times, a linear one not. */
-  const ratio = (make: (n: number) => string, run: (text: string) => unknown): number => {
-    const time = (text: string) => {
-      const t = performance.now();
-      for (let i = 0; i < 3; i++) run(text);
-      return (performance.now() - t) / 3 / text.length;
-    };
-    const small = make(64 * 1024);
-    const large = make(1024 * 1024);
-    time(small);
-    return time(large) / Math.max(time(small), 1e-9);
-  };
+  /**
+   * The shape of the cost, not milliseconds (`growth`): 1 MiB against sixteen inputs of 64 KiB, timed in turn — a
+   * linear scan about 1, a quadratic one about 16, on a free machine or a loaded one.
+   */
+  const ratio = (make: (n: number) => string, run: (text: string) => unknown): number =>
+    growth(run, make, 64 * 1024, { factor: 16 });
   it.each([
     ['many unclosed entity declarations', (n: number) => '<!ENTITY a '.repeat(n / 11)],
     ['many event-like words', (n: number) => ' on'.repeat(n / 3)],
@@ -101,21 +96,21 @@ describe('linear on the worst inputs (a megabyte each)', () => {
     ['many unclosed quotes', (n: number) => ` href="x`.repeat(n / 8)],
     ['many url(', (n: number) => 'url('.repeat(n / 4)],
     ['a DOCTYPE that never ends', (n: number) => `<!DOCTYPE svg [${'['.repeat(n)}`],
-  ])('%s', (_name, make) => {
-    expect(ratio(make, text => [svgActiveIn(text), svgDimensions(text)])).toBeLessThan(6);
+  ])('%s', { timeout: 60_000 }, (_name, make) => {
+    expect(ratio(make, text => [svgActiveIn(text), svgDimensions(text)])).toBeLessThan(GROWTH_BOUND);
   });
-  it('Decode of a megabyte of Base64 with the error at its end', () => {
+  it('Decode of a megabyte of Base64 with the error at its end', { timeout: 60_000 }, () => {
     expect(
       ratio(
         n => `${'A'.repeat(n)}!`,
         text => decodeImageInput(text),
       ),
-    ).toBeLessThan(6);
+    ).toBeLessThan(GROWTH_BOUND);
     expect(
       ratio(
         n => `<img src="${'A'.repeat(n)}`,
         text => decodeImageInput(text),
       ),
-    ).toBeLessThan(6);
+    ).toBeLessThan(GROWTH_BOUND);
   });
 });
