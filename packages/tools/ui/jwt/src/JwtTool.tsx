@@ -11,7 +11,8 @@
  */
 import { jwtHistory } from './history';
 import { Caption, ClaimsTable, PartView, SignatureStatus, TimeStatusLine, partText } from './parts';
-import { draftOf, readPayload } from './payload';
+import { draftOf, readPayload, readSignedPayload } from './payload';
+import { DEFAULT_SEED, SignView } from './SignView';
 import {
   MAX_TOKEN,
   TOO_LARGE,
@@ -29,11 +30,13 @@ import { Input } from '@workspace/ui/input';
 import { Label } from '@workspace/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
 import { Textarea } from '@workspace/ui/textarea';
+import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { ToolEmpty, ToolMessage, ToolPane, ToolPanes } from '@workspace/ui/tool-page';
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Shown } from './parts';
 import type { JwtPayload, KeyField } from './payload';
+import type { SignSeed } from './SignView';
 import type { Decoded, ParsedKey, SecretFormat, Verification } from '@workspace/tool-logic-jwt';
 import type { RecordingStatus, ToolProps } from '@workspace/tools-host';
 import type { ReactElement } from 'react';
@@ -67,6 +70,9 @@ const JwtTool = ({ input: initial, host, restore }: ToolProps): ReactElement => 
   const [publicKey, setPublicKey] = useState('');
   const [showSecret, setShowSecret] = useState(false);
   const [restored, setRestored] = useState<string | null>(null);
+  // §16: Sign, with what it starts from (the defaults, a decoded token to edit, an entry); its key never leaves it.
+  const [mode, setMode] = useState<'decode' | 'sign'>('decode');
+  const [seed, setSeed] = useState<{ n: number; seed: SignSeed }>({ n: 0, seed: DEFAULT_SEED });
   const { history, recorder, status } = useToolHistory(host, 'jwt', jwtHistory);
   // Text handed over from the start page is the person's first edit; an opened entry is not an edit.
   const origin = useRef<Origin>('edit');
@@ -164,12 +170,24 @@ const JwtTool = ({ input: initial, host, restore }: ToolProps): ReactElement => 
       );
       return;
     }
+    const signedEntry = opened.entry.kind === 'signed' ? readSignedPayload(opened.payload) : undefined;
+    if (signedEntry) {
+      origin.current = 'restore';
+      setSeed(s => ({
+        n: s.n + 1,
+        seed: { header: signedEntry.header, payload: signedEntry.payload, compact: signedEntry.compact },
+      }));
+      setMode('sign');
+      setRestored(`Opened from History: ${opened.label ?? 'an entry'}. The signing key is never kept: enter it again.`);
+      return;
+    }
     const entry = readPayload(opened.payload);
     if (!entry) {
       setRestored('This entry could not be opened.');
       return;
     }
     origin.current = 'restore';
+    setMode('decode');
     setToken(entry.token);
     if (entry.key?.field === 'secret') {
       setSecret(entry.key.text);
@@ -187,9 +205,59 @@ const JwtTool = ({ input: initial, host, restore }: ToolProps): ReactElement => 
   const alg = decoded?.alg;
   const described = (id: string, message: string) => (message ? { 'aria-invalid': true, 'aria-describedby': id } : {});
 
+  const editAndSign = (): void => {
+    if (!decoded || !header) return;
+    setSeed(s => ({
+      n: s.n + 1,
+      seed: {
+        header: partText(header),
+        payload: payload ? partText(payload) : '',
+        compact: true,
+        ...(keyField === 'secret' && secret !== '' ? { secret: { text: secret, format } } : {}),
+      },
+    }));
+    setRestored(null);
+    setMode('sign');
+  };
+  const decodeSigned = (signed: string, carried?: { text: string; format: SecretFormat }): void =>
+    edit(() => {
+      setMode('decode');
+      setToken(signed);
+      if (carried) {
+        setSecret(carried.text);
+        setFormat(carried.format);
+      }
+    });
+
+  const modeSwitch = (
+    <ToggleGroup
+      type="single"
+      variant="segmented"
+      aria-label="Mode"
+      value={mode}
+      onValueChange={next => {
+        if (!next) return;
+        setRestored(null);
+        setMode(next as 'decode' | 'sign');
+      }}>
+      <ToggleGroupItem value="decode">Decode</ToggleGroupItem>
+      <ToggleGroupItem value="sign">Sign</ToggleGroupItem>
+    </ToggleGroup>
+  );
+
+  if (mode === 'sign')
+    return (
+      <div className="flex flex-col gap-3">
+        {restored && <ToolMessage data-restored>{restored}</ToolMessage>}
+        <div>{modeSwitch}</div>
+        <SignView key={seed.n} seed={seed.seed} recorder={recorder} status={status} onDecode={decodeSigned} />
+      </div>
+    );
+
   return (
     <div className="flex flex-col gap-3">
       {restored && <ToolMessage data-restored>{restored}</ToolMessage>}
+      <div>{modeSwitch}</div>
 
       <ToolPane
         label="Token"
@@ -339,6 +407,14 @@ const JwtTool = ({ input: initial, host, restore }: ToolProps): ReactElement => 
                 {decoded.signature.bytes.length === 1 ? '1 byte' : `${decoded.signature.bytes.length} bytes`}
               </span>
             </ToolPane>
+          )}
+
+          {decoded.kind === 'jws' && header?.ok && (
+            <div>
+              <Button variant="outline" size="sm" onClick={editAndSign} data-edit-sign>
+                Edit and sign
+              </Button>
+            </div>
           )}
         </>
       )}

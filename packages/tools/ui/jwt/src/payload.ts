@@ -62,3 +62,27 @@ export const readPayload = (value: unknown): JwtPayload | undefined => {
     ...(key ? { key } : {}),
   };
 };
+
+/** Payload of the `signed` kind (§16): what was signed and the token — never the key. */
+export type SignedPayload = {
+  mode: 'sign';
+  header: string;
+  payload: string;
+  compact: boolean;
+  alg: string;
+  token: string;
+};
+
+export const signedDraft = (p: Omit<SignedPayload, 'mode'>): HistoryDraft => ({
+  kind: 'signed',
+  payload: { mode: 'sign', ...p } as unknown as HistoryDraft['payload'],
+  label: `${p.alg} · signed`,
+});
+
+export const readSignedPayload = (value: unknown): SignedPayload | undefined => {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const p = value as Record<string, unknown>;
+  if (p.mode !== 'sign' || typeof p.header !== 'string' || typeof p.payload !== 'string') return undefined;
+  if (typeof p.compact !== 'boolean' || typeof p.alg !== 'string' || typeof p.token !== 'string') return undefined;
+  return { mode: 'sign', header: p.header, payload: p.payload, compact: p.compact, alg: p.alg, token: p.token };
+};

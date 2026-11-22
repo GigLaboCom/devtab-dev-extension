@@ -101,7 +101,7 @@ const spyHost = (initial: Partial<RecordingStatus> = {}) => {
 const payloadOf = (draft: HistoryDraft) => draft.payload as unknown as JwtPayload;
 
 describe('the JWT tool’s definition', () => {
-  it('describes the tool, detects tokens, declares two secret kinds, derives its output and has no shortcut', async () => {
+  it('describes the tool, detects tokens, declares three secret kinds, derives its output and has no shortcut', async () => {
     expect(definition).toMatchObject({ id: 'jwt', title: 'JWT', order: 4, output: { origin: 'input' } });
     expect(definition.summary).toBe('Decode a JSON Web Token and check its signature with your key.');
     expect(definition.shortcut).toBeUndefined();
@@ -111,6 +111,7 @@ describe('the JWT tool’s definition', () => {
     expect(definition.history?.kinds).toEqual([
       { id: 'decoded', title: 'Decoded', secret: true },
       { id: 'checked', title: 'Checked with a key', secret: true },
+      { id: 'signed', title: 'Signed', secret: true },
     ]);
     expect((await definition.load()).default).toBe(JwtTool);
   });

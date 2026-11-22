@@ -8,3 +8,4 @@ export * from './decode';
 export * from './claims';
 export * from './key';
 export * from './verify';
+export * from './sign';

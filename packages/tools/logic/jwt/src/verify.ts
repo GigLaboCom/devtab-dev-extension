@@ -17,9 +17,9 @@ export type Verification =
   | { state: 'cannot-verify'; reason: string }
   | { state: 'unsecured'; hasSignature: boolean };
 
-type Family = 'HS' | 'RS' | 'PS' | 'ES' | 'Ed';
+export type Family = 'HS' | 'RS' | 'PS' | 'ES' | 'Ed';
 type Hash = 'SHA-256' | 'SHA-384' | 'SHA-512';
-interface Algorithm {
+export interface Algorithm {
   family: Family;
   hash?: Hash;
   /** ES: the curve and the length of r ‖ s. */
@@ -28,7 +28,7 @@ interface Algorithm {
 }
 
 const SHA = (bits: 256 | 384 | 512): Hash => `SHA-${bits}`;
-const ALGORITHMS: Record<string, Algorithm> = {
+export const ALGORITHMS: Record<string, Algorithm> = {
   HS256: { family: 'HS', hash: SHA(256) },
   HS384: { family: 'HS', hash: SHA(384) },
   HS512: { family: 'HS', hash: SHA(512) },
@@ -46,7 +46,7 @@ const ALGORITHMS: Record<string, Algorithm> = {
 };
 const HASH_BYTES: Record<Hash, number> = { 'SHA-256': 32, 'SHA-384': 48, 'SHA-512': 64 };
 /** Algorithms that have a name but no implementation in the browser's Web Crypto (§5.3). */
-const UNAVAILABLE: Record<string, string> = {
+export const UNAVAILABLE: Record<string, string> = {
   ES256K: "ES256K (secp256k1) is not available in the browser's Web Crypto.",
   Ed448: "Ed448 is not available in the browser's Web Crypto.",
 };
@@ -83,7 +83,7 @@ const cannot = (reason: string): Verification => ({ state: 'cannot-verify', reas
 /** What a candidate key is, as the type check needs it. */
 const kindOf = (key: VerifyKey) =>
   key.type === 'secret' ? ({ type: 'oct' } as const) : key.type === 'spki' ? spkiKind(key.der) : jwkKind(key.jwk);
-type KeyKind = ReturnType<typeof kindOf>;
+export type KeyKind = ReturnType<typeof kindOf>;
 
 const FAMILY_WORDS: Record<Family, string> = { HS: 'HMAC', RS: 'RSA', PS: 'RSA', ES: 'EC', Ed: 'Ed25519' };
 /** "RSA", "EC P-256", "Ed448", "a shared secret (oct)" — the words of §5.4's messages. */
@@ -91,7 +91,7 @@ const describeKind = (kind: KeyKind): string | undefined =>
   kind.type === 'oct' ? 'a shared secret (oct)' : kind.type === 'RSA' ? 'RSA' : kindWords(kind);
 
 /** Does a key's kind fit the algorithm (§5.4)? A reason when it does not; undefined when it fits or cannot be told. */
-const mismatch = (alg: string, a: Algorithm, kind: KeyKind): string | undefined => {
+export const mismatch = (alg: string, a: Algorithm, kind: KeyKind): string | undefined => {
   if (kind.type === 'unknown') return undefined;
   const uses = alg === FAMILY_WORDS[a.family] ? alg : `${alg} (${FAMILY_WORDS[a.family]})`;
   const wrongType = `The token uses ${uses}, but the key is ${describeKind(kind)}.`;
@@ -140,7 +140,7 @@ const publicJwk = (jwk: Jwk): Record<string, unknown> => {
       : pick(['kty', 'crv', 'x']);
 };
 
-const importParams = (a: Algorithm) =>
+export const importParams = (a: Algorithm) =>
   a.family === 'HS'
     ? { name: 'HMAC', hash: a.hash! }
     : a.family === 'RS'
@@ -151,7 +151,7 @@ const importParams = (a: Algorithm) =>
           ? { name: 'ECDSA', namedCurve: a.curve! }
           : { name: 'Ed25519' };
 
-const verifyParams = (a: Algorithm) =>
+export const verifyParams = (a: Algorithm) =>
   a.family === 'HS'
     ? { name: 'HMAC' }
     : a.family === 'RS'
@@ -162,7 +162,7 @@ const verifyParams = (a: Algorithm) =>
           ? { name: 'ECDSA', hash: a.hash! }
           : { name: 'Ed25519' };
 
-const errorName = (error: unknown): string =>
+export const errorName = (error: unknown): string =>
   error instanceof Error || (typeof error === 'object' && error !== null && 'name' in error)
     ? String((error as { name: unknown }).name)
     : 'Error';

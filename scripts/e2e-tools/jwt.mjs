@@ -6,13 +6,17 @@
 //     payload in clear in IndexedDB);
 //   - locked, the entry does not open (the tool says it is encrypted) and a Copy writes nothing;
 //   - unlocked, History's "Open" brings the token and the secret back, and the signature is verified again;
-//   - the master password is turned off again (its encrypted entries go with it), so later steps start as before.
+//   - the master password is turned off again (its encrypted entries go with it), so later steps start as before;
+//   - Sign (§16): a token signed with the secret decodes back verified, one signed with a private key (made here by
+//     node:crypto and thrown away) verifies with its public key, alg "none" is refused, and without a master password
+//     nothing of it — key, token or payload — is written.
 // Only published sample tokens and the specification's test keys are used. The master password is never written to
 // the report or the console. Copy is checked against a stand-in for navigator.clipboard.writeText in the page, so the
 // run does not touch the system clipboard. Run by scripts/e2e-tools.mjs.
 
 /* global document, indexedDB, window, location, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
 
+import { generateKeyPairSync } from 'node:crypto';
 import { themeMode } from '../e2e-theme.mjs';
 
 const T = 'JWT';
@@ -129,7 +133,10 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   check(
     `${T}: Settings → History says what it keeps and never keeps`,
     groupText.includes('Tokens you decoded, with the signature result and the key you checked them with') &&
-      groupText.includes('Tokens and keys without an unlocked master password, and never in clear.'),
+      groupText.includes('and tokens you signed with their header and payload') &&
+      groupText.includes(
+        'Tokens and keys without an unlocked master password, and never in clear; the key or secret a token was signed with, ever.',
+      ),
   );
   const shortcut = settings.locator('[data-shortcut="open:tools/jwt"] input');
   check(
@@ -446,6 +453,53 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   await page.reload();
   await token(page).waitFor();
   check(`${T}: with the master password off again, its entries are gone`, (await jwtRows(page)).length === 0);
+
+  // §16 Sign: the secret signs, Decode it verifies; a private key signs; "none" is refused; nothing is written.
+  await page.getByRole('radio', { name: 'Sign', exact: true }).click();
+  await page.getByLabel('Signing secret', { exact: true }).fill(SECRET);
+  const signedField = page.getByLabel('Signed token', { exact: true });
+  await page.waitForFunction(() => document.querySelector('#jwt-signed')?.value?.startsWith('eyJ'));
+  const hs = await signedField.inputValue();
+  await shot(page, 'tool-jwt-sign-01-hs256.png');
+  await page.getByRole('button', { name: 'Decode it', exact: true }).click();
+  await verdict(page, 'Signature verified');
+  check(
+    `${T}: §16 Sign with the secret — "Decode it" shows the token verified with the same secret`,
+    (await token(page).inputValue()) === hs && /^eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\./.test(hs),
+  );
+  await page.getByRole('radio', { name: 'Sign', exact: true }).click();
+  await page.getByLabel('Algorithm', { exact: true }).click();
+  await page.getByRole('option', { name: 'ES256', exact: true }).click();
+  const ec = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  const ecPrivate = ec.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+  await page.getByLabel('Private key', { exact: true }).fill(ecPrivate);
+  await page.waitForFunction(() => document.querySelector('#jwt-signed')?.value?.startsWith('eyJhbGciOiJFUzI1NiIs'));
+  const es = await signedField.inputValue();
+  await page.getByRole('button', { name: 'Decode it', exact: true }).click();
+  await page
+    .getByLabel('Public key', { exact: true })
+    .fill(ec.publicKey.export({ type: 'spki', format: 'pem' }).toString());
+  await verdict(page, 'Signature verified');
+  check(
+    `${T}: §16 Sign ES256 with a private key — verified with its public key`,
+    (await token(page).inputValue()) === es,
+  );
+  await page.getByRole('radio', { name: 'Sign', exact: true }).click();
+  await page.getByLabel('Header', { exact: true }).fill('{"alg":"none"}');
+  await page.locator('[data-sign-error="header"]').waitFor();
+  check(
+    `${T}: §16 alg "none" is refused for signing`,
+    (await page.locator('[data-sign-error="header"]').innerText()) ===
+      'alg "none" makes an unsecured token; this tool signs only with a key.',
+  );
+  await sleep(3500);
+  const dump = JSON.stringify(await historyRows(page));
+  check(
+    `${T}: §16 without a master password nothing of signing is written (no key, no token)`,
+    (await jwtRows(page)).length === 0 && !dump.includes(ecPrivate.split('\n')[1]) && !dump.includes(es.split('.')[2]),
+  );
+  await page.getByRole('radio', { name: 'Decode', exact: true }).click();
+  await token(page).fill('');
 
   for (const p of opened) await p.close();
 };

@@ -11,9 +11,11 @@ export const jwtHistory: HistoryDeclaration = {
   kinds: [
     { id: 'decoded', title: 'Decoded', secret: true },
     { id: 'checked', title: 'Checked with a key', secret: true },
+    { id: 'signed', title: 'Signed', secret: true },
   ],
   schema: 1,
   records:
-    'Tokens you decoded, with the signature result and the key you checked them with — only encrypted, with a master password.',
-  never: 'Tokens and keys without an unlocked master password, and never in clear.',
+    'Tokens you decoded, with the signature result and the key you checked them with, and tokens you signed with their header and payload — only encrypted, with a master password.',
+  never:
+    'Tokens and keys without an unlocked master password, and never in clear; the key or secret a token was signed with, ever.',
 };
