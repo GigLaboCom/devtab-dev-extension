@@ -1,0 +1,28 @@
+{
+  "name": "@workspace/tool-logic-html-to-jsx",
+  "version": "0.1.0",
+  "description": "The HTML to JSX tool's logic (D14, docs/tools/specs/html-to-jsx.md): a walk over a document parsed by the DOMParser the caller passes in, writing JSX text. Pure TypeScript: no React, no chrome; the DOM only through parameters.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@workspace/tools-shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/node": "^22.20.1",
+    "jsdom": "^25.0.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

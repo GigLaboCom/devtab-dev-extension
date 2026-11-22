@@ -1,0 +1,78 @@
+{
+  "about": "The inputs of docs/tools/specs/html-to-jsx.md §10 (and the hostile inputs of the brief), shared by render.test.ts (each result compiled by esbuild and rendered by React, compared with the input's parsed form; `allow` names the differences that are expected) and scripts/e2e-tools/html-to-jsx.mjs (Chrome's result compared with jsdom's, character for character).",
+  "spec": [
+    { "input": "<label class=\"field\" for=\"email\">Email</label>" },
+    { "input": "<img src=\"a.png\" alt=\"A\"><br><input type=\"text\" name=\"q\">", "allow": ["preload"] },
+    {
+      "input": "<div style=\"color: red; margin-top: 4px; -webkit-line-clamp: 2; -ms-flex: 1; --gap: 8px; opacity: 0.5; background: url('a;b.png')\">x</div>"
+    },
+    { "input": "<p style=\"color: red !important\">x</p>", "allow": ["important"] },
+    { "input": "<p style=\"color: red; COLOR: blue; margin: 0\">x</p>", "allow": ["repeated-style"] },
+    {
+      "input": "<button onclick=\"save(event); return false;\" ondblclick=\"zoom()\" onfoo=\"x()\">Save</button>",
+      "allow": ["handlers"]
+    },
+    { "input": "<svg onclick=\"go()\"><circle r=\"1\"/></svg>", "allow": ["handlers"] },
+    {
+      "input": "<input type=\"checkbox\" checked disabled=\"disabled\" tabindex=\"0\" maxlength=\"10\" value=\"on\">",
+      "allow": ["flag-value"]
+    },
+    { "input": "<input value=\"a&amp;b\" disabled=\"false\">", "allow": ["flag-value"] },
+    { "input": "<div><!-- note: a */ b --><span>a</span></div>" },
+    { "input": "<!-- only a comment -->" },
+    { "input": "<p>Use {name} and a < b &amp; c > d</p>" },
+    { "input": "<p>Tom&nbsp;&amp;&nbsp;Jerry &copy; 2026 &amp;copy; &lt;tag&gt;</p>" },
+    { "input": "<p>Hello <b>world</b> and <i>you</i>!</p>" },
+    { "input": "<p>\n  Hello\n  <a href=\"#\">there</a>\n  <em>friend</em>\n</p>" },
+    { "input": "<ul>\n  <li>One</li>\n  <li>Two</li>\n</ul>" },
+    { "input": "<pre>  line 1\n    line {2}</pre>" },
+    { "input": "<h1>Title</h1>\n<p>Text</p>" },
+    {
+      "input": "<svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><path stroke-width=\"2\" fill-rule=\"evenodd\" d=\"M0 0h24\"/><use xlink:href=\"#a\"/><linearGradient id=\"g\"><stop stop-color=\"#fff\" offset=\"0\"/></linearGradient></svg>"
+    },
+    {
+      "input": "<select name=\"s\"><option value=\"a\">A</option><option value=\"b\" selected>B</option></select>"
+    },
+    { "input": "<textarea rows=\"3\">Hello\nworld</textarea>" },
+    { "input": "<div data-id=\"7\" aria-label=\"Close\" role=\"button\" hx-get=\"/x\"></div>" },
+    { "input": "<tr><td colspan=\"2\">x</td></tr>" },
+    { "input": "<td>a</td><td>b</td>" },
+    { "input": "<meta charset=\"utf-8\"><title>T</title><p>x</p>" },
+    { "input": "<!DOCTYPE html><html><head><title>T</title></head><body><main>Hi</main></body></html>" },
+    { "input": "<p>Hi</p>", "component": true },
+    { "input": "<p>a</p><p>b</p>", "component": true },
+    { "input": "<style>.a { color: red }</style><script>if (a < b) { go(`x`) }</script>" },
+    {
+      "input": "<a class=\"button button-primary button-large\" href=\"https://example.com/a/very/long/path?with=query&amp;and=more\" target=\"_blank\" rel=\"noopener\">Go</a>"
+    },
+    {
+      "input": "<div class=\"card\"><h2 class=\"title\">Name</h2><p class=\"body\">Some text that is long enough to need its own line in the output here.</p></div>"
+    },
+    { "input": "<div contenteditable spellcheck=\"false\">x</div>", "allow": ["contenteditable"] },
+    { "input": "<div title='say \"hi\"'>x</div>" },
+    { "input": "<p title=\"🙂 ok\">Привет, 🙂</p>" },
+    { "input": "just text" },
+    { "input": "<div><p>open" },
+    { "input": "a < b" },
+    { "input": "</p>" },
+    { "input": "<div" },
+    { "input": "<b><i>x</b></i>" },
+    { "input": "<img src=\"x\" onerror=\"alert(1)\">", "allow": ["preload", "handlers"] },
+    { "input": "" },
+    { "input": "   \n  " }
+  ],
+  "hostile": [
+    { "input": "<p title=\"a &quot;q&quot; 'b' \\ {c} */ `d` </script> \u2028 e\">x</p>" },
+    { "input": "<p>a \"q\" 'b' \\ {c} {'{'} */ `d` ${e} &lt;/script&gt; \u2028 \u2029 f</p>" },
+    { "input": "<p><!-- a */ b `c` \\ {d} \u2028 --></p>" },
+    { "input": "<p style=\"content: '\\'}{*/`\\\\'; font-family: 'a&quot; b', serif\">x</p>" },
+    { "input": "<pre>`a` ${b} \\c {d} */ \u2028\n</script></pre>" },
+    { "input": "<script>const s = `a ${b}`; // \\ */ {} \u2028</script>" },
+    { "input": "<textarea>a \"q\" 'b' \\ {c} `d` </script> \u2028\nnext</textarea>" },
+    { "input": "<a href=\"x\" title=\"line\none\" data-x='{\"a\":\"b\"}'>t</a>" },
+    { "input": "<p>&amp;amp; &amp;#65; &amp;#x41; &amp;nbsp; &amp;foo; &amp; x</p>" },
+    { "input": "<p>\u00a0lead\u3000 and \u00a0trail\u00a0</p><p>\u3000\u2002x\u205f</p>" },
+    { "input": "<div @click=\"go()\" :class=\"c\" a\"b=\"q\" {...x}=\"1\">t</div>", "allow": ["invalid-names"] },
+    { "input": "<button onclick=\"}}); evil(); ({\">x</button>", "allow": ["handlers"] }
+  ]
+}

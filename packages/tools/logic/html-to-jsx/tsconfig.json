@@ -1,0 +1,11 @@
+{
+  "extends": "@extension/tsconfig/app",
+  "compilerOptions": {
+    // A tool's logic has no DOM (D14) unless its specification needs one. This one does (html-to-jsx.md §9: it walks a
+    // document parsed by the DOMParser the caller passes in), so the DOM library is in for the nodes' types; the
+    // globals of a page (`document`, `window`, `DOMParser`) stay forbidden by the lint.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["src"]
+}
