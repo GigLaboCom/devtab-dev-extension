@@ -24,5 +24,6 @@ description = "Made-up credentials in the commands the cURL to Code tool's tests
 targetRules = ["curl-auth-user", "curl-auth-header"]
 paths = [
   '''(^|/)packages/tools/(logic|ui)/curl-to-code/src/[^/]+\.test\.tsx?$''',
+  '''(^|/)packages/tools/(logic|ui)/curl-to-code/src/__snapshots__/[^/]+\.test\.tsx?\.snap$''',
   '''(^|/)scripts/e2e-tools/curl-to-code\.mjs$''',
 ]
