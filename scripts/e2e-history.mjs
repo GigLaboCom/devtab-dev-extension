@@ -398,7 +398,7 @@ export const runHistoryChecks = async ({ ctx, id, check, shoot, report, sleep, r
   await group.getByLabel('Master password', { exact: true }).fill(password);
   const t1 = Date.now();
   await group.getByRole('button', { name: 'Unlock' }).click();
-  await group.getByText('Unlocked.').waitFor();
+  await group.getByText('Unlocked.', { exact: true }).waitFor();
   historyReport.unlockMs = Date.now() - t1;
   await second.locator('.kit-history-lock[data-vault="unlocked"]').waitFor();
   check('unlocking in one tab unlocks the other', true, `unlock ${historyReport.unlockMs} ms`);

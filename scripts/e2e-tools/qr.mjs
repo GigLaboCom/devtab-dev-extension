@@ -631,7 +631,7 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   await settings.bringToFront();
   await group.getByLabel('Master password', { exact: true }).fill(master);
   await group.getByRole('button', { name: 'Unlock' }).click();
-  await group.getByText('Unlocked.').waitFor();
+  await group.getByText('Unlocked.', { exact: true }).waitFor();
   await history.bringToFront();
   await history.goto(`${base}#/history`);
   await history.locator('.kit-history-entry[data-kind="made-secret"]').getByRole('button', { name: 'Open' }).click();
