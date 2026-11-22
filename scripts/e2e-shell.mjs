@@ -561,7 +561,7 @@ export const runShellChecks = async ({ ctx, id, check, shoot, report, sleep }) =
   await withSettings(ctx, base, settings =>
     settings
       .locator('[data-settings="shortcuts"]')
-      .getByRole('button', { name: 'Clear the shortcut for JSON' })
+      .getByRole('button', { name: 'Clear the shortcut for JSON', exact: true })
       .click(),
   );
   await other.evaluate(() => (location.hash = '#/history'));

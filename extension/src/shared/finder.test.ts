@@ -47,8 +47,11 @@ describe('PlaceMatcher: the strict matcher, what the start page has before its f
   // Every query the strict tiers answer: exact, prefix, word start, substring — by title or keyword.
   const STRICT = ['json', 'HASH', 'hásh', 'comp', 'review', 'diff', 'minify', 'git', 'theme', 'u', 'uid', 'Comp', 'e'];
 
-  it.each(STRICT)('ranks %j exactly as the fuzzy matcher does', query => {
-    expect(strictMatcher.match(query, DESTINATIONS, 50)).toEqual(fuzzyMatcher.match(query, DESTINATIONS, 50));
+  // The fuzzy matcher puts the same places first, in the same order, and may only add weaker matches after them: a
+  // near miss of some tool's keyword ("comp" against "commonmark") is its business, and must not break this.
+  it.each(STRICT)('ranks %j as the fuzzy matcher ranks its best matches', query => {
+    const strict = strictMatcher.match(query, DESTINATIONS, 50);
+    expect(fuzzyMatcher.match(query, DESTINATIONS, 50).slice(0, strict.length)).toEqual(strict);
   });
 
   it('leaves the subsequences, the near misses and words in another order to the fuzzy matcher', () => {

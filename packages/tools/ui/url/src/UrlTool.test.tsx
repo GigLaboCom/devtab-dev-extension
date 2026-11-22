@@ -262,6 +262,8 @@ describe('the URL tool, rendered with no host', () => {
     expect(container.querySelector('a, [href], iframe, img')).toBeNull();
   });
 
+  // A thousand table rows in jsdom take about 3 s alone and more beside the workspace's other test tasks: the default
+  // 5 s limit of a test is not a budget of the tool (its speed in the browser is measured in e2e).
   it('§6: more than 1,000 parameters — 1,000 rows, a note, and Copy JSON copies all', async () => {
     render(<UrlTool />);
     mode('Parse');
@@ -271,7 +273,7 @@ describe('the URL tool, rendered with no host', () => {
     expect(screen.getByText('Showing the first 1,000 of 1,001 parameters. Copy JSON copies all.')).toBeTruthy();
     await press('Copy JSON');
     expect(Object.keys(JSON.parse(writeText.mock.lastCall![0] as string) as object)).toHaveLength(1001);
-  });
+  }, 30_000);
 
   it('§6, §12: size limits — Encode refuses above 5 Mi characters, Parse above 1 Mi; the limits themselves work', () => {
     const { container } = render(<UrlTool />);

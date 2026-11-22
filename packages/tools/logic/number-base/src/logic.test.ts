@@ -610,7 +610,9 @@ describe('§12: limits and speed', () => {
     const v = value(digits, 10)!;
     for (const radix of [2, 8, 10, 16, 36]) formatNumber(v, radix, { ...FORMAT, grouped: true });
     numberDetails(v, { ...SIGN, uppercase: false });
-    expect(performance.now() - started).toBeLessThan(100);
+    // About 3 ms on a quiet machine. The bound is loose on purpose: beside the workspace's other test tasks this took
+    // over 100 ms, and what it guards against is the wrong algorithm (seconds), not a slow moment.
+    expect(performance.now() - started).toBeLessThan(1000);
     const z = value(repeat('z', MAX_DIGITS), 36)!;
     expect(z.toString(36)).toBe(repeat('z', MAX_DIGITS));
   });
