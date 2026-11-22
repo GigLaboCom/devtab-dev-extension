@@ -13,7 +13,9 @@
 //   - a record damaged by hand in chrome.storage.local does not break a tool: what is valid is used, the rest is the
 //     defaults, no page error;
 //   - nothing but parameters is stored: after each tool was used with a recognisable input (and a secret, and the
-//     passwords it made), the stored bytes hold none of it, and each tool's record names only its declared fields.
+//     passwords it made), the stored bytes hold none of it, and each tool's record names only its declared fields;
+//   - a write the browser refuses (chrome.storage.local filled to its quota): the tool page says in one line that the
+//     settings could not be saved and keeps the choice; with room again the next change saves both and the line goes.
 // Then the free edition: built from the same sources with the root reading `free` (DEVTAB_VARIANT=edition:free, the
 // one line changed at build time — extension/vite.config.ts) into .state/e2e/dist-free, loaded in a browser of its
 // own: no tool parameter is ever written to storage, a tool opens with its defaults on every visit (a new tab, a
@@ -56,6 +58,11 @@ const DECLARED = {
 };
 
 const MARK = 'SAVEDSETTINGSPROBE';
+
+/** What a tool page says while the browser refuses to store the tool's settings (SAVE_PROBLEM_TEXT of the host package). */
+const NOT_SAVED = 'Settings could not be saved. They stay as you set them until this page is closed.';
+/** The key this module fills chrome.storage.local with, to its quota, and removes. */
+const FILLER = 'e2eQuotaFiller';
 
 export default async ({ ctx, base, check, sleep, report }) => {
   const opened = [];
@@ -441,11 +448,61 @@ export default async ({ ctx, base, check, sleep, report }) => {
       JSON.stringify({ jsonDamaged, b64Damaged, curlDamaged, pwDamaged, dcDamaged }),
     );
     await putStored(main, withoutParams(await stored(main), tools));
+
+    // ---- A write the browser refuses: chrome.storage.local is filled to its quota. ----
+    const full = await open('#/tools/json');
+    await full.locator('#json-input').waitFor({ timeout: 15_000 });
+    const noticeOf = p => p.locator('[data-part="settings-notice"]');
+    const quiet = (await noticeOf(full).count()) === 0;
+    const filled = await full.evaluate(async key => {
+      const quota = chrome.storage.local.QUOTA_BYTES;
+      const used = await chrome.storage.local.getBytesInUse(null);
+      // An item takes its key and its value as JSON (a string and its two quotes); a few bytes are left free.
+      await chrome.storage.local.set({ [key]: 'x'.repeat(quota - used - key.length - 2 - 8) });
+      // What Chrome answers a write that does not fit (the reason the storage hands on).
+      const reason = await chrome.storage.local.set({ [`${key}More`]: 'x'.repeat(64) }).then(
+        () => null,
+        error => String(error?.message ?? error),
+      );
+      return { quota, left: quota - (await chrome.storage.local.getBytesInUse(null)), reason };
+    }, FILLER);
+    await full.getByLabel('Sort keys', { exact: true }).click();
+    await noticeOf(full)
+      .waitFor({ timeout: 5_000 })
+      .catch(() => undefined);
+    const refused = {
+      said: (await noticeOf(full).count()) > 0 ? await noticeOf(full).textContent() : null,
+      role: (await noticeOf(full).count()) > 0 ? await noticeOf(full).getAttribute('role') : null,
+      sortKeys: await checkedState(full, 'Sort keys'),
+      stored: await paramsOf(full, 'json'),
+    };
+    await full.evaluate(key => chrome.storage.local.remove([key, `${key}More`]), FILLER);
+    await choose(full, 'Indent', '4 spaces');
+    const afterRoom = await storedFor(full, 'json', r => r?.values?.indent === 4 && r.values.sortKeys === true);
+    await noticeOf(full)
+      .waitFor({ state: 'detached', timeout: 5_000 })
+      .catch(() => undefined);
+    check(
+      `${T}: JSON — the browser refuses the write (storage full): the page says "${NOT_SAVED}" and keeps the choice; with room again the next change saves both and the line goes`,
+      quiet &&
+        filled.left >= 0 &&
+        filled.left < 64 &&
+        typeof filled.reason === 'string' &&
+        refused.said === NOT_SAVED &&
+        refused.role === 'status' &&
+        refused.sortKeys === 'checked' &&
+        refused.stored === null &&
+        same(afterRoom?.values, { indent: 4, sortKeys: true }) &&
+        (await noticeOf(full).count()) === 0,
+      JSON.stringify({ quiet, filled, refused, afterRoom }),
+    );
+    await putStored(main, withoutParams(await stored(main), tools));
   } finally {
     await clipboard?.restore().catch(() => undefined);
     for (const p of opened.splice(0)) await p.close().catch(() => undefined);
     const restoring = await ctx.newPage();
     await restoring.goto(`${base}#/tools`);
+    await restoring.evaluate(key => chrome.storage.local.remove([key, `${key}More`]), FILLER);
     await putStored(restoring, before);
     await restoring.close();
   }

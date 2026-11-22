@@ -95,7 +95,7 @@ const code = await load(
   import { DEFAULT_MAX_BLOB_BYTES, IDLE_MS, MIN_GAP_MS, SESSION_IDLE_MS, LABEL_MAX, TEXT_MAX } from ${at('packages/tools/logic/shared/history/factory.ts')};
   import { TOOL_SETTINGS_KEY } from ${at('extension/src/tools/settings.ts')};
   import { AUTO_COPY } from ${at('packages/tools/ui/host/lib/autoCopy.ts')};
-  import { SAVE_AFTER_MS, SAVED_PARAMETERS_MAX_CHARS } from ${at('packages/tools/ui/host/lib/settings.ts')};
+  import { SAVE_AFTER_MS, SAVED_PARAMETERS_MAX_CHARS, WRITE_ATTEMPTS } from ${at('packages/tools/ui/host/lib/settings.ts')};
   import { edition } from ${at('extension/src/edition/index.ts')};
   import { MAX_BYTES as COMPARE_MAX_BYTES } from ${at('extension/src/compare/files.ts')};
   import { toolbarButton, pageOpener } from ${at('extension/src/toolbar/index.ts')};
@@ -115,7 +115,9 @@ const code = await load(
     shortcuts: { key: SHORTCUT_KEYS_KEY, actions: actions.map(a => ({ id: a.id, title: a.title, group: a.group })), mac: resolved(true), other: resolved(false) },
     history: { settings: DEFAULT_HISTORY_SETTINGS, key: HISTORY_SETTINGS_KEY, choices: { RETENTION_DAYS, BUDGET_MIB, IDLE_LOCK_MINUTES },
       factory: { DEFAULT_MAX_BLOB_BYTES, IDLE_MS, MIN_GAP_MS, SESSION_IDLE_MS, LABEL_MAX, TEXT_MAX } },
-    toolSettings: { key: TOOL_SETTINGS_KEY, autoCopy: AUTO_COPY, saveAfterMs: SAVE_AFTER_MS, maxChars: SAVED_PARAMETERS_MAX_CHARS },
+    toolSettings: { key: TOOL_SETTINGS_KEY, autoCopy: AUTO_COPY, saveAfterMs: SAVE_AFTER_MS, maxChars: SAVED_PARAMETERS_MAX_CHARS, writeAttempts: WRITE_ATTEMPTS,
+      // Does the storage the edition names keep the parameters between uses? (Nothing of the browser is touched to ask.)
+      keeps: edition.parameters({ area: {}, onChanged: {} }).keeps },
     compare: { maxBytes: COMPARE_MAX_BYTES },
     roots: { toolbarButton: toolbarButton.id, newTab: newTab.id, optionsPage: optionsPage.id, pageOpener: pageOpener.id ?? null, edition: edition.id },
   };
@@ -309,8 +311,8 @@ out.push(
       ],
       [
         'Сохранённые параметры инструментов (D21)',
-        `Pro — последний выбор человека, free — умолчания при каждом открытии (издание: \`${code.roots.edition}\`); запись — через ${code.toolSettings.saveAfterMs} мс после последней правки, не больше ${code.toolSettings.maxChars} знаков JSON на инструмент`,
-        `Pro: \`${code.toolSettings.key}\` (\`params.<id>\` = \`{ schema, values }\`); free: память страницы`,
+        `Pro — последний выбор человека, free — умолчания при каждом открытии (издание: \`${code.roots.edition}\`; хранилище параметров сохраняет: ${code.toolSettings.keeps ? 'да' : 'нет'}); запись — через ${code.toolSettings.saveAfterMs} мс после последней правки, не больше ${code.toolSettings.maxChars} знаков JSON на инструмент, при конфликте — до ${code.toolSettings.writeAttempts} попыток`,
+        `Pro (шов \`ParameterStorage\`, локальная реализация): \`${code.toolSettings.key}\` (\`params.<id>\` = \`{ schema, values }\`); free (хранение выключено): нигде, выбор живёт в памяти страницы`,
       ],
     ],
   ),
