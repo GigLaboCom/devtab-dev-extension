@@ -7,18 +7,19 @@
  * line asked for one. Every tool sits in the same frame — the kit's ToolPage: its title, its summary and this host's
  * history line — so the tools look like one product. An address naming no tool shows the overview and says so.
  *
- * The tool opens once its per-tool settings are read (it starts from its saved parameters, D21), and in Pro
- * (src/edition) its frame offers "Reset settings" while those parameters differ from the tool's defaults.
+ * The tool opens once its per-tool settings and its saved parameters are read (it starts from them, D21). Its frame
+ * offers "Reset settings" while those parameters differ from the tool's defaults — in a build whose storage keeps them
+ * (seam ParameterStorage, D23: the page asks the store, not the edition) — and says in one line when the storage
+ * refused to keep the person's latest choice.
  */
 import { clearHandoff, peekHandoff } from '../handoff';
 import { clearRestore, peekRestore } from '../history/restoreHandoff';
 import { ToolHistoryPanel } from '../history/ToolHistoryPanel';
 import { routeHash } from '../route';
-import { edition } from '@src/edition';
 import { sourceOf } from '@src/history/sources';
 import { pageNavigation } from '@src/tools/navigation';
 import { TOOLS, componentOf, toolById } from '@src/tools/registry';
-import { useSettingsReset } from '@workspace/tools-host';
+import { SAVE_PROBLEM_TEXT, useSaveProblem, useSettingsReset } from '@workspace/tools-host';
 import { ToolPage } from '@workspace/ui/tool-page';
 import { Suspense, use, useEffect, useMemo, useState } from 'react';
 import type { HistoryHost } from '@src/history/behaviors';
@@ -61,7 +62,7 @@ const Overview = ({ unknown }: { unknown?: string }): ReactElement => (
   </>
 );
 
-/** Renders its children once the per-tool settings are read (inside the tool's Suspense: "Loading…" until then). */
+/** Renders its children once the tool's settings and saved parameters are read (inside the tool's Suspense: "Loading…" until then). */
 const SettingsRead = ({ ready, children }: { ready: Promise<void>; children: ReactNode }): ReactNode => {
   use(ready);
   return children;
@@ -84,17 +85,19 @@ const ToolView = ({ tool, history }: { tool: ToolDefinition; history: HistoryHos
   });
   useEffect(() => clearRestore(), []);
   const source = sourceOf(history.sources, tool.id);
-  const reset = useSettingsReset(edition.pro ? history.toolSettings : undefined, tool.id);
+  const reset = useSettingsReset(history.toolSettings, tool.id);
+  const problem = useSaveProblem(history.toolSettings, tool.id);
   return (
     <ToolPage
       title={tool.title}
       summary={tool.summary}
       onResetSettings={reset}
+      settingsNotice={problem && SAVE_PROBLEM_TEXT[problem]}
       history={
         source && <ToolHistoryPanel host={history} source={source} onOpen={id => setRestore({ owner: tool.id, id })} />
       }>
       <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
-        <SettingsRead ready={history.toolSettings.ready}>
+        <SettingsRead ready={history.toolSettings.readyFor(tool.id)}>
           <Tool input={input} host={host} restore={restore?.owner === tool.id ? restore : undefined} />
         </SettingsRead>
       </Suspense>

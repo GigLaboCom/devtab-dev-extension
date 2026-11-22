@@ -15,8 +15,9 @@ export const fakeStorage = () => {
     set: (items: Record<string, unknown>) => {
       const changes: Changes = {};
       for (const [k, v] of Object.entries(items)) {
+        // As Chrome reports a change: the old value too, when there was one.
+        changes[k] = rows.has(k) ? { oldValue: rows.get(k), newValue: v } : { newValue: v };
         rows.set(k, v);
-        changes[k] = { newValue: v };
       }
       for (const l of listeners) l(changes, 'local');
       return Promise.resolve();
