@@ -190,34 +190,63 @@ export const showControls = (text: string): string => {
   return parts.join('');
 };
 
-const DIGITS = Array.from({ length: 256 }, (_, b) => b.toString(16).padStart(2, '0'));
-const DIGITS_UPPER = DIGITS.map(d => d.toUpperCase());
-/** Byte → the dump's text column: ASCII 0x20–0x7E as itself, everything else `.`. */
-const SHOWN = Array.from({ length: 256 }, (_, b) => (b >= 0x20 && b <= 0x7e ? String.fromCharCode(b) : '.'));
+/** Per byte, its two digits as two char codes in one entry (high digit first). */
+const pairsOf = (digits: string): Uint16Array =>
+  Uint16Array.from({ length: 256 }, (_, b) => (digits.charCodeAt(b >> 4) << 8) | digits.charCodeAt(b & 15));
+let pairsCache: { lower: Uint16Array; upper: Uint16Array } | null = null;
+/** For ASCII only: there it reads the same as ISO-8859-1. */
+let asciiDecoder: { decode: (bytes: Uint8Array) => string } | null = null;
+
+const SPACE = 0x20;
+const BAR = 0x7c;
+const DOT = 0x2e;
+const NEWLINE = 0x0a;
 
 /**
  * The view of `hexdump -C` (§5 «Dump»): 16 bytes a line, an 8-digit offset and two spaces, the bytes with one more space
- * after the eighth, a short last line padded to the same width, two spaces and the text column between `|`. Lines are
- * joined with `\n`; there is no closing offset line.
+ * after the eighth, a short last line padded to the same width, two spaces and the text column between `|` (ASCII
+ * 0x20–0x7E as itself, everything else `.`). Lines are joined with `\n`; there is no closing offset line. Written as
+ * ASCII into one byte array and read as text once — no string per byte.
  */
 export const hexDump = (bytes: Uint8Array, options: { uppercase?: boolean } = {}): string => {
-  const digits = options.uppercase ? DIGITS_UPPER : DIGITS;
-  const lines: string[] = [];
-  for (let offset = 0; offset < bytes.length; offset += 16) {
-    const end = Math.min(offset + 16, bytes.length);
-    let hex = '';
-    let shown = '';
+  const n = bytes.length;
+  if (n === 0) return '';
+  pairsCache ??= { lower: pairsOf('0123456789abcdef'), upper: pairsOf('0123456789ABCDEF') };
+  const pairs = options.uppercase ? pairsCache.upper : pairsCache.lower;
+  // A line: offset digits (8, more past 0xffffffff), 2 + 49 + 2 between, up to 16 shown, `|`, `\n`.
+  const lastOffset = (Math.ceil(n / 16) - 1) * 16;
+  const lineMax = Math.max(8, lastOffset.toString(16).length) + 2 + 49 + 2 + 16 + 1 + 1;
+  const out = new Uint8Array(Math.ceil(n / 16) * lineMax);
+  let at = 0;
+  for (let offset = 0; offset < n; offset += 16) {
+    if (offset > 0) out[at++] = NEWLINE;
+    const end = Math.min(offset + 16, n);
+    let digits = offset.toString(16).padStart(8, '0');
+    if (options.uppercase) digits = digits.toUpperCase();
+    for (let k = 0; k < digits.length; k++) out[at++] = digits.charCodeAt(k);
+    out[at++] = SPACE;
+    out[at++] = SPACE;
     for (let i = offset; i < offset + 16; i++) {
       if (i < end) {
-        hex += `${digits[bytes[i]!]} `;
-        shown += SHOWN[bytes[i]!];
-      } else hex += '   ';
-      if (i === offset + 7) hex += ' ';
+        const pair = pairs[bytes[i]!]!;
+        out[at++] = pair >> 8;
+        out[at++] = pair & 255;
+      } else {
+        out[at++] = SPACE;
+        out[at++] = SPACE;
+      }
+      out[at++] = SPACE;
+      if (i === offset + 7) out[at++] = SPACE;
     }
-    const at = offset.toString(16).padStart(8, '0');
-    lines.push(`${options.uppercase ? at.toUpperCase() : at}  ${hex} |${shown}|`);
+    out[at++] = SPACE;
+    out[at++] = BAR;
+    for (let i = offset; i < end; i++) {
+      const b = bytes[i]!;
+      out[at++] = b >= 0x20 && b <= 0x7e ? b : DOT;
+    }
+    out[at++] = BAR;
   }
-  return lines.join('\n');
+  return (asciiDecoder ??= new TextDecoder('latin1')).decode(out.subarray(0, at));
 };
 
 /** The result of Text to hex: the dump view, or bytesToHex in one of its formats. */

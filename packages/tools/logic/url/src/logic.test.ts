@@ -92,6 +92,99 @@ describe('§10 encodeUrl', () => {
   });
 });
 
+// encodeUrl before the byte array, kept as the oracle: the new one must give the same text for every input.
+const ORACLE_HEX = '0123456789ABCDEF';
+const ORACLE_ALNUM = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const ORACLE_KEPT: Record<EncodeStyle, string> = {
+  component: `${ORACLE_ALNUM}-._~`,
+  form: `${ORACLE_ALNUM}*-._`,
+  whole: `${ORACLE_ALNUM}-_.!~*'();/?:@&=+$,#[]`,
+};
+const ORACLE_TABLES = Object.fromEntries(
+  STYLES.map(style => {
+    const table: string[] = [];
+    for (let b = 0; b < 256; b++)
+      table.push(
+        ORACLE_KEPT[style].includes(String.fromCharCode(b))
+          ? String.fromCharCode(b)
+          : `%${ORACLE_HEX[b >> 4]}${ORACLE_HEX[b & 15]}`,
+      );
+    if (style === 'form') table[0x20] = '+';
+    return [style, table];
+  }),
+) as Record<EncodeStyle, string[]>;
+const oracleIsHex = (b: number | undefined): boolean =>
+  b !== undefined && ((b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x46) || (b >= 0x61 && b <= 0x66));
+const oracleEncode = (text: string, style: EncodeStyle): string => {
+  const bytes = new TextEncoder().encode(text);
+  const table = ORACLE_TABLES[style];
+  let out = '';
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i]!;
+    if (style === 'whole' && b === 0x25 && oracleIsHex(bytes[i + 1]) && oracleIsHex(bytes[i + 2])) out += '%';
+    else out += table[b];
+  }
+  return out;
+};
+
+describe('encodeUrl in one byte array: the same text as before (properties)', () => {
+  it('20,000 random texts — every ASCII character, escapes and broken escapes, any code point, lone surrogates', () => {
+    let x = 0x1234567;
+    const next = (n: number) => {
+      x ^= x << 13;
+      x ^= x >>> 17;
+      x ^= x << 5;
+      return (x >>> 0) % n;
+    };
+    const pieces = [
+      '%',
+      '%2',
+      '%25',
+      '%zz',
+      '%aF',
+      '%%41',
+      '+',
+      ' ',
+      '\n',
+      '\uD800',
+      '\uDC00',
+      '😀',
+      'é',
+      'Привет',
+      '#',
+      '[',
+      ']',
+    ];
+    for (let run = 0; run < 20_000; run++) {
+      let text = '';
+      const length = next(40);
+      for (let k = 0; k < length; k++) {
+        const kind = next(4);
+        text +=
+          kind === 0
+            ? String.fromCharCode(next(128))
+            : kind === 1
+              ? pieces[next(pieces.length)]
+              : kind === 2
+                ? String.fromCharCode(next(0x10000))
+                : String.fromCodePoint(next(0x110000));
+      }
+      for (const style of STYLES) {
+        const actual = encodeUrl(text, style);
+        const expected = oracleEncode(text, style);
+        if (actual !== expected) expect({ text, style, actual }).toEqual({ text, style, actual: expected });
+      }
+    }
+  });
+
+  it('every byte value, alone and next to an escape, in every style', () => {
+    for (let c = 0; c < 0x800; c++)
+      for (const style of STYLES)
+        for (const text of [String.fromCharCode(c), `%4${String.fromCharCode(c)}`, `${String.fromCharCode(c)}%41`])
+          expect(encodeUrl(text, style)).toBe(oracleEncode(text, style));
+  });
+});
+
 describe('§10 decodeUrl', () => {
   const plain = { plusAsSpace: false };
   it('row 17: "hello%20world" — hello world', () => {

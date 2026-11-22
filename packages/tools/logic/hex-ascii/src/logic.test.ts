@@ -476,6 +476,55 @@ describe('round trips (properties)', () => {
   });
 });
 
+// hexDump before the byte table, kept as the oracle: the new one must give the same text for every input.
+const ORACLE_DIGITS = Array.from({ length: 256 }, (_, b) => b.toString(16).padStart(2, '0'));
+const ORACLE_DIGITS_UPPER = ORACLE_DIGITS.map(d => d.toUpperCase());
+const ORACLE_SHOWN = Array.from({ length: 256 }, (_, b) => (b >= 0x20 && b <= 0x7e ? String.fromCharCode(b) : '.'));
+const oracleDump = (bytes: Uint8Array, options: { uppercase?: boolean } = {}): string => {
+  const digits = options.uppercase ? ORACLE_DIGITS_UPPER : ORACLE_DIGITS;
+  const lines: string[] = [];
+  for (let offset = 0; offset < bytes.length; offset += 16) {
+    const end = Math.min(offset + 16, bytes.length);
+    let hex = '';
+    let shown = '';
+    for (let i = offset; i < offset + 16; i++) {
+      if (i < end) {
+        hex += `${digits[bytes[i]!]} `;
+        shown += ORACLE_SHOWN[bytes[i]!];
+      } else hex += '   ';
+      if (i === offset + 7) hex += ' ';
+    }
+    const at = offset.toString(16).padStart(8, '0');
+    lines.push(`${options.uppercase ? at.toUpperCase() : at}  ${hex} |${shown}|`);
+  }
+  return lines.join('\n');
+};
+
+describe('hexDump by table: the same text as before (properties)', () => {
+  it('10,000 random arrays of every length up to 100 bytes, views included, both cases', () => {
+    const random = lcg(7);
+    for (let run = 0; run < 10_000; run++) {
+      const length = run % 101;
+      const whole = Uint8Array.from({ length: length + 3 }, () => Math.floor(random() * 256));
+      const b = run % 2 === 0 ? whole.subarray(2, length + 2) : whole.slice(0, length);
+      const uppercase = run % 3 === 0;
+      const actual = hexDump(b, { uppercase });
+      if (actual !== oracleDump(b, { uppercase }))
+        expect({ b: [...b], uppercase, actual }).toEqual({
+          b: [...b],
+          uppercase,
+          actual: oracleDump(b, { uppercase }),
+        });
+    }
+  });
+
+  it('a megabyte of every byte value: offsets with letters, both cases', () => {
+    const b = Uint8Array.from({ length: (1 << 20) + 5 }, (_, i) => (i * 131) & 255);
+    for (const uppercase of [false, true])
+      expect(hexDump(b, { uppercase }) === oracleDump(b, { uppercase })).toBe(true);
+  });
+});
+
 describe('§12 and long input: linear time, bounded expressions', () => {
   const timed = (fn: () => unknown): number => {
     const start = performance.now();

@@ -47,19 +47,42 @@ const isHexByte = (b: number | undefined): boolean =>
 
 const utf8 = new TextEncoder();
 
-/** Percent-encodes `text` as UTF-8 in the given style (§5 «Кодирование»). Never throws, a lone surrogate included. */
+/** For each style, per byte: the char code it stays as, or 0 when it becomes `%XX`. */
+const KEPT_CODES = Object.fromEntries(
+  (Object.keys(TABLES) as EncodeStyle[]).map(style => [
+    style,
+    Uint8Array.from(TABLES[style], to => (to.length === 1 ? to.charCodeAt(0) : 0)),
+  ]),
+) as Record<EncodeStyle, Uint8Array>;
+const HEX_CODES = Uint8Array.from(HEX, c => c.charCodeAt(0));
+const PERCENT = 0x25;
+/** The output is ASCII only, which reads the same in latin1. */
+const ascii = new TextDecoder('latin1');
+
+/**
+ * Percent-encodes `text` as UTF-8 in the given style (§5 «Кодирование»). Never throws, a lone surrogate included.
+ * Written as ASCII into one byte array (at most three bytes per byte) and read as text once — no string per byte.
+ */
 export const encodeUrl = (text: string, style: EncodeStyle): string => {
   const bytes = utf8.encode(text);
-  const table = TABLES[style];
+  const kept = KEPT_CODES[style];
   const whole = style === 'whole';
-  let out = '';
+  const out = new Uint8Array(bytes.length * 3);
+  let at = 0;
   for (let i = 0; i < bytes.length; i++) {
     const b = bytes[i]!;
+    const to = kept[b]!;
+    if (to !== 0) out[at++] = to;
     // Whole URL keeps an escape that is already there: `%` and two hex digits, in either case.
-    if (whole && b === 0x25 && isHexByte(bytes[i + 1]) && isHexByte(bytes[i + 2])) out += '%';
-    else out += table[b];
+    else if (whole && b === PERCENT && isHexByte(bytes[i + 1]) && isHexByte(bytes[i + 2])) out[at++] = PERCENT;
+    else {
+      out[at] = PERCENT;
+      out[at + 1] = HEX_CODES[b >> 4]!;
+      out[at + 2] = HEX_CODES[b & 15]!;
+      at += 3;
+    }
   }
-  return out;
+  return ascii.decode(out.subarray(0, at));
 };
 
 const hexValue = (b: number): number => (b <= 0x39 ? b - 0x30 : (b | 0x20) - 0x57);
