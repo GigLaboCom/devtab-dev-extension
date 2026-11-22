@@ -31,7 +31,9 @@ import {
 import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { CopyButton } from '@workspace/ui/copy-button';
+import { InputField } from '@workspace/ui/input-field';
 import { Label } from '@workspace/ui/label';
+import { ResultField } from '@workspace/ui/result-field';
 import {
   Select,
   SelectContent,
@@ -42,7 +44,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@workspace/ui/select';
-import { Textarea } from '@workspace/ui/textarea';
 import { ToolMessage, ToolOptions, ToolPane, ToolPanes } from '@workspace/ui/tool-page';
 import { CircleAlertIcon, KeyRoundIcon, TriangleAlertIcon } from 'lucide-react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -249,7 +250,7 @@ const CurlToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElem
       {restored && <ToolMessage data-restored>{restored}</ToolMessage>}
       <ToolPanes>
         <ToolPane label="curl command" htmlFor="curl-to-code-input">
-          <Textarea
+          <InputField
             ref={field}
             id="curl-to-code-input"
             className={area}
@@ -258,10 +259,7 @@ const CurlToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElem
             autoCapitalize="off"
             placeholder={PLACEHOLDER}
             value={command}
-            onChange={e => {
-              const next = e.target.value;
-              edit(() => setCommand(next));
-            }}
+            onValueChange={next => edit(() => setCommand(next))}
             onKeyDown={e => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && large) {
                 e.preventDefault();
@@ -285,11 +283,10 @@ const CurlToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElem
               }}
             />
           }>
-          <Textarea
+          <ResultField
             id="curl-to-code-output"
             className={area}
             spellCheck={false}
-            readOnly
             value={code}
             data-client={writer ? target : undefined}
           />

@@ -4,6 +4,7 @@ import HexAsciiTool from './HexAsciiTool';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LIVE_INPUT, MAX_HEX_INPUT, MAX_TEXT_INPUT, SETTLE_MS } from '@workspace/tool-logic-hex-ascii';
 import { memoryHost } from '@workspace/tools-host';
+import { MAX_SHOWN_CHARS } from '@workspace/ui/result-field';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 afterEach(() => {
@@ -310,14 +311,16 @@ describe('the Hex and Text tool’s limits (§12)', () => {
     vi.useFakeTimers();
     render(<HexAsciiTool />);
     type('a'.repeat(LIVE_INPUT));
-    expect(output()).toHaveLength(LIVE_INPUT * 2);
+    // 512 Ki characters of hex: the field shows 256 Ki of them (docs/tools/limits.md), the result is all there.
+    expect(output()).toHaveLength(MAX_SHOWN_CHARS);
+    expect(result().dataset.totalLength).toBe(String(LIVE_INPUT * 2));
     type('b'.repeat(LIVE_INPUT + 1));
     expect(output().startsWith('6161')).toBe(true); // still the previous result
     act(() => vi.advanceTimersByTime(SETTLE_MS - 10));
     expect(output().startsWith('6161')).toBe(true);
     act(() => vi.advanceTimersByTime(20));
     expect(output().startsWith('6262')).toBe(true);
-    expect(output()).toHaveLength((LIVE_INPUT + 1) * 2);
+    expect(result().dataset.totalLength).toBe(String((LIVE_INPUT + 1) * 2));
   });
 
   it('Text to hex works on exactly 1 Mi characters and refuses one more at once', () => {
@@ -340,7 +343,11 @@ describe('the Hex and Text tool’s limits (§12)', () => {
     type('41'.repeat(MAX_HEX_INPUT / 2));
     act(() => vi.advanceTimersByTime(SETTLE_MS));
     expect(errorLine()).toBe('');
-    expect(output()).toHaveLength(MAX_HEX_INPUT / 2);
+    // 2.5 Mi characters of text: the field shows the first 256 Ki, Copy takes all (docs/tools/limits.md).
+    expect(output()).toHaveLength(MAX_SHOWN_CHARS);
+    expect(document.querySelector('[data-part=result-limit]')?.textContent).toBe(
+      'Showing the first 262,144 of 2,621,440 characters. Copy copies all.',
+    );
     type(`${'41'.repeat(MAX_HEX_INPUT / 2)} `);
     expect(errorLine()).toBe('Input is larger than 5 MB. Hex to text works with up to 5 MB.');
     expect(output()).toBe('');

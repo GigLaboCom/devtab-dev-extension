@@ -35,6 +35,7 @@ import { useRestore, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Label } from '@workspace/ui/label';
+import { ResultField } from '@workspace/ui/result-field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
 import { Textarea } from '@workspace/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
@@ -272,7 +273,7 @@ const HtmlEntitiesTool = ({ input: initial, host, restore }: ToolProps): ReactEl
           label="Result"
           htmlFor="html-entities-output"
           actions={<CopyButton value={outcome.output} onCopied={() => take('copy')} />}>
-          <Textarea id="html-entities-output" className={code} spellCheck={false} readOnly value={outcome.output} />
+          <ResultField id="html-entities-output" className={code} spellCheck={false} value={outcome.output} />
           {outcome.notes.length === 0 ? (
             <ToolMessage data-part="note" />
           ) : (

@@ -4,6 +4,7 @@ import HtmlEntitiesTool from './HtmlEntitiesTool';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LIVE_INPUT, MAX_INPUT, SETTLE_MS, loadReferenceTable } from '@workspace/tool-logic-html-entities';
 import { memoryHost } from '@workspace/tools-host';
+import { MAX_SHOWN_CHARS } from '@workspace/ui/result-field';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 // docs/tools/specs/html-entities.md §2 (scenarios), §6 (notes, word for word), §8 (the page), §12 (limits) and the
@@ -21,6 +22,7 @@ afterEach(() => {
 const field = (label: string) => screen.getByLabelText(label) as HTMLTextAreaElement;
 const type = (value: string) => fireEvent.change(field('Input'), { target: { value } });
 const output = () => field('Result').value;
+const limitLine = () => document.querySelector('[data-part=result-limit]')?.textContent ?? '';
 const button = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement;
 const mode = (name: 'Encode' | 'Decode') => fireEvent.click(screen.getByRole('radio', { name }));
 const errorLine = () => document.querySelector('[data-part="error"]')!.textContent!.trim();
@@ -273,14 +275,17 @@ describe('the HTML Entities tool’s limits (§12)', () => {
     vi.useFakeTimers();
     render(<HtmlEntitiesTool />);
     type('<'.repeat(LIVE_INPUT));
-    expect(output()).toHaveLength(LIVE_INPUT * 4);
+    // 4 Mi characters of result: the field shows the first 256 Ki, Copy takes all (docs/tools/limits.md).
+    expect(output()).toHaveLength(MAX_SHOWN_CHARS);
+    expect(limitLine()).toBe('Showing the first 262,144 of 4,194,304 characters. Copy copies all.');
     type('>'.repeat(LIVE_INPUT + 1));
     expect(output().startsWith('&lt;')).toBe(true); // still the previous result
     act(() => vi.advanceTimersByTime(SETTLE_MS - 10));
     expect(output().startsWith('&lt;')).toBe(true);
     act(() => vi.advanceTimersByTime(20));
     expect(output().startsWith('&gt;')).toBe(true);
-    expect(output()).toHaveLength((LIVE_INPUT + 1) * 4);
+    expect(output()).toHaveLength(MAX_SHOWN_CHARS);
+    expect(limitLine()).toBe('Showing the first 262,144 of 4,194,308 characters. Copy copies all.');
   });
 
   it('works on exactly 5 Mi characters and refuses one more at once', async () => {
@@ -291,7 +296,8 @@ describe('the HTML Entities tool’s limits (§12)', () => {
     act(() => vi.advanceTimersByTime(SETTLE_MS));
     await settle();
     expect(errorLine()).toBe('');
-    expect(output()).toHaveLength(MAX_INPUT / 4);
+    expect(output()).toHaveLength(MAX_SHOWN_CHARS);
+    expect(limitLine()).toBe('Showing the first 262,144 of 1,310,720 characters. Copy copies all.');
     type(`${'&lt;'.repeat(MAX_INPUT / 4)}x`);
     expect(errorLine()).toBe('Input is larger than 5 MB. This tool works with up to 5 MB.');
     expect(output()).toBe('');

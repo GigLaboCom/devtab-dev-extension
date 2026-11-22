@@ -37,8 +37,8 @@ import { useRestore, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Input } from '@workspace/ui/input';
+import { InputField } from '@workspace/ui/input-field';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@workspace/ui/table';
-import { Textarea } from '@workspace/ui/textarea';
 import { ToolMessage, ToolPane, ToolPanes } from '@workspace/ui/tool-page';
 import { CircleAlertIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -327,14 +327,14 @@ const JsonQueryTool = ({ input: initial, host, restore }: ToolProps): ReactEleme
 
       <ToolPanes>
         <ToolPane label="Document" htmlFor="json-query-document">
-          <Textarea
+          <InputField
             ref={documentField}
             id="json-query-document"
             className="h-90 resize-y font-mono text-code field-sizing-fixed [tab-size:4]"
             spellCheck={false}
             placeholder='{"store": {"book": [{"title": "Sayings of the Century", "price": 8.95}]}}'
             value={document}
-            onChange={e => edit({ document: e.target.value })}
+            onValueChange={next => edit({ document: next })}
           />
           <ToolMessage tone={tooLong || currentDocError ? 'error' : 'note'} role="status" data-field="document">
             {tooLong ? (

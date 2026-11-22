@@ -25,6 +25,7 @@ import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Label } from '@workspace/ui/label';
+import { ResultField } from '@workspace/ui/result-field';
 import { ResultRow, ResultRows } from '@workspace/ui/result-row';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/table';
@@ -304,11 +305,10 @@ const UrlTool = ({ input: initial, host, restore }: ToolProps): ReactElement => 
             </ToolMessage>
           </ToolPane>
           <ToolPane label="Result" htmlFor="url-output" actions={<CopyButton value={result} onCopied={commit} />}>
-            <Textarea
+            <ResultField
               id="url-output"
               className="h-90 resize-y font-mono text-code field-sizing-fixed"
               spellCheck={false}
-              readOnly
               value={result}
             />
             {coded.notes.length === 0 ? (

@@ -42,6 +42,7 @@ import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Label } from '@workspace/ui/label';
+import { ResultField } from '@workspace/ui/result-field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
 import { Textarea } from '@workspace/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
@@ -350,11 +351,10 @@ const HexAsciiTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
           htmlFor="hex-ascii-output"
           actions={<CopyButton value={outcome.output} onCopied={() => take('copy')} />}>
           {/* The dump's columns line up only unwrapped: it scrolls sideways instead. */}
-          <Textarea
+          <ResultField
             id="hex-ascii-output"
             className={code}
             spellCheck={false}
-            readOnly
             wrap={toHex && format === 'dump' ? 'off' : undefined}
             value={outcome.shown}
           />

@@ -221,7 +221,9 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
           setter.call(field, value);
           field.dispatchEvent(new Event('input', { bubbles: true }));
           const finished = () =>
-            want.length !== undefined ? out.value.length === want.length : error.textContent.trim() === want.error;
+            want.length !== undefined
+              ? Number(out.dataset.totalLength ?? out.value.length) === want.length
+              : error.textContent.trim() === want.error;
           while (!finished() && performance.now() - start < 20_000) await new Promise(r => requestAnimationFrame(r));
           const elapsed = performance.now() - start;
           await new Promise(r => setTimeout(r, 100));
@@ -229,7 +231,7 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
           return {
             elapsed: Math.round(elapsed),
             longest: Math.round(longest),
-            length: out.value.length,
+            length: Number(out.dataset.totalLength ?? out.value.length),
             error: error.textContent.trim(),
           };
         },

@@ -349,7 +349,13 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
       },
       big(1000 * 1000),
     );
-    await page.waitForFunction(() => (document.querySelector('#curl-to-code-output')?.value ?? '').length > 1_000_000);
+    await page.waitForFunction(
+      () =>
+        Number(
+          document.querySelector('#curl-to-code-output')?.dataset.totalLength ??
+            (document.querySelector('#curl-to-code-output')?.value ?? '').length,
+        ) > 1_000_000,
+    );
     report.curlToCode = { liveOneMegabyteMs: live };
     await command(page).fill(big(2 * 1024 * 1024));
     await page.getByText('Large command: press Convert (Ctrl+Enter).', { exact: true }).waitFor();
@@ -357,7 +363,11 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     const t0 = Date.now();
     await convert.click();
     await page.waitForFunction(
-      () => (document.querySelector('#curl-to-code-output')?.value ?? '').length > 2_000_000,
+      () =>
+        Number(
+          document.querySelector('#curl-to-code-output')?.dataset.totalLength ??
+            (document.querySelector('#curl-to-code-output')?.value ?? '').length,
+        ) > 2_000_000,
       null,
       {
         timeout: 15_000,
@@ -384,7 +394,12 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
         el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true }));
         await new Promise(resolve => {
           const tick = () =>
-            (document.querySelector('#curl-to-code-output')?.value ?? '').length > n ? resolve() : setTimeout(tick, 20);
+            Number(
+              document.querySelector('#curl-to-code-output')?.dataset.totalLength ??
+                (document.querySelector('#curl-to-code-output')?.value ?? '').length,
+            ) > n
+              ? resolve()
+              : setTimeout(tick, 20);
           tick();
         });
         const work = performance.now() - t1;
@@ -406,22 +421,30 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     );
     // Convert in the worker of another family: C#.
     await chooseTarget(page, 'C# (HttpClient)');
-    await command(page).fill(big(2 * 1024 * 1024));
+    // A command over 1 Mi characters is held (read-only, docs/tools/limits.md): the next replaces it as a paste does.
+    const replace = text =>
+      page.evaluate(value => {
+        const el = document.querySelector('#curl-to-code-input');
+        Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set.call(el, value);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }, text);
+    await replace(big(2 * 1024 * 1024));
     await page.getByRole('button', { name: 'Convert', exact: true }).click();
     await page.waitForFunction(
       () => {
-        const v = document.querySelector('#curl-to-code-output')?.value ?? '';
-        return v.length > 2_000_000 && v.includes('HttpRequestMessage');
+        const el = document.querySelector('#curl-to-code-output');
+        const v = el?.value ?? '';
+        return Number(el?.dataset.totalLength ?? v.length) > 2_000_000 && v.includes('HttpRequestMessage');
       },
       null,
       { timeout: 15_000 },
     );
     check(`${T}: §12 Convert works in the worker of another family (C#)`, true);
     await chooseTarget(page, 'JavaScript (fetch)');
-    await command(page).fill(`curl -d '${'x'.repeat(16 * 1024 * 1024 + 1)}' https://a.example/`);
+    await replace(`curl -d '${'x'.repeat(16 * 1024 * 1024 + 1)}' https://a.example/`);
     await page.getByText('Command is larger than 16 MB.', { exact: true }).waitFor();
     check(`${T}: §12 above 16 MiB — refused`, true);
-    await command(page).fill('');
+    await replace('');
 
     // Dark.
     await inDarkTheme(ctx, base, page, async () => {

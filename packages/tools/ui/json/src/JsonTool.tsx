@@ -35,6 +35,7 @@ import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-h
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
+import { InputField } from '@workspace/ui/input-field';
 import { Label } from '@workspace/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
 import { Textarea } from '@workspace/ui/textarea';
@@ -355,17 +356,17 @@ const JsonTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
               </Button>
             </div>
           ) : (
-            <Textarea
+            <InputField
               ref={field}
               id="json-input"
               className={code}
               spellCheck={false}
               placeholder='{"paste": "JSON here"}'
               value={input}
-              onChange={e => {
-                const next = e.target.value;
-                edit(() => setInput(next));
-              }}
+              onValueChange={next => edit(() => setInput(next))}
+              // The tool's own field bound (§3, §12), the one a file is held behind its card by: a paste is held too.
+              maxChars={SHOW_RESULT_CHARS}
+              maxLines={SHOW_RESULT_LINES}
               onKeyDown={e => {
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && large) {
                   e.preventDefault();

@@ -19,6 +19,7 @@ import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Label } from '@workspace/ui/label';
+import { ResultField } from '@workspace/ui/result-field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
 import { Textarea } from '@workspace/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
@@ -291,7 +292,7 @@ const Base64Tool = ({ input: initial, host, restore }: ToolProps): ReactElement 
           label="Result"
           htmlFor="base64-output"
           actions={<CopyButton value={outcome.output} onCopied={() => take('copy')} />}>
-          <Textarea id="base64-output" className={code} spellCheck={false} readOnly value={outcome.output} />
+          <ResultField id="base64-output" className={code} spellCheck={false} value={outcome.output} />
           {outcome.notes.length === 0 ? (
             <ToolMessage data-part="note" />
           ) : (

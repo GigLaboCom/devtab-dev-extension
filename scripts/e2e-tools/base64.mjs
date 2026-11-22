@@ -165,12 +165,16 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
         const start = performance.now();
         setter.call(field, value);
         field.dispatchEvent(new Event('input', { bubbles: true }));
-        while (out.value.length !== want && performance.now() - start < 15_000)
+        while (Number(out.dataset.totalLength ?? out.value.length) !== want && performance.now() - start < 15_000)
           await new Promise(r => requestAnimationFrame(r));
         const elapsed = performance.now() - start;
         await new Promise(r => setTimeout(r, 100));
         observer.disconnect();
-        return { elapsed: Math.round(elapsed), longest: Math.round(longest), length: out.value.length };
+        return {
+          elapsed: Math.round(elapsed),
+          longest: Math.round(longest),
+          length: Number(out.dataset.totalLength ?? out.value.length),
+        };
       },
       [text, expectLength],
     );

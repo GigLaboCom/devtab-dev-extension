@@ -6,6 +6,7 @@ import { base64Settings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LIVE_INPUT, MAX_INPUT, SETTLE_MS } from '@workspace/tool-logic-base64';
 import { memoryHost } from '@workspace/tools-host';
+import { MAX_SHOWN_CHARS } from '@workspace/ui/result-field';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 afterEach(() => {
@@ -228,7 +229,9 @@ describe('the Base64 tool’s limits (§12)', () => {
     render(<Base64Tool />);
     const live = 'a'.repeat(LIVE_INPUT);
     type(live);
-    expect(output()).toHaveLength(Math.ceil(LIVE_INPUT / 3) * 4);
+    // 341 Ki characters of Base64: the field shows 256 Ki of them (docs/tools/limits.md), the result is all there.
+    expect(output()).toHaveLength(MAX_SHOWN_CHARS);
+    expect(field('Result').dataset.totalLength).toBe(String(Math.ceil(LIVE_INPUT / 3) * 4));
     const large = 'b'.repeat(LIVE_INPUT + 2);
     type(large);
     expect(output().startsWith('YWFh')).toBe(true); // still the previous result
@@ -236,7 +239,7 @@ describe('the Base64 tool’s limits (§12)', () => {
     expect(output().startsWith('YWFh')).toBe(true);
     act(() => vi.advanceTimersByTime(20));
     expect(output().startsWith('YmJi')).toBe(true);
-    expect(output()).toHaveLength(((LIVE_INPUT + 2) / 3) * 4);
+    expect(field('Result').dataset.totalLength).toBe(String(((LIVE_INPUT + 2) / 3) * 4));
   });
 
   it('works on exactly 5 Mi characters and refuses one more at once', () => {
@@ -246,7 +249,11 @@ describe('the Base64 tool’s limits (§12)', () => {
     type('QUFB'.repeat(MAX_INPUT / 4));
     act(() => vi.advanceTimersByTime(SETTLE_MS));
     expect(errorLine()).toBe('');
-    expect(output()).toHaveLength((MAX_INPUT / 4) * 3);
+    // 3.75 Mi characters of text: the field shows the first 256 Ki, Copy takes all (docs/tools/limits.md).
+    expect(output()).toHaveLength(MAX_SHOWN_CHARS);
+    expect(document.querySelector('[data-part=result-limit]')?.textContent).toBe(
+      'Showing the first 262,144 of 3,932,160 characters. Copy copies all.',
+    );
     type(`${'QUFB'.repeat(MAX_INPUT / 4)}Q`);
     expect(errorLine()).toBe('Input is larger than 5 MB. This tool works with up to 5 MB.');
     expect(output()).toBe('');

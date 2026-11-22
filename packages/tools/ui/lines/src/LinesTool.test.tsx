@@ -400,4 +400,34 @@ describe('the Lines tool’s history', () => {
     await waitFor(async () => expect(await entriesOf(host)).toHaveLength(1));
     expect((await entriesOf(host))[0]!.label).toBe('3 lines in, 3 out');
   });
+
+  it('a large input — handed over or opened from the history — opens held, not into a frozen field (limits.md)', async () => {
+    const host = memoryHost();
+    // Over the field's 1 Mi characters in one line: held, and still one line the tool works on at once.
+    const big = 'x'.repeat(1_100_000);
+    const held = () => document.querySelector('[data-part=input-limit]')?.textContent ?? '';
+    vi.useFakeTimers();
+    const first = render(<LinesTool host={host} input={big} />);
+    // Above 1 Mi characters the result comes after the settle (§12).
+    await act(async () => void vi.advanceTimersByTime(SETTLE_MS));
+    vi.useRealTimers();
+    expect(field('Input').readOnly).toBe(true);
+    expect(field('Input').dataset.totalLength).toBe('1100000');
+    expect(held()).toBe(
+      'Showing the first 262,144 of 1,100,000 characters. Too large to edit here: paste to replace it, or clear the input.',
+    );
+    // Handed-over text is the visit's first edit: recorded when the page goes away.
+    first.unmount();
+    await waitFor(async () => expect(await entriesOf(host)).toHaveLength(1));
+    const entry = (await entriesOf(host))[0]!;
+
+    render(<LinesTool host={host} restore={{ id: entry.id }} />);
+    expect(await screen.findByText(`Opened from History: ${entry.label}.`)).toBeTruthy();
+    expect(field('Input').readOnly).toBe(true);
+    expect(field('Input').dataset.totalLength).toBe('1100000');
+    expect(held()).toContain('Showing the first 262,144 of 1,100,000 characters.');
+    fireEvent.click(screen.getByRole('button', { name: 'clear the input' }));
+    expect(field('Input').readOnly).toBe(false);
+    expect(field('Input').value).toBe('');
+  });
 });

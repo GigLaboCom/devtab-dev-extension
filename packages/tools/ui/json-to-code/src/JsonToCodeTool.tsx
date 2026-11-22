@@ -20,9 +20,10 @@ import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Input } from '@workspace/ui/input';
+import { InputField } from '@workspace/ui/input-field';
 import { Label } from '@workspace/ui/label';
+import { ResultField } from '@workspace/ui/result-field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
-import { Textarea } from '@workspace/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { ToolMessage, ToolOptions, ToolPane, ToolPanes } from '@workspace/ui/tool-page';
 import { CircleAlertIcon } from 'lucide-react';
@@ -260,17 +261,14 @@ const JsonToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElem
       {restored && <ToolMessage data-restored>{restored}</ToolMessage>}
       <ToolPanes>
         <ToolPane label="JSON sample" htmlFor="json-to-code-input">
-          <Textarea
+          <InputField
             ref={field}
             id="json-to-code-input"
             className={code}
             spellCheck={false}
             placeholder='{"id": 1, "name": "Ann"}'
             value={input}
-            onChange={e => {
-              const next = e.target.value;
-              edit(() => setInput(next));
-            }}
+            onValueChange={next => edit(() => setInput(next))}
             onKeyDown={e => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && large) {
                 e.preventDefault();
@@ -287,7 +285,7 @@ const JsonToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElem
           label="Result"
           htmlFor="json-to-code-output"
           actions={<CopyButton value={output} onCopied={() => take('copy')} />}>
-          <Textarea id="json-to-code-output" className={code} spellCheck={false} readOnly value={output} />
+          <ResultField id="json-to-code-output" className={code} spellCheck={false} value={output} />
           <div role="status" data-part="notes">
             {notes.length === 0 ? (
               <ToolMessage role={undefined} data-part="note" />

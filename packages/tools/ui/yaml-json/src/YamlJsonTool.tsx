@@ -21,6 +21,7 @@ import {
 import { useRestore, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { CopyButton } from '@workspace/ui/copy-button';
+import { InputField } from '@workspace/ui/input-field';
 import { Label } from '@workspace/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
 import { Textarea } from '@workspace/ui/textarea';
@@ -435,17 +436,14 @@ const YamlJsonTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
       {restored && <ToolMessage data-restored>{restored}</ToolMessage>}
       <ToolPanes>
         <ToolPane label={inputName} htmlFor="yaml-json-input">
-          <Textarea
+          <InputField
             ref={field}
             id="yaml-json-input"
             className={code}
             spellCheck={false}
             placeholder={toJson ? 'key: value' : '{"key": "value"}'}
             value={input}
-            onChange={e => {
-              const next = e.target.value;
-              edit(() => setInput(next));
-            }}
+            onValueChange={next => edit(() => setInput(next))}
             onKeyDown={e => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();

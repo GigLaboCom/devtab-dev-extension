@@ -5,6 +5,7 @@ import { carriesCredentials } from './record';
 import UrlTool from './UrlTool';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { memoryHost } from '@workspace/tools-host';
+import { MAX_SHOWN_CHARS } from '@workspace/ui/result-field';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ToolHost } from '@workspace/tools-host';
 
@@ -303,7 +304,9 @@ describe('the URL tool, rendered with no host', () => {
       act(() => vi.advanceTimersByTime(299));
       expect(output()).toBe('x');
       act(() => vi.advanceTimersByTime(1));
-      expect(output()).toBe('%20'.repeat(256 * 1024 + 1));
+      // 768 Ki characters: the field shows the first 256 Ki (docs/tools/limits.md), the result is all there.
+      expect(output()).toBe('%20'.repeat(256 * 1024 + 1).slice(0, MAX_SHOWN_CHARS));
+      expect(field('Result').dataset.totalLength).toBe(String(3 * (256 * 1024 + 1)));
     } finally {
       vi.useRealTimers();
     }

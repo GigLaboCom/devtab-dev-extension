@@ -25,6 +25,7 @@ import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Label } from '@workspace/ui/label';
+import { ResultField } from '@workspace/ui/result-field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
 import { Textarea } from '@workspace/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
@@ -291,7 +292,7 @@ const BackslashEscapeTool = ({ input: initial, host, restore }: ToolProps): Reac
           label="Result"
           htmlFor="backslash-escape-output"
           actions={<CopyButton value={outcome.output} size="sm" disabled={!current} onCopied={() => take('copy')} />}>
-          <Textarea id="backslash-escape-output" className={code} spellCheck={false} readOnly value={outcome.output} />
+          <ResultField id="backslash-escape-output" className={code} spellCheck={false} value={outcome.output} />
           {outcome.notes.length === 0 || !current ? (
             <ToolMessage data-part="note" />
           ) : (

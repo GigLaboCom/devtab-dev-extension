@@ -26,6 +26,7 @@ import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Label } from '@workspace/ui/label';
+import { ResultField } from '@workspace/ui/result-field';
 import { Textarea } from '@workspace/ui/textarea';
 import { ToolMessage, ToolOptions, ToolPane, ToolPanes } from '@workspace/ui/tool-page';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -214,7 +215,7 @@ const HtmlToJsxTool = ({ input: initial, host, restore }: ToolProps): ReactEleme
           label="JSX"
           htmlFor="html-to-jsx-output"
           actions={<CopyButton variant="ghost" size="sm" value={output} onCopied={copied} />}>
-          <Textarea id="html-to-jsx-output" className={code} spellCheck={false} readOnly value={output} />
+          <ResultField id="html-to-jsx-output" className={code} spellCheck={false} value={output} />
           {notes.length === 0 ? (
             <ToolMessage data-part="note" />
           ) : (

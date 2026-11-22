@@ -6,6 +6,7 @@ import { detect } from './detect';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LIVE_INPUT, MAX_INPUT, SETTLE_MS } from '@workspace/tool-logic-backslash-escape';
 import { memoryHost } from '@workspace/tools-host';
+import { MAX_SHOWN_CHARS, MAX_SHOWN_LINES } from '@workspace/ui/result-field';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 afterEach(() => {
@@ -16,6 +17,7 @@ afterEach(() => {
 const field = (label: string) => screen.getByLabelText(label) as HTMLTextAreaElement;
 const type = (value: string) => fireEvent.change(field('Input'), { target: { value } });
 const output = () => field('Result').value;
+const limitLine = () => document.querySelector('[data-part=result-limit]')?.textContent ?? '';
 const button = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement;
 const mode = (name: 'Escape' | 'Unescape') => fireEvent.click(screen.getByRole('radio', { name }));
 const checkbox = (name: string) => fireEvent.click(screen.getByLabelText(name));
@@ -290,7 +292,9 @@ describe('the String Escape tool’s limits (§12)', () => {
     vi.useFakeTimers();
     render(<BackslashEscapeTool />);
     type('\n'.repeat(LIVE_INPUT));
-    expect(output()).toHaveLength(2 * LIVE_INPUT);
+    // 2 Mi characters of result: the field shows the first 256 Ki, Copy takes all (docs/tools/limits.md).
+    expect(output()).toHaveLength(MAX_SHOWN_CHARS);
+    expect(limitLine()).toBe('Showing the first 262,144 of 2,097,152 characters. Copy copies all.');
     type('\t'.repeat(LIVE_INPUT + 1));
     expect(output().startsWith('\\n')).toBe(true); // still the previous result
     expect(button('Copy').disabled).toBe(true);
@@ -303,7 +307,8 @@ describe('the String Escape tool’s limits (§12)', () => {
       vi.advanceTimersByTime(20);
     });
     expect(output().startsWith('\\t')).toBe(true);
-    expect(output()).toHaveLength(2 * (LIVE_INPUT + 1));
+    expect(output()).toHaveLength(MAX_SHOWN_CHARS);
+    expect(limitLine()).toBe('Showing the first 262,144 of 2,097,154 characters. Copy copies all.');
     expect(button('Copy').disabled).toBe(false);
     expect(button('Swap').disabled).toBe(false);
   });
@@ -317,7 +322,9 @@ describe('the String Escape tool’s limits (§12)', () => {
       vi.advanceTimersByTime(SETTLE_MS);
     });
     expect(errorLine()).toBe('');
-    expect(output()).toHaveLength(MAX_INPUT / 2);
+    // 2.5 Mi line breaks: the field shows the first 10,000 lines.
+    expect(output()).toBe('\n'.repeat(MAX_SHOWN_LINES - 1));
+    expect(limitLine()).toBe('Showing the first 10,000 of 2,621,441 lines. Copy copies all.');
     type(`${'\\n'.repeat(MAX_INPUT / 2)}x`);
     expect(errorLine()).toBe('Input is larger than 5 MB. This tool works with up to 5 MB.');
     expect(output()).toBe('');

@@ -48,9 +48,10 @@ import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Input } from '@workspace/ui/input';
+import { InputField } from '@workspace/ui/input-field';
 import { Label } from '@workspace/ui/label';
+import { ResultField } from '@workspace/ui/result-field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
-import { Textarea } from '@workspace/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { ToolMessage, ToolPane, ToolPanes } from '@workspace/ui/tool-page';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -571,17 +572,14 @@ const LinesTool = ({ input: initial, host, restore }: ToolProps): ReactElement =
       {restored && <ToolMessage data-restored>{restored}</ToolMessage>}
       <ToolPanes>
         <ToolPane label="Input" htmlFor="lines-input">
-          <Textarea
+          <InputField
             id="lines-input"
             className={code}
             spellCheck={false}
             wrap="off"
             placeholder="One item per line"
             value={input}
-            onChange={e => {
-              const next = e.target.value;
-              edit(() => setInput(next));
-            }}
+            onValueChange={next => edit(() => setInput(next))}
           />
           {/* Changes while typing: colored as an error, read out politely (status), as the recipe says. */}
           <ToolMessage tone="error" role="status" data-part="error">
@@ -599,7 +597,7 @@ const LinesTool = ({ input: initial, host, restore }: ToolProps): ReactElement =
               <CopyButton value={taken ? taken.text : ''} onCopied={() => take('copy')} />
             </>
           }>
-          <Textarea id="lines-output" className={code} spellCheck={false} wrap="off" readOnly value={output} />
+          <ResultField id="lines-output" className={code} spellCheck={false} wrap="off" value={output} />
           <ToolMessage data-part="summary">{summary}</ToolMessage>
         </ToolPane>
       </ToolPanes>
