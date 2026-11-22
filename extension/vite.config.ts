@@ -9,7 +9,7 @@ import { watchPublicPlugin, watchRebuildPlugin } from '@extension/hmr';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import type { Plugin } from 'vite';
 
@@ -41,14 +41,25 @@ const productName = (): Plugin => ({
 /**
  * Licences that travel with what ships: from packages/review-wasm/licenses, gpui-kit and gpui (Apache-2.0; also covers
  * the gpui-kit theme files of @extension/theme), imara-diff (Apache-2.0, the module's line diff) and the fonts compiled
- * into the wasm (SIL OFL 1.1); from @workspace/dna, the OFL of the IBM Plex files the pages load.
+ * into the wasm (SIL OFL 1.1); from @workspace/dna, the OFL of the IBM Plex files the pages load; and from a tool's
+ * package, the licences of the libraries it bundles (`packages/tools/<layer>/<id>/licenses/*.txt`).
  */
+const textsIn = (dir: string): string[] =>
+  readdirSync(dir)
+    .filter(name => name.endsWith('.txt'))
+    .map(name => resolve(dir, name));
+const toolLicenceDirs = (): string[] =>
+  ['logic', 'ui'].flatMap(layer => {
+    const root = resolve(__dirname, '../packages/tools', layer);
+    return readdirSync(root)
+      .map(id => resolve(root, id, 'licenses'))
+      .filter(dir => existsSync(dir));
+  });
 const emitLicences = (): Plugin => {
   const sources = [
-    ...readdirSync(resolve(__dirname, '../packages/review-wasm/licenses'))
-      .filter(name => name.endsWith('.txt'))
-      .map(name => resolve(__dirname, '../packages/review-wasm/licenses', name)),
+    ...textsIn(resolve(__dirname, '../packages/review-wasm/licenses')),
     resolve(__dirname, '../packages/dna/fonts/OFL-IBMPlex.txt'),
+    ...toolLicenceDirs().flatMap(textsIn),
   ];
   return {
     name: 'extension:emit-licences',
