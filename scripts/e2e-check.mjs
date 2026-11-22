@@ -1047,10 +1047,15 @@ try {
     await p.close();
     return e;
   })();
+  // A check that provokes an error on purpose (a blocked image proving the policy) names its message in
+  // report.expectedRuntimeErrors; everything else Chrome recorded is a failure.
+  const provoked = report.expectedRuntimeErrors ?? [];
+  const recorded = after?.runtimeErrors ?? [];
+  const unexpected = recorded.filter(e => !provoked.some(text => e.message?.includes(text)));
   check(
     'no runtime errors recorded for the extension',
-    !after?.runtimeErrors?.length,
-    JSON.stringify(after?.runtimeErrors ?? []),
+    unexpected.length === 0,
+    `${JSON.stringify(unexpected)}; provoked on purpose and recognised: ${recorded.length - unexpected.length}`,
   );
 
   const errors = report.console.filter(m => m.type !== 'warning');
