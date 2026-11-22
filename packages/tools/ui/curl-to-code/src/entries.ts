@@ -3,7 +3,7 @@
  * and the code (blobs: up to 16 MiB each) and, in its payload, the language. The kind is secret (history.ts): the whole
  * record is sealed — label and blobs included — so the label may name the method and the host.
  */
-import { TARGETS, isTarget } from '@workspace/tool-logic-curl-to-code';
+import { isTarget, targetInfo } from '@workspace/tool-logic-curl-to-code';
 import type { Target } from '@workspace/tool-logic-curl-to-code';
 import type { HistoryDraft } from '@workspace/tools-host';
 
@@ -19,7 +19,7 @@ export const entryLabel = (command: string, target: Target): string => {
   const scheme = head.indexOf('://');
   const host = scheme < 0 ? undefined : /^([^/\s'"^?#]+)/.exec(head.slice(scheme + 3))?.[1];
   const what = [method, host].filter(Boolean).join(' ') || 'curl';
-  return `${what} → ${TARGETS.find(t => t.value === target)!.label}`;
+  return `${what} → ${targetInfo(target).label}`;
 };
 
 export const draftOf = (command: string, target: Target, code: string): HistoryDraft => ({

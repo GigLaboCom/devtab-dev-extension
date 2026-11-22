@@ -133,6 +133,8 @@ export const parseCurl = (words: Word[]): Parsed => {
   let user: [string, string] | null = null;
   let userOption = '-u';
   let insecure = false;
+  let compressed = false;
+  let followRedirects = false;
   let timeoutSeconds: number | null = null;
   let upload: { path: string } | null = null;
 
@@ -325,6 +327,29 @@ export const parseCurl = (words: Word[]): Parsed => {
       case 'insecure':
         insecure = true;
         return;
+      case 'compressed':
+        compressed = true;
+        return;
+      case 'location':
+      case 'location-trusted':
+        followRedirects = true;
+        return;
+      case 'no-insecure':
+        insecure = false;
+        return;
+      case 'no-compressed':
+        compressed = false;
+        return;
+      case 'no-location':
+      case 'no-location-trusted':
+        followRedirects = false;
+        return;
+      case 'no-get':
+        get = false;
+        return;
+      case 'no-head':
+        headRequest = false;
+        return;
       case 'max-time': {
         const n = Number(value);
         if (POSITIVE.test(value) && n > 0 && Number.isFinite(n)) timeoutSeconds = n;
@@ -413,7 +438,9 @@ export const parseCurl = (words: Word[]): Parsed => {
     const joined = joinParts(texts);
     if (joined) {
       const query =
-        joined.kind === 'raw' ? joined.text : new TextDecoder().decode((joined as { bytes: Uint8Array }).bytes);
+        joined.kind === 'raw'
+          ? joined.text
+          : new TextDecoder('utf-8', { ignoreBOM: true }).decode((joined as { bytes: Uint8Array }).bytes);
       // A fragment is never sent; curl drops it when it adds the query.
       const hash = url.indexOf('#');
       const base = hash < 0 ? url : url.slice(0, hash);
@@ -495,6 +522,8 @@ export const parseCurl = (words: Word[]): Parsed => {
     user,
     insecure,
     timeoutSeconds,
+    compressed,
+    followRedirects,
   };
   return { ok: true, request, warnings };
 };

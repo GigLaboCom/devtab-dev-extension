@@ -104,15 +104,12 @@ const SHORT: Readonly<Record<string, string>> = {
 const VALUE = new Set(LONG_VALUE.split(' '));
 const FLAG = new Set(LONG_FLAG.split(' '));
 
-/**
- * No code and no warning (§5): they change only what curl itself prints or how it talks, or what every client does
- * anyway — decompressing (`--compressed`) and following redirects (`-L`).
- */
+/** No code and no warning (§5): they change only what curl itself prints or how it talks. */
 const SILENT = new Set(
   (
     'silent show-error verbose include remote-name fail fail-with-body progress-bar no-progress-meter http1.0 ' +
     'http1.1 http2 globoff no-buffer raw compressed-ssh output write-out dump-header trace trace-ascii stderr ' +
-    'compressed location location-trusted basic disable'
+    'basic disable'
   ).split(' '),
 );
 
@@ -120,9 +117,12 @@ const SILENT = new Set(
 export const TRANSLATED = new Set(
   (
     'url request header data data-ascii data-binary data-raw data-urlencode json form form-string get head user ' +
-    'oauth2-bearer cookie user-agent referer insecure max-time upload-file'
+    'oauth2-bearer cookie user-agent referer insecure max-time upload-file compressed location location-trusted'
   ).split(' '),
 );
+
+/** Flags of the request that `--no-<flag>` turns off again (parse.ts). */
+const UNDONE = new Set(['insecure', 'compressed', 'location', 'location-trusted', 'get', 'head']);
 
 export interface OptionInfo {
   /** The long name, without dashes. */
@@ -138,6 +138,8 @@ const roleOf = (name: string): OptionInfo['role'] =>
 /** A long option by its name (without the dashes), or undefined when curl does not know it. */
 export const longOption = (name: string): OptionInfo | undefined => {
   // Every `--no-…` (§5): turns a flag off (`--no-silent`) or is a flag of its own (`--no-keepalive`); no code.
+  // `--no-insecure`, `--no-compressed`, `--no-location`… turn off a flag the request carries.
+  if (name.startsWith('no-') && UNDONE.has(name.slice(3))) return { name, value: false, role: 'translated' };
   if (name.startsWith('no-') && (FLAG.has(name) || FLAG.has(name.slice(3))))
     return { name, value: false, role: 'silent' };
   if (VALUE.has(name) || FLAG.has(name)) return { name, value: VALUE.has(name), role: roleOf(name) };

@@ -37,8 +37,9 @@ const restOf = (text: string): string => {
 // The word under construction: string pieces, and byte pieces only when $'…' made bytes that are not UTF-8.
 
 const utf8 = new TextEncoder();
-const strict = new TextDecoder('utf-8', { fatal: true });
-const lossy = new TextDecoder('utf-8');
+// ignoreBOM: a BOM the bytes start with is a character of the word ($'\xef\xbb\xbf…'), not a mark to drop.
+const strict = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+const lossy = new TextDecoder('utf-8', { ignoreBOM: true });
 
 class Builder {
   private parts: Array<string | Uint8Array> = [];

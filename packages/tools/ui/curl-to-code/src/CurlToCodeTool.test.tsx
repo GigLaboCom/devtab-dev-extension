@@ -7,6 +7,7 @@ import { definition } from './definition';
 import { detect } from './detect';
 import { draftOf, entryLabel, readPayload } from './entries';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { TARGETS } from '@workspace/tool-logic-curl-to-code';
 import { memoryHost, unlockedHost } from '@workspace/tools-host';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HistoryFactory, RestoreRequest, ToolHistory } from '@workspace/tools-host';
@@ -28,9 +29,12 @@ const credentials = () => document.querySelector('[data-part="credentials"]')?.t
 const hint = () => document.querySelector('[data-hint]')?.textContent ?? '';
 const copy = () => screen.getByRole('button', { name: /^Cop(y|ied)$/ });
 const settle = () => act(async () => undefined);
-const chooseTarget = async (name: string) => {
+/** Waits until the writer of `client` is loaded and the code is the one of the command shown. */
+const loaded = (client = 'javascript') => waitFor(() => expect(output().dataset.client).toBe(client));
+const chooseTarget = async (name: string, client?: string) => {
   fireEvent.keyDown(screen.getByLabelText('Target'), { key: 'Enter' });
   fireEvent.click(await screen.findByRole('option', { name }));
+  if (client) await loaded(client);
 };
 
 const BASH = `curl 'https://api.example.com/api' \\\n  -H 'accept: */*' \\\n  -b 'sid=abc; theme=dark' \\\n  --data-raw $'{"text":"hi"}'`;
@@ -70,8 +74,9 @@ describe('the cURL to Code tool', () => {
 });
 
 describe('§2 scenarios', () => {
-  it('1. "Copy as cURL (bash)": fetch at once, the Cookie warning, the credentials note last', () => {
+  it('1. "Copy as cURL (bash)": fetch at once, the Cookie warning, the credentials note last', async () => {
     render(<CurlToCodeTool input={BASH} />);
+    await loaded();
     expect(output().value.startsWith("const response = await fetch('https://api.example.com/api', {")).toBe(true);
     expect(output().value).toContain("  method: 'POST',");
     expect(warnings()).toEqual(['A browser does not let fetch set the Cookie header (Node does).']);
@@ -83,7 +88,7 @@ describe('§2 scenarios', () => {
 
   it('2. Python (requests)', async () => {
     render(<CurlToCodeTool input={BASH} />);
-    await chooseTarget('Python (requests)');
+    await chooseTarget('Python (requests)', 'python');
     expect(output().value).toContain('import requests\n\nheaders = {');
     expect(output().value).toContain('data = \'{"text":"hi"}\'');
     expect(output().value).toContain('response = requests.post(');
@@ -92,34 +97,38 @@ describe('§2 scenarios', () => {
   it('3. -u in Go: SetBasicAuth with the password as curl splits it', async () => {
     render(<CurlToCodeTool />);
     type("curl -u 'ann:pa:ss' https://api.example.com/me");
-    await chooseTarget('Go (net/http)');
+    await chooseTarget('Go (net/http)', 'go');
     expect(output().value).toContain('req.SetBasicAuth("ann", "pa:ss")');
   });
 
-  it('4. "Copy as cURL (cmd)": the same code as its bash form', () => {
+  it('4. "Copy as cURL (cmd)": the same code as its bash form', async () => {
     render(<CurlToCodeTool />);
+    await loaded();
     type("curl 'https://api.example.com/api?q=1&x=2' -H 'accept: application/json'");
     const bash = output().value;
     type('curl ^"https://api.example.com/api?q=1^&x=2^" ^\n  -H ^"accept: application/json^"');
     expect(output().value).toBe(bash);
   });
 
-  it('5. shell variables stay as written, with a warning', () => {
+  it('5. shell variables stay as written, with a warning', async () => {
     render(<CurlToCodeTool />);
+    await loaded();
     type('curl https://api.example.com/x -H "Authorization: Bearer $TOKEN"');
     expect(output().value).toContain("'Authorization': 'Bearer $TOKEN'");
     expect(warnings()).toEqual(['Shell variables and $(…) are not expanded; they stay in the code as written.']);
   });
 
-  it('6. a pipe: only the curl command, a warning', () => {
+  it('6. a pipe: only the curl command, a warning', async () => {
     render(<CurlToCodeTool />);
+    await loaded();
     type('curl -s https://api.example.com/users | jq .');
     expect(output().value).toBe("const response = await fetch('https://api.example.com/users');\n");
     expect(warnings()).toEqual(['Only the curl command is translated; "| jq ." after it is ignored.']);
   });
 
-  it('7. wget: the error under the command, no code, Copy off; the error puts the caret on its place', () => {
+  it('7. wget: the error under the command, no code, Copy off; the error puts the caret on its place', async () => {
     render(<CurlToCodeTool />);
+    await loaded();
     type('wget https://api.example.com/');
     const error = screen.getByRole('button', { name: 'Line 1, column 1: the command must start with curl' });
     expect(status().getAttribute('role')).toBe('status');
@@ -134,9 +143,42 @@ describe('§2 scenarios', () => {
   });
 });
 
+describe('the clients (§4)', () => {
+  it('the picker: seventeen clients in four labelled groups, JavaScript (fetch) chosen', async () => {
+    render(<CurlToCodeTool input="curl https://api.example.com/users" />);
+    await loaded();
+    fireEvent.keyDown(screen.getByLabelText('Target'), { key: 'Enter' });
+    const options = await screen.findAllByRole('option');
+    expect(options.map(o => o.textContent)).toEqual(TARGETS.map(t => t.label));
+    expect(options).toHaveLength(17);
+    expect([...document.querySelectorAll('[data-slot="select-label"]')].map(l => l.textContent)).toEqual([
+      'JavaScript',
+      'Python',
+      'Command line',
+      'Other languages',
+    ]);
+    expect(document.querySelectorAll('[data-slot="select-separator"]')).toHaveLength(3);
+    expect(screen.getByRole('option', { name: 'JavaScript (fetch)' }).getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('every client: choosing it loads its writer and shows its code for the same command', async () => {
+    render(<CurlToCodeTool input="curl -X POST https://api.example.com/items -d 'a=1'" />);
+    await loaded();
+    const seen = new Set<string>();
+    for (const t of TARGETS) {
+      if (t.value !== 'javascript') await chooseTarget(t.label, t.value);
+      expect(screen.getByLabelText('Target').textContent).toBe(t.label);
+      expect(output().value).toMatch(/api\.example\.com/);
+      seen.add(output().value);
+    }
+    expect(seen.size).toBe(17);
+  });
+});
+
 describe('Copy and the result', () => {
   it('copies the code as shown, with its final line break; "Copied" until the code changes', async () => {
     render(<CurlToCodeTool input="curl https://api.example.com/users" />);
+    await loaded();
     fireEvent.click(copy());
     await settle();
     expect(writeText).toHaveBeenCalledWith("const response = await fetch('https://api.example.com/users');\n");
@@ -157,7 +199,7 @@ describe('large commands (§12)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Convert' }));
     await waitFor(() => expect(output().value).toContain("  body: 'xxx"));
     expect(status().textContent?.trim()).toBe('');
-    await chooseTarget('Go (net/http)');
+    await chooseTarget('Go (net/http)', 'go');
     expect(output().value).toBe('');
     fireEvent.keyDown(input(), { key: 'Enter', ctrlKey: true });
     await waitFor(() => expect(output().value).toContain('package main'));
@@ -177,6 +219,7 @@ describe('the history (D17): one secret kind', () => {
   it('without a master password nothing is recorded, and the page says so', async () => {
     const host = memoryHost();
     render(<CurlToCodeTool host={host} input={BASH} />);
+    await loaded();
     fireEvent.click(copy());
     await settle();
     expect(owner(host.history).status().secrets).toBe('no-password');
@@ -191,7 +234,7 @@ describe('the history (D17): one secret kind', () => {
     const { unmount } = render(<CurlToCodeTool host={host} />);
     expect(hint()).toContain('Commands and code are kept encrypted in this browser.');
     type("curl -X POST https://api.example.com/items -u 'ann:s3cret'");
-    await chooseTarget('Rust (reqwest)');
+    await chooseTarget('Rust (reqwest)', 'rust');
     fireEvent.click(copy());
     await waitFor(async () => expect((await owner(host.history).list()).entries).toHaveLength(1));
     const [entry] = (await owner(host.history).list()).entries;
@@ -213,6 +256,7 @@ describe('the history (D17): one secret kind', () => {
     render(<CurlToCodeTool host={host} restore={restore} />);
     await waitFor(() => expect(input().value).toBe("curl -X POST https://api.example.com/items -u 'ann:s3cret'"));
     expect(screen.getByLabelText('Target').textContent).toBe('Rust (reqwest)');
+    await loaded('rust');
     expect(output().value).toContain('.basic_auth("ann", Some("s3cret"))');
     expect(document.querySelector('[data-restored]')?.textContent).toBe(
       'Opened from History: POST api.example.com → Rust (reqwest).',
@@ -224,6 +268,7 @@ describe('the history (D17): one secret kind', () => {
   it('an edit with code is recorded by the checkpoint rule; text from the start page counts as an edit', async () => {
     const host = await unlockedHost();
     render(<CurlToCodeTool host={host} input="curl https://api.example.com/users" />);
+    await loaded();
     await act(async () => {
       dispatchEvent(new Event('pagehide'));
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -253,13 +298,33 @@ describe('the history (D17): one secret kind', () => {
     expect((await owner(host.history).list()).entries).toHaveLength(1);
   });
 
+  it('a new client is kept with its name and opens back into it', async () => {
+    const host = await unlockedHost();
+    const { unmount } = render(<CurlToCodeTool host={host} input="curl -X PUT https://api.example.com/k -d x=1" />);
+    await loaded();
+    await chooseTarget('Kotlin (OkHttp)', 'kotlin');
+    fireEvent.click(copy());
+    await waitFor(async () => expect((await owner(host.history).list()).entries).toHaveLength(1));
+    const [entry] = (await owner(host.history).list()).entries;
+    unmount();
+    render(<CurlToCodeTool host={host} restore={{ id: entry!.id }} />);
+    await waitFor(() =>
+      expect(document.querySelector('[data-restored]')?.textContent).toBe(
+        'Opened from History: PUT api.example.com → Kotlin (OkHttp).',
+      ),
+    );
+    await loaded('kotlin');
+    expect(output().value).toContain('.put("x=1".toRequestBody())');
+  });
+
   it('entries: the label names the method, the host and the language; the payload is read back', () => {
     expect(entryLabel("curl -X PUT 'https://api.example.com/a'", 'python')).toBe(
       'PUT api.example.com → Python (requests)',
     );
     expect(entryLabel('curl x', 'javascript')).toBe('curl → JavaScript (fetch)');
     expect(readPayload({ target: 'go' })).toEqual({ target: 'go' });
-    expect(readPayload({ target: 'php' })).toBeUndefined();
+    expect(readPayload({ target: 'php' })).toEqual({ target: 'php' });
+    expect(readPayload({ target: 'cobol' })).toBeUndefined();
     expect(readPayload(null)).toBeUndefined();
   });
 });

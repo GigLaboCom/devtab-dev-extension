@@ -2,7 +2,9 @@
  * The cURL to Code tool's page (docs/tools/specs/curl-to-code.md §8): Target, the command and the code side by side,
  * the command's state under it (an error is a link to its place), the warnings and the credentials note under the code.
  * Up to LIVE_INPUT characters the code follows every change, written on the page; above it Convert (or Ctrl+Enter)
- * works in the tool's worker (runner.ts); above MAX_INPUT the command is refused (§12). The command is text: nothing is
+ * works in the worker of the client's family (runner.ts); above MAX_INPUT the command is refused (§12). A client's
+ * writer is loaded the first time the client is chosen (the page opens with JavaScript's), so the page holds only the
+ * writers it was asked for. The command is text: nothing is
  * sent, no address is fetched or resolved, nothing is run. All logic is in @workspace/tool-logic-curl-to-code.
  *
  * History (D17): one secret kind through the host — `converted`: the command, the language and the code. An edit with
@@ -15,22 +17,33 @@ import { curlToCodeHistory } from './history';
 import { createRunner } from './runner';
 import {
   CREDENTIALS_NOTE,
+  DEFAULT_TARGET,
   LIVE_INPUT,
   MAX_INPUT,
-  TARGETS,
+  TARGET_GROUPS,
   curlToCode,
   isTarget,
+  loadGenerator,
 } from '@workspace/tool-logic-curl-to-code';
 import { useRestore, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Label } from '@workspace/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/select';
 import { Textarea } from '@workspace/ui/textarea';
 import { ToolMessage, ToolOptions, ToolPane, ToolPanes } from '@workspace/ui/tool-page';
 import { CircleAlertIcon, KeyRoundIcon, TriangleAlertIcon } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CodeResult, Target } from '@workspace/tool-logic-curl-to-code';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { CodeResult, Generator, Target } from '@workspace/tool-logic-curl-to-code';
 import type { RecordingStatus, ToolProps } from '@workspace/tools-host';
 import type { ReactElement } from 'react';
 
@@ -57,7 +70,8 @@ interface Ran {
 
 const CurlToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [command, setCommand] = useState(initial ?? '');
-  const [target, setTarget] = useState<Target>('javascript');
+  const [target, setTarget] = useState<Target>(DEFAULT_TARGET);
+  const [writers, setWriters] = useState<Partial<Record<Target, Generator>>>({});
   const [ran, setRan] = useState<Ran | null>(null);
   const [working, setWorking] = useState<{ text: string; target: Target } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -72,10 +86,22 @@ const CurlToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElem
   const tooLarge = command.length > MAX_INPUT;
   const large = !tooLarge && command.length > LIVE_INPUT;
 
+  // The chosen client's writer, loaded on first need (a part of its own per family of clients).
+  const writer = writers[target];
+  useEffect(() => {
+    if (writer) return;
+    let current = true;
+    loadGenerator(target).then(
+      loaded => current && setWriters(w => ({ ...w, [target]: loaded })),
+      (error: unknown) => current && setMessage(`The ${target} writer did not load: ${String(error)}`),
+    );
+    return () => void (current = false);
+  }, [target, writer]);
+
   // Live up to LIVE_INPUT (§12): tens of milliseconds at most.
   const live = useMemo(
-    () => (blank || tooLarge || large ? null : curlToCode(command, target)),
-    [command, target, blank, tooLarge, large],
+    () => (blank || tooLarge || large || !writer ? null : curlToCode(command, writer)),
+    [command, writer, blank, tooLarge, large],
   );
   const current = live ?? (ran && ran.text === command && ran.target === target ? ran.result : null);
 
@@ -158,7 +184,7 @@ const CurlToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElem
   let tone: 'error' | 'note' = 'note';
   if (message) [state, tone] = [message, 'error'];
   else if (tooLarge) [state, tone] = [TOO_LARGE, 'error'];
-  else if (!blank && !current) state = LARGE;
+  else if (!blank && !current && large) state = LARGE;
   else if (current && !current.ok) {
     const { line, column, message: what, offset } = current.error;
     tone = 'error';
@@ -190,14 +216,22 @@ const CurlToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElem
           onValueChange={value => {
             if (isTarget(value) && value !== target) edit(() => setTarget(value));
           }}>
-          <SelectTrigger id="curl-to-code-target" className="min-w-44">
+          <SelectTrigger id="curl-to-code-target" className="min-w-56">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {TARGETS.map(t => (
-              <SelectItem key={t.value} value={t.value}>
-                {t.label}
-              </SelectItem>
+            {TARGET_GROUPS.map((group, i) => (
+              <Fragment key={group.label}>
+                {i > 0 && <SelectSeparator />}
+                <SelectGroup>
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.targets.map(t => (
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </Fragment>
             ))}
           </SelectContent>
         </Select>
@@ -247,7 +281,14 @@ const CurlToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElem
               }}
             />
           }>
-          <Textarea id="curl-to-code-output" className={area} spellCheck={false} readOnly value={code} />
+          <Textarea
+            id="curl-to-code-output"
+            className={area}
+            spellCheck={false}
+            readOnly
+            value={code}
+            data-client={writer ? target : undefined}
+          />
           <ul role="status" className="m-0 flex min-h-5 list-none flex-col gap-1 p-0 text-sm" data-part="warnings">
             {warnings.map(w => (
               <li key={w} className="flex items-start gap-1.5" data-part="warning">

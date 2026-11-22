@@ -1,6 +1,24 @@
-/** The types of docs/tools/specs/curl-to-code.md §9, with the additions its §15 lists (binary and file bodies). */
+/** The types of docs/tools/specs/curl-to-code.md §9, with the additions its §15 lists (binary and file bodies, clients). */
 
-export type Target = 'javascript' | 'python' | 'go' | 'rust';
+/** A client the code is written for (§4, «Target»); targets.ts names and orders them. */
+export type Target =
+  | 'javascript'
+  | 'node'
+  | 'axios'
+  | 'python'
+  | 'http-client'
+  | 'httpie'
+  | 'wget'
+  | 'java'
+  | 'csharp'
+  | 'php'
+  | 'powershell'
+  | 'go'
+  | 'rust'
+  | 'kotlin'
+  | 'dart'
+  | 'ruby'
+  | 'swift';
 
 /** A field of a multipart form: a text value, or a file the code reads when it runs. */
 export type FormField = { name: string; value: string } | { name: string; file: string; filename: string };
@@ -25,6 +43,10 @@ export interface CurlRequest {
   user: [user: string, password: string] | null;
   insecure: boolean;
   timeoutSeconds: number | null;
+  /** `--compressed`: ask for a compressed response and decompress it. */
+  compressed: boolean;
+  /** `-L`, `--location`, `--location-trusted`: follow redirects. */
+  followRedirects: boolean;
 }
 
 export type Parsed =
@@ -40,7 +62,7 @@ export interface ErrorInfo {
 export type CodeResult =
   { ok: true; text: string; warnings: string[]; hasCredentials: boolean } | { ok: false; error: ErrorInfo };
 
-/** One client's code for a request (generate.ts). */
+/** One client's code for a request. */
 export interface Generated {
   text: string;
   warnings: string[];
@@ -50,3 +72,6 @@ export interface Generated {
 export interface Generator {
   generate(request: CurlRequest): Generated;
 }
+
+/** The writers of one family of clients (a module of clients/, loaded on first need). */
+export type Clients = Partial<Readonly<Record<Target, Generator>>>;

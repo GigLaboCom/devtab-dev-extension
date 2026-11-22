@@ -1,7 +1,8 @@
 // The cURL to Code tool in the built extension (docs/tools/specs/curl-to-code.md): where the host lists it, its
 // scenarios (§2) with the page's real controls, the errors next to the command (§6), the large-input steps (§12, with
-// timings), detection from the start page's field (§7), that no request leaves the extension while commands with
-// real-looking addresses are pasted and converted, and its secret history kind (D17) end to end:
+// timings), detection from the start page's field (§7), every one of the seventeen clients on one command (shown,
+// copied whole, recorded under the client's name), that no request leaves the extension while commands with
+// real-looking addresses are pasted and converted to every client, and its secret history kind (D17) end to end:
 //   - without a master password nothing of a command is written;
 //   - with a throwaway master password made here, Copy writes one encrypted entry (nothing of the command, its host, its
 //     credentials or the code in clear in IndexedDB — records and blobs);
@@ -18,6 +19,28 @@ import { inDarkTheme, settledShot, stubClipboard } from '../e2e-helpers.mjs';
 
 const T = 'cURL to Code';
 const ID = 'curl-to-code';
+
+/** The clients in the picker's order: label and the writer's id (`data-client` of the code box once it is loaded). */
+const CLIENTS = [
+  ['JavaScript (fetch)', 'javascript'],
+  ['Node.js (fetch)', 'node'],
+  ['Node.js (axios)', 'axios'],
+  ['Python (requests)', 'python'],
+  ['Python (http.client)', 'http-client'],
+  ['HTTPie', 'httpie'],
+  ['wget', 'wget'],
+  ['Java (HttpClient)', 'java'],
+  ['C# (HttpClient)', 'csharp'],
+  ['PHP (cURL)', 'php'],
+  ['PowerShell (Invoke-WebRequest)', 'powershell'],
+  ['Go (net/http)', 'go'],
+  ['Rust (reqwest)', 'rust'],
+  ['Kotlin (OkHttp)', 'kotlin'],
+  ['Dart (http)', 'dart'],
+  ['Ruby (Net::HTTP)', 'ruby'],
+  ['Swift (URLSession)', 'swift'],
+];
+const clientOf = label => CLIENTS.find(([l]) => l === label)?.[1];
 
 const BASH = `curl 'https://api.github.com/user/repos?per_page=5' \\
   -H 'accept: application/vnd.github+json' \\
@@ -85,10 +108,12 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   const note = p => p.locator('[data-part="credentials"]');
   const hint = p => p.locator('[data-hint]');
   const copyButton = p => p.getByRole('button', { name: /^Cop(y|ied)$/ });
+  /** Chooses a client and waits until its writer is loaded (it is loaded on first need). */
   const chooseTarget = async (p, name) => {
     await p.locator('#curl-to-code-target').click();
     await p.getByRole('option', { name, exact: true }).click();
     await p.waitForFunction(n => document.querySelector('#curl-to-code-target')?.textContent === n, name);
+    await p.locator(`#curl-to-code-output[data-client="${clientOf(name)}"]`).waitFor();
   };
   /** Sets the command and waits for code that only this command produces. */
   const enter = async (p, text, expect) => {
@@ -103,6 +128,7 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   // Where the host lists the tool, with no list edited.
   await page.goto(`${base}#/tools/${ID}`);
   await command(page).waitFor();
+  await page.locator('#curl-to-code-output[data-client="javascript"]').waitFor();
   check(
     `${T}: listed in Tools, its page titled and summarised by its definition`,
     (await page
@@ -112,7 +138,7 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
       .count()) === 1 &&
       (await page.getByRole('heading', { name: T, exact: true }).count()) === 1 &&
       (await page.locator('.kit-tool-page-summary').innerText()) ===
-        'Turn a curl command into fetch, Python, Go or Rust code.',
+        'Turn a curl command into code: fetch, axios, Python, Java, C#, PHP, Go, Rust and more.',
   );
   check(
     `${T}: empty — the placeholder of §8, JavaScript (fetch), Copy off, nothing under the panes`,
@@ -127,9 +153,17 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   );
   const start = await open('#/start');
   const field = start.getByRole('combobox', { name: 'Find a tool or search the web' });
-  await field.fill('reqwest');
-  const firstRow = await start.getByRole('option').first().innerText();
-  check(`${T}: the start page's field finds it by a keyword`, firstRow.includes(T), firstRow.split('\n')[0]);
+  const found = {};
+  for (const q of ['httpie', 'kotlin', 'powershell', 'axios']) {
+    await field.fill(q);
+    await start.getByRole('option').first().waitFor();
+    found[q] = (await start.getByRole('option').allInnerTexts()).some(row => row.includes(T));
+  }
+  check(
+    `${T}: the start page's field finds it by the languages in its keywords (httpie, kotlin, powershell, axios)`,
+    Object.values(found).every(Boolean),
+    JSON.stringify(found),
+  );
   const settings = await open('#/settings');
   const group = settings.locator('[data-settings="history"]');
   await group.waitFor();
@@ -196,6 +230,41 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     );
     await settledShot(shoot, page, `tool-${ID}-03-rust.png`);
 
+    // Every client on one command: shown, copied whole.
+    const every = `curl -X POST 'https://api.example.com/items?x=1' -H 'Content-Type: application/json' -u 'ann:s3cret' -d '{"name":"pen"}'`;
+    await chooseTarget(page, 'JavaScript (fetch)');
+    await enter(page, every, 'items?x=1');
+    const perClient = {};
+    for (const [label, client] of CLIENTS) {
+      await chooseTarget(page, label);
+      const shown = await code(page).inputValue();
+      await copyButton(page).click();
+      await page.getByRole('button', { name: 'Copied' }).waitFor();
+      const copiedText = (await clipboard.copied()).at(-1);
+      perClient[client] = shown.includes('api.example.com') && shown.endsWith('\n') && copiedText === shown;
+      if (label === 'PowerShell (Invoke-WebRequest)') await settledShot(shoot, page, `tool-${ID}-08-powershell.png`);
+    }
+    check(
+      `${T}: all 17 clients — each one's code is shown and Copy copies it whole`,
+      Object.keys(perClient).length === 17 && Object.values(perClient).every(Boolean),
+      JSON.stringify(perClient),
+    );
+
+    // The picker: four labelled groups, the clients by how common they are.
+    await chooseTarget(page, 'JavaScript (fetch)');
+    await page.locator('#curl-to-code-target').click();
+    await page.getByRole('option', { name: 'Swift (URLSession)', exact: true }).waitFor({ state: 'attached' });
+    const listed = await page.getByRole('option').allInnerTexts();
+    const groups = await page.locator('[data-slot="select-label"]').allInnerTexts();
+    await settledShot(shoot, page, `tool-${ID}-07-picker.png`);
+    await page.keyboard.press('Escape');
+    check(
+      `${T}: the picker lists the 17 clients in four groups (JavaScript, Python, Command line, Other languages)`,
+      JSON.stringify(listed) === JSON.stringify(CLIENTS.map(([l]) => l)) &&
+        JSON.stringify(groups) === JSON.stringify(['JavaScript', 'Python', 'Command line', 'Other languages']),
+      `${groups.join(' | ')}; ${listed.length} clients`,
+    );
+
     // §2.3 -u in Go.
     await chooseTarget(page, 'Go (net/http)');
     await enter(page, "curl -u 'ann:pa:ss' https://api.example.com/me", 'req.SetBasicAuth("ann", "pa:ss")');
@@ -253,15 +322,15 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
       'curl -k https://localhost:8443/health -F file=@/etc/hosts',
       'curl ^"https://www.google.com/search?q=curl^" ^\n  -H ^"accept: */*^"',
     ]) {
-      for (const target of ['Python (requests)', 'Go (net/http)', 'Rust (reqwest)', 'JavaScript (fetch)']) {
+      for (const [target] of [...CLIENTS.slice(1), CLIENTS[0]]) {
         await chooseTarget(page, target);
         await command(page).fill(cmd);
-        await sleep(50);
+        await sleep(20);
       }
     }
     await sleep(500);
     check(
-      `${T}: no request leaves the extension while 5 commands with real addresses are converted to 4 clients`,
+      `${T}: no request leaves the extension while 5 commands with real addresses are converted to all 17 clients`,
       outside.length === before,
       outside.slice(before).join(', '),
     );
@@ -335,6 +404,20 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
       slow.chars > 15_000_000,
       `live 1 MB ${live} ms; Convert 2 MiB ${convertMs} ms; 15 MiB $'…': field ${slow.fieldMs} ms, convert ${slow.convertMs} ms, longest main-thread task during it ${slow.longestTaskMs} ms`,
     );
+    // Convert in the worker of another family: C#.
+    await chooseTarget(page, 'C# (HttpClient)');
+    await command(page).fill(big(2 * 1024 * 1024));
+    await page.getByRole('button', { name: 'Convert', exact: true }).click();
+    await page.waitForFunction(
+      () => {
+        const v = document.querySelector('#curl-to-code-output')?.value ?? '';
+        return v.length > 2_000_000 && v.includes('HttpRequestMessage');
+      },
+      null,
+      { timeout: 15_000 },
+    );
+    check(`${T}: §12 Convert works in the worker of another family (C#)`, true);
+    await chooseTarget(page, 'JavaScript (fetch)');
     await command(page).fill(`curl -d '${'x'.repeat(16 * 1024 * 1024 + 1)}' https://a.example/`);
     await page.getByText('Command is larger than 16 MB.', { exact: true }).waitFor();
     check(`${T}: §12 above 16 MiB — refused`, true);
@@ -349,6 +432,13 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
       await command(page).fill('wget https://api.example.com/');
       await page.getByRole('button', { name: 'Line 1, column 1: the command must start with curl' }).waitFor();
       await settledShot(shoot, page, `tool-${ID}-06-error-dark.png`);
+      await enter(page, BASH, 'api.github.com');
+      await chooseTarget(page, 'Kotlin (OkHttp)');
+      await page.locator('#curl-to-code-target').click();
+      await page.getByRole('option', { name: 'Swift (URLSession)', exact: true }).waitFor();
+      await settledShot(shoot, page, `tool-${ID}-09-picker-dark.png`);
+      await page.keyboard.press('Escape');
+      await chooseTarget(page, 'JavaScript (fetch)');
     });
     await command(page).fill('');
 
@@ -462,12 +552,48 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
       rows.length === 1 ? `in clear: ${inClear.join(', ') || 'nothing'}` : `${rows.length} entries`,
     );
 
+    // Every client recorded, under its name: one Copy per client, read back from History while unlocked.
+    await enter(page, 'curl -X PUT https://api.example.com/rec -d x=1', 'api.example.com/rec');
+    for (const [label] of CLIENTS) {
+      await chooseTarget(page, label);
+      await copyButton(page).click();
+      await page.getByRole('button', { name: 'Copied' }).waitFor();
+    }
+    let recorded = [];
+    for (let i = 0; i < 100 && recorded.length < 18; i++) {
+      await sleep(100);
+      recorded = await mine();
+    }
+    // History shows a sealed entry only as "Encrypted entry": each one is opened, and the page it opens names its client.
+    const listing = await open('#/history');
+    const reopened = [];
+    for (let i = 0; i < recorded.length; i++) {
+      await listing.goto(`${base}#/history`);
+      const rows = listing.locator('.kit-history-entry[data-kind="converted"]');
+      await rows.nth(i).waitFor();
+      await rows.nth(i).getByRole('button', { name: 'Open' }).click();
+      await listing.locator('[data-restored]').waitFor();
+      const text = await listing.locator('[data-restored]').innerText();
+      const label = text.split(' → ')[1]?.replace(/\.$/, '');
+      const client = clientOf(label);
+      if (client) await listing.locator(`#curl-to-code-output[data-client="${client}"]`).waitFor();
+      reopened.push([label, client ? await listing.locator('#curl-to-code-target').innerText() : null]);
+    }
+    const named = CLIENTS.filter(([l]) => reopened.some(([label, shown]) => label === l && shown === l)).length;
+    check(
+      `${T}: unlocked, a Copy in each of the 17 clients writes an encrypted entry that opens back into that client, named in its label`,
+      recorded.length >= 18 && recorded.every(r => r.kind === 'converted' && !!r.kid) && named === 17,
+      `${recorded.length} entries, ${named} of 17 clients opened back by name`,
+    );
+    await listing.close();
+    opened.splice(opened.indexOf(listing), 1);
+
     // Locked: the entry stays shut, nothing new is written.
     const history = await open('#/history');
     await history.locator('[data-page="history"]').waitFor();
     await history.getByRole('button', { name: 'Lock now' }).click();
     await history.locator('.kit-history-lock[data-vault="locked"]').waitFor();
-    const entry = history.locator('.kit-history-entry[data-kind="converted"]');
+    const entry = history.locator('.kit-history-entry[data-kind="converted"]').last();
     await entry.waitFor();
     check(`${T}: History lists it as an encrypted entry`, /Encrypted entry/.test(await entry.innerText()));
     await entry.getByRole('button', { name: 'Open' }).click();
@@ -488,7 +614,7 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     );
     await copyButton(history).click();
     await sleep(600);
-    check(`${T}: locked, Copy writes nothing`, (await mine()).length === 1);
+    check(`${T}: locked, Copy writes nothing`, (await mine()).length === recorded.length);
     await historyClipboard.restore();
 
     // Unlocked again: Open brings the command and the language back.
@@ -498,7 +624,11 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     await group.getByText('Unlocked.', { exact: true }).waitFor();
     await history.bringToFront();
     await history.goto(`${base}#/history`);
-    await history.locator('.kit-history-entry[data-kind="converted"]').getByRole('button', { name: 'Open' }).click();
+    await history
+      .locator('.kit-history-entry[data-kind="converted"]')
+      .last()
+      .getByRole('button', { name: 'Open' })
+      .click();
     await history.locator('[data-restored]').waitFor();
     const restoredText = await history.locator('[data-restored]').innerText();
     check(

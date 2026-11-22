@@ -1,17 +1,11 @@
 // Every row of docs/tools/specs/curl-to-code.md §10 with its expected value, the errors of §6 word for word, the
 // warnings of §5, and §7's examples for detectCurl. Rows the specification's §15 corrects carry a comment saying so.
-import {
-  CREDENTIALS_NOTE,
-  LIVE_INPUT,
-  MAX_INPUT,
-  SHELL_VARIABLES,
-  curlToCode,
-  detectCurl,
-  parseCurl,
-  splitWords,
-} from './index';
-import { describe, expect, it } from 'vitest';
+import { CREDENTIALS_NOTE, LIVE_INPUT, MAX_INPUT, SHELL_VARIABLES, detectCurl, parseCurl, splitWords } from './index';
+import { convert as curlToCode, ready } from './testing';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { CodeResult, Target } from './index';
+
+beforeAll(ready);
 
 const ok = (text: string, target: Target = 'javascript'): Extract<CodeResult, { ok: true }> => {
   const r = curlToCode(text, target);

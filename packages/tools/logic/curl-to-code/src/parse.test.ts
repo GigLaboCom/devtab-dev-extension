@@ -340,7 +340,7 @@ describe('-k, -m, the options with no code, those not translated, unknown ones',
     expect(p.warnings).toEqual([`--max-time ${option.slice(3)} is not a positive number of seconds; ignored.`]);
   });
 
-  it("no code and no warning: what changes only curl's own output, --compressed, -L", () => {
+  it("no warning: what changes only curl's own output; --compressed and -L are flags of the request", () => {
     const silent =
       '-s -S -v -i -O -f -# -0 -g -N -L --silent --show-error --verbose --include --remote-name --fail ' +
       '--fail-with-body --progress-bar --no-progress-meter --http1.0 --http1.1 --http2 --globoff --no-buffer --raw ' +
@@ -356,8 +356,17 @@ describe('-k, -m, the options with no code, those not translated, unknown ones',
       user: null,
       insecure: false,
       timeoutSeconds: null,
+      compressed: true,
+      followRedirects: true,
     });
     expect(parse(`curl -sSLfv ${U}`).warnings).toEqual([]);
+    expect(req(`curl ${U}`)).toMatchObject({ compressed: false, followRedirects: false });
+    expect(req(`curl --location-trusted ${U}`).followRedirects).toBe(true);
+    expect(req(`curl -L --no-location ${U}`).followRedirects).toBe(false);
+    expect(req(`curl -k --compressed --no-insecure --no-compressed ${U}`)).toMatchObject({
+      insecure: false,
+      compressed: false,
+    });
   });
 
   it.each([
