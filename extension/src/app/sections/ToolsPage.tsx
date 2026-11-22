@@ -6,20 +6,25 @@
  * (its history: ToolHost.history) and the entry of its history to open, if the History page or the tool's own history
  * line asked for one. Every tool sits in the same frame — the kit's ToolPage: its title, its summary and this host's
  * history line — so the tools look like one product. An address naming no tool shows the overview and says so.
+ *
+ * The tool opens once its per-tool settings are read (it starts from its saved parameters, D21), and in Pro
+ * (src/edition) its frame offers "Reset settings" while those parameters differ from the tool's defaults.
  */
 import { clearHandoff, peekHandoff } from '../handoff';
 import { clearRestore, peekRestore } from '../history/restoreHandoff';
 import { ToolHistoryPanel } from '../history/ToolHistoryPanel';
 import { routeHash } from '../route';
+import { edition } from '@src/edition';
 import { sourceOf } from '@src/history/sources';
 import { pageNavigation } from '@src/tools/navigation';
 import { TOOLS, componentOf, toolById } from '@src/tools/registry';
+import { useSettingsReset } from '@workspace/tools-host';
 import { ToolPage } from '@workspace/ui/tool-page';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, use, useEffect, useMemo, useState } from 'react';
 import type { HistoryHost } from '@src/history/behaviors';
 import type { ToolDefinition } from '@src/tools/registry';
 import type { RestoreRequest, ToolHost } from '@workspace/tools-host';
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 const Head = (): ReactElement => (
   <header className="kit-section-head">
@@ -56,6 +61,12 @@ const Overview = ({ unknown }: { unknown?: string }): ReactElement => (
   </>
 );
 
+/** Renders its children once the per-tool settings are read (inside the tool's Suspense: "Loading…" until then). */
+const SettingsRead = ({ ready, children }: { ready: Promise<void>; children: ReactNode }): ReactNode => {
+  use(ready);
+  return children;
+};
+
 /** One tool's page; keyed by the tool, so what was handed over or asked to open belongs to that tool alone. */
 const ToolView = ({ tool, history }: { tool: ToolDefinition; history: HistoryHost }): ReactElement => {
   const Tool = componentOf(tool);
@@ -73,15 +84,19 @@ const ToolView = ({ tool, history }: { tool: ToolDefinition; history: HistoryHos
   });
   useEffect(() => clearRestore(), []);
   const source = sourceOf(history.sources, tool.id);
+  const reset = useSettingsReset(edition.pro ? history.toolSettings : undefined, tool.id);
   return (
     <ToolPage
       title={tool.title}
       summary={tool.summary}
+      onResetSettings={reset}
       history={
         source && <ToolHistoryPanel host={history} source={source} onOpen={id => setRestore({ owner: tool.id, id })} />
       }>
       <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
-        <Tool input={input} host={host} restore={restore?.owner === tool.id ? restore : undefined} />
+        <SettingsRead ready={history.toolSettings.ready}>
+          <Tool input={input} host={host} restore={restore?.owner === tool.id ? restore : undefined} />
+        </SettingsRead>
       </Suspense>
     </ToolPage>
   );

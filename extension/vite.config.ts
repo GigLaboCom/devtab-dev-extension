@@ -14,8 +14,8 @@ import { basename, resolve } from 'node:path';
 import type { Plugin } from 'vite';
 
 // Build output lives at the WORKSPACE root (../dist), as in both sibling extensions — `chrome://extensions` keeps
-// loading <repo>/dist.
-const outDir = resolve(__dirname, '../dist');
+// loading <repo>/dist. DEVTAB_OUT_DIR puts a build of another variant elsewhere (see variantOverride).
+const outDir = process.env.DEVTAB_OUT_DIR ? resolve(process.env.DEVTAB_OUT_DIR) : resolve(__dirname, '../dist');
 const publicDir = resolve(__dirname, 'public');
 
 /**
@@ -31,6 +31,31 @@ const crxWatchRebuildFix = (): Plugin => ({
     return id.includes('@crx/manifest') ? true : null;
   },
 });
+
+/**
+ * A build of another variant of a composition root without editing the root — what the e2e does to check the free
+ * edition next to the default build (scripts/e2e-tools/saved-settings.mjs): `DEVTAB_VARIANT=<part>:<variant>`
+ * (`edition:free`) reads src/<part>/index.ts with its first `export { … as <name> } from './…';` line naming that
+ * variant instead — the same one-line change a person would make. Unset (every normal build): the roots as written.
+ */
+const variantOverride = (spec: string | undefined): Plugin | false => {
+  if (!spec) return false;
+  const [part, variant] = spec.split(':');
+  if (!part || !variant || !/^[A-Za-z]+$/.test(part) || !/^[A-Za-z]+$/.test(variant))
+    throw new Error(`DEVTAB_VARIANT is <part>:<variant> (edition:free), not "${spec}"`);
+  const root = resolve(__dirname, 'src', part, 'index.ts');
+  const line = /^export \{ \w+ as (\w+) \} from '\.\/\w+';$/m;
+  return {
+    name: 'extension:variant-override',
+    enforce: 'pre',
+    load(id) {
+      if (id !== root) return null;
+      const source = readFileSync(root, 'utf-8');
+      if (!line.test(source)) throw new Error(`${root}: no "export { … as … } from './…';" line to switch`);
+      return source.replace(line, (_all, name: string) => `export { ${variant} as ${name} } from './${variant}';`);
+    },
+  };
+};
 
 /** `%PRODUCT_NAME%` in the pages' <title> → the product's name from product.json (the one place it lives). */
 const productName = (): Plugin => ({
@@ -95,6 +120,7 @@ export default defineConfig({
   },
   publicDir,
   plugins: [
+    variantOverride(process.env.DEVTAB_VARIANT),
     // Tailwind v4 over @workspace/dna (src/app/app.css): a plain CSS file in dist/, no runtime and no inline style.
     tailwindcss(),
     react(),

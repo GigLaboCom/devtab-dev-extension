@@ -9,8 +9,9 @@
  *   RetentionRule    ageAndBudget (the settings' retention period and size budget)
  *
  * and builds the factory every tool records through (ToolHost.history). It also carries the tools' per-tool settings
- * (ToolHost.settings, src/tools/settings.ts — chrome.storage.local): this object is what the shell already hands to
- * Tools and Settings, so the second host member travels with the first. Incognito: an extension page in spanning mode
+ * (ToolHost.settings, src/tools/settings.ts — chrome.storage.local), with the tools' saved parameters where the edition
+ * keeps them (src/edition: in that record — Pro — or in the page's memory — free): this object is what the shell
+ * already hands to Tools and Settings, so the second host member travels with the first. Incognito: an extension page in spanning mode
  * cannot run in an incognito window at all (probe), but if one ever does (`chrome.extension.inIncognitoContext` — a
  * split-mode manifest, a change of Chrome), nothing reaches the persistent database: the store is in memory and the gate
  * is closed.
@@ -21,6 +22,7 @@ import { historySettingsSource } from './settings';
 import { historySources } from './sources';
 import pkg from '../../package.json';
 import product from '../../product.json';
+import { edition } from '../edition';
 import { extensionToolSettings } from '../tools/settings';
 import { createDebug } from '@extension/logger';
 import {
@@ -69,7 +71,7 @@ export interface HistoryHost {
   /** Something wrote to or deleted from the history in this page (lists refresh). */
   changed(): void;
   onChange(listener: () => void): () => void;
-  /** The tools' per-tool settings (ToolHost.settings), in chrome.storage.local, followed live. */
+  /** The tools' per-tool settings (ToolHost.settings), in chrome.storage.local, followed live; parameters per the edition. */
   toolSettings: ToolSettingsStore;
 }
 
@@ -181,7 +183,7 @@ export const historyHost = (env: HistoryEnvironment): HistoryHost => {
       changeListeners.add(listener);
       return () => changeListeners.delete(listener);
     },
-    toolSettings: extensionToolSettings(env.chrome.storage.local, env.chrome.storage.onChanged),
+    toolSettings: extensionToolSettings(env.chrome.storage.local, env.chrome.storage.onChanged, edition.parameters),
   };
 };
 

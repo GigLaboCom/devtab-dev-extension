@@ -5,9 +5,9 @@
  * storage; Settings → Tools sets one value for all the tools it applies to (`setForAll`). The first setting is
  * "Copy automatically after generating" (`autoCopy`, for the tools whose definition says `output.origin: 'generated'`).
  *
- * A tool's other options (the alphabet of a password, the type of a UUID) would go into the same entry — `forTool(id)
- * .set({ … })` when they change, `useToolSettings` for the defaults when the tool opens — once the owner decides they
- * are remembered (docs/tools/README.md, open question 1).
+ * The same record keeps the tools' saved parameters (D21, docs/tools/settings.md): `params: { <id>: { schema, values } }`
+ * — when the edition keeps them in storage (src/edition: Pro). The free edition gives the store an area in the page's
+ * memory for them instead (`parameters`), so nothing of them reaches chrome.storage.
  */
 import { createToolSettings } from '@workspace/tools-host';
 import type { ToolSettingsArea, ToolSettingsStore } from '@workspace/tools-host';
@@ -31,5 +31,12 @@ export const chromeToolSettingsArea = (area: SettingsArea, onChanged: SettingsCh
   },
 });
 
-export const extensionToolSettings = (area: SettingsArea, onChanged: SettingsChanged): ToolSettingsStore =>
-  createToolSettings(chromeToolSettingsArea(area, onChanged));
+/** `parameters`: where the tools' saved parameters go, given this record's area (the edition's choice); by default here. */
+export const extensionToolSettings = (
+  area: SettingsArea,
+  onChanged: SettingsChanged,
+  parameters: (settings: ToolSettingsArea) => ToolSettingsArea = settings => settings,
+): ToolSettingsStore => {
+  const settings = chromeToolSettingsArea(area, onChanged);
+  return createToolSettings(settings, parameters(settings));
+};
