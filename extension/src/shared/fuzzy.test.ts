@@ -60,7 +60,10 @@ describe('thresholds: honest and quiet', () => {
     const ash = findDestinations('ash', DESTINATIONS, 5);
     expect(ash.map(d => d.title)).toContain('Hash');
     expect(ash.every(d => [d.title, ...d.keywords].some(text => text.toLowerCase().includes('ash')))).toBe(true);
-    expect(first('hsah', 5)).toEqual(['Hash']); // near miss
+    // A near miss of the word "Hash": that tool first, and only titles with the word (Password Hash has it too).
+    const nearMiss = first('hsah', 5);
+    expect(nearMiss[0]).toBe('Hash');
+    expect(nearMiss.every(title => /\bhash\b/i.test(title))).toBe(true);
     expect(first('hsa', 5)).toEqual([]); // three letters: no near miss
   });
 
