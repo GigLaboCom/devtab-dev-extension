@@ -25,6 +25,7 @@
 //   packages/tools/ui/<id>/      package.json (with lucide-react, the icons), tsconfig.json, vitest.config.ts,
 //                                src/definition.ts (data: it imports its history declaration and nothing else at run
 //                                time — the host reads it at build time), src/history.ts (the declaration alone),
+//                                src/settings.ts (the saved parameters, D21: none yet — docs/tools/settings.md),
 //                                src/<Name>Tool.tsx, src/<Name>Tool.test.tsx; with --detect, src/detect.ts
 //   scripts/e2e-tools/<id>.mjs   the tool's e2e module (fails on purpose until written)
 // The host finds the tool by itself (extension/src/tools/registry.ts); nothing else is edited. The script never reads
@@ -252,16 +253,33 @@ export const ${name}History: HistoryDeclaration = {
   never: 'TODO: what is never kept, in a sentence for Settings → History.',
 };
 `,
+  [join(uiDir, 'src/settings.ts')]: `/**
+ * What the ${title} tool remembers between uses (D21; docs/tools/settings.md): the choices that configure how it works —
+ * a mode or a direction, a format, a language, an indent, lengths and counts, option checkboxes, a list the person
+ * built — each with its default and the check a stored value must pass (\`setting.oneOf\`, \`boolean\`, \`integer\`,
+ * \`number\`, \`text\`, \`list\`). Never the input, a result, a file's name or anything that may be a secret: the
+ * history keeps those (D17). Raise \`schema\` when a field's meaning changes.
+ */
+import { declareSettings } from '@workspace/tools-host';
+
+export const ${name}Settings = declareSettings({
+  schema: 1,
+  fields: {},
+});
+`,
   [join(uiDir, `src/${Name}Tool.tsx`)]: `/**
  * The ${title} tool's page (docs/tools/specs/${id}.md §8). The host wraps it in the kit's ToolPage (title, summary,
  * the history line); this is the body, built from the kit's tool parts. Logic: @workspace/tool-logic-${id}. History:
  * through the host (\`useToolHistory\`) — \`recorder.change(draft)\` on a person's edit, \`recorder.commit(draft)\` on an
  * explicit action; \`useRestore\` opens an entry the host asks for. A generator (\`output.origin === 'generated'\`):
  * \`useAutoCopy(host, '${id}')\` — \`afterGenerate(text)\` only from Generate, with what Copy / Copy all copies; its
- * \`outcome\` goes to that CopyButton and its refusal is one line (docs/tools/copying.md, the UUID tool).
+ * \`outcome\` goes to that CopyButton and its refusal is one line (docs/tools/copying.md, the UUID tool). Saved
+ * parameters (settings.ts, docs/tools/settings.md): \`useSavedSettings\` gives the values to open with — \`set\` on a
+ * person's change of a parameter, \`visit\` when an opened entry or a paste chose one (shown, never saved).
  */
 import { ${name}History } from './history';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { ${name}Settings } from './settings';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Textarea } from '@workspace/ui/textarea';
 import { ToolMessage, ToolOptions, ToolPane, ToolPanes } from '@workspace/ui/tool-page';
 import { useState } from 'react';
@@ -271,7 +289,9 @@ import type { ReactElement } from 'react';
 const ${Name}Tool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
   const { history } = useToolHistory(host, '${id}', ${name}History);
-  useRestore(history, restore, () => undefined);
+  // The options' state: saved.values.<field>; saved.set({ … }) on a person's change; saved.visit({ … }) from an entry.
+  const saved = useSavedSettings(host, '${id}', ${name}Settings);
+  useRestore(history, restore, () => saved.visit({}));
 
   return (
     <div className="flex flex-col gap-3">
@@ -325,6 +345,11 @@ ${
   // The specification's §2 scenarios and §8 as tests: what a person does and sees, the copy buttons, the errors
   // next to their field, what is recorded (change / commit) and what an entry opened from History brings back.
   it.todo('docs/tools/specs/${id}.md §2 and §8');
+
+  // Its saved parameters (src/settings.ts; the JSON tool's tests are the pattern): reopened with a host's settings, they
+  // are as left; a record it cannot show falls back field by field; an entry and a paste win for the visit and leave
+  // what is saved alone; the host's reset (\`host.settings.forTool(id).reset()\`) puts the defaults back.
+  it.todo('saved parameters (docs/tools/settings.md)');
 });
 `,
   // ---- e2e ----
@@ -357,6 +382,7 @@ if (!args.includes('--no-install')) {
 console.log(`
 ${id}: two packages and an e2e module. Next (docs/tools/adding-a-tool.md):
   1. the specification's §10 → packages/tools/logic/${id}/src/logic.test.ts, then the logic (§9) in src/logic.ts;
-  2. the component (§8) in packages/tools/ui/${id}/src/${Name}Tool.tsx, its tests, the history declaration (src/history.ts);
+  2. the component (§8) in packages/tools/ui/${id}/src/${Name}Tool.tsx, its tests, the history declaration (src/history.ts)
+     and its saved parameters (src/settings.ts; their table in docs/tools/settings.md);
   3. its e2e module, scripts/e2e-tools/${id}.mjs;
   4. pnpm --filter @workspace/tool-logic-${id} test, pnpm --filter @workspace/tool-ui-${id} test, then pnpm check and pnpm test:e2e.`);

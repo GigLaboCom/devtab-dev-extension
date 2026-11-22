@@ -15,8 +15,11 @@
 //                                             any) — the history writes after its debounce; throws after `timeout`
 //   settledShot(shoot, target, file)          blurs the focused element, waits for transitions and animations on the page
 //                                             to finish, then the screenshot (an element or the page)
+//   forgetSavedParameters(page, ...ids)       removes these tools' saved parameters (D21, docs/tools/settings.md) from
+//                                             chrome.storage.local — a module that changed a tool's options calls it
+//                                             before it ends, so the next module opens the tool with its defaults
 
-/* global document, indexedDB, requestAnimationFrame -- page.evaluate callbacks run in the pages */
+/* global document, indexedDB, requestAnimationFrame, chrome -- page.evaluate callbacks run in the pages */
 
 import { themeMode, withSettings } from './e2e-theme.mjs';
 
@@ -99,3 +102,13 @@ export const settledShot = async (shoot, target, file) => {
   });
   await shoot(target, file);
 };
+
+export const forgetSavedParameters = (page, ...toolIds) =>
+  page.evaluate(async ids => {
+    const { toolSettings: record } = await chrome.storage.local.get('toolSettings');
+    if (!record?.params) return;
+    const params = Object.fromEntries(Object.entries(record.params).filter(([id]) => !ids.includes(id)));
+    const rest = { ...record };
+    delete rest.params;
+    await chrome.storage.local.set({ toolSettings: Object.keys(params).length ? { ...rest, params } : rest });
+  }, toolIds);
