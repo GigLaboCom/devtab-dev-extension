@@ -101,6 +101,11 @@
     @apply text-muted-foreground data-[tone=error]:text-destructive data-[tone=success]:text-success m-0 min-h-5 text-sm;
   }
 
+  /* A link-styled button inside a message's sentence ("…, or clear it."): the text's height, no padding of its own. */
+  .kit-tool-message-action {
+    @apply h-auto p-0 align-baseline;
+  }
+
   .kit-tool-empty {
     @apply text-muted-foreground m-0 text-sm;
   }
