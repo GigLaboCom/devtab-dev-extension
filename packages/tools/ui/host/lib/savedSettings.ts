@@ -23,16 +23,25 @@
  * value equal to its default is not stored, so the record is exactly what differs from the defaults. Writes are
  * debounced and bounded (settings.ts).
  *
- * Whether the values outlive the page is the host's choice, not the tool's: the host's `settings` keeps them in storage
- * (Pro) or in the page's memory (the free version), and offers the reset control on the tool's page
- * (`useSettingsReset`). A tool with no host keeps them for the visit only. Two pages open on one tool: each opens
- * with what was saved when it opened and does not follow the other's later changes; a write merges the parameters the
- * person changed into what is stored at that moment, so each changed field keeps its last value.
+ * Whether the values outlive the page is the host's choice, not the tool's: the host's `settings` keeps them in the
+ * storage it was built over (seam `ParameterStorage`, parameterStorage.ts — in the extension: the browser's storage in
+ * Pro, none in the free version), offers the reset control on the tool's page while that storage keeps them
+ * (`useSettingsReset`), and says so on the page while the storage refuses a write (`useSaveProblem`). A tool with no
+ * host keeps them for the visit only. Two pages open on one tool: each opens with what was saved when it opened and
+ * does not follow the other's later changes; a write merges the parameters the person changed into what is stored at
+ * that moment, so each changed field keeps its last value.
  */
 import { memoryToolSettings } from './settings';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ToolHost } from './host';
-import type { KeepParameter, ParameterChange, ParameterValue, StoredParameters, ToolSettings } from './settings';
+import type {
+  KeepParameter,
+  ParameterChange,
+  ParameterValue,
+  SaveProblem,
+  StoredParameters,
+  ToolSettings,
+} from './settings';
 
 /** One parameter: its default and the check a stored value must pass to be used. */
 export interface Setting<T extends ParameterValue> {
@@ -286,4 +295,28 @@ export const useSettingsReset = (settings: ToolSettings | undefined, toolId: str
     useCallback(() => own?.changed() ?? false, [own]),
   );
   return useMemo(() => (own && changed ? () => void own.reset().catch(() => undefined) : undefined), [own, changed]);
+};
+
+/**
+ * What a host's tool page says while the storage does not hold the tool's latest changes (`useSaveProblem`), by the
+ * reason. Both are true whatever the storage is: the changes are held in the page and sent again with the next change,
+ * on leaving the page, and when the storage reports the tool; the line goes away when a write is taken.
+ */
+export const SAVE_PROBLEM_TEXT: Readonly<Record<SaveProblem, string>> = {
+  failed: 'Settings could not be saved. They stay as you set them until this page is closed.',
+  unavailable:
+    'Settings are not saved yet: storage is unavailable. They stay as you set them until this page is closed.',
+};
+
+/**
+ * For a host's tool page: why the storage does not hold the tool's latest changes, while it refuses them — to be said
+ * in words (`SAVE_PROBLEM_TEXT`); `undefined` while nothing is refused, and with no `settings`.
+ */
+export const useSaveProblem = (settings: ToolSettings | undefined, toolId: string): SaveProblem | undefined => {
+  const own = useMemo(() => settings?.forTool(toolId), [settings, toolId]);
+  const subscribe = useCallback((listener: () => void) => own?.subscribe(listener) ?? (() => undefined), [own]);
+  return useSyncExternalStore(
+    subscribe,
+    useCallback(() => own?.unsaved(), [own]),
+  );
 };

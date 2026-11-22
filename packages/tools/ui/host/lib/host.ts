@@ -18,8 +18,8 @@ export interface ToolHost {
   history: HistoryFactory;
   /**
    * Per-tool settings: `settings.forTool(toolId)` — the tool's own entry, followed live (settings.ts), with the tool's
-   * saved parameters (savedSettings.ts: in storage, or in the page's memory — the host's choice, D21). Absent: the
-   * page's in-memory default (`defaultToolHost.settings`), so a host that keeps none still works.
+   * saved parameters (savedSettings.ts; where they are kept is the host's choice — seam `ParameterStorage`, D21, D23).
+   * Absent: the page's in-memory default (`defaultToolHost.settings`), so a host that keeps none still works.
    */
   settings?: ToolSettings;
   /**

@@ -17,9 +17,10 @@
  *   const autoCopy = useAutoCopy(host, 'password');    // "Copy automatically after generating" (autoCopy.ts)
  *   autoCopy.afterGenerate(text);                      // only from the person's Generate
  *
- * The same entry keeps the tool's saved parameters (D21, savedSettings.ts): what the person chose last time, declared
- * with defaults and a check per field; the host keeps them in storage (Pro) or in the page's memory (free) and offers
- * the reset control (`useSettingsReset`).
+ * The same entry gives the tool its saved parameters (D21, savedSettings.ts): what the person chose last time, declared
+ * with defaults and a check per field. Where the host keeps them is a seam of its own, `ParameterStorage`
+ * (parameterStorage.ts: `memoryParameterStorage`, `noParameterStorage` — switched off — and a host's own); the host's
+ * tool page offers the reset control (`useSettingsReset`) and says when a write was refused (`useSaveProblem`).
  *
  *   export const jsonSettings = declareSettings({ schema: 1, fields: { sortKeys: setting.boolean(false) } });
  *   const saved = useSavedSettings(host, 'json', jsonSettings);   // saved.values, saved.set(…), saved.visit(…)
@@ -46,9 +47,12 @@ export type {
   ToolProps,
   ToolShortcut,
 } from './host';
+export { memoryParameterStorage, noParameterStorage } from './parameterStorage';
+export type { ParameterEntry, ParameterStorage, ParameterWatcher, ParameterWrite, Revision } from './parameterStorage';
 export {
   SAVE_AFTER_MS,
   SAVED_PARAMETERS_MAX_CHARS,
+  WRITE_ATTEMPTS,
   createToolSettings,
   memoryToolSettings,
   memoryToolSettingsArea,
@@ -63,6 +67,7 @@ export type {
   OwnSettings,
   ParameterChange,
   ParameterValue,
+  SaveProblem,
   SettingValue,
   StoredParameters,
   ToolSettings,
@@ -78,7 +83,9 @@ export {
   differsFromDefaults,
   readSaved,
   sameParameter,
+  SAVE_PROBLEM_TEXT,
   setting,
+  useSaveProblem,
   useSavedSettings,
   useSettingsReset,
 } from './savedSettings';
