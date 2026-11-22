@@ -4,14 +4,23 @@
  * parsed by the page's own DOMParser as a whole document — inert: nothing runs, nothing loads, no policy violation — and
  * walked by @workspace/tool-logic-html-to-jsx; the parsed tree never enters the page. The table of attribute names
  * (a chunk of its own) loads with the first input, never with the page. The result follows every edit up to
- * LIVE_INPUT characters; above that Convert (or Ctrl+Enter) runs it; above MAX_INPUT the input is refused (§12).
+ * LIVE_INPUT characters; above that Convert (or Ctrl+Enter) runs it; above MAX_INPUT the input is refused (§12), and so
+ * is markup nested deeper than MAX_NESTING levels — found by a linear scan before the parser sees it (§12, §15).
  * DOMParser does not exist in a worker, so the work stays on the page; Convert paints "Working…" first. History: an
  * edit snapshot (`change`) once the result is there, a commit on Copy and on Convert; an entry the host asks to open
  * comes back as the input and the option. The page frame (title, summary, the history line) is the host's.
  */
 import { draftOf, readEntry } from './entries';
 import { htmlToJsxHistory } from './history';
-import { LIVE_INPUT, MAX_INPUT, describeNotes, htmlToJsx, loadAttributeNames } from '@workspace/tool-logic-html-to-jsx';
+import {
+  LIVE_INPUT,
+  MAX_INPUT,
+  MAX_NESTING,
+  describeNotes,
+  htmlToJsx,
+  loadAttributeNames,
+  nestingDepth,
+} from '@workspace/tool-logic-html-to-jsx';
 import { useRestore, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
@@ -26,6 +35,7 @@ import type { ReactElement } from 'react';
 
 const LARGE = 'Large input: press Convert (Ctrl+Enter).';
 const TOO_LARGE = 'Input is larger than 4 MB.';
+const TOO_DEEP = `Input nests elements more than ${MAX_NESTING} levels deep.`;
 
 /** The page's parser, on a whole document (docs/tools/README.md: never a fragment, never `<template>` of the page). */
 const parseHtml: ParseHtml = markup => new DOMParser().parseFromString(markup, 'text/html');
@@ -62,8 +72,11 @@ const HtmlToJsxTool = ({ input: initial, host, restore }: ToolProps): ReactEleme
   const { history, recorder } = useToolHistory(host, 'html-to-jsx', htmlToJsxHistory);
 
   const tooLarge = input.length > MAX_INPUT;
-  const large = !tooLarge && input.length > LIVE_INPUT;
-  const blank = tooLarge || input.trim() === '';
+  // Chrome's parser slows with the depth of what it nests and stops nesting at 512 levels: refused before parsing.
+  const tooDeep = useMemo(() => !tooLarge && nestingDepth(input) > MAX_NESTING, [tooLarge, input]);
+  const refused = tooLarge || tooDeep;
+  const large = !refused && input.length > LIVE_INPUT;
+  const blank = refused || input.trim() === '';
   const names = useAttributeNames(!blank);
 
   const live = useMemo(
@@ -193,8 +206,8 @@ const HtmlToJsxTool = ({ input: initial, host, restore }: ToolProps): ReactEleme
             }}
           />
           {/* Changes while typing: read out politely (status), never as an alert on every keystroke. */}
-          <ToolMessage tone={tooLarge ? 'error' : 'note'} role="status" data-part="status">
-            {tooLarge ? TOO_LARGE : large ? LARGE : ''}
+          <ToolMessage tone={refused ? 'error' : 'note'} role="status" data-part="status">
+            {tooLarge ? TOO_LARGE : tooDeep ? TOO_DEEP : large ? LARGE : ''}
           </ToolMessage>
         </ToolPane>
         <ToolPane

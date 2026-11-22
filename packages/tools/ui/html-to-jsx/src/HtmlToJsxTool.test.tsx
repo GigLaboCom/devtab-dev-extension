@@ -213,6 +213,30 @@ describe('the HTML to JSX tool, rendered with no host', () => {
     expect(output()).toBe('');
     expect(button('Copy').disabled).toBe(true);
   });
+
+  it('§12: markup nested deeper than 512 levels is refused before the parser sees it; 510 levels convert', async () => {
+    const parse = vi.spyOn(DOMParser.prototype, 'parseFromString');
+    render(<HtmlToJsxTool />);
+    // 10,000 levels held Chrome's parser 0.75 s and the page 1.4 s (§12), under the live threshold.
+    type(`${'<div>'.repeat(10_000)}x`);
+    await settle();
+    expect(statusLine()).toBe('Input nests elements more than 512 levels deep.');
+    expect(document.querySelector('[data-part="status"]')!.getAttribute('role')).toBe('status');
+    expect(output()).toBe('');
+    expect(button('Copy').disabled).toBe(true);
+    expect(parse).not.toHaveBeenCalled();
+    // Above LIVE_INPUT too: no Convert to press.
+    type('<div>'.repeat(LIVE_INPUT / 5 + 1));
+    await settle();
+    expect(statusLine()).toBe('Input nests elements more than 512 levels deep.');
+    expect(screen.queryByRole('button', { name: 'Convert' })).toBeNull();
+    expect(parse).not.toHaveBeenCalled();
+    // 510 levels and <html>, <body>: within Chrome's 512, converted.
+    type(`${'<div>'.repeat(510)}x`);
+    await settle();
+    expect(statusLine()).toBe('');
+    expect(output().match(/<div>/g)).toHaveLength(510);
+  });
 });
 
 describe('the HTML to JSX tool’s history', () => {

@@ -454,7 +454,35 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     const t1m = await timed(rows(10_500), true);
     const t2m = await timed(rows(21_000), true);
     const t4m = await timed(rows(43_000).slice(0, 4 * 1024 * 1024), true);
-    const deep = await timed(`${'<div>'.repeat(10_000)}x${'</div>'.repeat(10_000)}`, false);
+    // 10,000 levels (§15 п. 15): refused before the parser sees them, by the linear scan; 510 levels convert.
+    const deep = await page.evaluate(
+      async value => {
+        const field = document.querySelector('#html-to-jsx-input');
+        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+        let longest = 0;
+        const observer = new PerformanceObserver(list => {
+          for (const e of list.getEntries()) longest = Math.max(longest, e.duration);
+        });
+        observer.observe({ type: 'longtask', buffered: false });
+        const start = performance.now();
+        setter.call(field, value);
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        const status = () => document.querySelector('[data-part="status"]').textContent.trim();
+        while (!status().startsWith('Input nests') && performance.now() - start < 10_000)
+          await new Promise(r => setTimeout(r, 5));
+        const tool = performance.now() - start;
+        await new Promise(r => setTimeout(r, 100));
+        observer.disconnect();
+        return {
+          tool: Math.round(tool),
+          longest: Math.round(longest),
+          status: status(),
+          out: document.querySelector('#html-to-jsx-output').value.length,
+        };
+      },
+      `${'<div>'.repeat(10_000)}x${'</div>'.repeat(10_000)}`,
+    );
+    const deep510 = await timed(`${'<div>'.repeat(510)}x${'</div>'.repeat(510)}`, false);
     const deepTree = await page.evaluate(() => {
       const d = new DOMParser().parseFromString(`<!doctype html><body>${'<div>'.repeat(10_000)}x`, 'text/html');
       let depth = 0;
@@ -478,21 +506,24 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     const refusedConvert = await button('Convert').count();
     await setInput('x'.repeat(256 * 1024 + 1));
     const largeLine = (await status.innerText()).trim();
-    const timings = { t50k, t256, t1m, t2m, t4m, deep, deepTree, mega, browser: ctx.browser()?.version() };
+    const timings = { t50k, t256, t1m, t2m, t4m, deep, deep510, deepTree, mega, browser: ctx.browser()?.version() };
     report.htmlToJsx = { ...(report.htmlToJsx ?? {}), timings };
     check(
-      `${T}: §12 up to 256 Ki live, then Convert (1, 2, 4 MiB), 10,000 levels and a megabyte convert; one over 4 MiB refuses`,
+      `${T}: §12 up to 256 Ki live, then Convert (1, 2, 4 MiB), 510 levels and a megabyte convert; 10,000 levels and one over 4 MiB refuse`,
       t50k.out > 0 &&
         t256.out > 0 &&
         t1m.out > 0 &&
         t2m.out > 0 &&
         t4m.out > 0 &&
-        deep.out > 0 &&
+        deep.status === 'Input nests elements more than 512 levels deep.' &&
+        deep.out === 0 &&
+        deep.longest < 200 &&
+        deep510.out > 0 &&
         mega.out > 0 &&
         refusal === 'Input is larger than 4 MB.' &&
         refusedConvert === 0 &&
         largeLine === 'Large input: press Convert (Ctrl+Enter).',
-      `0.05 MiB ${t50k.tool} ms; 256 Ki ${t256.tool} ms (parse ${t256.parse}, field ${t256.field}, longest ${t256.longest}); 1 MiB ${t1m.tool} ms (field ${t1m.field}); 2 MiB ${t2m.tool} ms; 4 MiB ${t4m.tool} ms (parse ${t4m.parse}, field ${t4m.field}, longest task ${t4m.longest}); 1 MiB longest task ${t1m.longest}, 2 MiB ${t2m.longest}; 10,000 levels ${deep.tool} ms — Chrome nested ${deepTree.depth} of them, the deepest holding ${deepTree.widest} as siblings; 1 MB of paragraphs ${mega.tool} ms`,
+      `0.05 MiB ${t50k.tool} ms; 256 Ki ${t256.tool} ms (parse ${t256.parse}, field ${t256.field}, longest ${t256.longest}); 1 MiB ${t1m.tool} ms (field ${t1m.field}); 2 MiB ${t2m.tool} ms; 4 MiB ${t4m.tool} ms (parse ${t4m.parse}, field ${t4m.field}, longest task ${t4m.longest}); 1 MiB longest task ${t1m.longest}, 2 MiB ${t2m.longest}; 10,000 levels refused in ${deep.tool} ms (longest task ${deep.longest}; Chrome would nest ${deepTree.depth} of them, the deepest holding ${deepTree.widest} as siblings); 510 levels ${deep510.tool} ms; 1 MB of paragraphs ${mega.tool} ms`,
     );
     await setInput('');
 

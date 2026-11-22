@@ -1,6 +1,12 @@
 // @vitest-environment node
 import examples from './examples.json' with { type: 'json' };
-import { htmlToJsx, loadAttributeNames, parseMarkup } from '@workspace/tool-logic-html-to-jsx';
+import {
+  MAX_NESTING,
+  htmlToJsx,
+  loadAttributeNames,
+  nestingDepth,
+  parseMarkup,
+} from '@workspace/tool-logic-html-to-jsx';
 import { transformSync } from 'esbuild';
 import { JSDOM } from 'jsdom';
 import { createElement } from 'react';
@@ -356,4 +362,11 @@ describe('generated documents', () => {
       expect(rendered, `#${i}\n${input}\n---\n${jsx}`).toBe(expected);
     }
   }, 120_000);
+});
+
+describe('the nesting guard (§12) refuses none of the examples', () => {
+  it('every input of §10 and of the hostile set nests within 512 levels', () => {
+    const inputs = [...(examples.spec as Example[]), ...(examples.hostile as Example[])].map(e => e.input);
+    expect(inputs.filter(input => nestingDepth(input) > MAX_NESTING)).toEqual([]);
+  });
 });

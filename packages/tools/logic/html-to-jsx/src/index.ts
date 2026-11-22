@@ -4,6 +4,7 @@
  * pieces its tests use. Runs in a page and, with jsdom, in Node.
  */
 export * from './limits.ts';
+export { MAX_NESTING, nestingDepth } from './depth.ts';
 export * from './names.ts';
 export { describeNotes, htmlToJsx, parseMarkup, reactAttributeName } from './convert.ts';
 export type { JsxNote, JsxOptions, JsxResult, ParseHtml } from './convert.ts';

@@ -1,13 +1,15 @@
 {
   "name": "@workspace/tools-shared",
   "version": "0.1.0",
-  "description": "Pure code shared by the tools and their hosts (D14): randomness (random), bytes as hex (hex), Base64 (base64), instants for people (time), the exact JSON scanner (json-scan), a strict DER reader (der) — the modules the tool specifications name — and the tool history (D17): the record envelope, the filter model, the HistoryStore seam with its in-memory default and shared contract suite, the archive format, the cipher seam (WebCrypto) and the history factory every tool records through.",
+  "description": "Pure code shared by the tools and their hosts (D14): randomness (random), bytes as hex (hex), Base64 (base64), instants for people (time), the exact JSON scanner (json-scan), a strict DER reader (der), how deep markup nests before the HTML parser sees it (html-depth), a test of an algorithm's growth (growth) — the modules the tool specifications name — and the tool history (D17): the record envelope, the filter model, the HistoryStore seam with its in-memory default and shared contract suite, the archive format, the cipher seam (WebCrypto) and the history factory every tool records through.",
   "private": true,
   "type": "module",
   "exports": {
     "./base64": "./base64.ts",
     "./der": "./der.ts",
+    "./growth": "./growth.ts",
     "./hex": "./hex.ts",
+    "./html-depth": "./html-depth.ts",
     "./json-scan": "./json-scan.ts",
     "./random": "./random.ts",
     "./time": "./time.ts",

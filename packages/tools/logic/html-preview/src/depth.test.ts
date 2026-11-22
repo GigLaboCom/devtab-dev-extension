@@ -4,6 +4,7 @@
 // estimate is never below the depth jsdom's parser (parse5, no limit of its own) builds; and it is linear.
 import { MAX_DEPTH, nestingDepth } from '.';
 import corpus from './hostile-corpus.json';
+import { GROWTH_BOUND, growth } from '@workspace/tools-shared/growth';
 import { describe, expect, it } from 'vitest';
 
 /** The deepest element of what jsdom's parser builds, counting <html>. */
@@ -86,25 +87,14 @@ describe('nestingDepth', () => {
   });
 
   it('stops as soon as it passes the limit, and is linear', { timeout: 60_000 }, () => {
-    const time = (html: string): number => {
-      let best = Infinity;
-      for (let i = 0; i < 3; i++) {
-        const start = performance.now();
-        nestingDepth(html);
-        best = Math.min(best, performance.now() - start);
-      }
-      return best;
-    };
+    // The shape of the cost (`growth`): a megabyte against eight inputs of 128 Ki, timed in turn.
     for (const make of [
       (n: number) => '<p>x'.repeat(n / 4),
       (n: number) => `${'<div>'.repeat(400)}${'<td>x'.repeat(n / 5)}`,
       (n: number) => `${'<b class="x">'.repeat(100)}${'</p><p>x'.repeat(n / 8)}`,
       (n: number) => '<style>a{}</style>'.repeat(n / 18),
-    ]) {
-      const small = time(make(128 * 1024));
-      const large = time(make(1024 * 1024));
-      expect(large / Math.max(small, 1)).toBeLessThan(24);
-    }
+    ])
+      expect(growth(html => nestingDepth(html), make, 128 * 1024)).toBeLessThan(GROWTH_BOUND);
     expect(nestingDepth('<div>'.repeat(200_000))).toBe(MAX_DEPTH + 1);
   });
 });
