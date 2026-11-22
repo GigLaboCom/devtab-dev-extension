@@ -1,0 +1,11 @@
+{
+  "extends": "@extension/tsconfig/app",
+  "compilerOptions": {
+    // A tool's logic has no DOM (D14) unless its specification needs one. This one does (svg-to-css.md §5 «Проверка»,
+    // §9: well-formedness is judged by the XML parser of a Document that comes in as a parameter), so the DOM library is
+    // in for its types; the globals of a page (`document`, `window`, `DOMParser`) stay forbidden by the lint.
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"]
+  },
+  "include": ["src"]
+}

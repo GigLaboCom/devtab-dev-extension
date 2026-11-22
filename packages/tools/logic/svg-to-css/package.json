@@ -1,0 +1,26 @@
+{
+  "name": "@workspace/tool-logic-svg-to-css",
+  "version": "0.1.0",
+  "description": "The SVG to CSS tool's logic (D14, docs/tools/specs/svg-to-css.md): the check of an SVG by the XML parser of a Document passed in, the safe cleanup, the missing namespaces, the minimal percent-encoding and Base64 of a data: URI, the CSS forms, the notes and the detection. Pure TypeScript: no React, no chrome; the DOM only through a parameter.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@workspace/tools-shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/node": "^22.20.1",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
