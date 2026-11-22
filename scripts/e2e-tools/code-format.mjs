@@ -320,6 +320,10 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
       await put(text);
       const got = await result(expected);
       await sleep(200);
+      // The worker's requests come over another channel than the page's result: on a busy machine they can arrive
+      // after it. Wait for the modules expected (anything more or else still fails the comparison below).
+      const until = Date.now() + 5000;
+      while (since(workerRequests, workerFrom).map(name).join(',') !== modules && Date.now() < until) await sleep(100);
       const loaded = since(workerRequests, workerFrom).map(name);
       const started = since(pageRequests, pageFrom)
         .map(name)
