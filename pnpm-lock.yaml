@@ -735,6 +735,28 @@ importers:
         specifier: ^4.1.10
         version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
 
+  packages/tools/logic/json-query:
+    dependencies:
+      '@workspace/tools-shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@extension/tsconfig':
+        specifier: workspace:*
+        version: link:../../../tsconfig
+      '@types/node':
+        specifier: ^22.20.1
+        version: 22.20.5
+      jsonpath-rfc9535:
+        specifier: 1.3.0
+        version: 1.3.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
+
   packages/tools/logic/json-to-code:
     dependencies:
       '@workspace/tools-shared':
@@ -863,6 +885,28 @@ importers:
       '@workspace/tools-shared':
         specifier: workspace:*
         version: link:../shared
+    devDependencies:
+      '@extension/tsconfig':
+        specifier: workspace:*
+        version: link:../../../tsconfig
+      '@types/node':
+        specifier: ^22.20.1
+        version: 22.20.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
+
+  packages/tools/logic/password-hash:
+    dependencies:
+      '@workspace/tools-shared':
+        specifier: workspace:*
+        version: link:../shared
+      hash-wasm:
+        specifier: 4.12.0
+        version: 4.12.0
     devDependencies:
       '@extension/tsconfig':
         specifier: workspace:*
@@ -1820,6 +1864,49 @@ importers:
         specifier: ^4.1.10
         version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
 
+  packages/tools/ui/json-query:
+    dependencies:
+      '@workspace/tool-logic-json-query':
+        specifier: workspace:*
+        version: link:../../logic/json-query
+      '@workspace/tools-host':
+        specifier: workspace:*
+        version: link:../host
+      '@workspace/ui':
+        specifier: workspace:*
+        version: link:../../../ui
+      lucide-react:
+        specifier: 1.70.0
+        version: 1.70.0(@types/react@19.3.0)(react@19.3.1)
+    devDependencies:
+      '@extension/tsconfig':
+        specifier: workspace:*
+        version: link:../../../tsconfig
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@types/react':
+        specifier: ^19.2.18
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.2.4
+        version: 19.3.0(@types/react@19.3.0)
+      jsdom:
+        specifier: ^25.0.1
+        version: 25.0.1(supports-color@7.2.0)
+      react:
+        specifier: ^19.2.8
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.2.8
+        version: 19.3.1(react@19.3.1)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
+
   packages/tools/ui/json-to-code:
     dependencies:
       '@workspace/tool-logic-json-to-code':
@@ -2089,6 +2176,49 @@ importers:
       '@workspace/ui':
         specifier: workspace:*
         version: link:../../../ui
+    devDependencies:
+      '@extension/tsconfig':
+        specifier: workspace:*
+        version: link:../../../tsconfig
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@types/react':
+        specifier: ^19.2.18
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.2.4
+        version: 19.3.0(@types/react@19.3.0)
+      jsdom:
+        specifier: ^25.0.1
+        version: 25.0.1(supports-color@7.2.0)
+      react:
+        specifier: ^19.2.8
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.2.8
+        version: 19.3.1(react@19.3.1)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
+
+  packages/tools/ui/password-hash:
+    dependencies:
+      '@workspace/tool-logic-password-hash':
+        specifier: workspace:*
+        version: link:../../logic/password-hash
+      '@workspace/tools-host':
+        specifier: workspace:*
+        version: link:../host
+      '@workspace/ui':
+        specifier: workspace:*
+        version: link:../../../ui
+      lucide-react:
+        specifier: 1.70.0
+        version: 1.70.0(@types/react@19.3.0)(react@19.3.1)
     devDependencies:
       '@extension/tsconfig':
         specifier: workspace:*
@@ -5244,6 +5374,10 @@ packages:
 
   jsonfile@6.2.1:
     resolution: {integrity: sha512-zwOTdL3rFQ/lRdBnntKVOX6k5cKJwEc1HdilT71BWEu7J41gXIB2MRp+vxduPSwZJPWBxEzv4yH1wYLJGUHX4Q==}
+
+  jsonpath-rfc9535@1.3.0:
+    resolution: {integrity: sha512-3jFHya7oZ45aDxIIdx+/zQARahHXxFSMWBkcBUldfXpLS9VCXDJyTKt35kQfEXLqh0K3Ixw/9xFnvcDStaxh7Q==}
+    engines: {node: '>=20'}
 
   jsqr@1.4.0:
     resolution: {integrity: sha512-dxLob7q65Xg2DvstYkRpkYtmKm2sPJ9oFhrhmudT1dZvNFFTlroai3AWSpLey/w5vMcLBXRgOJsbXpdN9HzU/A==}
@@ -8804,6 +8938,8 @@ snapshots:
       universalify: 2.0.1
     optionalDependencies:
       graceful-fs: 4.2.12
+
+  jsonpath-rfc9535@1.3.0: {}
 
   jsqr@1.4.0: {}
 
