@@ -1,0 +1,10 @@
+{
+  "extends": "@extension/tsconfig/app",
+  "compilerOptions": {
+    // A tool's logic: no DOM (D14) — the DOM library is left out, so `document` or `window` does not compile. Node's
+    // types bring what the logic may use in a page and in Node alike: TextEncoder, URL, crypto, Blob.
+    "lib": ["ES2022"],
+    "types": ["node"]
+  },
+  "include": ["src"]
+}
