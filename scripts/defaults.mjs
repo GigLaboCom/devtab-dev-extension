@@ -333,18 +333,33 @@ out.push(
   ),
 );
 h('Пределы инструментов (числа из их логики)');
+const LIMIT =
+  /^export const ((?:MAX|LIVE|MIN|SETTLE|DEBOUNCE|DEFAULT_CHUNK|WORD_LIST_SIZE|TIMEOUT|LONG_TIMEOUT)[A-Z_]*) = ([\d\s*+_().-]+);/gm;
+const limitsIn = (text, suffix = '') =>
+  [...text.matchAll(LIMIT)].map(
+    m => `${m[1]} = ${Number(Function(`return ${m[2].replaceAll('_', '')}`)()).toLocaleString('en-US')}${suffix}`,
+  );
 const limits = tools.map(t => {
   const dir = join(ROOT, 'packages/tools/logic', t.id, 'src');
-  const found = existsSync(dir)
+  const sources = existsSync(dir)
     ? readdirSync(dir)
         .filter(f => /\.ts$/.test(f) && !/\.test\.ts$/.test(f))
-        .flatMap(f => [
-          ...readFileSync(join(dir, f), 'utf8').matchAll(
-            /^export const ((?:MAX|LIVE|MIN|SETTLE|DEBOUNCE|DEFAULT_CHUNK|WORD_LIST_SIZE|TIMEOUT|LONG_TIMEOUT)[A-Z_]*) = ([\d\s*+_().-]+);/gm,
-          ),
-        ])
-        .map(m => `${m[1]} = ${Number(Function(`return ${m[2].replaceAll('_', '')}`)()).toLocaleString('en-US')}`)
+        .map(f => readFileSync(join(dir, f), 'utf8'))
     : [];
+  // A limit of a shared module the tool's logic imports by name (the JSON scanner's MAX_DEPTH) is the tool's too.
+  const shared = [
+    ...new Set(
+      sources.flatMap(text => [...text.matchAll(/from '@workspace\/tools-shared\/([a-z-]+)'/g)].map(m => m[1])),
+    ),
+  ]
+    .filter(name => existsSync(join(ROOT, 'packages/tools/logic/shared', `${name}.ts`)))
+    .flatMap(name => {
+      const own = sources.join('\n');
+      return limitsIn(src(`packages/tools/logic/shared/${name}.ts`), ` (общий \`${name}\`)`).filter(line =>
+        new RegExp(`\\b${line.split(' ')[0]}\\b`).test(own),
+      );
+    });
+  const found = [...sources.flatMap(text => limitsIn(text)), ...shared];
   return [`\`${t.id}\``, found.join('<br>') || '—'];
 });
 out.push(table(['Инструмент', 'Константы'], limits));

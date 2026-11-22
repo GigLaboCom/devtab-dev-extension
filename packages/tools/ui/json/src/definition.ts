@@ -10,7 +10,7 @@ export const definition: ToolDefinition = {
   id: 'json',
   title: 'JSON',
   summary: 'Format, validate and minify JSON.',
-  keywords: ['json', 'format', 'pretty', 'validate', 'minify', 'sort keys'],
+  keywords: ['json', 'format', 'pretty', 'prettify', 'beautify', 'validate', 'lint', 'minify', 'sort keys', 'jsonc'],
   order: 1,
   history: jsonHistory,
   // Formats, checks and minifies the JSON a person pastes: the result is derived from their input, nothing is made.

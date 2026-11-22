@@ -1,7 +1,7 @@
 {
   "name": "@workspace/tool-logic-json",
   "version": "0.1.0",
-  "description": "The JSON tool's logic (D14, docs/tools/specs/json.md): format, validate with the error's position, minify, sort keys, detect. Pure TypeScript: no React, no DOM, no chrome.",
+  "description": "The JSON tool's logic (D14, docs/tools/specs/json.md): check with the error's place, format, minify and sort keys without changing a value — read by the shared exact scanner (@workspace/tools-shared/json-scan); describe the notes, detect. Pure TypeScript: no React, no DOM, no chrome.",
   "private": true,
   "type": "module",
   "exports": {
@@ -12,6 +12,9 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@workspace/tools-shared": "workspace:*"
   },
   "devDependencies": {
     "@extension/tsconfig": "workspace:*",

@@ -32,6 +32,22 @@ describe('the detectors', () => {
     expect(detectorsOf(found, ['b']).map(d => d.id)).toEqual(['b']);
   });
 
+  it('JSON is the JSON tool’s alone, though JSON is YAML too; what strict JSON refuses opens nothing', () => {
+    // docs/tools/specs/json.md §7: every other detect refuses an object or an array, so the order does not decide.
+    const modules = import.meta.glob<(text: string) => boolean>('../../../packages/tools/ui/*/src/detect.ts', {
+      eager: true,
+      import: 'detect',
+    });
+    const all = detectorsOf(modules, ORDER);
+    const who = (text: string) => all.filter(d => d.detect(text)).map(d => d.id);
+    for (const text of ['{"a": [1, 2]}', '[1, 2]\n', '{}', '{\n  "a": 1\n}', '["#ff0000"]', '{"a":"\\u00e9"}'])
+      expect(who(text), text).toEqual(['json']);
+    for (const text of ['{a: 1}', '[a, b]', '{"a":1}\n{"a":2}', '{"a":1} // c', '{"a":1,}', '[1,2,3', '42', '"x"'])
+      expect(who(text), text).toEqual([]);
+    expect(who('a: 1\nb: 2')).toEqual(['yaml-json']);
+    expect(who('"He said \\"hi\\""')).toEqual(['backslash-escape']);
+  });
+
   it('recognise pasted text: the first tool in the order that knows it; nothing for plain or blank text', () => {
     expect(recognise('{"a": [1, 2]}')).toBe('json');
     expect(recognise('[1, 2')).toBeUndefined();

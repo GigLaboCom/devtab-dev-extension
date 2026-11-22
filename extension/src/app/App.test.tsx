@@ -491,8 +491,8 @@ describe('the shell', () => {
     });
     expect(await screen.findByRole('heading', { name: 'Tools', level: 1 })).toBeTruthy();
     const input = await screen.findByLabelText('Input');
+    // The JSON tool formats as the text changes (docs/tools/specs/json.md §2.1): no button to press.
     fireEvent.change(input, { target: { value: '{"b":1,"a":[1,2]}' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Format' }));
     expect((screen.getByLabelText('Result') as HTMLTextAreaElement).value).toBe(
       '{\n  "b": 1,\n  "a": [\n    1,\n    2\n  ]\n}',
     );

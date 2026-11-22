@@ -411,7 +411,8 @@ try {
     const input = page.getByLabel('Input');
     await input.waitFor({ timeout: 5_000 });
     await input.fill('{"name":"example","tags":["diff","tools"],"nested":{"b":2,"a":1},"ok":true}');
-    await page.getByRole('button', { name: 'Format' }).click();
+    // The JSON tool formats as the text changes: the result is there once the status says so.
+    await page.locator('[data-part="status"]', { hasText: 'Valid JSON' }).waitFor({ timeout: 5_000 });
   };
   const reviewReady = () => page.getByRole('heading', { name: 'Companion app required' }).waitFor({ timeout: 5_000 });
 
@@ -954,10 +955,9 @@ try {
     report.measure ??= {};
     report.measure.textarea = await measureOf(input);
     if (!(await page.getByLabel('Sort keys').isChecked())) await page.getByLabel('Sort keys').check();
-    await page.getByRole('button', { name: 'Format' }).click();
     await page.mouse.move(0, 0);
     await sleep(400); // the checkbox's 180 ms colour transition
-    report.measure.buttonOutline = await measureOf(page.getByRole('button', { name: 'Minify' }));
+    report.measure.buttonOutline = await measureOf(page.getByRole('button', { name: 'Open file' }));
     report.measure.checkboxChecked = await measureOf(page.getByLabel('Sort keys'));
     // The current tool in the sidebar's Tools list (the Tools page has no list of its own since 2026-11-21).
     report.measure.navSubItemActive = await measureOf(page.locator('.kit-nav-sub-item[aria-current="page"]'));

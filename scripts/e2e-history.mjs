@@ -1,15 +1,16 @@
 // The e2e checks of the tool history (D17), run by scripts/e2e-check.mjs after the toolbar button; also on their own:
 // `node scripts/e2e-history.mjs [<dist>] [--shots=<dir>]` (needs a build and Playwright, as pnpm test:e2e does).
-//   - the JSON tool says on its page that history is kept; an edit and a Format are recorded (in the extension's real
-//     IndexedDB); the History page lists them as one session; "Open" brings the text, the options and the result back
-//     into the tool; the tool's own "Recent entries" opens one too;
+//   - the JSON tool says on its page that history is kept; an edit and a Copy of the result are recorded (in the
+//     extension's real IndexedDB); the History page lists them as one session; "Open" brings the text, the options and
+//     the result back into the tool; the tool's own "Recent entries" opens one too;
 //   - restore from a file: an export made outside the browser (by the same format code) with entries 2 and 5 days old;
-//     filters by kind, text and dates narrow the count; "Delete shown" over a date interval tells how many entries and
+//     an entry of that file — written as the JSON tool's first version wrote (schema 1) — opens in the tool; filters by
+//     kind, text and dates narrow the count; "Delete shown" over a date interval tells how many entries and
 //     bytes, asks once, and removes exactly those;
 //   - export everything (a real download), delete everything (settings, asked once), restore the file: the records'
 //     lines and the blobs' bytes are the same as before, byte for byte; a foreign file and a damaged one are refused
 //     with their own messages and write nothing;
-//   - the master switch off: the tool says so and a Format records nothing;
+//   - the master switch off: the tool says so and a Copy records nothing;
 //   - a master password (a throwaway one made here, never shown or written to the report): set with the no-recovery
 //     warning acknowledged, shared by a second tab, locked from that tab, a wrong password refused, unlocked again; an
 //     export carries the wrapped key and no password; turning it off removes it;
@@ -21,13 +22,17 @@
 
 /* global document, indexedDB, chrome, location -- page.evaluate callbacks run in the pages */
 
+import { stubClipboard } from './e2e-helpers.mjs';
 import { at, readDefinitions } from './read-definitions.mjs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const DAY = 86_400_000;
 
-/** An export made outside the browser by the format's own code: JSON entries 2 and 5 days old. */
+/**
+ * An export made outside the browser by the format's own code: JSON entries 2 and 5 days old, as the JSON tool's first
+ * version wrote them (schema 1, `action: 'format'`) — the rewritten tool still opens them.
+ */
 const seedArchive = async now =>
   Uint8Array.from(
     await readDefinitions(`
@@ -135,11 +140,14 @@ export const runHistoryChecks = async ({ ctx, id, check, shoot, report, sleep, r
   check('the JSON tool says history is kept', /History is on/.test(await line.innerText()), await line.innerText());
   await tool.getByLabel('Input').fill('{"b": 1, "a": [1, 2]}');
   await tool.getByLabel('Sort keys').click();
-  await tool.getByRole('button', { name: 'Format', exact: true }).click();
+  // Copy takes the result: recorded at once (the page's clipboard stub; the machine's clipboard is not touched).
+  const clipboard = await stubClipboard(tool);
+  await tool.getByRole('button', { name: 'Copy', exact: true }).click();
   await sleep(300);
+  await clipboard.restore();
   const afterFormat = await recordCount(tool);
   check(
-    'a Format is recorded at once in IndexedDB (the edit before it is covered by it)',
+    'a Copy of the result is recorded at once in IndexedDB (the edit before it is covered by it)',
     afterFormat === 1,
     `${afterFormat} records`,
   );
@@ -206,6 +214,23 @@ export const runHistoryChecks = async ({ ctx, id, check, shoot, report, sleep, r
     () => document.querySelector('[data-history-count]')?.getAttribute('data-history-count') === '4',
   );
   check('restore from a file adds its entries', true, await count.innerText());
+  await history
+    .locator('.kit-history-entry', { hasText: 'Seeded two days ago' })
+    .getByRole('button', { name: 'Open' })
+    .click();
+  await history.waitForFunction(() => location.hash === '#/tools/json');
+  await history.locator('[data-restored]').waitFor();
+  const seededInput = await history.getByLabel('Input').inputValue();
+  const seededOutput = await history.locator('#json-output').inputValue();
+  check(
+    "an entry the JSON tool's first version wrote (schema 1) opens in the rewritten tool",
+    seededInput === '{"seed":"two days"}' && seededOutput === '{\n  "seed": "two days"\n}',
+    JSON.stringify({ seededInput, seededOutput }),
+  );
+  await history.goto(`${base}#/history`);
+  await history.waitForFunction(
+    () => document.querySelector('[data-history-count]')?.getAttribute('data-history-count') === '4',
+  );
 
   const counted = () => history.locator('[data-history-count]').getAttribute('data-history-count');
   const waitCount = async n => {
@@ -329,8 +354,10 @@ export const runHistoryChecks = async ({ ctx, id, check, shoot, report, sleep, r
   await tool.locator('.kit-tool-history-line').waitFor();
   const offLine = await tool.locator('.kit-tool-history-line').innerText();
   await tool.getByLabel('Input').fill('{"off": true}');
-  await tool.getByRole('button', { name: 'Format', exact: true }).click();
+  const offClipboard = await stubClipboard(tool);
+  await tool.getByRole('button', { name: 'Copy', exact: true }).click();
   await sleep(500);
+  await offClipboard.restore();
   check(
     'with history off the tool says so and records nothing',
     /off/.test(offLine) && (await recordCount(tool)) === 3,

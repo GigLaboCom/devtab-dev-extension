@@ -1,7 +1,7 @@
 {
   "name": "@workspace/tool-ui-json",
   "version": "0.1.0",
-  "description": "The JSON tool's component and definition (D14, docs/tools/specs/json.md): the definition is the main export, the component loads when the tool is opened. Records into the tool history through its host.",
+  "description": "The JSON tool's component and definition (D14, docs/tools/specs/json.md): the definition is the main export, the component loads when the tool is opened; Run on a large input prints in a module worker shipped in this package. Records into the tool history through its host.",
   "private": true,
   "type": "module",
   "exports": {
@@ -17,7 +17,8 @@
   "dependencies": {
     "@workspace/tool-logic-json": "workspace:*",
     "@workspace/tools-host": "workspace:*",
-    "@workspace/ui": "workspace:*"
+    "@workspace/ui": "workspace:*",
+    "lucide-react": "1.70.0"
   },
   "peerDependencies": {
     "react": "^19.2.8"
