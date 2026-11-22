@@ -417,6 +417,8 @@ export const detectLanguage = (text: string): CodeLanguage | null => {
  * `yaml-json`'s; a one-line HTML fragment is more often `html-entities`' or `html-to-jsx`'s input.
  */
 export const detectCodeFormat = (text: string): boolean => {
+  // A curl command is a shell line, whatever its body looks like: it is not offered for formatting.
+  if (/^\uFEFF?\s*(?:\$\s+)?curl(?:\.exe)?\s/i.test(text.slice(0, 64))) return false;
   const language = detectLanguage(text);
   if (language === null || language === 'yaml') return false;
   if (language === 'html') {

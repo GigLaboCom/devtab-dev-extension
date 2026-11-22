@@ -622,6 +622,13 @@ describe('§7 detect: the registry’s, not taking other tools’ input', () => 
     expect(detectCodeFormat('a: 1\nb: [1, 2]')).toBe(false);
     expect(detectCodeFormat('apiVersion: v1\nkind: Pod\nmetadata:\n  name: web')).toBe(false);
     expect(detectCodeFormat('<div class="x">hi</div>')).toBe(false);
+    // a curl command with a body that looks like code is a command, not code
+    expect(detectCodeFormat(`curl --json '{"a":1}' https://api.example.com/x`)).toBe(false);
+    expect(detectCodeFormat(`$ curl.exe -d '{"a": 1}' -H 'accept: */*' https://api.example.com/x`)).toBe(false);
+    expect(detectCodeFormat(`curl 'https://api.example.com/x' \\\n  -H 'accept: */*' \\\n  --data-raw '{"a":1}'`)).toBe(
+      false,
+    );
+    expect(detectCodeFormat('const curl = require("curl");\ncurl.get(url);')).toBe(true);
     expect(detectCodeFormat('<!DOCTYPE html><html></html>')).toBe(true);
     expect(detectCodeFormat('<div>\n  <p>hi</p>\n</div>')).toBe(true);
     expect(detectCodeFormat('<note><to>A</to></note>')).toBe(true);
