@@ -1,0 +1,26 @@
+{
+  "name": "@workspace/tool-logic-html-preview",
+  "version": "0.1.0",
+  "description": "The HTML Preview tool's logic (D14, docs/tools/specs/html-preview.md): the check of a pasted document \u2014 parsed by the DOMParser of a Document passed in, its CSS made to load nothing by a tokenizer of its own \u2014 the page's half of drawing it into a sandboxed frame, Copy HTML, the line of what is not shown, the detection. Pure TypeScript: no React, no chrome; the DOM only through parameters.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@workspace/tools-shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/node": "^22.20.1",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

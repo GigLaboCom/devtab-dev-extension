@@ -1,0 +1,12 @@
+{
+  "extends": "@extension/tsconfig/app",
+  "compilerOptions": {
+    // A tool's logic has no DOM (D14) unless its specification needs one. This one does (html-preview.md §5.2, §5.3, §9:
+    // the input is parsed by the DOMParser of a Document that comes in as a parameter, and drawn into the frame's
+    // document, another parameter), so the DOM library is in for its types; the globals of a page (`document`,
+    // `window`) stay forbidden by the lint.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["src"]
+}

