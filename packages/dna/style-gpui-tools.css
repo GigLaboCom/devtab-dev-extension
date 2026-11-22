@@ -1,7 +1,8 @@
 /*
  * @workspace/dna/style-gpui-tools.css — the component layer's Table and the parts the tools share (D14), tuned to
  * gpui-kit like style-gpui.css (2026-11-21: out of style-gpui.css): the tool page frame (`kit-tool-*`), a result with its
- * copy action (`kit-result-row*`), the file drop zone (`kit-file-drop*`), the list to search (`kit-combobox*`) and
+ * copy action (`kit-result-row*`), the file drop zone (`kit-file-drop*`), the list to search (`kit-combobox*`), the
+ * frame of someone else's document (`kit-framed-document`) and
  * shadcn's Table (`cn-table*`). Any host of
  * the tools wears them, so they are the component layer's and not the extension's frame. A file of its own so a page
  * that shows no tool does not carry them: the extension loads it with the shell's lazy chunk, never with the start page
@@ -124,6 +125,13 @@
 
   .kit-file-drop-line {
     @apply flex flex-wrap items-center justify-center gap-2;
+  }
+
+  /* MARK: Framed document — own: the frame of someone else's document (@workspace/ui/framed-document: Markdown Preview,
+     HTML Preview): the input's border and radius around the whole width; the height is the tool's. What is inside is
+     the framed document's own look, not this */
+  .kit-framed-document {
+    @apply border-input bg-background w-full rounded-md border;
   }
 
   /* MARK: Combobox — own: a field with a list to search (the time zone picker of Unix Time and Cron, moved into the kit

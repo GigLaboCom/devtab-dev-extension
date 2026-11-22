@@ -1,11 +1,11 @@
 import { definition } from './definition';
-import { FRAME_POLICY, FRAME_SANDBOX, frameSource } from './FramedDocument';
 import MarkdownPreviewTool from './MarkdownPreviewTool';
 import previewCss from './preview.css?raw';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { lintCss } from '@workspace/dna/lint';
 import { LIVE_INPUT, MAX_INPUT, SETTLE_MS } from '@workspace/tool-logic-markdown-preview';
 import { memoryHost } from '@workspace/tools-host';
+import { FRAME_POLICY, FRAME_SANDBOX, frameSource } from '@workspace/ui/framed-document';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // docs/tools/specs/markdown-preview.md §2 (scenarios), §6 (states, word for word), §8 (the page), §12 (limits), the

@@ -3001,7 +3001,9 @@ fn main() {
               title, the summary and the host's history line; a row of options and actions; input and result panes; a
               message under a pane (an error, a note, a success). Then the parts the tools share: a copy button (words,
               or an icon that turns into a check), result rows (kit-result-row*), the file drop zone (kit-file-drop*,
-              shown with a file over it) and the table (cn-table*).
+              shown with a file over it), the frame of someone else's document (kit-framed-document: a srcdoc frame
+              sandboxed without scripts, as Markdown Preview and HTML Preview show their previews) and the table
+              (cn-table*).
             </p>
             <section data-slot="tool-page" class="kit-tool-page">
               <header class="kit-tool-page-head">
@@ -3202,6 +3204,14 @@ fn main() {
                   ></div
                 >
               </div>
+            </div>
+            <div class="show-row">
+              <iframe
+                data-slot="framed-document"
+                class="kit-framed-document h-32 w-80"
+                title="Framed document"
+                sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                srcdoc="&lt;!doctype html&gt;&lt;p&gt;Someone else’s document: sandboxed, nothing in it runs or loads.&lt;/p&gt;"></iframe>
             </div>
             <div data-slot="table-container" class="cn-table-container">
               <table data-slot="table" class="cn-table">

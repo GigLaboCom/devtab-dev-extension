@@ -1,6 +1,6 @@
 /**
  * The Markdown Preview tool's page (docs/tools/specs/markdown-preview.md §8): the Markdown on the left, the preview on
- * the right with Copy HTML. The preview is a sandboxed frame (FramedDocument.tsx) whose body the page fills with nodes
+ * the right with Copy HTML. The preview is a sandboxed frame (the kit's FramedDocument) whose body the page fills with nodes
  * the allowlist of @workspace/tool-logic-markdown-preview builds from markdown-it's output — never markup, never
  * `innerHTML` on this page. The preview follows every edit up to LIVE_INPUT characters (markdown-it on the page), comes
  * SETTLE_MS after the last edit up to MAX_INPUT (markdown-it in a worker, renderer.ts), and above that the tool refuses
@@ -9,7 +9,6 @@
  * the Markdown. The page frame (title, summary, the history line) is the host's.
  */
 import { EMPTY_PREVIEW, PLACEHOLDER, TOO_LARGE, entryLabel, excerpt } from './entries';
-import { FramedDocument } from './FramedDocument';
 import { markdownPreviewHistory } from './history';
 import stylesheet from './preview.css?url';
 import { createLargeRenderer } from './renderer';
@@ -22,6 +21,7 @@ import {
 } from '@workspace/tool-logic-markdown-preview';
 import { useRestore, useToolHistory } from '@workspace/tools-host';
 import { CopyButton } from '@workspace/ui/copy-button';
+import { FramedDocument } from '@workspace/ui/framed-document';
 import { Textarea } from '@workspace/ui/textarea';
 import { ToolMessage, ToolPane, ToolPanes } from '@workspace/ui/tool-page';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -190,7 +190,7 @@ const MarkdownPreviewTool = ({ input: initial, host, restore }: ToolProps): Reac
           <FramedDocument
             title="Preview"
             data-part="preview"
-            className="h-90 w-full rounded-md border border-input bg-background"
+            className="h-90"
             stylesheet={stylesheet}
             render={draw}
             version={markup}

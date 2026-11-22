@@ -2,7 +2,7 @@
  * The preview frame's document (docs/tools/specs/markdown-preview.md §5.7): a file of the build, linked from the frame's
  * srcdoc — the frame's own policy and the page's allow stylesheets and fonts of the extension's files and nothing
  * inline. The tokens, the faces and the base come from @workspace/dna/theme.css; the frame's <html> wears the embedding
- * page's `data-theme` and `data-mode` (FramedDocument.tsx), so every theme reaches it. Only the elements the allowlist
+ * page's `data-theme` and `data-mode` (@workspace/ui/framed-document), so every theme reaches it. Only the elements the allowlist
  * builds (§5.6) have rules here.
  */
 @import '@workspace/dna/theme.css';
