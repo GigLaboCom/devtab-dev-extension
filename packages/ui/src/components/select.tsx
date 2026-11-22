@@ -22,6 +22,23 @@ export const SelectGroup = ({ className, ...props }: ComponentProps<typeof Selec
   <SelectPrimitive.Group data-slot="select-group" className={cn('cn-select-group', className)} {...props} />
 );
 
+/** The heading of a group of items (shadcn/ui base; the look is `cn-select-label` of the DNA). */
+export const SelectLabel = ({ className, ...props }: ComponentProps<typeof SelectPrimitive.Label>): ReactElement => (
+  <SelectPrimitive.Label data-slot="select-label" className={cn('cn-select-label', className)} {...props} />
+);
+
+/** A line between groups of items (shadcn/ui base; the look is `cn-select-separator` of the DNA). */
+export const SelectSeparator = ({
+  className,
+  ...props
+}: ComponentProps<typeof SelectPrimitive.Separator>): ReactElement => (
+  <SelectPrimitive.Separator
+    data-slot="select-separator"
+    className={cn('cn-select-separator pointer-events-none', className)}
+    {...props}
+  />
+);
+
 export const SelectValue = (props: ComponentProps<typeof SelectPrimitive.Value>): ReactElement => (
   <SelectPrimitive.Value data-slot="select-value" {...props} />
 );
