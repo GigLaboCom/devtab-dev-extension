@@ -631,6 +631,25 @@ importers:
         specifier: ^4.1.10
         version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
 
+  packages/tools/logic/data-units:
+    dependencies:
+      '@workspace/tools-shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@extension/tsconfig':
+        specifier: workspace:*
+        version: link:../../../tsconfig
+      '@types/node':
+        specifier: ^22.20.1
+        version: 22.20.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
+
   packages/tools/logic/date-calc:
     dependencies:
       '@workspace/tools-shared':
@@ -763,6 +782,25 @@ importers:
         specifier: ^4.1.10
         version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
 
+  packages/tools/logic/image-convert:
+    dependencies:
+      '@workspace/tools-shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@extension/tsconfig':
+        specifier: workspace:*
+        version: link:../../../tsconfig
+      '@types/node':
+        specifier: ^22.20.1
+        version: 22.20.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
+
   packages/tools/logic/json:
     dependencies:
       '@workspace/tools-shared':
@@ -823,6 +861,25 @@ importers:
         specifier: ^4.1.10
         version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
 
+  packages/tools/logic/json-schema:
+    dependencies:
+      '@workspace/tools-shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@extension/tsconfig':
+        specifier: workspace:*
+        version: link:../../../tsconfig
+      '@types/node':
+        specifier: ^22.20.1
+        version: 22.20.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
+
   packages/tools/logic/json-to-code:
     dependencies:
       '@workspace/tools-shared':
@@ -843,6 +900,25 @@ importers:
         version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
 
   packages/tools/logic/jwt:
+    dependencies:
+      '@workspace/tools-shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@extension/tsconfig':
+        specifier: workspace:*
+        version: link:../../../tsconfig
+      '@types/node':
+        specifier: ^22.20.1
+        version: 22.20.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
+
+  packages/tools/logic/keys:
     dependencies:
       '@workspace/tools-shared':
         specifier: workspace:*
@@ -1709,6 +1785,49 @@ importers:
         specifier: ^4.1.10
         version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
 
+  packages/tools/ui/data-units:
+    dependencies:
+      '@workspace/tool-logic-data-units':
+        specifier: workspace:*
+        version: link:../../logic/data-units
+      '@workspace/tools-host':
+        specifier: workspace:*
+        version: link:../host
+      '@workspace/ui':
+        specifier: workspace:*
+        version: link:../../../ui
+      lucide-react:
+        specifier: 1.70.0
+        version: 1.70.0(@types/react@19.3.0)(react@19.3.1)
+    devDependencies:
+      '@extension/tsconfig':
+        specifier: workspace:*
+        version: link:../../../tsconfig
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@types/react':
+        specifier: ^19.2.18
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.2.4
+        version: 19.3.0(@types/react@19.3.0)
+      jsdom:
+        specifier: ^25.0.1
+        version: 25.0.1(supports-color@7.2.0)
+      react:
+        specifier: ^19.2.8
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.2.8
+        version: 19.3.1(react@19.3.1)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
+
   packages/tools/ui/date-calc:
     dependencies:
       '@workspace/tool-logic-date-calc':
@@ -2001,6 +2120,49 @@ importers:
         specifier: ^4.1.10
         version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
 
+  packages/tools/ui/image-convert:
+    dependencies:
+      '@workspace/tool-logic-image-convert':
+        specifier: workspace:*
+        version: link:../../logic/image-convert
+      '@workspace/tools-host':
+        specifier: workspace:*
+        version: link:../host
+      '@workspace/ui':
+        specifier: workspace:*
+        version: link:../../../ui
+      lucide-react:
+        specifier: 1.70.0
+        version: 1.70.0(@types/react@19.3.0)(react@19.3.1)
+    devDependencies:
+      '@extension/tsconfig':
+        specifier: workspace:*
+        version: link:../../../tsconfig
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@types/react':
+        specifier: ^19.2.18
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.2.4
+        version: 19.3.0(@types/react@19.3.0)
+      jsdom:
+        specifier: ^25.0.1
+        version: 25.0.1(supports-color@7.2.0)
+      react:
+        specifier: ^19.2.8
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.2.8
+        version: 19.3.1(react@19.3.1)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
+
   packages/tools/ui/json:
     dependencies:
       '@workspace/tool-logic-json':
@@ -2130,6 +2292,49 @@ importers:
         specifier: ^4.1.10
         version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
 
+  packages/tools/ui/json-schema:
+    dependencies:
+      '@workspace/tool-logic-json-schema':
+        specifier: workspace:*
+        version: link:../../logic/json-schema
+      '@workspace/tools-host':
+        specifier: workspace:*
+        version: link:../host
+      '@workspace/ui':
+        specifier: workspace:*
+        version: link:../../../ui
+      lucide-react:
+        specifier: 1.70.0
+        version: 1.70.0(@types/react@19.3.0)(react@19.3.1)
+    devDependencies:
+      '@extension/tsconfig':
+        specifier: workspace:*
+        version: link:../../../tsconfig
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@types/react':
+        specifier: ^19.2.18
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.2.4
+        version: 19.3.0(@types/react@19.3.0)
+      jsdom:
+        specifier: ^25.0.1
+        version: 25.0.1(supports-color@7.2.0)
+      react:
+        specifier: ^19.2.8
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.2.8
+        version: 19.3.1(react@19.3.1)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
+
   packages/tools/ui/json-to-code:
     dependencies:
       '@workspace/tool-logic-json-to-code':
@@ -2178,6 +2383,49 @@ importers:
       '@workspace/tool-logic-jwt':
         specifier: workspace:*
         version: link:../../logic/jwt
+      '@workspace/tools-host':
+        specifier: workspace:*
+        version: link:../host
+      '@workspace/ui':
+        specifier: workspace:*
+        version: link:../../../ui
+      lucide-react:
+        specifier: 1.70.0
+        version: 1.70.0(@types/react@19.3.0)(react@19.3.1)
+    devDependencies:
+      '@extension/tsconfig':
+        specifier: workspace:*
+        version: link:../../../tsconfig
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@types/react':
+        specifier: ^19.2.18
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.2.4
+        version: 19.3.0(@types/react@19.3.0)
+      jsdom:
+        specifier: ^25.0.1
+        version: 25.0.1(supports-color@7.2.0)
+      react:
+        specifier: ^19.2.8
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.2.8
+        version: 19.3.1(react@19.3.1)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
+
+  packages/tools/ui/keys:
+    dependencies:
+      '@workspace/tool-logic-keys':
+        specifier: workspace:*
+        version: link:../../logic/keys
       '@workspace/tools-host':
         specifier: workspace:*
         version: link:../host
