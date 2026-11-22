@@ -15,7 +15,7 @@
 
 /* global document, indexedDB, location, DataTransfer, ClipboardEvent, requestAnimationFrame, KeyboardEvent -- page.evaluate callbacks run in the page */
 
-import { inDarkTheme, settledShot, stubClipboard } from '../e2e-helpers.mjs';
+import { forgetSavedParameters, inDarkTheme, settledShot, stubClipboard } from '../e2e-helpers.mjs';
 
 const T = 'cURL to Code';
 const ID = 'curl-to-code';
@@ -651,6 +651,8 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     check(`${T}: with the master password off again, its entries are gone`, (await mine()).length === 0);
   } finally {
     await clipboard.restore().catch(() => {});
+    // The client it chose is a saved parameter (D21): the next module opens the tool on JavaScript (fetch).
+    await forgetSavedParameters(page, 'curl-to-code').catch(() => {});
     ctx.off('request', onRequest);
     for (const p of opened) await p.close();
   }

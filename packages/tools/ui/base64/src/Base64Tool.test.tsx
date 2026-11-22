@@ -1,6 +1,8 @@
 import Base64Tool from './Base64Tool';
 import { definition } from './definition';
 import { detect } from './detect';
+import { base64History } from './history';
+import { base64Settings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LIVE_INPUT, MAX_INPUT, SETTLE_MS } from '@workspace/tool-logic-base64';
 import { memoryHost } from '@workspace/tools-host';
@@ -333,3 +335,93 @@ describe('the Base64 tool’s history', () => {
     expect((await entriesOf(host))[0]!.label).toBe('Decode · 20 characters');
   });
 });
+
+describe('the Base64 tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ReturnType<typeof memoryHost>) => host.settings.forTool('base64').saved();
+  const seed = async (host: ReturnType<typeof memoryHost>, values: Record<string, unknown>) => {
+    host.settings.forTool('base64').save(base64Settings.schema, values as never);
+    await host.settings.forTool('base64').flush();
+  };
+  const direction = () =>
+    screen.getByRole('radio', { name: 'Decode' }).getAttribute('data-state') === 'on' ? 'decode' : 'encode';
+  const options = () => ({
+    alphabet: screen.getByLabelText('Alphabet').textContent,
+    padding: screen.getByLabelText('Padding').getAttribute('aria-checked'),
+    lineLength: screen.getByLabelText('Line length').textContent,
+  });
+
+  it('saves the direction and options the person chose; reopened, it is as left', async () => {
+    const host = memoryHost();
+    const first = render(<Base64Tool host={host} />);
+    await choose('Alphabet', 'URL-safe');
+    await choose('Line length', '64');
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { alphabet: 'url', padding: false, lineLength: 64 } });
+    render(<Base64Tool host={host} />);
+    expect(direction()).toBe('encode');
+    expect(options()).toEqual({ alphabet: 'URL-safe', padding: 'false', lineLength: '64' });
+    type('subjects?_d');
+    expect(output()).toBe('c3ViamVjdHM_X2Q');
+  });
+
+  it('Swap is the person’s change of direction: saved', async () => {
+    const host = memoryHost();
+    render(<Base64Tool host={host} />);
+    type('hi');
+    fireEvent.click(button('Swap'));
+    expect(direction()).toBe('decode');
+    await host.settings.forTool('base64').flush();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { mode: 'decode' } });
+  });
+
+  it('a saved record it cannot show falls back field by field', async () => {
+    const host = memoryHost();
+    await seed(host, { alphabet: 'url', padding: 'no', lineLength: 80, mode: 'sideways' });
+    render(<Base64Tool host={host} />);
+    expect(direction()).toBe('encode');
+    expect(options()).toEqual({ alphabet: 'URL-safe', padding: 'true', lineLength: 'No wrapping' });
+  });
+
+  it('a paste opens Decode and an opened entry shows its options — for the visit; what is saved stays', async () => {
+    const host = memoryHost();
+    await seed(host, { lineLength: 76 });
+    const pasted = render(<Base64Tool host={host} input="SGVsbG8sIFdvcmxkIQ==" />);
+    expect(direction()).toBe('decode');
+    expect(output()).toBe('Hello, World!');
+    pasted.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { lineLength: 76 } });
+
+    const recorder = host.history.forOwner('base64', base64History).session();
+    await recorder.commit({
+      kind: 'encode',
+      label: 'Encode · URL-safe',
+      payload: { mode: 'encode', alphabet: 'url', padding: false, lineLength: 0, outcome: 'text', action: 'copy' },
+      blobs: { input: new Blob(['subjects?_d']), output: new Blob(['c3ViamVjdHM_X2Q']) },
+    });
+    const [entry] = await entriesOfHost(host);
+    const opened = render(<Base64Tool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText('Opened from History: Encode · URL-safe.')).toBeTruthy();
+    expect(options()).toEqual({ alphabet: 'URL-safe', padding: 'false', lineLength: 'No wrapping' });
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { lineLength: 76 } });
+    render(<Base64Tool host={host} />);
+    expect(direction()).toBe('encode');
+    expect(options()).toEqual({ alphabet: 'Standard', padding: 'true', lineLength: '76' });
+  });
+
+  it('reset puts the direction and options back to the defaults and keeps the input; the result follows', async () => {
+    const host = memoryHost();
+    await seed(host, { mode: 'decode' });
+    render(<Base64Tool host={host} />);
+    type('aGk=');
+    expect(output()).toBe('hi');
+    await act(async () => host.settings.forTool('base64').reset());
+    expect(direction()).toBe('encode');
+    expect(field('Input').value).toBe('aGk=');
+    expect(output()).toBe('YUdrPQ==');
+    expect(savedOf(host)).toBeUndefined();
+  });
+});
+
+const entriesOfHost = async (host: ReturnType<typeof memoryHost>) =>
+  (await host.history.forOwner('base64', base64History).list({})).entries;

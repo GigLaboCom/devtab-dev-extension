@@ -8,7 +8,13 @@
 
 /* global document, HTMLTextAreaElement, requestAnimationFrame -- page.evaluate callbacks run in the page */
 
-import { inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 import { mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -366,5 +372,7 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   const after = await page.evaluate(() => document.documentElement.dataset.mode);
   check('JSON: the page in the dark theme and back', mode === 'dark' && after !== 'dark', `${mode} → ${after}`);
   await input.fill('');
+  // The options it changed are saved parameters (D21): the next module opens JSON with its defaults.
+  await forgetSavedParameters(page, 'json');
   page.off('pageerror', onError);
 };

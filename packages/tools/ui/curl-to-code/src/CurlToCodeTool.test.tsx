@@ -6,6 +6,7 @@ import CurlToCodeTool from './CurlToCodeTool';
 import { definition } from './definition';
 import { detect } from './detect';
 import { draftOf, entryLabel, readPayload } from './entries';
+import { curlToCodeSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { TARGETS } from '@workspace/tool-logic-curl-to-code';
 import { memoryHost, unlockedHost } from '@workspace/tools-host';
@@ -326,5 +327,69 @@ describe('the history (D17): one secret kind', () => {
     expect(readPayload({ target: 'php' })).toEqual({ target: 'php' });
     expect(readPayload({ target: 'cobol' })).toBeUndefined();
     expect(readPayload(null)).toBeUndefined();
+  });
+});
+
+describe('cURL to Code’s saved parameter: the client (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: { settings: { forTool(id: string): { saved(): unknown } } }) =>
+    host.settings.forTool('curl-to-code').saved();
+  const shown = () => screen.getByLabelText('Target').textContent;
+
+  it('any of the seventeen clients the person picks is saved — never the command or the code; reopened, it is the client', async () => {
+    const host = memoryHost();
+    const first = render(<CurlToCodeTool host={host} />);
+    type("curl -u 'ann:s3cret' https://api.example.com/x");
+    await chooseTarget('Swift (URLSession)', 'swift');
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { target: 'swift' } });
+    expect(JSON.stringify(savedOf(host))).not.toMatch(/s3cret|example|URLSession\(/);
+    render(<CurlToCodeTool host={host} input="curl https://api.example.com/y" />);
+    expect(shown()).toBe('Swift (URLSession)');
+    await loaded('swift');
+    expect(output().value).toContain('api.example.com/y');
+    expect(curlToCodeSettings.fields.target.default).toBe('javascript');
+    for (const t of TARGETS) expect(curlToCodeSettings.fields.target.accepts(t.value)).toBe(true);
+    expect(TARGETS).toHaveLength(17);
+  });
+
+  it('a saved client that is not one of them (a later release’s, a damaged record) opens JavaScript (fetch)', async () => {
+    const host = memoryHost();
+    host.settings.forTool('curl-to-code').save(1, { target: 'cobol' });
+    render(<CurlToCodeTool host={host} />);
+    expect(shown()).toBe('JavaScript (fetch)');
+    await loaded();
+  });
+
+  it('an entry opened from History shows its client for the visit; what is saved stays', async () => {
+    const host = await unlockedHost();
+    const { unmount } = render(<CurlToCodeTool host={host} />);
+    type('curl https://api.example.com/items');
+    await chooseTarget('Rust (reqwest)', 'rust');
+    fireEvent.click(copy());
+    await waitFor(async () =>
+      expect((await host.history.forOwner('curl-to-code', definition.history!).list()).entries).toHaveLength(1),
+    );
+    await chooseTarget('Go (net/http)', 'go');
+    unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { target: 'go' } });
+    const [entry] = (await host.history.forOwner('curl-to-code', definition.history!).list()).entries;
+    const opened = render(<CurlToCodeTool host={host} restore={{ id: entry!.id }} />);
+    await waitFor(() => expect(shown()).toBe('Rust (reqwest)'));
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { target: 'go' } });
+  });
+
+  it('reset opens JavaScript (fetch) again and keeps the command; the code follows', async () => {
+    const host = memoryHost();
+    host.settings.forTool('curl-to-code').save(1, { target: 'python' });
+    render(<CurlToCodeTool host={host} />);
+    await loaded('python');
+    type('curl https://api.example.com/z');
+    await act(async () => host.settings.forTool('curl-to-code').reset());
+    expect(shown()).toBe('JavaScript (fetch)');
+    await loaded();
+    expect(input().value).toBe('curl https://api.example.com/z');
+    expect(output().value).toContain('fetch(');
+    expect(savedOf(host)).toBeUndefined();
   });
 });

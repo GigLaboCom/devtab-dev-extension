@@ -7,6 +7,7 @@ import { definition } from './definition';
 import { detect } from './detect';
 import { jsonHistory } from './history';
 import JsonTool from './JsonTool';
+import { jsonSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LIVE_INPUT, MAX_INPUT } from '@workspace/tool-logic-json';
 import { memoryHost } from '@workspace/tools-host';
@@ -450,5 +451,99 @@ describe('the JSON tool’s history', () => {
     const [entry] = await entriesOf(host);
     render(<JsonTool host={host} restore={{ id: entry!.id }} />);
     expect(await screen.findByText('This entry was kept by a newer version of the tool.')).toBeTruthy();
+  });
+});
+
+describe('the JSON tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ReturnType<typeof memoryHost>) => host.settings.forTool('json').saved();
+  const seed = async (host: ReturnType<typeof memoryHost>, values: Record<string, unknown>) => {
+    host.settings.forTool('json').save(jsonSettings.schema, values as never);
+    await host.settings.forTool('json').flush();
+  };
+  const shows = () => ({
+    mode: screen.getByRole('radio', { name: 'Minify' }).getAttribute('data-state') === 'on' ? 'minify' : 'format',
+    indent: screen.getByLabelText('Indent').textContent,
+    sortKeys: screen.getByLabelText('Sort keys').getAttribute('data-state'),
+    allowComments: screen.getByLabelText('Allow comments').getAttribute('data-state'),
+  });
+
+  it('opens with the defaults and saves nothing until an option changes; reopened, it is as left', async () => {
+    const host = memoryHost();
+    const first = render(<JsonTool host={host} />);
+    expect(shows()).toEqual({ mode: 'format', indent: '2 spaces', sortKeys: 'unchecked', allowComments: 'unchecked' });
+    type('{"b":1,"a":2}');
+    await host.settings.forTool('json').flush();
+    expect(savedOf(host)).toBeUndefined();
+    await choose('Indent', 'Tab');
+    check('Sort keys');
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { indent: 'tab', sortKeys: true } });
+
+    render(<JsonTool host={host} input='{"b":1,"a":2}' />);
+    expect(shows()).toEqual({ mode: 'format', indent: 'Tab', sortKeys: 'checked', allowComments: 'unchecked' });
+    expect(output()).toBe('{\n\t"a": 2,\n\t"b": 1\n}');
+  });
+
+  it('a saved record it cannot show falls back field by field; the rest is used', async () => {
+    const host = memoryHost();
+    await seed(host, { mode: 'minify', indent: 3, sortKeys: 'yes', allowComments: true, unknown: 1 });
+    render(<JsonTool host={host} />);
+    expect(shows()).toEqual({ mode: 'minify', indent: '2 spaces', sortKeys: 'unchecked', allowComments: 'checked' });
+  });
+
+  it('an entry opened from History and a pasted text win for the visit and leave what is saved alone', async () => {
+    const host = memoryHost();
+    const recorder = host.history.forOwner('json', jsonHistory).session();
+    await recorder.commit({
+      kind: 'result',
+      label: 'Minify',
+      payload: { schema: 2, layout: 'minify', sortKeys: false, allowComments: false, action: 'copy' } as never,
+      blobs: { input: new Blob(['{"a": 1}']), result: new Blob(['{"a":1}']) },
+    });
+    const [entry] = (await host.history.forOwner('json', jsonHistory).list({})).entries;
+    await seed(host, { indent: 4, sortKeys: true });
+    const opened = render(<JsonTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText('Opened from History: Minify.')).toBeTruthy();
+    expect(shows()).toMatchObject({ mode: 'minify', sortKeys: 'unchecked' });
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { indent: 4, sortKeys: true } });
+
+    // A paste from the start page: its text, with the saved options.
+    render(<JsonTool host={host} input='{"b":1,"a":2}' />);
+    expect(shows()).toMatchObject({ mode: 'format', indent: '4 spaces', sortKeys: 'checked' });
+    expect(output()).toBe('{\n    "a": 2,\n    "b": 1\n}');
+    expect(savedOf(host)).toEqual({ schema: 1, values: { indent: 4, sortKeys: true } });
+  });
+
+  it('after an opened entry, a change writes only the option the person changed', async () => {
+    const host = memoryHost();
+    await host.history
+      .forOwner('json', jsonHistory)
+      .session()
+      .commit({
+        kind: 'result',
+        label: 'Format · Tab',
+        payload: { schema: 2, layout: 'tab', sortKeys: false, allowComments: false, action: 'copy' } as never,
+        blobs: { input: new Blob(['[]']), result: new Blob(['[]']) },
+      });
+    const [entry] = (await host.history.forOwner('json', jsonHistory).list({})).entries;
+    render(<JsonTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText('Opened from History: Format · Tab.')).toBeTruthy();
+    check('Allow comments');
+    await host.settings.forTool('json').flush();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { allowComments: true } });
+  });
+
+  it('reset puts every option back to its default and keeps the input; the result follows', async () => {
+    const host = memoryHost();
+    await seed(host, { mode: 'minify', sortKeys: true });
+    render(<JsonTool host={host} />);
+    type('{"b":1,"a":2}');
+    expect(output()).toBe('{"a":2,"b":1}');
+    await act(async () => host.settings.forTool('json').reset());
+    expect(shows()).toEqual({ mode: 'format', indent: '2 spaces', sortKeys: 'unchecked', allowComments: 'unchecked' });
+    expect(input().value).toBe('{"b":1,"a":2}');
+    expect(output()).toBe('{\n  "b": 1,\n  "a": 2\n}');
+    expect(savedOf(host)).toBeUndefined();
   });
 });

@@ -11,13 +11,16 @@
  * a result is a `change`; Copy and Convert are a `commit`. The history keeps them only encrypted, with a master password
  * set and unlocked; the line under the panes says which applies now. An entry opened from History brings the command and
  * the language back and records nothing. The page frame (title, summary, the history line) is the host's.
+ *
+ * Target is a saved parameter (settings.ts; docs/tools/settings.md): the page opens on the client the person chose last
+ * time where the host remembers it; an opened entry shows its own client for the visit without changing what is saved.
  */
 import { draftOf, readPayload } from './entries';
 import { curlToCodeHistory } from './history';
 import { createRunner } from './runner';
+import { curlToCodeSettings } from './settings';
 import {
   CREDENTIALS_NOTE,
-  DEFAULT_TARGET,
   LIVE_INPUT,
   MAX_INPUT,
   TARGET_GROUPS,
@@ -25,7 +28,7 @@ import {
   isTarget,
   loadGenerator,
 } from '@workspace/tool-logic-curl-to-code';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Label } from '@workspace/ui/label';
@@ -70,7 +73,8 @@ interface Ran {
 
 const CurlToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [command, setCommand] = useState(initial ?? '');
-  const [target, setTarget] = useState<Target>(DEFAULT_TARGET);
+  const saved = useSavedSettings(host, 'curl-to-code', curlToCodeSettings);
+  const { target } = saved.values;
   const [writers, setWriters] = useState<Partial<Record<Target, Generator>>>({});
   const [ran, setRan] = useState<Ran | null>(null);
   const [working, setWorking] = useState<{ text: string; target: Target } | null>(null);
@@ -166,7 +170,7 @@ const CurlToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElem
       edited.current = false;
       setMessage(null);
       setCommand(text);
-      setTarget(payload.target);
+      saved.visit({ target: payload.target });
       setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
     });
   });
@@ -214,7 +218,7 @@ const CurlToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElem
         <Select
           value={target}
           onValueChange={value => {
-            if (isTarget(value) && value !== target) edit(() => setTarget(value));
+            if (isTarget(value) && value !== target) edit(() => saved.set({ target: value }));
           }}>
           <SelectTrigger id="curl-to-code-target" className="min-w-56">
             <SelectValue />

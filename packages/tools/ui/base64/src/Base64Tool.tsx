@@ -5,11 +5,16 @@
  * refuses (§12). It records into the tool history through its host: an edit snapshot of the input, the options and the
  * result (`change`), and a commit when the result is taken — Copy or Swap; an entry the host asks to open comes back as
  * the input and the options. The page frame (title, summary, the history line) is the host's.
+ *
+ * The direction and the options are saved parameters (settings.ts; docs/tools/settings.md): the tool opens with what
+ * the person chose last time where the host remembers it; a paste opens Decode and an opened entry shows its own
+ * options, both for the visit only. Swap is the person's change of direction, saved like any other.
  */
 import { entryLabel, excerpt, isAlphabet, isLineLength, isMode } from './entries';
 import { base64History } from './history';
+import { base64Settings } from './settings';
 import { LIVE_INPUT, MAX_INPUT, SETTLE_MS, decodeText, defaultPadding, encodeText } from '@workspace/tool-logic-base64';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -20,7 +25,7 @@ import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { ToolMessage, ToolOptions, ToolPane, ToolPanes } from '@workspace/ui/tool-page';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Base64Payload, LineLength, Mode } from './history';
-import type { Base64Alphabet, Base64Options } from '@workspace/tool-logic-base64';
+import type { Base64Options } from '@workspace/tool-logic-base64';
 import type { HistoryDraft, ToolProps } from '@workspace/tools-host';
 import type { ReactElement } from 'react';
 
@@ -121,10 +126,8 @@ const useSettled = (input: string): string => {
 const Base64Tool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
   // Text handed over from the start page was recognised as Base64 (detectBase64): it is there to be decoded.
-  const [mode, setMode] = useState<Mode>(initial ? 'decode' : 'encode');
-  const [alphabet, setAlphabet] = useState<Base64Alphabet>('standard');
-  const [padding, setPadding] = useState(true);
-  const [lineLength, setLineLength] = useState<LineLength>(0);
+  const saved = useSavedSettings(host, 'base64', base64Settings, { opening: initial ? { mode: 'decode' } : undefined });
+  const { mode, alphabet, padding, lineLength } = saved.values;
   const [restored, setRestored] = useState<string | null>(null);
   const { history, recorder } = useToolHistory(host, 'base64', base64History);
 
@@ -158,7 +161,7 @@ const Base64Tool = ({ input: initial, host, restore }: ToolProps): ReactElement 
     take('swap');
     edit(() => {
       setInput(outcome.output);
-      setMode(mode === 'encode' ? 'decode' : 'encode');
+      saved.set({ mode: mode === 'encode' ? 'decode' : 'encode' });
     });
   };
 
@@ -177,12 +180,14 @@ const Base64Tool = ({ input: initial, host, restore }: ToolProps): ReactElement 
     void (opened.blobs.input?.text() ?? Promise.resolve('')).then(text => {
       edited.current = false;
       setInput(text);
-      setMode(isMode(p.mode) ? p.mode : opened.entry.kind === 'decode' ? 'decode' : 'encode');
-      setAlphabet(isAlphabet(p.alphabet) ? p.alphabet : 'standard');
-      setPadding(
-        typeof p.padding === 'boolean' ? p.padding : defaultPadding(isAlphabet(p.alphabet) ? p.alphabet : 'standard'),
-      );
-      setLineLength(isLineLength(p.lineLength) ? p.lineLength : 0);
+      // The entry's direction and options for this visit; what is saved stays as it was.
+      saved.visit({
+        mode: isMode(p.mode) ? p.mode : opened.entry.kind === 'decode' ? 'decode' : 'encode',
+        alphabet: isAlphabet(p.alphabet) ? p.alphabet : 'standard',
+        padding:
+          typeof p.padding === 'boolean' ? p.padding : defaultPadding(isAlphabet(p.alphabet) ? p.alphabet : 'standard'),
+        lineLength: isLineLength(p.lineLength) ? p.lineLength : 0,
+      });
       setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
     });
   });
@@ -197,7 +202,7 @@ const Base64Tool = ({ input: initial, host, restore }: ToolProps): ReactElement 
           aria-label="Direction"
           value={mode}
           onValueChange={value => {
-            if (isMode(value) && value !== mode) edit(() => setMode(value));
+            if (isMode(value) && value !== mode) edit(() => saved.set({ mode: value }));
           }}>
           <ToggleGroupItem value="encode">Encode</ToggleGroupItem>
           <ToggleGroupItem value="decode">Decode</ToggleGroupItem>
@@ -211,10 +216,8 @@ const Base64Tool = ({ input: initial, host, restore }: ToolProps): ReactElement 
               value={alphabet}
               onValueChange={value => {
                 if (!isAlphabet(value)) return;
-                edit(() => {
-                  setAlphabet(value);
-                  setPadding(defaultPadding(value));
-                });
+                // The alphabet brings its usual padding: the person's change of both.
+                edit(() => saved.set({ alphabet: value, padding: defaultPadding(value) }));
               }}>
               <SelectTrigger id="base64-alphabet" className="min-w-28">
                 <SelectValue />
@@ -228,7 +231,7 @@ const Base64Tool = ({ input: initial, host, restore }: ToolProps): ReactElement 
               <Checkbox
                 id="base64-padding"
                 checked={padding}
-                onCheckedChange={checked => edit(() => setPadding(checked === true))}
+                onCheckedChange={checked => edit(() => saved.set({ padding: checked === true }))}
               />
               <Label htmlFor="base64-padding" className="font-normal">
                 Padding
@@ -241,7 +244,7 @@ const Base64Tool = ({ input: initial, host, restore }: ToolProps): ReactElement 
               value={String(lineLength)}
               onValueChange={value => {
                 const next = Number(value);
-                if (isLineLength(next)) edit(() => setLineLength(next));
+                if (isLineLength(next)) edit(() => saved.set({ lineLength: next }));
               }}>
               <SelectTrigger id="base64-line-length" className="min-w-32">
                 <SelectValue />

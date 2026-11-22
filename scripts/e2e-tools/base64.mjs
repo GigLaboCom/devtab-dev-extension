@@ -6,6 +6,7 @@
 
 /* global document, location, HTMLTextAreaElement, requestAnimationFrame, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
 
+import { forgetSavedParameters } from '../e2e-helpers.mjs';
 import { themeMode, withSettings } from '../e2e-theme.mjs';
 
 export default async ({ ctx, page, base, check, shoot, sleep }) => {
@@ -309,5 +310,7 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
   await shoot(page, 'tool-base64-06-decode-error-dark.png');
   await themeMode(ctx, base, modeBefore.trim());
   await input.fill('');
+  // The direction and options it chose are saved parameters (D21): the next module opens Base64 with its defaults.
+  await forgetSavedParameters(page, 'base64');
   await cdp.detach();
 };

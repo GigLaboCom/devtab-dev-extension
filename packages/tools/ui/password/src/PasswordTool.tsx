@@ -13,9 +13,14 @@
  * "Copy automatically after generating" (the host's per-tool setting, docs/tools/copying.md): a press of Generate also
  * copies what Copy / Copy all would — never a change of the settings, the opening of the tool or of an entry. It is
  * not recorded again (Generate committed the set already); the screen reader hears one sentence for both.
+ *
+ * How passwords are made is a saved parameter (settings.ts; docs/tools/settings.md): the page opens with what the person
+ * chose last time where the host remembers it, and makes its first passwords with it; an opened entry shows its own
+ * settings for the visit without changing what is saved; the host's reset makes new passwords with the defaults.
  */
 import { passwordHistory } from './history';
 import { DEFAULT_FIELDS, fieldsOf, generatedLabel, readPayload, settingsOf } from './payload';
+import { fieldsFromSaved, passwordSettings, savedOf } from './settings';
 import {
   CHAR_SETS,
   DEFAULT_SYMBOLS,
@@ -26,7 +31,14 @@ import {
   strengthLine,
   strengthNote,
 } from '@workspace/tool-logic-password';
-import { AUTO_COPY_REFUSED, announceGenerated, useAutoCopy, useRestore, useToolHistory } from '@workspace/tools-host';
+import {
+  AUTO_COPY_REFUSED,
+  announceGenerated,
+  useAutoCopy,
+  useRestore,
+  useSavedSettings,
+  useToolHistory,
+} from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -36,7 +48,7 @@ import { ResultRow, ResultRows } from '@workspace/ui/result-row';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { ToolMessage, ToolOptions } from '@workspace/ui/tool-page';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PasswordPayload } from './history';
 import type { Fields, Mode } from './payload';
 import type { CharSet, FieldError, Generated, Separator, Settings } from '@workspace/tool-logic-password';
@@ -75,17 +87,25 @@ const keptSentence = (status: RecordingStatus): string =>
         ? 'Generated passwords are not kept while the history is locked.'
         : 'Generated passwords are not kept (no master password).';
 
-type Origin = 'edit' | 'generate';
+/** What made the passwords: the page opening (nothing recorded or said), a person's edit, or Generate. */
+type Origin = 'open' | 'edit' | 'generate';
 
 const PasswordTool = ({ host, restore }: ToolProps): ReactElement => {
-  const [fields, setFields] = useState<Fields>(DEFAULT_FIELDS);
+  // The reset control (the host's): new passwords with the defaults, as after any change of the settings.
+  const saved = useSavedSettings(host, 'password', passwordSettings, {
+    onReset: () => apply({ ...DEFAULT_FIELDS }, 'edit'),
+  });
+  const [opened] = useState<Fields>(() => fieldsFromSaved(saved.values));
+  const [fields, setFields] = useState<Fields>(opened);
   // The passwords are made when the tool opens (§4); null while the word list loads.
-  const [result, setResult] = useState<Generated | null>(() => generate(settingsOf(DEFAULT_FIELDS)));
+  const [result, setResult] = useState<Generated | null>(() =>
+    opened.mode === 'words' ? null : generate(settingsOf(opened)),
+  );
   const [announcement, setAnnouncement] = useState('');
   const [restored, setRestored] = useState<string | null>(null);
   const { history, recorder, status } = useToolHistory(host, 'password', passwordHistory);
   const autoCopy = useAutoCopy(host, 'password');
-  const latest = useRef(fields);
+  const latest = useRef(opened);
   const wordList = useRef<readonly string[] | null>(null);
   const loading = useRef<Promise<readonly string[]> | null>(null);
 
@@ -112,7 +132,7 @@ const PasswordTool = ({ host, restore }: ToolProps): ReactElement => {
   /** Shows a fresh result for `next`; a person's edit is a change, Generate a commit (and the automatic copy). */
   const shown = (next: Fields, g: Generated, origin: Origin): void => {
     setResult(g);
-    if (!g.ok) return;
+    if (!g.ok || origin === 'open') return;
     const generated = g.values.length === 1 ? 'New password generated' : `${g.values.length} new passwords generated`;
     const draft = draftOf(settingsOf(next), g);
     if (origin !== 'generate') {
@@ -151,7 +171,16 @@ const PasswordTool = ({ host, restore }: ToolProps): ReactElement => {
     shown(next, generate(settings, wordList.current ?? undefined), origin);
   };
 
-  const edit = (change: Partial<Fields>): void => apply({ ...latest.current, ...change }, 'edit');
+  const edit = (change: Partial<Fields>): void => {
+    saved.set(savedOf(change));
+    apply({ ...latest.current, ...change }, 'edit');
+  };
+
+  // Opened in Words (saved): the first passwords wait for the word list.
+  useEffect(() => {
+    if (opened.mode === 'words') apply(opened, 'open');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the page opens
+  }, []);
 
   const copied = (): void => {
     if (result?.ok) void recorder.commit(draftOf(settingsOf(latest.current), result));

@@ -37,6 +37,7 @@ const historyRows = page =>
 
 const passwordRows = async page => (await historyRows(page)).filter(r => r.owner === 'password');
 
+import { forgetSavedParameters } from '../e2e-helpers.mjs';
 import { themeMode } from '../e2e-theme.mjs';
 
 export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
@@ -353,4 +354,6 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   );
 
   for (const p of opened) await p.close();
+  // How passwords are made is a saved parameter (D21): the next module opens the tool with its defaults.
+  await forgetSavedParameters(page, 'password');
 };

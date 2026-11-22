@@ -11,11 +11,16 @@
  * or asks for — Copy, Save, Run — with the result (`commit`); an entry the host asks to open comes back as the text and
  * the options, entries of the first version of the tool too (entries.ts). Without a host the history is the page's
  * memory. The page frame (title, summary, the history line) is the host's; the body is built from the kit's tool parts.
+ *
+ * Its options are saved parameters (settings.ts; docs/tools/settings.md): it opens with what the person chose last
+ * time where the host remembers it, and an entry opened from History shows its own options for the visit without
+ * changing what is saved.
  */
 import { editDraft, isIndent, readEntry, resultDraft } from './entries';
 import { jsonHistory } from './history';
 import { printWithSize } from './printing';
 import { createRunner } from './runner';
+import { jsonSettings } from './settings';
 import {
   LIVE_INPUT,
   MAX_INPUT,
@@ -26,7 +31,7 @@ import {
   formatMegabytes,
   measureText,
 } from '@workspace/tool-logic-json';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -48,8 +53,6 @@ const INDENTS: Array<{ value: Indent; label: string }> = [
   { value: 4, label: '4 spaces' },
   { value: 'tab', label: 'Tab' },
 ];
-
-type Mode = 'format' | 'minify';
 
 const TOO_LARGE = 'Input is larger than 32 MB. This tool works with up to 32 MB.';
 const LARGE = 'Large input: press Run (Ctrl+Enter) to check it.';
@@ -82,10 +85,8 @@ const sameJob = (a: PrintJob, b: PrintJob): boolean =>
 const JsonTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
   const [file, setFile] = useState<LoadedFile | null>(null);
-  const [mode, setMode] = useState<Mode>('format');
-  const [indent, setIndent] = useState<Indent>(2);
-  const [sortKeys, setSortKeys] = useState(false);
-  const [allowComments, setAllowComments] = useState(false);
+  const saved = useSavedSettings(host, 'json', jsonSettings);
+  const { mode, indent, sortKeys, allowComments } = saved.values;
   /** What went wrong opening a file (too large, not UTF-8). */
   const [message, setMessage] = useState<string | null>(null);
   const [restored, setRestored] = useState<string | null>(null);
@@ -203,10 +204,13 @@ const JsonTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
       edited.current = false;
       setMessage(null);
       place(text, entry.file ?? 'History entry', measureText(text).bytes);
-      setMode(entry.layout === 'minify' ? 'minify' : 'format');
-      if (isIndent(entry.layout)) setIndent(entry.layout);
-      setSortKeys(entry.sortKeys);
-      setAllowComments(entry.allowComments);
+      // The entry's options for this visit; what is saved stays as it was.
+      saved.visit({
+        mode: entry.layout === 'minify' ? 'minify' : 'format',
+        ...(isIndent(entry.layout) ? { indent: entry.layout } : {}),
+        sortKeys: entry.sortKeys,
+        allowComments: entry.allowComments,
+      });
       setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
     });
   });
@@ -273,7 +277,7 @@ const JsonTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
           aria-label="Mode"
           value={mode}
           onValueChange={value => {
-            if ((value === 'format' || value === 'minify') && value !== mode) edit(() => setMode(value));
+            if ((value === 'format' || value === 'minify') && value !== mode) edit(() => saved.set({ mode: value }));
           }}>
           <ToggleGroupItem value="format">Format</ToggleGroupItem>
           <ToggleGroupItem value="minify">Minify</ToggleGroupItem>
@@ -286,7 +290,7 @@ const JsonTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
           disabled={mode === 'minify'}
           onValueChange={value => {
             const next = value === 'tab' ? 'tab' : Number(value);
-            if (isIndent(next)) edit(() => setIndent(next));
+            if (isIndent(next)) edit(() => saved.set({ indent: next }));
           }}>
           <SelectTrigger id="json-indent" className="min-w-28">
             <SelectValue />
@@ -303,7 +307,7 @@ const JsonTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
           <Checkbox
             id="json-sort"
             checked={sortKeys}
-            onCheckedChange={checked => edit(() => setSortKeys(checked === true))}
+            onCheckedChange={checked => edit(() => saved.set({ sortKeys: checked === true }))}
           />
           <Label htmlFor="json-sort" className="font-normal">
             Sort keys
@@ -313,7 +317,7 @@ const JsonTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
           <Checkbox
             id="json-comments"
             checked={allowComments}
-            onCheckedChange={checked => edit(() => setAllowComments(checked === true))}
+            onCheckedChange={checked => edit(() => saved.set({ allowComments: checked === true }))}
           />
           <Label htmlFor="json-comments" className="font-normal">
             Allow comments

@@ -509,7 +509,7 @@ describe('the Password Generator’s sources (§5.1, §5.7)', () => {
   it('use no Math.random, no console and no debug logger', () => {
     const root = dirname(fileURLToPath(import.meta.url));
     const files = readdirSync(root).filter(f => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f));
-    expect(files.length).toBe(4);
+    expect(files.length).toBe(5);
     for (const file of files)
       expect(readFileSync(join(root, file), 'utf8')).not.toMatch(/Math\.random|console\.|createDebug/);
   });
@@ -520,5 +520,117 @@ describe('the Password Generator’s sources (§5.1, §5.7)', () => {
     const rows = document.querySelectorAll('[data-slot="result-row"]');
     expect(rows).toHaveLength(3);
     expect(within(rows[1] as HTMLElement).getByRole('button', { name: 'Copy password 2' })).toBeTruthy();
+  });
+});
+
+describe('the Password Generator’s saved parameters (D21, docs/tools/settings.md)', () => {
+  type Host = ReturnType<typeof memoryHost>;
+  const savedOf = (host: Host) => host.settings.forTool('password').saved();
+  const seed = async (host: Host, values: Record<string, unknown>) => {
+    host.settings.forTool('password').save(1, values as never);
+    await host.settings.forTool('password').flush();
+  };
+  const field = (label: string) => (screen.getByLabelText(label) as HTMLInputElement).value;
+  const checked = (label: string) => screen.getByLabelText(label).getAttribute('data-state');
+  const all = () => [...document.querySelectorAll('[data-slot="result-row"] output')].map(o => o.textContent ?? '');
+
+  it('saves how passwords are made, never a password; reopened, the first passwords follow what was left', async () => {
+    const host = memoryHost();
+    const first = render(<PasswordTool host={host} />);
+    type('Length', '2');
+    await host.settings.forTool('password').flush();
+    // A length being typed is not saved.
+    expect(savedOf(host)).toBeUndefined();
+    type('Length', '24');
+    fireEvent.click(screen.getByLabelText('Digits (0–9)'));
+    type('Symbols to use', '-_!');
+    type('How many', '3');
+    const shown = all();
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { length: 24, setsDigits: false, symbols: '-_!', count: 3 } });
+    const stored = JSON.stringify(savedOf(host));
+    for (const value of shown) expect(stored).not.toContain(value);
+
+    render(<PasswordTool host={host} />);
+    expect([field('Length'), field('How many'), field('Symbols to use')]).toEqual(['24', '3', '-_!']);
+    expect(checked('Digits (0–9)')).toBe('unchecked');
+    expect(all()).toHaveLength(3);
+    for (const value of all()) expect(value).toMatch(/^[A-Za-z_!-]{24}$/);
+  });
+
+  it('a saved record it cannot show falls back field by field; every set off opens with the sets’ defaults', async () => {
+    const host = memoryHost();
+    await seed(host, {
+      length: 200,
+      count: 5,
+      separator: '+',
+      symbols: 'é',
+      setsUpper: false,
+      setsLower: false,
+      setsDigits: false,
+      setsSymbols: false,
+      avoidLookAlike: 'yes',
+    });
+    render(<PasswordTool host={host} />);
+    expect([field('Length'), field('How many'), field('Symbols to use')]).toEqual(['20', '5', DEFAULT_SYMBOLS]);
+    for (const set of ['Uppercase (A–Z)', 'Lowercase (a–z)', 'Digits (0–9)', 'Symbols'])
+      expect(checked(set)).toBe('checked');
+    expect(checked('Avoid look-alike characters (0 O 1 I l |)')).toBe('unchecked');
+    expect(all()).toHaveLength(5);
+  });
+
+  it('saved in Words: the page opens in Words and makes passphrases once the list is there, recording nothing', async () => {
+    const spy = spyHost();
+    const host = { ...spy.host, settings: memoryToolSettings() };
+    host.settings.forTool('password').save(1, { mode: 'words', words: 4, separator: '.' });
+    render(<PasswordTool host={host} />);
+    await waitFor(() => expect(password()).toMatch(/^[a-z-]+(\.[a-z-]+){3}$/), { timeout: 10_000 });
+    expect(field('Words')).toBe('4');
+    expect(spy.changes).toHaveLength(0);
+    expect(spy.commits).toHaveLength(0);
+  });
+
+  it('an entry opened from History shows its settings for the visit; what is saved stays', async () => {
+    const spy = spyHost();
+    const host = { ...spy.host, settings: memoryToolSettings() };
+    host.settings.forTool('password').save(1, { length: 30 });
+    spy.opened.set('e1', {
+      ok: true,
+      entry: {
+        id: 'e1',
+        owner: 'password',
+        kind: 'generated',
+        session: 's',
+        time: 0,
+        schema: 1,
+        encrypted: true,
+        bytes: 1,
+      },
+      label: 'kept',
+      payload: {
+        settings: { mode: 'words', count: 1, words: { words: 4, separator: '.', capitalize: true } },
+        values: ['Abacus.Zoom.Yo-yo.Woven'],
+      } as unknown as HistoryDraft['payload'],
+      blobs: {},
+    });
+    const opened = render(<PasswordTool host={host} restore={{ id: 'e1' }} />);
+    expect(await screen.findByText('Opened from History: kept.')).toBeTruthy();
+    expect(password()).toBe('Abacus.Zoom.Yo-yo.Woven');
+    opened.unmount();
+    expect(host.settings.forTool('password').saved()).toEqual({ schema: 1, values: { length: 30 } });
+    render(<PasswordTool host={host} />);
+    expect(field('Length')).toBe('30');
+    expect(password()).toHaveLength(30);
+  });
+
+  it('reset makes new passwords with the defaults, as any change would', async () => {
+    const host = memoryHost();
+    await seed(host, { length: 30, count: 2 });
+    render(<PasswordTool host={host} />);
+    expect(all()).toHaveLength(2);
+    await act(async () => host.settings.forTool('password').reset());
+    expect([field('Length'), field('How many')]).toEqual(['20', '1']);
+    expect(password()).toHaveLength(20);
+    expect(savedOf(host)).toBeUndefined();
   });
 });
