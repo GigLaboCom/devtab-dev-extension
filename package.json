@@ -4,6 +4,7 @@
   "description": "Workspace of the browser extension — turbo-orchestrated Manifest V3 extension (see extension/). The product name lives in extension/product.json.",
   "type": "module",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE.md",
   "packageManager": "pnpm@12.8.1",
   "engines": {
     "node": ">=22"

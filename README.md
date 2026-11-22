@@ -61,9 +61,22 @@ passes its checks without it; a `docs/…` or `spikes/…` path in a comment nam
 
 ## Contributing
 
+Changes from outside are not accepted yet: there is no contributor agreement to take them under. Issues are welcome.
+
 Rules: [`AGENTS.md`](AGENTS.md). Run `scripts/install-hooks.sh` once per clone: the hooks refuse secrets, private
 data and agent attribution in commits and pushes, and need [gitleaks](https://github.com/gitleaks/gitleaks).
 
 ## Licence
 
-No licence has been chosen yet.
+The source is available under the [Fair Core License, Version 1.0, ALv2 Future License](LICENSE.md)
+(`FCL-1.0-ALv2`). It is not an open source licence. In short, and the licence itself is what counts:
+
+- You may read, build, use and change the code for any purpose except a competing one: you may not offer it, or a
+  product made from it, to others as a commercial product or service that replaces this one or does substantially
+  the same.
+- You may not remove, change or get around the licence key check that protects paid features.
+- Each version becomes available under the Apache License, Version 2.0 two years after it is published.
+
+The name DevTab.Dev and its icons are not licensed: a build of your own needs a name and icons of its own
+(`extension/product.json`). The licences of the libraries and data that ship with the extension are in `licenses/`
+of a build.
