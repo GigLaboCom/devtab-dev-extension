@@ -17,6 +17,13 @@
  *   const autoCopy = useAutoCopy(host, 'password');    // "Copy automatically after generating" (autoCopy.ts)
  *   autoCopy.afterGenerate(text);                      // only from the person's Generate
  *
+ * The same entry keeps the tool's saved parameters (D21, savedSettings.ts): what the person chose last time, declared
+ * with defaults and a check per field; the host keeps them in storage (Pro) or in the page's memory (free) and offers
+ * the reset control (`useSettingsReset`).
+ *
+ *   export const jsonSettings = declareSettings({ schema: 1, fields: { sortKeys: setting.boolean(false) } });
+ *   const saved = useSavedSettings(host, 'json', jsonSettings);   // saved.values, saved.set(…), saved.visit(…)
+ *
  * Navigation is the third (navigation.ts): a tool sends the person to another place of the host, handing it texts in
  * memory; with no host it cannot go and says so.
  *
@@ -40,6 +47,8 @@ export type {
   ToolShortcut,
 } from './host';
 export {
+  SAVE_AFTER_MS,
+  SAVED_PARAMETERS_MAX_CHARS,
   createToolSettings,
   memoryToolSettings,
   memoryToolSettingsArea,
@@ -49,8 +58,13 @@ export {
   valuesForTool,
 } from './settings';
 export type {
+  DiffersFromDefaults,
+  KeepParameter,
   OwnSettings,
+  ParameterChange,
+  ParameterValue,
   SettingValue,
+  StoredParameters,
   ToolSettings,
   ToolSettingsArea,
   ToolSettingsRecord,
@@ -58,6 +72,25 @@ export type {
   ToolSettingValues,
 } from './settings';
 export { useToolSettings } from './useToolSettings';
+export {
+  declareSettings,
+  defaultsOf,
+  differsFromDefaults,
+  readSaved,
+  sameParameter,
+  setting,
+  useSavedSettings,
+  useSettingsReset,
+} from './savedSettings';
+export type {
+  Fallback,
+  ParameterValues,
+  SavedSettings,
+  SavedSettingsOptions,
+  Setting,
+  SettingsDeclaration,
+  SettingsValues,
+} from './savedSettings';
 export { navigationOf, noNavigation } from './navigation';
 export type { GoOptions, HandedText, Handover, HostPlace, ToolNavigation } from './navigation';
 export { AUTO_COPY, AUTO_COPY_REFUSED, announceGenerated, autoCopyApplies, useAutoCopy } from './autoCopy';

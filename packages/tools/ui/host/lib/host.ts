@@ -17,7 +17,8 @@ export interface ToolHost {
   /** The history factory: `history.forOwner(toolId, declaration)`. */
   history: HistoryFactory;
   /**
-   * Per-tool settings: `settings.forTool(toolId)` — the tool's own entry, followed live (settings.ts). Absent: the
+   * Per-tool settings: `settings.forTool(toolId)` — the tool's own entry, followed live (settings.ts), with the tool's
+   * saved parameters (savedSettings.ts: in storage, or in the page's memory — the host's choice, D21). Absent: the
    * page's in-memory default (`defaultToolHost.settings`), so a host that keeps none still works.
    */
   settings?: ToolSettings;
