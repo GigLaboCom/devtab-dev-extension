@@ -31,8 +31,10 @@ const PER_TOOL_LIMIT = 200;
 const START_ROUTE_BUDGET = 512000;
 /** What renaming by the minifier may add or take beyond the catalogue's bytes, all files together. */
 const RENAME_SLACK = 64;
-/** The tools docs/tools/README.md specifies. */
+/** The tools docs/tools/README.md specified when this check was written; the projection reaches at least that many. */
 const TOOLS_SPECIFIED = 34;
+/** Synthetic tools added even when every specified tool is built: with none the check would measure nothing. */
+const MIN_SYNTHETIC = 8;
 
 const args = process.argv.slice(2);
 const option = name => args.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -154,7 +156,7 @@ const measure = (dir, firstId) => {
   return { bytes: bytesOf(files), ...normalised(dir, firstId) };
 };
 
-const count = Number(option('tools') ?? TOOLS_SPECIFIED - realTools().length);
+const count = Number(option('tools') ?? Math.max(MIN_SYNTHETIC, TOOLS_SPECIFIED - realTools().length));
 const work = mkdtempSync(join(tmpdir(), 'start-route-growth-'));
 removeSynthetic();
 const real = realTools();
@@ -179,13 +181,13 @@ try {
   );
   const perTool = (more.bytes - now.bytes) / count;
   const perRealTool = now.catalogue / real.length;
-  const projected = Math.round(now.bytes + (TOOLS_SPECIFIED - real.length) * Math.max(perTool, perRealTool));
+  const projected = Math.round(now.bytes + count * Math.max(perTool, perRealTool));
   result = {
     tools: real.length,
     startRoute: now.bytes,
     catalogue: { bytes: now.catalogue, perTool: Math.round(perRealTool) },
     synthetic: { count, startRoute: more.bytes, catalogue: more.catalogue, perTool: Math.round(perTool) },
-    projected: { tools: TOOLS_SPECIFIED, startRoute: projected, budget: START_ROUTE_BUDGET },
+    projected: { tools: real.length + count, startRoute: projected, budget: START_ROUTE_BUDGET },
     differing,
     beyondCatalogue: more.bytes - now.bytes - (more.catalogue - now.catalogue),
   };
@@ -206,7 +208,7 @@ const failures = [
       ]
     : []),
   ...(result.projected.startRoute > START_ROUTE_BUDGET
-    ? [`with ${TOOLS_SPECIFIED} tools the start route would load ${result.projected.startRoute} bytes`]
+    ? [`with ${result.projected.tools} tools the start route would load ${result.projected.startRoute} bytes`]
     : []),
 ];
 
@@ -222,7 +224,7 @@ else {
     `  every start-route file the same beyond the catalogue: ${result.differing.length ? `no — ${result.differing.join(', ')}` : 'yes'}; the catalogue grew by ${n(result.synthetic.catalogue - result.catalogue.bytes)}, the rest by ${result.beyondCatalogue} bytes (renaming by the minifier may move ±${RENAME_SLACK})`,
   );
   console.log(
-    `Projected with ${TOOLS_SPECIFIED} tools: ${n(result.projected.startRoute)} bytes (budget ${n(START_ROUTE_BUDGET)})`,
+    `Projected with ${result.projected.tools} tools: ${n(result.projected.startRoute)} bytes (budget ${n(START_ROUTE_BUDGET)})`,
   );
 }
 if (failures.length) {
