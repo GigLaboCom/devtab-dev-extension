@@ -3,7 +3,7 @@
 // each tool's own (run by scripts/e2e-tools.mjs like them; it runs first and leaves the setting off).
 //   - Settings → Tools: one switch, off, listing the tools it applies to; flipping it upserts `autoCopy` into the entry
 //     of each of them in chrome.storage.local, and a tool page already open follows it live;
-//   - switched on, Generate in Password Generator and in UUID / ULID puts the result on the clipboard — a batch all of it,
+//   - switched on, Generate in Password Generator, UUID / ULID and Random String puts the result on the clipboard — a batch all of it,
 //     one per line — and the copy button says Copied; a change of an option, opening a tool's page and opening an entry
 //     from History copy nothing; switched off, Generate copies nothing.
 // The clipboard is the test browser's own (a browser without a window keeps its own — the machine's is never touched),
@@ -135,6 +135,28 @@ export default async ({ ctx, page, base, id, check, sleep, report }) => {
         (await uu.locator('[aria-live="polite"]').textContent()) === '3 new identifiers generated and copied',
       batch.replaceAll('\n', ' '),
     );
+
+    // Random String: opening and a change copy nothing; Generate copies the batch, as Copy all.
+    await put(uu, 'sentinel-random-string');
+    const rs = await open('#/tools/random-string');
+    await rs.locator('[data-entropy]').waitFor();
+    await rs.getByLabel('Length', { exact: true }).fill('20');
+    await sleep(500);
+    check(
+      `${T}: switched on, opening Random String and a change of Length copy nothing`,
+      (await read(rs)) === 'sentinel-random-string',
+    );
+    await generate(rs);
+    await rs.getByRole('button', { name: 'Copied', exact: true }).waitFor({ timeout: 3000 });
+    const strings = await rs.locator('[aria-label="Generated strings"] output').allTextContents();
+    check(
+      `${T}: Generate in Random String copies the whole batch, as Copy all`,
+      strings.length === 10 &&
+        strings.every(s => s.length === 20) &&
+        (await read(rs)) === strings.join('\n') &&
+        (await rs.locator('[aria-live="polite"]').textContent()) === '10 strings generated and copied',
+    );
+    await uu.bringToFront();
 
     // Opening an entry from History copies nothing.
     await put(uu, 'sentinel-history');
