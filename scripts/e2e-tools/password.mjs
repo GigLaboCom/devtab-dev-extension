@@ -32,7 +32,7 @@ const historyRows = page =>
       r.onerror = () => rej(r.error);
     });
     db.close();
-    return rows.map(row => ({ owner: row.owner, kind: row.kind, kid: row.kid ?? null, line: row.line }));
+    return rows.map(row => ({ id: row.id, owner: row.owner, kind: row.kind, kid: row.kid ?? null, line: row.line }));
   });
 
 const passwordRows = async page => (await historyRows(page)).filter(r => r.owner === 'password');
@@ -298,7 +298,8 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   await history.locator('[data-page="history"]').waitFor();
   await history.getByRole('button', { name: 'Lock now' }).click();
   await history.locator('.kit-history-lock[data-vault="locked"]').waitFor();
-  const entry = history.locator('.kit-history-entry[data-kind="generated"]');
+  // By its id: other generators (Key Pairs) list entries of the same kind.
+  const entry = history.locator(`.kit-history-entry[data-entry="${row?.id}"]`);
   await entry.waitFor();
   check(`${T}: History lists it as an encrypted entry`, /Encrypted entry/.test(await entry.innerText()));
   await entry.getByRole('button', { name: 'Open' }).click();
@@ -326,7 +327,7 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   await group.getByText('Unlocked.', { exact: true }).waitFor();
   await history.bringToFront();
   await history.goto(`${base}#/history`);
-  await history.locator('.kit-history-entry[data-kind="generated"]').getByRole('button', { name: 'Open' }).click();
+  await history.locator(`.kit-history-entry[data-entry="${row?.id}"]`).getByRole('button', { name: 'Open' }).click();
   await history.locator('[data-restored]').waitFor();
   const restoredText = await history.locator('[data-restored]').innerText();
   check(
