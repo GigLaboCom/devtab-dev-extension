@@ -50,6 +50,19 @@ describe('the tool page frame', () => {
     expect(screen.getByText('Paste JSON to start.')).toBeTruthy();
   });
 
+  it('the settings notice: a line of the host’s words under the summary while it passes one, a status coloured as an error', () => {
+    const view = render(<ToolPage title="JSON" summary="Format JSON." />);
+    expect(document.querySelector('[data-part="settings-notice"]')).toBeNull();
+    view.rerender(<ToolPage title="JSON" summary="Format JSON." settingsNotice="Settings could not be saved." />);
+    const notice = document.querySelector('[data-part="settings-notice"]')!;
+    expect(notice.textContent).toBe('Settings could not be saved.');
+    expect(notice.getAttribute('role')).toBe('status');
+    expect((notice as HTMLElement).dataset.tone).toBe('error');
+    expect(document.querySelector('.kit-tool-page-head')!.contains(notice)).toBe(true);
+    view.rerender(<ToolPage title="JSON" summary="Format JSON." />);
+    expect(document.querySelector('[data-part="settings-notice"]')).toBeNull();
+  });
+
   it('no reset control unless the host passes one', () => {
     render(<ToolPage title="JSON" />);
     expect(screen.queryByRole('button', { name: 'Reset settings' })).toBeNull();

@@ -18,6 +18,10 @@
  * title's line — the same in every tool, which writes none of it. Pressing it calls the host, says "Settings reset to
  * defaults." once to a screen reader and moves the focus to the tool's title (the button goes away with the
  * difference); Tab goes on from there into the tool.
+ *
+ * The settings notice: one line of words under the summary, which the host passes (`settingsNotice`) while it has
+ * something true to say about the tool's saved settings — that the last change could not be saved. It is a status, read
+ * out politely when it appears, coloured as an error; absent, there is no line and no gap.
  */
 import { Button } from './button';
 import { Label } from './label';
@@ -42,6 +46,8 @@ export interface ToolPageProps extends Omit<ComponentProps<'section'>, 'title'> 
    * shows "Reset settings". Absent: no control.
    */
   onResetSettings?: () => void;
+  /** What the host has to say about the tool's saved settings now (a save that failed), in words. Absent: no line. */
+  settingsNotice?: ReactNode;
 }
 
 export const ToolPage = ({
@@ -50,6 +56,7 @@ export const ToolPage = ({
   history,
   level = 2,
   onResetSettings,
+  settingsNotice,
   className,
   children,
   ...props
@@ -86,6 +93,11 @@ export const ToolPage = ({
           )}
         </div>
         {summary && <p className="kit-tool-page-summary">{summary}</p>}
+        {settingsNotice && (
+          <p className="kit-tool-message" data-tone="error" role="status" data-part="settings-notice">
+            {settingsNotice}
+          </p>
+        )}
         <p className="sr-only" role="status" data-part="reset-announcement">
           {said}
         </p>
