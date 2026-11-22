@@ -63,8 +63,18 @@
     @apply flex flex-col gap-0.5;
   }
 
+  /* The title's line: the title, and at its end the host's "Reset settings" (shown while a tool's saved parameters
+     differ from its defaults) */
+  .kit-tool-page-title-line {
+    @apply flex min-h-7 flex-wrap items-center justify-between gap-x-3 gap-y-1;
+  }
+
   .kit-tool-page-title {
-    @apply text-foreground m-0 text-base font-semibold;
+    @apply text-foreground m-0 text-base font-semibold outline-none;
+  }
+
+  .kit-tool-page-reset {
+    @apply ms-auto;
   }
 
   .kit-tool-page-summary {

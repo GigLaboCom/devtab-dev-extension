@@ -3,6 +3,7 @@
  * `kit-tool-*` in @workspace/dna/style-gpui.css (any host of the tools wears it; not the extension's frame).
  *
  *   <ToolPage title summary history>     the host wraps every tool in it: title, summary, the host's history line
+ *            onResetSettings>            and, when the host offers it, "Reset settings" on the title's line
  *     <ToolOptions>                      the tool's body starts here: a row of options and actions
  *     <ToolPanes>                        input and result side by side (`layout="stacked"`: one under the other)
  *       <ToolPane label="Input" htmlFor actions>…<ToolMessage tone="error">…</ToolMessage></ToolPane>
@@ -11,10 +12,22 @@
  *
  * A message is words next to the field it is about: an error (`tone="error"`, read out at once — role `alert`), a note
  * or a success (role `status`). Its line keeps its height while empty, so the page does not jump while typing.
+ *
+ * The reset control (D21, docs/tools/settings.md): the host passes `onResetSettings` while the tool's saved parameters
+ * differ from its defaults (in a host that remembers them); the page shows one "Reset settings" button at the end of the
+ * title's line — the same in every tool, which writes none of it. Pressing it calls the host, says "Settings reset to
+ * defaults." once to a screen reader and moves the focus to the tool's title (the button goes away with the
+ * difference); Tab goes on from there into the tool.
  */
+import { Button } from './button';
 import { Label } from './label';
 import { cn } from '../lib/utils';
+import { RotateCcwIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import type { ComponentProps, ReactElement, ReactNode } from 'react';
+
+/** What the reset control says when it was pressed. */
+export const SETTINGS_RESET = 'Settings reset to defaults.';
 
 export interface ToolPageProps extends Omit<ComponentProps<'section'>, 'title'> {
   title: ReactNode;
@@ -24,6 +37,11 @@ export interface ToolPageProps extends Omit<ComponentProps<'section'>, 'title'> 
   history?: ReactNode;
   /** The heading level of the title (the host's page has its own h1). */
   level?: 1 | 2 | 3;
+  /**
+   * Puts the tool's saved settings back to their defaults — passed only while they differ from them: the page then
+   * shows "Reset settings". Absent: no control.
+   */
+  onResetSettings?: () => void;
 }
 
 export const ToolPage = ({
@@ -31,16 +49,46 @@ export const ToolPage = ({
   summary,
   history,
   level = 2,
+  onResetSettings,
   className,
   children,
   ...props
 }: ToolPageProps): ReactElement => {
   const Heading = `h${level}` as const;
+  const heading = useRef<HTMLHeadingElement>(null);
+  const [said, setSaid] = useState('');
+  // Offered again (a new difference): the next reset is read out again.
+  const offered = onResetSettings !== undefined;
+  useEffect(() => {
+    if (offered) setSaid('');
+  }, [offered]);
   return (
     <section data-slot="tool-page" className={cn('kit-tool-page', className)} {...props}>
       <header className="kit-tool-page-head">
-        <Heading className="kit-tool-page-title">{title}</Heading>
+        <div className="kit-tool-page-title-line">
+          <Heading ref={heading} tabIndex={-1} className="kit-tool-page-title">
+            {title}
+          </Heading>
+          {onResetSettings && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="kit-tool-page-reset"
+              data-part="reset-settings"
+              onClick={() => {
+                onResetSettings();
+                setSaid(SETTINGS_RESET);
+                heading.current?.focus();
+              }}>
+              <RotateCcwIcon aria-hidden="true" />
+              Reset settings
+            </Button>
+          )}
+        </div>
         {summary && <p className="kit-tool-page-summary">{summary}</p>}
+        <p className="sr-only" role="status" data-part="reset-announcement">
+          {said}
+        </p>
       </header>
       {history}
       {children}
