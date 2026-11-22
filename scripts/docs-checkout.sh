@@ -9,8 +9,8 @@
 # working copy's docs/, so every worktree reads the same documents and a change to them is made, and committed, in
 # one place. Run again, it changes nothing.
 #
-# devtab-dev-docs has no remote yet: until the owner creates one, there is nothing to clone, and the script says
-# so and stops. Give the address with DEVTAB_DEV_DOCS_URL once it exists:
+# devtab-dev-docs is private and this repository does not name its address: give it with DEVTAB_DEV_DOCS_URL.
+# Without it there is nothing to clone, and the script says so and stops.
 #
 #   DEVTAB_DEV_DOCS_URL=<url> scripts/docs-checkout.sh
 #   scripts/docs-checkout.sh                        # in a linked worktree: links the main copy's docs/
@@ -44,8 +44,8 @@ if [[ "$main" != "$root" && -d "$main/docs/.git" ]]; then
 fi
 
 if [[ -z "$url" ]]; then
-  echo "The developer documents (devtab-dev-docs) have no remote repository yet: nothing to clone." >&2
-  echo "Once the owner creates one: DEVTAB_DEV_DOCS_URL=<url> scripts/docs-checkout.sh" >&2
+  echo "The developer documents (devtab-dev-docs) are a private repository; its address is not given." >&2
+  echo "With access to it: DEVTAB_DEV_DOCS_URL=<url> scripts/docs-checkout.sh" >&2
   echo "Without docs/ everything here still installs, builds and passes its checks." >&2
   exit 1
 fi

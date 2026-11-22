@@ -133,8 +133,8 @@ tools.
 
 ## Repositories
 
-Decision D15. The project's code name is `devtab-dev` (domain `devtab.dev`); it is three repositories named
-after it, and a clone of this one has only the first:
+Decisions D15 and D18. The project's code name is `devtab-dev` (domain `devtab.dev`); it is four repositories
+named after it, and a clone of this one has only the first:
 
 - **This repository — `devtab-dev-extension`**: `extension/`, `packages/`, `crates/`, `vendor/gpui-kit/`, the
   scripts and the rules. It may become public: nothing private is ever committed here (see "Commits").
@@ -142,9 +142,10 @@ after it, and a clone of this one has only the first:
   screenshots and the experiments (`docs/spikes/`) — are a private repository of their own that lives in `docs/`
   and is not part of this one. `.gitignore` keeps out `docs` and `spikes` (a link to `docs/spikes`, so the paths `spikes/…` resolve); the
   pre-commit hook refuses them too, so never `git add -f` them. Commit documents in `docs/` itself.
-  `scripts/docs-checkout.sh` clones them once the repository has a remote (it has none yet; the script says so and
-  stops) and, in a linked worktree, links `docs` to the main working copy's `docs/`.
-- **The product site, `devtab-dev-site`,** is a separate repository and shares nothing with this one yet.
+  `scripts/docs-checkout.sh` clones them from the address in `DEVTAB_DEV_DOCS_URL` (without it the script says so
+  and stops) and, in a linked worktree, links `docs` to the main working copy's `docs/`.
+- **The product site, `devtab-dev-web`,** is a separate repository and shares nothing with this one yet.
+- **The companion, `devtab-dev-server`,** for reviewing local changes, is a separate repository with no code yet.
 
 This repository installs, lints, type-checks, builds, tests and passes `pnpm test:e2e` without `docs/`. Nothing in
 the build, the tests or the scripts reads or writes `docs/` or `spikes/` by default: screenshots go only where

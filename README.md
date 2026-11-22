@@ -52,11 +52,12 @@ pnpm package                  # a checked zip in dist-zip/
 
 ## Developer documents
 
-The project has three repositories: this one, `devtab-dev-docs` and the product site, `devtab-dev-site`.
+The project has four repositories: this one (`devtab-dev-extension`), `devtab-dev-docs`, the product site,
+`devtab-dev-web`, and `devtab-dev-server`, a companion for reviewing local changes that has no code yet.
 Decisions, the plan, research, the tool specifications, screenshots and the experiments are `devtab-dev-docs`, a
 private repository that lives in `docs/` and is not part of this one (`.gitignore`). Everything here installs, builds and
 passes its checks without it; a `docs/…` or `spikes/…` path in a comment names a document of `devtab-dev-docs`.
-`scripts/docs-checkout.sh` puts it in place once it has a remote.
+`scripts/docs-checkout.sh` puts it in place, given its address in `DEVTAB_DEV_DOCS_URL`.
 
 ## Contributing
 
