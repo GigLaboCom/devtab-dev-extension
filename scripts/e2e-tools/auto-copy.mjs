@@ -176,6 +176,20 @@ export default async ({ ctx, page, base, id, check, sleep, report }) => {
         (await read(li)) === lorem &&
         (await li.locator('[data-status]').textContent()).endsWith(' · copied'),
     );
+    // Key Pairs: opening copies nothing; Generate copies the public key — never the private one.
+    await put(li, 'sentinel-keys');
+    const kp = await open('#/tools/keys');
+    await kp.locator('[data-generate]').waitFor();
+    await sleep(500);
+    check(`${T}: switched on, opening Key Pairs copies nothing`, (await read(kp)) === 'sentinel-keys');
+    await generate(kp);
+    await kp.locator('[data-copy-public][data-copied]').waitFor({ timeout: 5000 });
+    const publicKey = await kp.getByLabel('Public key', { exact: true }).inputValue();
+    const onClipboard = await read(kp);
+    check(
+      `${T}: Generate in Key Pairs copies the public key as its Copy would, never the private key`,
+      onClipboard === publicKey && onClipboard.startsWith('ssh-ed25519 ') && !onClipboard.includes('PRIVATE'),
+    );
     await uu.bringToFront();
 
     // Opening an entry from History copies nothing.
