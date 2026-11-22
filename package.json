@@ -18,7 +18,7 @@
     "base-dev": "rm -rf dist && turbo ready && turbo watch dev --ui=stream",
     "dev": "pnpm set-global-env CLI_CEB_DEV=true && pnpm base-dev",
     "type-check": "turbo type-check",
-    "test": "turbo test",
+    "test": "turbo test --concurrency=6",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write --cache",
