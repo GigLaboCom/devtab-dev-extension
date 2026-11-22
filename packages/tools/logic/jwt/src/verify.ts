@@ -4,7 +4,7 @@
  * `crypto.subtle.verify` decides — for HMAC too, never a comparison of strings. A key carried in the token itself is
  * never used, and nothing is fetched.
  */
-import { readTlv, spkiKind } from './der';
+import { spansAll, spkiKind } from './der';
 import { jwkDescription, jwkKind, kindWords } from './key';
 import type { Decoded } from './decode';
 import type { Jwk, ParsedKey, VerifyKey } from './key';
@@ -168,7 +168,7 @@ const errorName = (error: unknown): string =>
     : 'Error';
 
 /** A DER SEQUENCE spanning all the bytes: an ECDSA signature in X.509's form, not JWS's r ‖ s. */
-const looksDer = (bytes: Uint8Array): boolean => bytes[0] === 0x30 && readTlv(bytes, 0)?.end === bytes.length;
+const looksDer = (bytes: Uint8Array): boolean => spansAll(bytes, 0x30);
 
 /** What is left for WebCrypto once every check that needs none has passed. */
 interface Plan {

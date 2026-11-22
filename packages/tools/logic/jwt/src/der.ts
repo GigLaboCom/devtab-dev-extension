@@ -1,73 +1,36 @@
 /**
- * The little DER the tool needs (docs/tools/specs/jwt.md §5.4): read a TLV and its children, take the
- * `subjectPublicKeyInfo` out of a certificate (RFC 5280 §4.1), wrap a PKCS#1 `RSAPublicKey` into an SPKI (WebCrypto
- * imports only SPKI), and say what kind of key an SPKI holds — before WebCrypto sees it, so a wrong key gets words.
- * Definite lengths only (DER); anything else reads as "not this".
+ * The keys the tool reads from DER (docs/tools/specs/jwt.md §5.4): take the `subjectPublicKeyInfo` out of a certificate
+ * (RFC 5280 §4.1), wrap a PKCS#1 `RSAPublicKey` into an SPKI (WebCrypto imports only SPKI), and say what kind of key an
+ * SPKI holds — before WebCrypto sees it, so a wrong key gets words. Elements are read by the shared strict DER reader
+ * (@workspace/tools-shared/der: definite, shortest-form lengths only); anything it refuses reads as "not this".
  */
+import { children, isContext, isUniversal, readOid, readTlv, UNIVERSAL } from '@workspace/tools-shared/der';
+import type { Tlv } from '@workspace/tools-shared/der';
 
-export interface Tlv {
-  /** The identifier octet (low tag numbers only: 0x30 SEQUENCE, 0x02 INTEGER, 0xa0 [0] …). */
-  tag: number;
-  start: number;
-  /** Where the content starts. */
-  body: number;
-  end: number;
-}
+const { SEQUENCE, BIT_STRING, INTEGER, OBJECT_IDENTIFIER } = UNIVERSAL;
 
-/** The element at `offset`, or null when it is not a DER element that fits in `der`. */
-export const readTlv = (der: Uint8Array, offset: number): Tlv | null => {
-  if (offset + 2 > der.length) return null;
-  const tag = der[offset]!;
-  if ((tag & 0x1f) === 0x1f) return null;
-  let length = der[offset + 1]!;
-  let body = offset + 2;
-  if (length & 0x80) {
-    const count = length & 0x7f;
-    if (count === 0 || count > 4 || body + count > der.length) return null;
-    length = 0;
-    for (let i = 0; i < count; i++) length = length * 256 + der[body + i]!;
-    body += count;
-  }
-  const end = body + length;
-  return end > der.length ? null : { tag, start: offset, body, end };
+/** A SEQUENCE at `offset` and its elements, or null when it is not one that DER reads. */
+const sequenceAt = (der: Uint8Array, offset = 0, limit = der.length): { tlv: Tlv; items: Tlv[] } | null => {
+  const read = readTlv(der, offset, limit);
+  if (!read.ok || !isUniversal(read.tlv, SEQUENCE) || !read.tlv.constructed) return null;
+  const items = children(der, read.tlv);
+  return items.ok ? { tlv: read.tlv, items: items.items } : null;
 };
 
-/** The elements inside a constructed element, or null when they do not fill it exactly. */
-export const children = (der: Uint8Array, parent: Tlv): Tlv[] | null => {
-  const items: Tlv[] = [];
-  for (let at = parent.body; at < parent.end;) {
-    const item = readTlv(der, at);
-    if (!item || item.end > parent.end) return null;
-    items.push(item);
-    at = item.end;
-  }
-  return items;
+/** A primitive element of this universal type (the identifier octet the tool used to compare: 0x02, 0x03, 0x06). */
+const primitive = (tlv: Tlv | undefined, tag: number): boolean => !!tlv && isUniversal(tlv, tag) && !tlv.constructed;
+
+const oidOf = (der: Uint8Array, tlv: Tlv | undefined): string | undefined => {
+  if (!primitive(tlv, OBJECT_IDENTIFIER)) return undefined;
+  const oid = readOid(der, tlv!);
+  return oid.ok ? oid.value : undefined;
 };
 
-const SEQUENCE = 0x30;
-const BIT_STRING = 0x03;
-const OID = 0x06;
-const INTEGER = 0x02;
-
-/** Dotted notation of an OBJECT IDENTIFIER's content. */
-const readOid = (der: Uint8Array, tlv: Tlv): string => {
-  const arcs: number[] = [];
-  let value = 0;
-  for (let i = tlv.body; i < tlv.end; i++) {
-    value = value * 128 + (der[i]! & 0x7f);
-    if (der[i]! & 0x80) continue;
-    if (arcs.length === 0) arcs.push(value < 80 ? Math.floor(value / 40) : 2, value < 80 ? value % 40 : value - 80);
-    else arcs.push(value);
-    value = 0;
-  }
-  return arcs.join('.');
-};
-
-const sequenceAt = (der: Uint8Array, offset = 0): { tlv: Tlv; items: Tlv[] } | null => {
-  const tlv = readTlv(der, offset);
-  if (!tlv || tlv.tag !== SEQUENCE) return null;
-  const items = children(der, tlv);
-  return items && { tlv, items };
+/** A DER element that spans all the bytes, with `firstByte` as its identifier (0x30: a SEQUENCE). */
+export const spansAll = (bytes: Uint8Array, firstByte: number): boolean => {
+  if (bytes[0] !== firstByte) return false;
+  const read = readTlv(bytes, 0);
+  return read.ok && read.tlv.end === bytes.length;
 };
 
 /**
@@ -79,9 +42,10 @@ export const spkiOfCertificate = (der: Uint8Array): Uint8Array | null => {
   if (!certificate || certificate.tlv.end !== der.length || certificate.items.length !== 3) return null;
   const tbs = sequenceAt(der, certificate.items[0]!.start);
   if (!tbs) return null;
-  const fields = tbs.items[0]?.tag === 0xa0 ? tbs.items.slice(1) : tbs.items;
+  const first = tbs.items[0];
+  const fields = first && isContext(first, 0) && first.constructed ? tbs.items.slice(1) : tbs.items;
   const spki = fields[5];
-  if (!spki || spki.tag !== SEQUENCE) return null;
+  if (!spki || !isUniversal(spki, SEQUENCE) || !spki.constructed) return null;
   return der.slice(spki.start, spki.end);
 };
 
@@ -101,7 +65,7 @@ const RSA_ALGORITHM = [0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0
 
 /** PKCS#1 `RSAPublicKey` → SPKI: SEQUENCE { AlgorithmIdentifier, BIT STRING (0x00 ‖ pkcs1) }. */
 export const spkiOfPkcs1 = (pkcs1: Uint8Array): Uint8Array<ArrayBuffer> =>
-  new Uint8Array(element(SEQUENCE, [...RSA_ALGORITHM, ...element(BIT_STRING, [0, ...pkcs1])]));
+  new Uint8Array(element(0x30, [...RSA_ALGORITHM, ...element(0x03, [0, ...pkcs1])]));
 
 export type SpkiKind =
   | { type: 'RSA'; bits: number }
@@ -122,19 +86,25 @@ export const spkiKind = (der: Uint8Array): SpkiKind => {
   const spki = sequenceAt(der);
   const algorithm = spki?.items[0] && sequenceAt(der, spki.items[0].start);
   const key = spki?.items[1];
-  if (!spki || !algorithm || !key || key.tag !== BIT_STRING || algorithm.items[0]?.tag !== OID)
+  if (!spki || !algorithm || !key || !primitive(key, BIT_STRING) || !primitive(algorithm.items[0], OBJECT_IDENTIFIER))
     return { type: 'unknown' };
-  const oid = readOid(der, algorithm.items[0]);
+  const oid = oidOf(der, algorithm.items[0]);
   if (oid === '1.3.101.112') return { type: 'Ed25519' };
   if (oid === '1.3.101.113') return { type: 'Ed448' };
   if (oid === '1.2.840.10045.2.1') {
     const param = algorithm.items[1];
-    return { type: 'EC', curve: param?.tag === OID ? (CURVES[readOid(der, param)] ?? 'an unknown curve') : 'unknown' };
+    return {
+      type: 'EC',
+      curve: primitive(param, OBJECT_IDENTIFIER) ? (CURVES[oidOf(der, param) ?? ''] ?? 'an unknown curve') : 'unknown',
+    };
   }
   if (oid === '1.2.840.113549.1.1.1') {
     const rsa = sequenceAt(der, key.body + 1);
     const modulus = rsa?.items[0];
-    return { type: 'RSA', bits: modulus?.tag === INTEGER ? unsignedBits(der.subarray(modulus.body, modulus.end)) : 0 };
+    return {
+      type: 'RSA',
+      bits: primitive(modulus, INTEGER) ? unsignedBits(der.subarray(modulus!.body, modulus!.end)) : 0,
+    };
   }
   return { type: 'unknown' };
 };
