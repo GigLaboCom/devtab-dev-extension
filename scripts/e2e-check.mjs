@@ -57,6 +57,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dropFiles, fixtures, pointOn, runCompareChecks } from './e2e-compare.mjs';
+import { forgetSavedParameters } from './e2e-helpers.mjs';
 import { runOwnPageChecks } from './e2e-own-page.mjs';
 import { runHistoryChecks } from './e2e-history.mjs';
 import { runStartChecks } from './e2e-start.mjs';
@@ -962,6 +963,9 @@ try {
     // The current tool in the sidebar's Tools list (the Tools page has no list of its own since 2026-11-21).
     report.measure.navSubItemActive = await measureOf(page.locator('.kit-nav-sub-item[aria-current="page"]'));
     await shoot(page, '04-tools-light.png');
+    // Sort keys was switched on for the measurements, and a tool keeps its options between uses (D21): the steps
+    // after this one open the JSON tool expecting its defaults.
+    await forgetSavedParameters(page, 'json');
   }
 
   // 3b. The shell: the tools nested under Tools, the toolbar and the palette, the theme by the system, the shortcuts.

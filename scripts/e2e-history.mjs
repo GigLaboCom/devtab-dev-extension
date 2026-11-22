@@ -22,7 +22,7 @@
 
 /* global document, indexedDB, chrome, location -- page.evaluate callbacks run in the pages */
 
-import { stubClipboard } from './e2e-helpers.mjs';
+import { forgetSavedParameters, stubClipboard } from './e2e-helpers.mjs';
 import { at, readDefinitions } from './read-definitions.mjs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -132,6 +132,8 @@ export const runHistoryChecks = async ({ ctx, id, check, shoot, report, sleep, r
     await new Promise(res => (tx.oncomplete = res));
     db.close();
   });
+  // The checks below switch the JSON tool's options from their defaults; whatever an earlier step left saved goes.
+  await forgetSavedParameters(tool, 'json');
   await tool.reload();
 
   // 1. Record in the JSON tool.
