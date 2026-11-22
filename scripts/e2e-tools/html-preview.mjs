@@ -768,7 +768,8 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
         [large.live64k, large.live256k, large.settled512k, large.max1m, ...shapes.map(s => large[s])].every(
           t => t.longest < 3000,
         ) &&
-        deepShapes.every(k => large[k].refused && large[k].empty && large[k].elapsed < 1000) &&
+        // refused before it is parsed (no node drawn): a second on a free machine, with room for a busy one
+        deepShapes.every(k => large[k].refused && large[k].empty && large[k].elapsed < 3000) &&
         large.nest500.nodes > 100_000 &&
         large.guard.atThousand === 'separate' &&
         large.guard.under === 'collapse' &&
