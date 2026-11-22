@@ -341,17 +341,20 @@ describe('the RegExp tool, rendered with no host', () => {
     type('Pattern', 'a');
     type('Test text', 'a'.repeat(1_500));
     await until('1,500 matches');
-    // Built 200 rows a frame, 1,000 in the end.
-    await waitFor(() => expect(screen.getAllByRole('button', { name: /^Match \d+$/ })).toHaveLength(1_000), {
-      timeout: 10_000,
+    // Built 200 rows a frame, 1,000 in the end. The wait counts rows cheaply: asking for 1,000 buttons by role and name
+    // on every poll costs jsdom seconds on a loaded machine, and the wait ended before the last batches came. By role
+    // once at the end.
+    await waitFor(() => expect(document.querySelectorAll('button[aria-label^="Match "]')).toHaveLength(1_000), {
+      timeout: 20_000,
     });
+    expect(screen.getAllByRole('button', { name: /^Match \d+$/ })).toHaveLength(1_000);
     expect(message('rows')).toBe('Showing 1,000 of 1,500 matches.');
     type('Test text', 'a'.repeat(10_001));
     await waitFor(() => expect(status()).toContain('10,000+ matches (the first 10,000 are shown)'), {
       timeout: 10_000,
     });
     expect(message('rows')).toBe('Showing 1,000 of 10,000+ matches.');
-  }, 30_000);
+  }, 60_000);
 
   it('builds the highlights a chunk at a time, all of them in the end', async () => {
     render(<RegexpTool />);

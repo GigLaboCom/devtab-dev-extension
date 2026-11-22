@@ -313,25 +313,31 @@ describe('the Random String tool, rendered with no host (§2, §6, §8)', () => 
     expect(screen.queryByRole('button', { name: 'Copy all' })).toBeNull();
   });
 
-  it('§12: a batch over 100,000 characters is made 300 ms after the last change, Generate saying Generating…', async () => {
-    render(<RandomStringTool />);
-    type('How many', '1000');
-    type('Length', '101');
-    expect(button('Generating…').disabled).toBe(true);
-    expect(button('Copy all').disabled).toBe(true);
-    // Until then the batch shown is the last one made (32 characters), and it cannot be copied.
-    expect(strings()[0]).toHaveLength(32);
-    await waitFor(() => expect(strings()[0]).toHaveLength(101), { timeout: 2000 });
-    expect(strings()).toHaveLength(1000);
-    expect(strings().every(s => s.length === 101)).toBe(true);
-    expect(button('Generate').disabled).toBe(false);
-    // Generate of a large batch: the label first, then the batch.
-    const before = strings();
-    fireEvent.click(button('Generate'));
-    expect(screen.getByRole('button', { name: 'Generating…' })).toBeTruthy();
-    await waitFor(() => expect(strings()).not.toEqual(before), { timeout: 2000 });
-    expect(live()).toBe('1,000 strings generated');
-  });
+  // The waits below are for the batch, not a bound on its time: on a loaded machine making 101,000 characters alone can
+  // take more than a second (`scripts/bench-tools.mjs --only=random-string`).
+  it(
+    '§12: a batch over 100,000 characters is made 300 ms after the last change, Generate saying Generating…',
+    { timeout: 30_000 },
+    async () => {
+      render(<RandomStringTool />);
+      type('How many', '1000');
+      type('Length', '101');
+      expect(button('Generating…').disabled).toBe(true);
+      expect(button('Copy all').disabled).toBe(true);
+      // Until then the batch shown is the last one made (32 characters), and it cannot be copied.
+      expect(strings()[0]).toHaveLength(32);
+      await waitFor(() => expect(strings()[0]).toHaveLength(101), { timeout: 10_000 });
+      expect(strings()).toHaveLength(1000);
+      expect(strings().every(s => s.length === 101)).toBe(true);
+      expect(button('Generate').disabled).toBe(false);
+      // Generate of a large batch: the label first, then the batch.
+      const before = strings();
+      fireEvent.click(button('Generate'));
+      expect(screen.getByRole('button', { name: 'Generating…' })).toBeTruthy();
+      await waitFor(() => expect(strings()).not.toEqual(before), { timeout: 10_000 });
+      expect(live()).toBe('1,000 strings generated');
+    },
+  );
 
   it('the source failing — the message of §6, nothing shown', () => {
     const spy = vi.spyOn(crypto, 'getRandomValues').mockImplementation(() => {

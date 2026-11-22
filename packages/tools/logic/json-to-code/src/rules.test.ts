@@ -1,5 +1,6 @@
 import { HOSTILE_KEYS, hostileInput } from './examples';
 import { DEFAULT_OPTIONS, LIVE_INPUT, describeNotes, inferShape, jsonToCode, numberKind } from './logic';
+import { GROWTH_BOUND, growth } from '@workspace/tools-shared/growth';
 import { describe, expect, it } from 'vitest';
 import type { CodeOptions, Language } from './logic';
 import type { JsonNode } from '@workspace/tools-shared/json-scan';
@@ -344,31 +345,19 @@ describe('depth and size (§6, §12)', () => {
     expect(inferShape([deepTree(100_000, 'object')], '').objects.at(-1)!.name).toBe('A99999');
   });
 
-  /** Median of three timings of `jsonToCode` on `text`. */
-  const time = (text: string): number => {
-    const runs = [0, 1, 2].map(() => {
-      const start = performance.now();
-      jsonToCode(text, DEFAULT_OPTIONS);
-      return performance.now() - start;
-    });
-    return runs.sort((a, b) => a - b)[1]!;
-  };
   const records = (n: number) =>
     `[${Array.from({ length: n }, (_, i) => `{"id":${i},"name":"user ${i}","score":${i}.5,"tags":["a","b"],"owner":{"login":"l${i}","since":${i}},"note":null}`).join(',')}]`;
   const nested = (n: number) => `${'{"a":'.repeat(n)}1${'}'.repeat(n)}`;
   const distinct = (n: number) => `{${Array.from({ length: n }, (_, i) => `"k${i}":{"user":{"f${i}":1}}`).join(',')}}`;
 
-  // Linear work: eight times the input takes about eight times as long; a quadratic step would take 64 times. The
-  // bound (30×) leaves room for a loaded machine and a warm-up; medians of three, after one run to warm up.
+  // The shape of the cost, not milliseconds (`growth`): eight times the input against eight small inputs, timed in
+  // turn — linear about 1, quadratic about 8, on a free machine or a loaded one.
   it.each([
-    ['records', records, 1000],
+    ['records', records, 2000],
     ['nesting', nested, 120],
-    ['names that collide', distinct, 500],
-  ] as const)('linear in the input: %s', (_, make, n) => {
-    time(make(n));
-    const small = time(make(n));
-    const large = time(make(n * 8));
-    expect(large / Math.max(small, 0.05)).toBeLessThan(30);
+    ['names that collide', distinct, 2000],
+  ] as const)('linear in the input: %s', { timeout: 60_000 }, (_, make, n) => {
+    expect(growth(text => jsonToCode(text, DEFAULT_OPTIONS), make, n)).toBeLessThan(GROWTH_BOUND);
   });
 
   it('a megabyte of records: one type, read in one pass', () => {

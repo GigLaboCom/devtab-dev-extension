@@ -254,28 +254,35 @@ describe('what the page and the settings derive from the parts', () => {
     ).toBe('on');
   });
 
-  it('the options that are on make the page’s context; with none, no web search, letters, strict matching, no recognition', async () => {
-    const { code } = setup();
-    const none = { ...DEFAULT_SETTINGS, parts: Object.fromEntries(DEFINITIONS.map(p => [p.id, false])) };
-    const bare = pageContext(DEFINITIONS, none, new Set(), code);
-    expect(bare.webSearch).toBeUndefined();
-    expect(bare.recognise).toBeUndefined();
-    expect(bare.siteIcons.src('https://a.example/')).toBeNull();
-    expect(bare.matcher.match('b64', DESTINATIONS)).toEqual([]);
-    const on = { ...DEFAULT_SETTINGS, parts: { siteIcons: true } };
-    for (const part of partsToLoad(DEFINITIONS, on, held, true)) await code.load(part);
-    const full = pageContext(DEFINITIONS, on, held, code);
-    expect(full.webSearch).toBeDefined();
-    expect(full.siteIcons.src('https://a.example/')).toMatch(/_favicon/);
-    expect(full.matcher.match('b64', DESTINATIONS).map(f => f.destination.title)).toEqual([
-      'Base64',
-      'Base64 Image',
-      'SVG to CSS',
-    ]);
-    await full.recognise?.ready();
-    expect(full.recognise?.recognise('{"a": 1}')).toBe('json');
-    expect(pageContext(DEFINITIONS, on, new Set(), code).siteIcons.src('https://a.example/')).toBeNull();
-  });
+  // `recognise.ready()` loads every tool's detect module: in vitest each is transformed on first import, which grows with
+  // the number of tools and took more than the default 5 s on a loaded machine. The limit is the test's, not the page's.
+  it(
+    'the options that are on make the page’s context; with none, no web search, letters, strict matching, no recognition',
+    { timeout: 30_000 },
+    async () => {
+      const { code } = setup();
+      const none = { ...DEFAULT_SETTINGS, parts: Object.fromEntries(DEFINITIONS.map(p => [p.id, false])) };
+      const bare = pageContext(DEFINITIONS, none, new Set(), code);
+      expect(bare.webSearch).toBeUndefined();
+      expect(bare.recognise).toBeUndefined();
+      expect(bare.siteIcons.src('https://a.example/')).toBeNull();
+      expect(bare.matcher.match('b64', DESTINATIONS)).toEqual([]);
+      const on = { ...DEFAULT_SETTINGS, parts: { siteIcons: true } };
+      for (const part of partsToLoad(DEFINITIONS, on, held, true)) await code.load(part);
+      const full = pageContext(DEFINITIONS, on, held, code);
+      expect(full.webSearch).toBeDefined();
+      expect(full.siteIcons.src('https://a.example/')).toMatch(/_favicon/);
+      expect(full.matcher.match('b64', DESTINATIONS).map(f => f.destination.title)).toEqual([
+        'Base64',
+        'Base64 Image',
+        'Base64 File',
+        'SVG to CSS',
+      ]);
+      await full.recognise?.ready();
+      expect(full.recognise?.recognise('{"a": 1}')).toBe('json');
+      expect(pageContext(DEFINITIONS, on, new Set(), code).siteIcons.src('https://a.example/')).toBeNull();
+    },
+  );
 
   it('while an option’s code is on its way, a stand-in: search and paste wait for it, icons keep their place', async () => {
     const { code, api } = setup();

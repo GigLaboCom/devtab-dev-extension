@@ -273,13 +273,17 @@ describe('the JSON Query tool', () => {
     );
   });
 
-  it('shows the first 1,000 rows and copies all', { timeout: 30_000 }, async () => {
+  it('shows the first 1,000 rows and copies all', { timeout: 60_000 }, async () => {
     render(<JsonQueryTool />);
     type('Document', JSON.stringify(Array.from({ length: 2500 }, (_, k) => k)));
     type('Query', '$[*]');
     await until('2,500 results');
     expect(message('results')).toBe('Showing 1,000 of 2,500 results.');
-    await waitFor(() => expect(rows()).toHaveLength(1000), { timeout: 15_000 });
+    // Rows come 200 a frame. The wait counts them cheaply — reading 1,000 rows by role on every poll cost jsdom seconds
+    // on a loaded machine, and the wait ended before the last batch came — then reads them by role once.
+    const table = screen.getByRole('table', { name: 'Results' });
+    await waitFor(() => expect(table.querySelectorAll('tbody tr')).toHaveLength(1000), { timeout: 30_000 });
+    expect(rows()).toHaveLength(1000);
     fireEvent.click(button('Copy paths'));
     await waitFor(() => expect(writeText.mock.lastCall?.[0].split('\n')).toHaveLength(2500));
   });

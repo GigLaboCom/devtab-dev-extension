@@ -337,7 +337,9 @@ describe('the start page’s history row', () => {
   });
 });
 
-describe('settings', () => {
+// The whole page rendered in jsdom per test: 2–5 s each on a loaded machine, past vitest's default 5 s. The limit is the
+// tests' own, not a bound on the page (the page in Chrome: docs/research/performance.md).
+describe('settings', { timeout: 30_000 }, () => {
   it('General: a new tab opens the start page or the last opened tool', async () => {
     const { storage } = setup('#/settings');
     expect(await screen.findByRole('heading', { name: 'Settings', level: 1 })).toBeTruthy();
@@ -725,7 +727,9 @@ describe('the shell’s toolbar and palette', () => {
   });
 });
 
-describe('Settings → Shortcuts', () => {
+// The list has a row per action, one for every tool: with forty tools these tests take four to six seconds in jsdom
+// on a free machine, so the default five-second limit is not theirs.
+describe('Settings → Shortcuts', { timeout: 30_000 }, () => {
   const block = () => document.querySelector<HTMLElement>('[data-settings="shortcuts"]')!;
   const fieldOf = (title: string) => within(block()).getByLabelText(title, { selector: 'input' }) as HTMLInputElement;
   const record = async (field: HTMLElement, init: KeyboardEventInit) => {

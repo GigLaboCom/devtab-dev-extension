@@ -3,6 +3,7 @@
 // @namespace, @font-face — is cut whole; what does not load stays exactly as written; references into the document
 // (`url(#id)`) stay in the properties that take them without a fetch.
 import { attributeLoads, cleanCss, cssLoads } from './css';
+import { GROWTH_BOUND, growth } from '@workspace/tools-shared/growth';
 import { describe, expect, it } from 'vitest';
 
 const sheet = (css: string) => cleanCss(css, 'sheet');
@@ -200,17 +201,8 @@ describe('attributeLoads (an SVG’s presentation attributes)', () => {
 });
 
 describe('cleanCss on large and hostile inputs', () => {
-  const time = (css: string) => {
-    // The fastest of five: a pause of the collector or of a loaded machine lengthens a run, never shortens it.
-    let best = Infinity;
-    for (let i = 0; i < 5; i++) {
-      const start = performance.now();
-      sheet(css);
-      best = Math.min(best, performance.now() - start);
-    }
-    return best;
-  };
-
+  // The shape of the cost, not milliseconds (`growth`: a megabyte against eight inputs of 128 Ki, timed in turn):
+  // linear is about 1, quadratic about 8, on a free machine or a loaded one.
   it.each([
     ['nested blocks', (n: number) => '{'.repeat(n)],
     ['nested functions', (n: number) => 'a{b:' + 'f('.repeat(n / 2)],
@@ -219,10 +211,13 @@ describe('cleanCss on large and hostile inputs', () => {
     ['an unterminated string', (n: number) => `a{b:"${'x'.repeat(n)}`],
     ['escapes', (n: number) => 'a{b:' + '\\75'.repeat(n / 3)],
     ['declarations', (n: number) => 'a{' + 'color:red;'.repeat(n / 10) + '}'],
-  ])('%s: linear — eight times the text takes well under sixty-four times as long', { timeout: 60_000 }, (_, make) => {
-    const small = time(make(128 * 1024));
-    const large = time(make(1024 * 1024));
-    expect(large / Math.max(small, 1)).toBeLessThan(24);
+  ])('%s: linear — a megabyte costs about what eight times 128 Ki do', { timeout: 60_000 }, (name, make) => {
+    if (name === 'nested blocks') {
+      // A million open blocks: the block stack grows to a million entries, which costs more per character than eight
+      // stacks of 128 Ki (measured 1.4–2.5 free, 3.6 under load) — still far from quadratic. A wider factor keeps the
+      // two apart: quadratic would measure about 16.
+      expect(growth(sheet, make, 64 * 1024, { factor: 16 })).toBeLessThan(8);
+    } else expect(growth(sheet, make, 128 * 1024)).toBeLessThan(GROWTH_BOUND);
     expect(loadsAnything(sheet(make(1024 * 1024)).css)).toBe(false);
   });
 });

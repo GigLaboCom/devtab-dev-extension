@@ -19,6 +19,7 @@ import {
   swapAttributeQuotes,
   svgToCss,
 } from '.';
+import { GROWTH_BOUND, growth } from '@workspace/tools-shared/growth';
 import { describe, expect, it } from 'vitest';
 import type { SvgOptions, SvgResult } from '.';
 
@@ -190,24 +191,21 @@ describe('§10, row by row', () => {
     expect(run('\u{FEFF}\n\t ')).toEqual(empty);
   });
 
-  it('row 24: 1.34 MiB (30,000 circles) — linear: ten times the input costs at most about ten times as much', () => {
-    // The specification's milliseconds are Node's on one machine; the e2e module measures Chrome. Here: the shape.
-    const circles = (n: number) =>
-      `<svg ${NS} viewBox="0 0 1000 1000">${Array.from({ length: n }, (_, i) => `<circle cx="${i % 1000}" cy="${(i / 1000) | 0}" r="5" fill="#123456"/>`).join('')}\n</svg>`;
-    const big = circles(30_000);
-    expect(big.length / 1024 / 1024).toBeCloseTo(1.34, 1);
-    const time = (text: string, encoding: 'url' | 'base64') => {
-      const t0 = performance.now();
-      const r = ok(text, { encoding });
-      return { ms: performance.now() - t0, r };
-    };
-    time(circles(3_000), 'url');
-    const small = Math.min(...[0, 1, 2].map(() => time(circles(3_000), 'url').ms));
-    const large = Math.min(...[0, 1, 2].map(() => time(big, 'url').ms));
-    // Linear is ×10; a quadratic step would be ×100. ×40 leaves room for a loaded machine and the collector.
-    expect(large / small).toBeLessThan(40);
-    expect(time(big, 'base64').r.sizes.base64).toBeGreaterThan(big.length);
-  });
+  it(
+    'row 24: 1.34 MiB (30,000 circles) — linear: ten times the input costs at most about ten times as much',
+    { timeout: 60_000 },
+    () => {
+      // The specification's milliseconds are Node's on one machine; the e2e module measures Chrome. Here: the shape.
+      const circles = (n: number) =>
+        `<svg ${NS} viewBox="0 0 1000 1000">${Array.from({ length: n }, (_, i) => `<circle cx="${i % 1000}" cy="${(i / 1000) | 0}" r="5" fill="#123456"/>`).join('')}\n</svg>`;
+      const big = circles(30_000);
+      expect(big.length / 1024 / 1024).toBeCloseTo(1.34, 1);
+      // `growth`: 30,000 circles against ten inputs of 3,000, timed in turn — linear about 1, quadratic about 10, on a
+      // free machine or a loaded one.
+      expect(growth(text => ok(text, { encoding: 'url' }), circles, 3_000, { factor: 10 })).toBeLessThan(GROWTH_BOUND);
+      expect(ok(big, { encoding: 'base64' }).sizes.base64).toBeGreaterThan(big.length);
+    },
+  );
 
   it('row 25: the limits the component holds (4 MiB + 1 is refused there with this text)', () => {
     // 256 Ki, not the specification's 1 Mi: measured in Chrome (§15).

@@ -14,6 +14,7 @@ import { parseQuery } from './parse';
 import { normalizedPath, quoteName } from './paths';
 import { previewValue, printValue } from './print';
 import { readDocument, resultCountText, runQuery, valueOfRow } from './run';
+import { GROWTH_BOUND, growth } from '@workspace/tools-shared/growth';
 import { describe, expect, it } from 'vitest';
 import type { QueryError } from './parse';
 
@@ -603,7 +604,7 @@ describe('the evaluator’s limits', () => {
     const r = evaluate((parseQuery('$..*..*..*') as { ok: true; query: never }).query, deep.root);
     expect(r).toEqual({ ok: false, message: TOO_MANY_NODES });
   });
-  it('$..* is linear in the document', () => {
+  it('$..* is linear in the document', { timeout: 60_000 }, () => {
     const make = (n: number) => {
       const d = readDocument(
         JSON.stringify(Array.from({ length: n }, (_, k) => ({ id: k, tags: ['a', 'b'], o: { x: k } }))),
@@ -612,20 +613,9 @@ describe('the evaluator’s limits', () => {
       return d.root;
     };
     const query = (parseQuery('$..*') as { ok: true; query: never }).query;
-    const time = (root: ReturnType<typeof make>) => {
-      const ms: number[] = [];
-      for (let k = 0; k < 3; k++) {
-        const t = performance.now();
-        evaluate(query, root);
-        ms.push(performance.now() - t);
-      }
-      return ms.sort((x, y) => x - y)[1]!;
-    };
-    const small = make(5_000);
-    const large = make(40_000);
-    time(small);
-    // Eight times the document: a linear evaluator takes about eight times as long; quadratic would be 64.
-    expect(time(large) / Math.max(time(small), 0.5)).toBeLessThan(30);
+    // The shape of the cost (`growth`): 40,000 records against eight documents of 5,000, timed in turn — linear about
+    // 1, quadratic about 8, on a free machine or a loaded one.
+    expect(growth(root => evaluate(query, root), make, 5_000)).toBeLessThan(GROWTH_BOUND);
   });
 });
 

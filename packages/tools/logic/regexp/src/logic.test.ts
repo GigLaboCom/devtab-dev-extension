@@ -426,12 +426,22 @@ describe('§10: a pasted literal', () => {
 });
 
 describe('§10: the pathological pattern compiles at once on the page', () => {
-  it('^(a+)+$ compiles in well under 0.1 ms (it is parsed, not run)', () => {
+  it('^(a+)+$ compiles as fast as a harmless pattern of its length (it is parsed, not run)', () => {
     expect(compileRegexp('^(a+)+$', 'g')).toMatchObject({ ok: true, groups: [{ number: 1 }] });
-    const runs = 200;
-    const started = performance.now();
-    for (let i = 0; i < runs; i++) compileRegexp('^(a+)+$', 'g');
-    expect((performance.now() - started) / runs).toBeLessThan(0.1);
+    // Against itself, not milliseconds: the two are timed in turn and the fastest of each kept, so a loaded machine
+    // stretches both (a bound of 0.1 ms a compile failed at 0.36 under load). Running the pattern would cost thousands.
+    const batch = (pattern: string): number => {
+      const started = performance.now();
+      for (let i = 0; i < 200; i++) compileRegexp(pattern, 'g');
+      return performance.now() - started;
+    };
+    let pathological = Infinity;
+    let harmless = Infinity;
+    for (let round = 0; round < 5; round++) {
+      pathological = Math.min(pathological, batch('^(a+)+$'));
+      harmless = Math.min(harmless, batch('^(ab)c$'));
+    }
+    expect(pathological / Math.max(harmless, 0.001)).toBeLessThan(3);
   });
 });
 

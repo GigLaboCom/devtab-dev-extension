@@ -5,6 +5,7 @@
 // size, not to its square. Bounds are on the shape of the cost, never on milliseconds (a loaded machine).
 import { isOpenableHref, renderMarkdown, toSafeFragment } from '.';
 import corpus from './hostile-corpus.json';
+import { GROWTH_BOUND, growth } from '@workspace/tools-shared/growth';
 import { describe, expect, it } from 'vitest';
 
 /** xorshift32: the test's own reproducible sequence (randomness for the product comes from tools-shared only). */
@@ -109,8 +110,8 @@ describe('properties of the preview', () => {
     }
   }, 60_000); // jsdom is slow on a loaded machine: the bound is generous, the property is what is tested
 
-  // A shape that grew with the square of its size would take 16 times longer at four times the size; linear takes
-  // about 4. The bound (10) leaves room for a machine under load and for the garbage collector.
+  // The shape of the cost, not milliseconds (`growth`): half a megabyte against eight inputs of 64 Ki, timed in turn —
+  // linear about 1, quadratic about 8, on a free machine or a loaded one.
   const SHAPES: Record<string, (n: number) => string> = {
     'nested brackets': n => '['.repeat(n),
     'image openers': n => '!['.repeat(n / 2),
@@ -124,21 +125,11 @@ describe('properties of the preview', () => {
     'table of one long row': n => `${'|a'.repeat(n / 4)}\n${'|-'.repeat(n / 4)}`,
     'unclosed link destinations': n => `[a](${'('.repeat(n)}`,
   };
-  const cost = (text: string): number => {
-    const start = performance.now();
-    renderMarkdown(text);
-    return performance.now() - start;
-  };
-
   it.each(Object.keys(SHAPES))(
-    '%s: half a megabyte costs about four times what 128 Ki does',
+    '%s: half a megabyte costs about what eight times 64 Ki do',
     name => {
-      const make = SHAPES[name]!;
-      cost(make(16_384)); // warm the code paths
-      const small = Math.max(cost(make(131_072)), 1);
-      const large = cost(make(524_288));
-      expect(large / small).toBeLessThan(10);
+      expect(growth(renderMarkdown, SHAPES[name]!, 65_536)).toBeLessThan(GROWTH_BOUND);
     },
-    30_000,
+    60_000,
   );
 });

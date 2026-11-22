@@ -24,6 +24,7 @@ import {
   warningLines,
   warnings,
 } from './index.ts';
+import { GROWTH_BOUND, growth } from '@workspace/tools-shared/growth';
 import { describe, expect, it } from 'vitest';
 import type { Summary } from './index.ts';
 
@@ -715,31 +716,16 @@ describe('\u{A7}12 a megabyte', () => {
     'The quick brown fox \u{201C}jumps\u{201D}. \u{41F}\u{440}\u{438}\u{432}\u{435}\u{442} \u{4F60}\u{597D} ' +
     `${FAMILY} a\u{200B}b p\u{430}ypal e\u{301}\n`;
   const sample = (n: number): string => unit.repeat(Math.ceil(n / unit.length)).slice(0, n);
-  const time = (f: () => unknown): number => {
-    const t = performance.now();
-    f();
-    return performance.now() - t;
-  };
-
-  it('grows with the text, not with its square (the shape, not milliseconds)', () => {
-    const small = sample(64 * 1024);
-    const large = sample(1024 * 1024);
-    inspect(small);
-    const a = Math.min(
-      time(() => inspect(small)),
-      time(() => inspect(small)),
-    );
-    const b = time(() => inspect(large));
-    // 16 times the text: linear work takes about 16 times as long, quadratic 256 times.
-    expect(b / a).toBeLessThan(64);
+  // The shape of the cost, not milliseconds (`growth`: the large text against as many small ones of the same total
+  // size, timed in turn): linear about 1, quadratic about the factor, work that reads only the start about 1/factor.
+  it('grows with the text, not with its square (the shape, not milliseconds)', { timeout: 60_000 }, () => {
+    expect(growth(inspect, sample, 64 * 1024, { factor: 16, rounds: 3 })).toBeLessThan(GROWTH_BOUND);
   });
 
-  it('the table and the visible text read only the start of a megabyte', () => {
-    const large = sample(1024 * 1024);
-    const small = sample(16 * 1024);
-    const a = time(() => rows(small)) + time(() => visibleParts(small));
-    const b = time(() => rows(large)) + time(() => visibleParts(large));
-    expect(b / Math.max(a, 0.5)).toBeLessThan(8);
+  it('the table and the visible text read only the start of a megabyte', { timeout: 60_000 }, () => {
+    const shown = (text: string) => [rows(text), visibleParts(text)];
+    // 64 times the text: reading only the start measures about 1/64, reading all of it about 1.
+    expect(growth(shown, sample, 16 * 1024, { factor: 64 })).toBeLessThan(0.25);
   });
 
   it('detect is one linear expression: a megabyte without a match, and one with it at the end', () => {

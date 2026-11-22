@@ -7,6 +7,7 @@
 import { nestingDepth, removedText, sanitizeHtml, serializeSanitized } from '.';
 import corpus from './hostile-corpus.json';
 import { CANARY, violations } from './testing';
+import { GROWTH_BOUND, growth } from '@workspace/tools-shared/growth';
 import { describe, expect, it } from 'vitest';
 
 /** xorshift32: the test's own reproducible sequence (randomness for the product comes from tools-shared only). */
@@ -200,16 +201,9 @@ describe('the depth estimate on generated documents', () => {
 });
 
 describe('§12: large inputs are checked in time that grows with their size', () => {
-  const time = (input: string): number => {
-    // The fastest of three: a pause of the collector or of a loaded machine lengthens a run, never shortens it.
-    let best = Infinity;
-    for (let i = 0; i < 3; i++) {
-      const start = performance.now();
-      serializeSanitized(sanitizeHtml(input, document));
-      best = Math.min(best, performance.now() - start);
-    }
-    return best;
-  };
+  // The shape of the cost (`growth`): 256 Ki against eight inputs of 32 Ki, timed in turn — linear about 1, quadratic
+  // about 8, on a free machine or a loaded one.
+  const check = (input: string) => serializeSanitized(sanitizeHtml(input, document));
   const shapes: Array<[string, (n: number) => string]> = [
     // jsdom's parser recurses per level (Chrome's stops nesting at 512): nesting 2 000 deep, again and again
     ['deep nesting', n => `${'<div>'.repeat(2000)}${'</div>'.repeat(2000)}`.repeat(Math.ceil(n / 22000))],
@@ -219,15 +213,9 @@ describe('§12: large inputs are checked in time that grows with their size', ()
     ['a megabyte of CSS', n => `<style>${'.a{color:red;background:url(x)}'.repeat(n / 32)}</style>`],
     ['links', n => '<a href="https://example.com/x">x</a>'.repeat(n / 38)],
   ];
-  it.each(shapes)(
-    '%s: eight times the input takes well under sixty-four times as long',
-    { timeout: 120_000 },
-    (_, make) => {
-      const small = time(make(32 * 1024));
-      const large = time(make(256 * 1024));
-      expect(large / Math.max(small, 1)).toBeLessThan(24);
-    },
-  );
+  it.each(shapes)('%s: 256 Ki cost about what eight times 32 Ki do', { timeout: 120_000 }, (_, make) => {
+    expect(growth(check, make, 32 * 1024)).toBeLessThan(GROWTH_BOUND);
+  });
 
   it(
     'nesting 5 000 deep is checked and copied without growing the call stack (the walk and the serializer)',
