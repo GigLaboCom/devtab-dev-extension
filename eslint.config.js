@@ -199,6 +199,25 @@ export default config(
     },
   },
   {
+    // The licence package's test material (key pairs made in memory, signed tokens) is for tests only: never in what
+    // ships. (The tools' blocks below set their own import rules for extension/src/tools/**.)
+    files: ['extension/src/**/*.{ts,tsx}'],
+    ignores: ['extension/src/**/*.test.{ts,tsx}', 'extension/src/test/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@extension/licence/testing'],
+              message: 'Test keys and tokens never reach the extension’s sources: tests and scripts only.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // D14: a tool's component and the host contract — nothing of the extension, no chrome. A tool records through its
     // host (ToolHost.history), never through a store of its own (D17): only the host contract imports the history core.
     files: ['packages/tools/ui/**/*.{ts,tsx}', 'extension/src/tools/**/*.{ts,tsx}'],
@@ -255,6 +274,33 @@ export default config(
       'no-restricted-globals': [
         'error',
         { name: 'chrome', message: 'The host contract never touches chrome.* (D14).' },
+      ],
+    },
+  },
+  {
+    // The licence client's pure code (@extension/licence): no chrome, no page, no network — time and keys come in as
+    // parameters — and nothing of the extension, the tools or React.
+    files: ['packages/licence/**/*.{ts,tsx,js,mjs}'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        ...['chrome', 'window', 'document', 'fetch', 'localStorage'].map(name => ({
+          name,
+          message: 'The licence package touches no chrome, page or network: take what you need as a parameter.',
+        })),
+      ],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@src/*', '**/extension/**', '@extension/*', '!@extension/licence', '!@extension/licence/*'],
+              message: 'The licence package imports nothing of the extension.',
+            },
+            { group: ['@workspace/*'], message: 'The licence package imports nothing of the tools’ packages.' },
+            { group: ['react', 'react/*', 'react-dom', 'react-dom/*'], message: 'The licence package has no React.' },
+          ],
+        },
       ],
     },
   },

@@ -214,6 +214,9 @@ importers:
 
   extension:
     dependencies:
+      '@extension/licence':
+        specifier: workspace:*
+        version: link:../packages/licence
       '@extension/logger':
         specifier: workspace:*
         version: link:../packages/logger
@@ -367,6 +370,21 @@ importers:
       vite:
         specifier: ^6.0.5
         version: 6.4.6(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1)
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))
+
+  packages/licence:
+    devDependencies:
+      '@extension/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: ^22.20.1
+        version: 22.20.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
       vitest:
         specifier: ^4.1.10
         version: 4.1.12(@types/node@22.20.5)(jsdom@25.0.1(supports-color@7.2.0))(vite@6.4.6(@types/node@22.20.5)(jiti@2.7.0))

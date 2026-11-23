@@ -27,3 +27,11 @@ paths = [
   '''(^|/)packages/tools/(logic|ui)/curl-to-code/src/__snapshots__/[^/]+\.test\.tsx?\.snap$''',
   '''(^|/)scripts/e2e-tools/curl-to-code\.mjs$''',
 ]
+
+# The licence token's test vectors: tokens signed with a key pair made for one run of
+# packages/licence/scripts/vectors.mjs, whose private key was never stored; the licence server checks its signatures
+# against them. Only the JWT rule, only that folder.
+[[allowlists]]
+description = "Test vectors of the licence token (a test key, no private key stored)"
+targetRules = ["jwt"]
+paths = ['''(^|/)packages/licence/testdata/[^/]+\.json$''']

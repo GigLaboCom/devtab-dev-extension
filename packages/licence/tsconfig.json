@@ -1,0 +1,10 @@
+{
+  "extends": "@extension/tsconfig/app",
+  "compilerOptions": {
+    // Runs in a page, in the service worker and in Node (the tests): WebCrypto's types without `document`, and no
+    // `chrome` types — the package never touches chrome.*.
+    "lib": ["ES2022", "WebWorker"],
+    "types": []
+  },
+  "include": ["lib", "testdata", "vitest.config.ts"]
+}

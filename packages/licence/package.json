@@ -1,0 +1,23 @@
+{
+  "name": "@extension/licence",
+  "version": "0.1.0",
+  "description": "The licence client's pure code: strict base64url, the licence token (compact JWS, ES256 on WebCrypto) and its fields, the states a stored token gives at a moment, which refreshed or activated token may be kept, and when to ask the server again. No chrome, no DOM, no network, no clock: time comes in as a parameter.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./lib/index.ts",
+    "./testing": "./lib/testing.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean:turbo": "rm -rf .turbo"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

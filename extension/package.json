@@ -15,6 +15,7 @@
     "clean:turbo": "rm -rf .turbo"
   },
   "dependencies": {
+    "@extension/licence": "workspace:*",
     "@extension/logger": "workspace:*",
     "@extension/review-wasm": "workspace:*",
     "@extension/theme": "workspace:*",
