@@ -83,7 +83,9 @@ describe('bytesToHex by table: the same text as before (properties)', () => {
     }
   });
 
-  it('a megabyte of every byte value, each format and width', () => {
+  // The oracle is slow by design (the text built byte by byte): 4–5 s when the whole workspace is tested at once, so
+  // the test has a limit of its own. It checks the text, not the time.
+  it('a megabyte of every byte value, each format and width', { timeout: 30_000 }, () => {
     const bytes = Uint8Array.from({ length: 1 << 20 }, (_, i) => (i * 7919) & 255);
     for (const format of formats)
       for (const bytesPerLine of widths)
