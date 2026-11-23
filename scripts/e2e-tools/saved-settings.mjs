@@ -19,11 +19,16 @@
 // Then the free edition: built from the same sources with the root reading `free` (DEVTAB_VARIANT=edition:free, the
 // one line changed at build time — extension/vite.config.ts) into .state/e2e/dist-free, loaded in a browser of its
 // own: no tool parameter is ever written to storage, a tool opens with its defaults on every visit (a new tab, a
-// reload), and there is no reset control.
+// reload), and there is no reset control. The same free build is where the other things its edition decides are
+// checked (D24, D25; docs/tools/settings-storage.md §9): after work in JSON and a Copy no history database exists; the
+// tool page's line, the History section and Settings → History say their sentences word for word; Settings → Tools has
+// no automatic-copying switch; with `autoCopy: true` put into storage, Generate in Password Generator copies nothing
+// (the page's own clipboard stand-in) while Copy still copies; and a history database a Pro build left in the profile is
+// never opened (every IndexedDB database a page opens is noted by an init script) and keeps its record.
 // Every setting it changes is put back as it found it before it ends: other modules share the browser and the
 // profile and expect a tool to open with its defaults.
 
-/* global document, window, chrome, location, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the pages */
+/* global document, window, chrome, location, DataTransfer, ClipboardEvent, IDBFactory, indexedDB -- page.evaluate callbacks run in the pages */
 
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -63,6 +68,11 @@ const MARK = 'SAVEDSETTINGSPROBE';
 const NOT_SAVED = 'Settings could not be saved. They stay as you set them until this page is closed.';
 /** The key this module fills chrome.storage.local with, to its quota, and removes. */
 const FILLER = 'e2eQuotaFiller';
+/** What the free edition says in place of the history (extension/src/app/history/excluded.ts; settings-storage.md §9). */
+const HISTORY_LINE = 'History is part of Pro: nothing is kept.';
+const HISTORY_SECTION = 'History is part of Pro. Nothing you do in the tools is kept in this version.';
+/** The history's database (extension/src/history/idbStore.ts). */
+const HISTORY_DB = 'tool-history';
 
 export default async ({ ctx, base, check, sleep, report }) => {
   const opened = [];
@@ -616,6 +626,157 @@ export default async ({ ctx, base, check, sleep, report }) => {
         reloaded.sortKeys === 'unchecked' &&
         b64Default,
       JSON.stringify({ newTab, reloaded, b64Default }),
+    );
+
+    // ---- The free edition's history (D25) and automatic copying (D24). ----
+    // From here every new page notes, in its tab's sessionStorage, each IndexedDB database it opens.
+    await free.addInitScript(() => {
+      const open = IDBFactory.prototype.open;
+      IDBFactory.prototype.open = function (name, version) {
+        const seen = JSON.parse(sessionStorage.getItem('e2eOpenedDatabases') ?? '[]');
+        sessionStorage.setItem('e2eOpenedDatabases', JSON.stringify([...seen, name]));
+        return version === undefined ? open.call(this, name) : open.call(this, name, version);
+      };
+    });
+    const openedDatabases = pg => pg.evaluate(() => JSON.parse(sessionStorage.getItem('e2eOpenedDatabases') ?? '[]'));
+    // Lists the databases without opening (and so creating) one.
+    const databases = pg => pg.evaluate(async () => (await indexedDB.databases()).map(d => d.name));
+    const h = await free.newPage();
+    watch(h);
+    /** Work in JSON — an input, then Copy — and leave the page as a person would. Returns what Copy put on the stand-in. */
+    const workInJson = async probe => {
+      await h.goto(`${freeBase}#/tools/json`);
+      await h.locator('#json-input').waitFor({ timeout: 15_000 });
+      const clip = await stubClipboard(h);
+      await h.locator('#json-input').fill(`{"probe":"${MARK}-${probe}"}`);
+      await h.locator('#json-output').waitFor();
+      await h.getByRole('button', { name: 'Copy', exact: true }).click();
+      await h.getByRole('button', { name: 'Copied', exact: true }).waitFor({ timeout: 3_000 });
+      const copied = await clip.copied();
+      await sleep(1_500);
+      await h.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+      await sleep(800);
+      await clip.restore();
+      return copied;
+    };
+    const copiedInJson = await workInJson('free-history');
+    const line = {
+      text: (await h.locator('.kit-tool-history-line').innerText()).trim(),
+      links: await h.locator('.kit-tool-history a').count(),
+    };
+    const afterWork = await databases(h);
+    check(
+      `${T}: free edition — after work in JSON and a Copy, nothing of the history is written: no history database exists`,
+      copiedInJson.length === 1 && !afterWork.includes(HISTORY_DB),
+      JSON.stringify({ copied: copiedInJson.length, databases: afterWork }),
+    );
+
+    await h.goto(`${freeBase}#/history`);
+    const section = h.locator('[data-page="history"]');
+    await section.waitFor({ timeout: 15_000 });
+    const historyPage = {
+      text: (await section.locator('.kit-section-hint').innerText()).trim(),
+      controls: await section.locator('button, a, input, [role="switch"]').count(),
+    };
+    await h.goto(`${freeBase}#/settings`);
+    const block = h.locator('[data-settings="history"]');
+    await block.waitFor({ timeout: 15_000 });
+    const settingsHistory = {
+      text: (await block.locator('p').innerText()).trim(),
+      controls: await block.locator('button, a, input, [role="switch"]').count(),
+    };
+    check(
+      `${T}: free edition — the tool page's line, the History section and Settings → History say that the history is part of Pro, word for word, with nothing else`,
+      line.text === HISTORY_LINE &&
+        line.links === 0 &&
+        historyPage.text === HISTORY_SECTION &&
+        historyPage.controls === 0 &&
+        settingsHistory.text === HISTORY_SECTION &&
+        settingsHistory.controls === 0,
+      JSON.stringify({ line, historyPage, settingsHistory }),
+    );
+    const toolsGroup = await h.locator('[data-settings="tools"]').count();
+    const autoCopySwitch = await h.getByRole('switch', { name: 'Copy automatically after generating' }).count();
+    check(
+      `${T}: free edition — Settings → Tools has no automatic-copying switch`,
+      toolsGroup === 0 && autoCopySwitch === 0,
+      JSON.stringify({ toolsGroup, autoCopySwitch }),
+    );
+
+    // A stored "on", as a Pro build in this profile would have left it.
+    const autoCopyOn = { v: 1, all: { autoCopy: true }, tools: { password: { autoCopy: true } } };
+    await h.evaluate(v => chrome.storage.local.set({ toolSettings: v }), autoCopyOn);
+    await h.goto(`${freeBase}#/tools/password`);
+    await h.getByLabel('Generated password', { exact: true }).waitFor({ timeout: 15_000 });
+    const pwClip = await stubClipboard(h);
+    await h.getByRole('button', { name: 'Generate', exact: true }).click();
+    await sleep(500);
+    const afterGenerate = (await pwClip.copied()).length;
+    await h.getByRole('button', { name: 'Copy', exact: true }).click();
+    await h.getByRole('button', { name: 'Copied', exact: true }).waitFor({ timeout: 3_000 });
+    const afterCopy = (await pwClip.copied()).length;
+    await pwClip.restore();
+    const keptSetting = await stored(h);
+    // Generated passwords are never printed: only how many texts reached the stand-in.
+    check(
+      `${T}: free edition — with "autoCopy: true" stored, Generate in Password Generator copies nothing; Copy still copies; the stored setting is left as it was`,
+      afterGenerate === 0 &&
+        afterCopy === 1 &&
+        keptSetting?.all?.autoCopy === true &&
+        keptSetting?.tools?.password?.autoCopy === true,
+      JSON.stringify({ afterGenerate, afterCopy, keptSetting }),
+    );
+
+    // A history database a Pro build left in this profile, with one record: put there by hand from a page of its own.
+    const seeder = await free.newPage();
+    watch(seeder);
+    await seeder.goto(`${freeBase}#/start`);
+    await seeder.evaluate(
+      name =>
+        new Promise((resolve, reject) => {
+          const r = indexedDB.open(name, 1);
+          r.onupgradeneeded = () =>
+            r.result
+              .createObjectStore('records', { keyPath: 'id' })
+              .put({ id: 'e2e-left-by-pro', owner: 'json', time: 0 });
+          r.onsuccess = () => (r.result.close(), resolve());
+          r.onerror = () => reject(r.error);
+        }),
+      HISTORY_DB,
+    );
+    // The init script runs in the extension's pages: this page's own open is noted.
+    const seederOpened = await openedDatabases(seeder);
+    await seeder.close();
+    await workInJson('free-history-again');
+    await h.goto(`${freeBase}#/history`);
+    await section.waitFor({ timeout: 15_000 });
+    await h.goto(`${freeBase}#/settings`);
+    await block.waitFor({ timeout: 15_000 });
+    const freeOpened = await openedDatabases(h);
+    const reader = await free.newPage();
+    watch(reader);
+    await reader.goto(`${freeBase}#/start`);
+    const left = await reader.evaluate(
+      name =>
+        new Promise((resolve, reject) => {
+          const r = indexedDB.open(name);
+          r.onsuccess = () => {
+            const all = r.result.transaction('records').objectStore('records').getAllKeys();
+            all.onsuccess = () => (r.result.close(), resolve(all.result));
+            all.onerror = () => reject(all.error);
+          };
+          r.onerror = () => reject(r.error);
+        }),
+      HISTORY_DB,
+    );
+    await reader.close();
+    await h.close();
+    check(
+      `${T}: free edition — a history database a Pro build left is never opened, and keeps its record (nothing new, nothing deleted)`,
+      seederOpened.includes(HISTORY_DB) &&
+        !freeOpened.includes(HISTORY_DB) &&
+        JSON.stringify(left) === JSON.stringify(['e2e-left-by-pro']),
+      JSON.stringify({ seederOpened, freeOpened, left }),
     );
   } finally {
     await free.close();
