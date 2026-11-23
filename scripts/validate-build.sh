@@ -29,6 +29,9 @@
 #       page imports lazily (the shell, the parts, the tools, the editor's theme files)
 #   16  the toolbar popup, when the chosen button has one, stays light: everything it loads within a byte budget, none
 #       of the main page's or the editor page's own scripts, no React, no wasm
+#   17  no development licence server: for now the mock backend (scripts/mock-backend/scan-build.mjs — its marker,
+#       its control path, a loopback address, a `mock-` key id, the coordinates of the keys it generated); the licence
+#       check's own parts join it with the licence configuration
 #
 # Widening the extension (a new permission, a new page, content scripts) is intentional work: update manifest.config.ts
 # AND the allowlists below in the same change. The start page's permissions and the toolbar button are not lists here:
@@ -742,6 +745,17 @@ if [ -n "$TOOLBAR_POPUP" ]; then
     fi
 else
     echo "Check 16: Toolbar popup — the button '$TOOLBAR_ID' has none (Check 9 holds that none ships)"
+fi
+
+# Check 17: no development licence server in the build. Its first part is the mock backend of `pnpm mock:backend`:
+# nothing under scripts/mock-backend/ is imported by the extension, and no file of a build mentions its marker, its
+# control path, a loopback address, a `mock-` key id or the public keys it generated in .state/mock-backend/.
+echo "Check 17: No development licence server (the mock backend) in the build..."
+if MOCK_SCAN="$(node "$ROOT/scripts/mock-backend/scan-build.mjs" "$INSPECT_DIR" 2>&1)"; then
+    pass "$MOCK_SCAN"
+else
+    fail "the build mentions the development mock backend (scripts/mock-backend):"
+    echo "$MOCK_SCAN" | sed 's/^/  /'
 fi
 
 # Summary
