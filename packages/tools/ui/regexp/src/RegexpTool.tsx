@@ -13,12 +13,17 @@
  * snapshot is refreshed with the number of matches when the run of that edit answers; copying the regex, the matches
  * or the result is committed — the moments something was taken. An entry opened from History comes back as the
  * pattern, the flags, the text and the replacement, and runs again.
+ *
+ * The flags and Replace are saved parameters (settings.ts; docs/tools/settings.md): the tool opens with what the person
+ * chose last. An opened entry, and a literal pasted into Pattern (or Keep as pasted), show their own flags for the visit
+ * only. The pattern, the text and the replacement are input, never saved.
  */
 import { draft, readPayload } from './entries';
 import { Highlight } from './Highlight';
 import { regexpHistory } from './history';
 import { MatchRows } from './MatchRows';
 import { RegexpRunner } from './runner';
+import { regexpSettings } from './settings';
 import { startRegexpWorker } from './startWorker';
 import {
   compileRegexp,
@@ -38,7 +43,7 @@ import {
   toggleFlag,
   UI_FLAGS,
 } from '@workspace/tool-logic-regexp';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -95,9 +100,9 @@ const reveal = (box: HTMLElement | null, child: HTMLElement | null | undefined):
 
 const RegexpTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [pattern, setPattern] = useState('');
-  const [flags, setFlags] = useState('g');
+  const saved = useSavedSettings(host, 'regexp', regexpSettings);
+  const { flags, replace } = saved.values;
   const [text, setText] = useState(initial ?? '');
-  const [replace, setReplace] = useState(false);
   const [replacement, setReplacement] = useState('');
   const [pasted, setPasted] = useState<{ text: string; flags: string } | null>(null);
   const [allowLong, setAllowLong] = useState(false);
@@ -165,13 +170,17 @@ const RegexpTool = ({ input: initial, host, restore }: ToolProps): ReactElement 
     };
   }, [request, limit, recorder]);
 
-  const edit = (next: Partial<RegexpState>): void => {
+  /** An edit; flags and Replace from the person are saved (`set`), those a pasted literal brought are not (`visit`). */
+  const edit = (next: Partial<RegexpState>, how: 'set' | 'visit' = 'set'): void => {
     const s = { ...latest.current, ...next };
     latest.current = s;
     if (next.pattern !== undefined) setPattern(next.pattern);
-    if (next.flags !== undefined) setFlags(next.flags);
+    const options = {
+      ...(next.flags !== undefined && { flags: next.flags }),
+      ...(next.replace !== undefined && { replace: next.replace }),
+    };
+    if (Object.keys(options).length > 0) saved[how](options);
     if (next.text !== undefined) setText(next.text);
-    if (next.replace !== undefined) setReplace(next.replace);
     if (next.replacement !== undefined) setReplacement(next.replacement);
     setAllowLong(false);
     setRestored(null);
@@ -195,7 +204,7 @@ const RegexpTool = ({ input: initial, host, restore }: ToolProps): ReactElement 
     const split = splitLiteral(clip);
     if (!split) return;
     event.preventDefault();
-    edit({ pattern: split.pattern, flags: split.flags });
+    edit({ pattern: split.pattern, flags: split.flags }, 'visit');
     setPasted({ text: clip, flags });
   };
 
@@ -204,7 +213,7 @@ const RegexpTool = ({ input: initial, host, restore }: ToolProps): ReactElement 
     // As the single-line field itself would have kept it: line breaks removed (§3).
     const value = pasted.text.replaceAll('\r', '').replaceAll('\n', '');
     setPasted(null);
-    edit({ pattern: value, flags: pasted.flags });
+    edit({ pattern: value, flags: pasted.flags }, 'visit');
   };
 
   const changeFlags = (values: string[]): void => {
@@ -237,9 +246,9 @@ const RegexpTool = ({ input: initial, host, restore }: ToolProps): ReactElement 
           replacement: nextReplacement,
         };
         setPattern(p.pattern);
-        setFlags(nextFlags);
+        // The entry's flags and Replace for this visit; what is saved stays as it was.
+        saved.visit({ flags: nextFlags, replace: p.replace });
         setText(nextText);
-        setReplace(p.replace);
         setReplacement(nextReplacement);
         setPasted(null);
         setAllowLong(false);

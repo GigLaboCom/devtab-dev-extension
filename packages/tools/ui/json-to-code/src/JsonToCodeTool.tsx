@@ -10,12 +10,16 @@
  * Generate — with the result (`commit`); an entry the host asks to open comes back as the sample and the options.
  * Without a host the history is the page's memory. The page frame is the host's; the body is built from the kit's
  * tool parts.
+ *
+ * The language and the TypeScript options are saved parameters (settings.ts; docs/tools/settings.md): the tool opens
+ * with what the person chose last; an opened entry shows its own for the visit only. Root type is not one.
  */
 import { editDraft, readEntry, resultDraft } from './entries';
 import { jsonToCodeHistory } from './history';
 import { createRunner } from './runner';
+import { jsonToCodeSettings } from './settings';
 import { LANGUAGES, LIVE_INPUT, MAX_INPUT, describeNotes, jsonToCode } from '@workspace/tool-logic-json-to-code';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -48,10 +52,9 @@ const isLanguage = (value: string): value is Language => LANGUAGES.some(l => l.v
 
 const JsonToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
-  const [language, setLanguage] = useState<Language>('typescript');
+  const saved = useSavedSettings(host, 'json-to-code', jsonToCodeSettings);
+  const { language, declaration, exportTypes } = saved.values;
   const [rootName, setRootName] = useState('');
-  const [declaration, setDeclaration] = useState<'interface' | 'type'>('interface');
-  const [exportTypes, setExportTypes] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [restored, setRestored] = useState<string | null>(null);
   /** The last Generate's job and its result. */
@@ -141,10 +144,9 @@ const JsonToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElem
       edited.current = false;
       setMessage(null);
       setInput(text);
-      setLanguage(entry.language);
       setRootName(entry.rootName);
-      setDeclaration(entry.declaration);
-      setExportTypes(entry.exportTypes);
+      // The entry's options for this visit; what is saved stays as it was.
+      saved.visit({ language: entry.language, declaration: entry.declaration, exportTypes: entry.exportTypes });
       setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
     });
   });
@@ -194,7 +196,7 @@ const JsonToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElem
         <Select
           value={language}
           onValueChange={value => {
-            if (isLanguage(value) && value !== language) edit(() => setLanguage(value));
+            if (isLanguage(value) && value !== language) edit(() => saved.set({ language: value }));
           }}>
           <SelectTrigger id="json-to-code-language" className="min-w-32">
             <SelectValue />
@@ -234,7 +236,7 @@ const JsonToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElem
               value={declaration}
               onValueChange={value => {
                 if ((value === 'interface' || value === 'type') && value !== declaration)
-                  edit(() => setDeclaration(value));
+                  edit(() => saved.set({ declaration: value }));
               }}>
               <ToggleGroupItem value="interface">interface</ToggleGroupItem>
               <ToggleGroupItem value="type">type</ToggleGroupItem>
@@ -243,7 +245,7 @@ const JsonToCodeTool = ({ input: initial, host, restore }: ToolProps): ReactElem
               <Checkbox
                 id="json-to-code-export"
                 checked={exportTypes}
-                onCheckedChange={checked => edit(() => setExportTypes(checked === true))}
+                onCheckedChange={checked => edit(() => saved.set({ exportTypes: checked === true }))}
               />
               <Label htmlFor="json-to-code-export" className="font-normal">
                 Export

@@ -4,12 +4,19 @@
 // CDP on the worker — and that nothing of it is on the start route or in `detect`; an error with its place; Run and
 // Cancel on a megabyte of minified JavaScript with the longest frame of the page meanwhile; the limits of §12 measured
 // per language straight on the worker (the tool's work apart from the text box's); a result too large to show; text
-// pasted on the start page; an entry opened back from the tool's history (D17); the page in the light and the dark
+// pasted on the start page; an entry opened back from the tool's history (D17); the language and options kept as saved
+// parameters (D21), and what the page loads when it opens with a saved language; the page in the light and the dark
 // theme. Run by scripts/e2e-tools.mjs; `pnpm test:e2e -- --only=code-format` runs it alone.
 
-/* global document, location, HTMLTextAreaElement, requestAnimationFrame, Worker, DataTransfer, ClipboardEvent, MutationObserver -- page.evaluate callbacks run in the page */
+/* global chrome, document, location, HTMLTextAreaElement, requestAnimationFrame, Worker, DataTransfer, ClipboardEvent, MutationObserver -- page.evaluate callbacks run in the page */
 
-import { inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 
 const T = 'Code Formatter';
 const KI = 1024;
@@ -105,9 +112,24 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   const status = page.locator('[data-part="status"]');
   const frame = page.locator('[data-slot="tool-page"]');
   const button = label => page.getByRole('button', { name: label, exact: true });
-  /** The tool afresh: off its page and back, so its workers are new and every choice is the default. */
+  const stored = () =>
+    page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.['code-format']);
+  // The page's clipboard stand-in, once it is set; a reload drops it, so it is set again after one.
+  let clipboard = null;
+  /**
+   * The tool afresh: off its page and back, so its workers are new and every choice is the default. The choices are
+   * saved parameters (D21): leaving the tool's page writes the last one at once; once it has landed, what is saved is
+   * forgotten and the page loaded again, so that it opens the tool with the defaults.
+   */
   const tool = async () => {
     await go('#/start');
+    await sleep(300);
+    if (await stored()) {
+      await forgetSavedParameters(page, 'code-format');
+      await page.reload();
+      await page.getByRole('combobox', { name: 'Find a tool or search the web' }).waitFor();
+      if (clipboard) await stubClipboard(page);
+    }
     await go('#/tools/code-format');
     await input.waitFor();
     await page.evaluate(() => {
@@ -225,7 +247,7 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     }),
   );
 
-  const clipboard = await stubClipboard(page);
+  clipboard = await stubClipboard(page);
   try {
     // ── §8 the empty page. ──
     await tool();
@@ -804,6 +826,51 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
       JSON.stringify(restored),
     );
 
+    // ── D21: the language and the options are kept (written 400 ms after the change); the page opened again shows
+    // them, with an empty field — and loads nothing of the formatter for the saved language: no worker starts and no
+    // Prettier module is fetched until there is code to format; the first code then loads that language's modules. ──
+    await tool();
+    await choose('Language', 'CSS');
+    await choose('Indent', '4 spaces');
+    for (let i = 0; i < 25 && (await stored())?.values?.indent !== 4; i++) await sleep(200);
+    const keptFrom = { page: pageRequests.length, worker: workerRequests.length };
+    await page.reload();
+    await input.waitFor();
+    await stubClipboard(page);
+    await sleep(1_000);
+    const opening = {
+      language: await page.getByLabel('Language', { exact: true }).innerText(),
+      indent: await page.getByLabel('Indent', { exact: true }).innerText(),
+      input: await input.inputValue(),
+      status: (await status.innerText()).trim(),
+      workers: page.workers().length,
+      formatterFiles: [...since(pageRequests, keptFrom.page), ...since(workerRequests, keptFrom.worker)]
+        .map(name)
+        .filter(f => /worker|\.mjs$/.test(f)),
+      chunks: since(pageRequests, keptFrom.page).length,
+    };
+    const firstFrom = workerRequests.length;
+    await put('a{b:c}');
+    const firstResult = await result('a {\n    b: c;\n}\n');
+    const until = Date.now() + 20_000;
+    while (since(workerRequests, firstFrom).map(name).join(',') !== 'standalone.mjs,postcss.mjs' && Date.now() < until)
+      await sleep(100);
+    const firstLoaded = since(workerRequests, firstFrom).map(name).join(',');
+    check(
+      `${T}: CSS and 4 spaces chosen, the page opened again — as left, the field empty, no worker and no formatter module loaded; the first code loads CSS's modules (saved parameters)`,
+      opening.language === 'CSS' &&
+        opening.indent === '4 spaces' &&
+        opening.input === '' &&
+        opening.status === '' &&
+        opening.workers === 0 &&
+        opening.formatterFiles.length === 0 &&
+        firstResult === 'a {\n    b: c;\n}\n' &&
+        firstLoaded === 'standalone.mjs,postcss.mjs',
+      JSON.stringify({ opening, firstLoaded, stored: await stored() }),
+    );
+    report.codeFormatSavedOpening = { ...opening, firstLoaded };
+    await put('');
+
     // ── The page in the default dark theme. ──
     await tool();
     const dark = await inDarkTheme(ctx, base, page, async () => {
@@ -823,7 +890,10 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     check(`${T}: the page in the default dark theme`, dark === 'dark', dark);
     await put('');
   } finally {
-    await clipboard.restore();
+    await clipboard?.restore();
+    // The language the dark screenshots chose is a saved parameter: the next module opens the tool with its defaults.
+    await sleep(500);
+    await forgetSavedParameters(page, 'code-format').catch(() => undefined);
     await cdp
       .send('Target.setAutoAttach', { autoAttach: false, waitForDebuggerOnStart: false, flatten: false })
       .catch(() => {});

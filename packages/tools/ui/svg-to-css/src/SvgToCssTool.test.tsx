@@ -1,6 +1,7 @@
 import { definition } from './definition';
 import { detect } from './detect';
 import { PREVIEW_FAILED } from './preview';
+import { svgToCssSettings } from './settings';
 import SvgToCssTool from './SvgToCssTool';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MAX_INPUT } from '@workspace/tool-logic-svg-to-css';
@@ -354,5 +355,83 @@ describe('history (D17)', () => {
     cleanup();
     await act(async () => undefined);
     expect(await entriesOf(host)).toHaveLength(count);
+  });
+});
+
+describe('saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ReturnType<typeof memoryHost>) => host.settings.forTool('svg-to-css').saved();
+  const seed = async (host: ReturnType<typeof memoryHost>, values: Record<string, unknown>) => {
+    host.settings.forTool('svg-to-css').save(svgToCssSettings.schema, values as never);
+    await host.settings.forTool('svg-to-css').flush();
+  };
+  const shows = () => ({
+    output: screen.getByLabelText('Output').textContent,
+    encoding: screen.getByRole('radio', { name: 'Base64' }).getAttribute('aria-checked') === 'true' ? 'base64' : 'url',
+    minify: screen.getByRole('checkbox', { name: 'Minify' }).getAttribute('aria-checked'),
+  });
+  const DEFAULTS = { output: 'background-image', encoding: 'url', minify: 'true' };
+
+  it('saves nothing until an option changes, never the SVG; reopened, it is as left', async () => {
+    const host = memoryHost();
+    const first = render(<SvgToCssTool host={host} />);
+    typeIn(RED);
+    await host.settings.forTool('svg-to-css').flush();
+    expect(savedOf(host)).toBeUndefined();
+    await pick('Output', 'mask-image');
+    fireEvent.click(screen.getByRole('radio', { name: 'Base64' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Minify' }));
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { output: 'mask-image', encoding: 'base64', minify: false } });
+    expect(JSON.stringify(savedOf(host))).not.toContain('svg xmlns');
+
+    render(<SvgToCssTool host={host} input={RED} />);
+    expect(shows()).toEqual({ output: 'mask-image', encoding: 'base64', minify: 'false' });
+    expect(css().value).toMatch(/^mask-image: url\("data:image\/svg\+xml;base64,/);
+  });
+
+  it('a saved record it cannot show falls back field by field; the rest is used', async () => {
+    const host = memoryHost();
+    await seed(host, { output: 'border-image', encoding: 'base64', minify: 'no', unknown: 1 });
+    render(<SvgToCssTool host={host} />);
+    expect(shows()).toEqual({ ...DEFAULTS, encoding: 'base64' });
+  });
+
+  it('an entry opened from History and a pasted SVG win for the visit and leave what is saved alone', async () => {
+    const host = memoryHost();
+    await host.history
+      .forOwner('svg-to-css', definition.history!)
+      .session()
+      .commit({
+        kind: 'convert',
+        payload: { output: 'url', encoding: 'url', minify: true, sizes: { url: 144, base64: 174 }, action: 'copy' },
+        label: 'url() · URL-encoded · 144 characters · copied',
+        blobs: { svg: new Blob([RED]), result: new Blob(['url()']) },
+      });
+    const [entry] = (await host.history.forOwner('svg-to-css', definition.history!).list()).entries;
+    await seed(host, { output: 'data-uri', encoding: 'base64', minify: false });
+    const opened = render(<SvgToCssTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText('Opened from History: url() · URL-encoded · 144 characters · copied.')).toBeTruthy();
+    expect(shows()).toEqual({ output: 'url()', encoding: 'url', minify: 'true' });
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { output: 'data-uri', encoding: 'base64', minify: false } });
+
+    // A paste from the start page: its SVG, with the saved options.
+    render(<SvgToCssTool host={host} input={RED} />);
+    expect(shows()).toEqual({ output: 'Data URI', encoding: 'base64', minify: 'false' });
+    expect(css().value).toMatch(/^data:image\/svg\+xml;base64,/);
+    expect(savedOf(host)).toEqual({ schema: 1, values: { output: 'data-uri', encoding: 'base64', minify: false } });
+  });
+
+  it('reset puts every option back to its default and keeps the SVG; the result follows', async () => {
+    const host = memoryHost();
+    await seed(host, { output: 'mask-image', encoding: 'base64' });
+    render(<SvgToCssTool host={host} />);
+    typeIn(RED);
+    expect(css().value).toMatch(/^mask-image: url\("data:image\/svg\+xml;base64,/);
+    await act(async () => host.settings.forTool('svg-to-css').reset());
+    expect(shows()).toEqual(DEFAULTS);
+    expect(input().value).toBe(RED);
+    expect(css().value).toBe(RED_CSS);
+    expect(savedOf(host)).toBeUndefined();
   });
 });

@@ -11,30 +11,25 @@
  * to the secret kinds — kept only encrypted, with a master password and the history unlocked. A person's edit of a code
  * that builds is a `change`; Copy image, Copy text, Download SVG and PNG are a `commit`; an image read is a `commit` of
  * the text read from it — the image itself is never kept.
+ *
+ * Saved parameters (D21, settings.ts): the mode, the kind of content and the three options the person chooses. A text
+ * handed over (Generate · Text), an image dropped, pasted or chosen (Read) and an opened entry choose them for the visit.
  */
 import { madeDraft, readDraft, readMade, readRead } from './entries';
 import { qrHistory } from './history';
 import { MakeView } from './MakeView';
 import { fileProblem, PREVIEW_SIDE, READ_MESSAGES, readImage } from './reader';
 import { ReadView } from './ReadView';
-import {
-  capacityCheck,
-  DEFAULT_LEVEL,
-  DEFAULT_MODULE_PX,
-  DEFAULT_QUIET,
-  EMPTY_WIFI,
-  hexBytes,
-  secretContent,
-  wifiString,
-} from '@workspace/tool-logic-qr';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { qrSettings } from './settings';
+import { capacityCheck, EMPTY_WIFI, hexBytes, secretContent, wifiString } from '@workspace/tool-logic-qr';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { ToolMessage, ToolOptions } from '@workspace/ui/tool-page';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MadePayload, ReadPayload } from './entries';
 import type * as MakerModule from './maker';
 import type { ReadState } from './ReadView';
-import type { BuildResult, Level, ModulePx, QuietZone, WifiDetails } from '@workspace/tool-logic-qr';
+import type { BuildResult, WifiDetails } from '@workspace/tool-logic-qr';
 import type { RecordingStatus, ToolProps } from '@workspace/tools-host';
 import type { ReactElement } from 'react';
 
@@ -55,13 +50,13 @@ export const keptLine = (status: RecordingStatus): string | null =>
 const isAbort = (error: unknown): boolean => error instanceof DOMException && error.name === 'AbortError';
 
 const QrTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
-  const [half, setHalf] = useState<Half>('generate');
-  const [content, setContent] = useState<Content>('text');
+  // A text handed over is there to become a code: Generate · Text for the visit.
+  const saved = useSavedSettings(host, 'qr', qrSettings, {
+    opening: initial ? { mode: 'generate', content: 'text' } : undefined,
+  });
+  const { mode: half, content, level, quiet, px } = saved.values;
   const [text, setText] = useState(initial ?? '');
   const [wifi, setWifi] = useState<WifiDetails>(EMPTY_WIFI);
-  const [level, setLevel] = useState<Level>(DEFAULT_LEVEL);
-  const [quiet, setQuiet] = useState<QuietZone>(DEFAULT_QUIET);
-  const [px, setPx] = useState<ModulePx>(DEFAULT_MODULE_PX);
   const [read, setRead] = useState<ReadState>({ state: 'empty' });
   const [reads, setReads] = useState(0);
   const [restored, setRestored] = useState<string | null>(null);
@@ -131,7 +126,8 @@ const QrTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const readFile = (file: File): void => {
     edited.current = true;
     setRestored(null);
-    setHalf('read');
+    // The image chose Read, not the person: for the visit.
+    saved.visit({ mode: 'read' });
     reading.current?.abort();
     clearPreview();
     // Every read that ends — found, not found or refused — counts once (`data-read-serial`: a test waits on it).
@@ -225,23 +221,15 @@ const QrTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
       reading.current?.abort();
       reading.current = null;
       clearPreview();
-      setHalf('read');
+      saved.visit({ mode: 'read' });
       setRead({ state: 'done', text: p.text, count: p.count, hex: p.hex ?? null, preview: false });
       setRestored(`Opened from History: ${label}. The image itself is not kept.`);
       return;
     }
     const p = readMade(opened.payload);
-    setHalf('generate');
-    setLevel(p.level);
-    setQuiet(p.quiet);
-    setPx(p.px);
-    if (p.content === 'wifi') {
-      setContent('wifi');
-      setWifi(p.wifi);
-    } else {
-      setContent('text');
-      setText(p.text);
-    }
+    saved.visit({ mode: 'generate', content: p.content, level: p.level, quiet: p.quiet, px: p.px });
+    if (p.content === 'wifi') setWifi(p.wifi);
+    else setText(p.text);
     setRestored(`Opened from History: ${label}.`);
   });
 
@@ -256,7 +244,7 @@ const QrTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
           size="sm"
           aria-label="Mode"
           value={half}
-          onValueChange={value => value && setHalf(value as Half)}>
+          onValueChange={value => value && saved.set({ mode: value as Half })}>
           <ToggleGroupItem value="generate">Generate</ToggleGroupItem>
           <ToggleGroupItem value="read">Read</ToggleGroupItem>
         </ToggleGroup>
@@ -275,12 +263,12 @@ const QrTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
           encoded={encoded}
           built={built}
           kept={content === 'wifi' || secretContent(encoded) ? keptLine(status) : null}
-          onContent={next => edit(() => setContent(next))}
+          onContent={next => edit(() => saved.set({ content: next }))}
           onText={next => edit(() => setText(next))}
           onWifi={next => edit(() => setWifi(next))}
-          onLevel={next => edit(() => setLevel(next))}
-          onQuiet={next => edit(() => setQuiet(next))}
-          onPx={next => edit(() => setPx(next))}
+          onLevel={next => edit(() => saved.set({ level: next }))}
+          onQuiet={next => edit(() => saved.set({ quiet: next }))}
+          onPx={next => edit(() => saved.set({ px: next }))}
           onAction={commitMade}
         />
       ) : null}

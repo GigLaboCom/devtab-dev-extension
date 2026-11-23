@@ -3,7 +3,8 @@
  * header's "alg"), the key — a shared secret for HS*, a private key for the others — and the signed token, made as the
  * person types by `crypto.subtle.sign` (an answer for older fields is dropped). The key lives in this component's state
  * only: it is never recorded (the history's `signed` kind keeps the header, the payload and the token, encrypted, with a
- * master password), saved or logged.
+ * master password), saved or logged. Compact JSON and the secret's format are the tool's saved parameters: they come
+ * from the tool, and a change goes back to it.
  */
 import { signedDraft } from './payload';
 import { SIGNING_ALGORITHMS, algorithmName, headerAlg, signToken, withAlg } from '@workspace/tool-logic-jwt';
@@ -25,16 +26,20 @@ import type { ReactElement } from 'react';
 export interface SignSeed {
   header: string;
   payload: string;
-  compact: boolean;
   /** A shared secret carried over from Decode (HS*): in memory only. */
-  secret?: { text: string; format: SecretFormat };
+  secret?: string;
 }
 
 export const DEFAULT_SEED: SignSeed = {
   header: '{\n  "alg": "HS256",\n  "typ": "JWT"\n}',
   payload: '{\n  "sub": "user-42",\n  "name": "Ada Lovelace"\n}',
-  compact: true,
 };
+
+/** How Sign signs, held by the tool (saved parameters): Compact JSON and the format of the signing secret. */
+export interface SignOptions {
+  compact: boolean;
+  format: SecretFormat;
+}
 
 const FORMATS: Array<{ value: SecretFormat; label: string }> = [
   { value: 'text', label: 'Text (UTF-8)' },
@@ -55,20 +60,23 @@ const signedKept = (status: RecordingStatus): string =>
 
 export const SignView = ({
   seed,
+  options: { compact, format },
+  onOptions,
   recorder,
   status,
   onDecode,
 }: {
   seed: SignSeed;
+  options: SignOptions;
+  /** The person changed an option. */
+  onOptions: (change: Partial<SignOptions>) => void;
   recorder: HistoryRecorder;
   status: RecordingStatus;
   onDecode: (token: string, secret?: { text: string; format: SecretFormat }) => void;
 }): ReactElement => {
   const [header, setHeader] = useState(seed.header);
   const [payload, setPayload] = useState(seed.payload);
-  const [compact, setCompact] = useState(seed.compact);
-  const [secret, setSecret] = useState(seed.secret?.text ?? '');
-  const [format, setFormat] = useState<SecretFormat>(seed.secret?.format ?? 'text');
+  const [secret, setSecret] = useState(seed.secret ?? '');
   const [privateKey, setPrivateKey] = useState('');
   const [showSecret, setShowSecret] = useState(false);
   const [result, setResult] = useState<SignResult | null>(null);
@@ -122,7 +130,11 @@ export const SignView = ({
           </Select>
         </div>
         <div className="flex items-center gap-2 pb-2">
-          <Checkbox id="jwt-sign-compact" checked={compact} onCheckedChange={v => edit(() => setCompact(v === true))} />
+          <Checkbox
+            id="jwt-sign-compact"
+            checked={compact}
+            onCheckedChange={v => edit(() => onOptions({ compact: v === true }))}
+          />
           <Label htmlFor="jwt-sign-compact">Compact JSON</Label>
         </div>
         {listed && (
@@ -199,7 +211,7 @@ export const SignView = ({
           <Label htmlFor="jwt-sign-secret-format" className="ml-2 text-muted-foreground">
             Secret format
           </Label>
-          <Select value={format} onValueChange={value => edit(() => setFormat(value as SecretFormat))}>
+          <Select value={format} onValueChange={value => edit(() => onOptions({ format: value as SecretFormat }))}>
             <SelectTrigger id="jwt-sign-secret-format" className="min-w-36">
               <SelectValue />
             </SelectTrigger>

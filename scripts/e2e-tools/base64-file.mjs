@@ -24,7 +24,14 @@ import { createHash, randomBytes } from 'node:crypto';
 import { closeSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeSync, createReadStream } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { historyRecords, inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  historyRecords,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 
 const T = 'Base64 File';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -808,6 +815,60 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     );
   }
 
+  // ---- Saved parameters (D21): what a person chose in one tab is written 400 ms after the change; the tool opened
+  // again in a new tab is as it was left, with nothing of the input.
+  {
+    await forgetSavedParameters(page, 'base64-file');
+    const want = { alphabet: 'url', padding: false, lineLength: 76, mode: 'decode' };
+    const same = (a, b) => JSON.stringify(Object.entries(a ?? {}).sort()) === JSON.stringify(Object.entries(b).sort());
+    const stored = p =>
+      p.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.['base64-file']);
+    const chooser = await ctx.newPage();
+    await chooser.goto(toolUrl);
+    await chooser.locator('[data-slot="file-drop"]').waitFor({ timeout: 30_000 });
+    for (const [label, option] of [
+      ['Alphabet', 'URL-safe'],
+      ['Line length', '76'],
+    ]) {
+      await chooser.getByLabel(label, { exact: true }).click();
+      await chooser.getByRole('option', { name: option, exact: true }).click();
+    }
+    await chooser.getByRole('radio', { name: 'Decode', exact: true }).click();
+    for (let i = 0; i < 25 && !same((await stored(chooser))?.values, want); i++) await sleep(200);
+    const kept = (await stored(chooser))?.values;
+    await chooser.close();
+    const again = await ctx.newPage();
+    await again.goto(toolUrl);
+    await again.locator('#base64-file-input').waitFor({ timeout: 30_000 });
+    const opened = {
+      decode: await again.getByRole('radio', { name: 'Decode', exact: true }).getAttribute('data-state'),
+      input: await again.locator('#base64-file-input').inputValue(),
+    };
+    await again.getByRole('radio', { name: 'Encode', exact: true }).click();
+    await again.locator('[data-slot="file-drop"]').waitFor();
+    Object.assign(opened, {
+      alphabet: await again.getByLabel('Alphabet', { exact: true }).innerText(),
+      padding: await again.getByRole('checkbox', { name: 'Padding' }).getAttribute('aria-checked'),
+      lineLength: await again.getByLabel('Line length', { exact: true }).innerText(),
+      file: await again.locator('[data-encoded]').count(),
+    });
+    await again.close();
+    facts.savedOpening = { kept, ...opened };
+    check(
+      `${T}: URL-safe, 76 and Decode chosen in one tab, the tool opened in another — Decode with the field empty; Encode with URL-safe, no padding, 76 and no file (saved parameters)`,
+      same(kept, want) &&
+        opened.decode === 'on' &&
+        opened.input === '' &&
+        opened.alphabet === 'URL-safe' &&
+        opened.padding === 'false' &&
+        opened.lineLength === '76' &&
+        opened.file === 0,
+      JSON.stringify(facts.savedOpening),
+    );
+    // The dark screenshots below expect the defaults.
+    await forgetSavedParameters(page, 'base64-file');
+  }
+
   // ---- Screenshots: dark
   await go(toolUrl);
   await page.locator('[data-slot="file-drop"]').waitFor({ timeout: 30_000 });
@@ -856,4 +917,7 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   await ctx.unroute(INVALID);
   rmSync(OUT, { recursive: true, force: true });
   await page.evaluate(url => location.replace(url), `${base}#/tools`);
+  // Decode, chosen for the dark screenshot, is a saved parameter: the next module opens the tool with its defaults.
+  await sleep(500);
+  await forgetSavedParameters(page, 'base64-file').catch(() => {});
 };

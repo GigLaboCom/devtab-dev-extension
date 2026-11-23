@@ -7,9 +7,15 @@
 // the module replaces the tab's entry (the e2e modules share one tab, and Chrome keeps 50 entries). Run by
 // scripts/e2e-tools.mjs.
 
-/* global document, HTMLTextAreaElement, requestAnimationFrame, location -- page.evaluate callbacks run in the page */
+/* global chrome, document, HTMLTextAreaElement, requestAnimationFrame, location -- page.evaluate callbacks run in the page */
 
-import { inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -333,6 +339,35 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   );
   await button('Clear').click();
 
+  // Saved parameters (D21): the direction and the options the person chose are written 400 ms after the change; the
+  // page opened again shows them, the field empty. Then they are forgotten: the dark screenshots open with the defaults.
+  const stored = () =>
+    page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.['json-csv']);
+  await radio('CSV → JSON').click();
+  await choose('Empty cells', 'Leave out');
+  await choose('Indent', '4 spaces');
+  for (let i = 0; i < 25 && (await stored())?.values?.jsonIndent !== 4; i++) await sleep(200);
+  await page.reload();
+  await input.waitFor();
+  const kept = {
+    stored: await stored(),
+    direction: await radio('CSV → JSON').getAttribute('aria-checked'),
+    empty: await page.getByLabel('Empty cells', { exact: true }).innerText(),
+    indent: await page.getByLabel('Indent', { exact: true }).innerText(),
+    input: await input.inputValue(),
+  };
+  check(
+    'JSON and CSV: CSV → JSON, Leave out and 4 spaces chosen, the page opened again — as left, the field empty (saved parameters)',
+    kept.direction === 'true' &&
+      kept.empty.includes('Leave out') &&
+      kept.indent.includes('4 spaces') &&
+      kept.input === '',
+    JSON.stringify(kept),
+  );
+  await forgetSavedParameters(page, 'json-csv');
+  await page.reload();
+  await input.waitFor();
+
   // The page in the dark theme, then back.
   await input.fill('[{"id":1,"name":"Ann","address":{"city":"Paris"},"tags":["a","b"]},{"id":2,"name":"=cmd"}]');
   await settle();
@@ -349,5 +384,7 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   check('JSON and CSV: no page errors', pageErrors.length === 0, pageErrors.join(' | '));
   await input.fill('');
   await radio('JSON → CSV').click();
+  await sleep(500);
+  await forgetSavedParameters(page, 'json-csv');
   page.off('pageerror', onError);
 };

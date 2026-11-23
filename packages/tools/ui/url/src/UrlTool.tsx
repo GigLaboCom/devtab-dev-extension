@@ -4,9 +4,14 @@
  * ToolPage (title, summary, the history line); this is the body. Logic: @workspace/tool-logic-url. History: through the
  * host — `recorder.change` when a person edits the text, the mode or its option, `recorder.commit` on Swap and when the
  * result is copied; `useRestore` opens an entry the host asks for. Nothing typed here becomes a link or is fetched.
+ *
+ * The mode and its options are saved parameters (settings.ts; docs/tools/settings.md): the tool opens with what the
+ * person chose last time where the host remembers it; a paste opens the mode that recognised it and an opened entry
+ * shows its own mode and options, both for the visit only. Swap is the person's change of mode, saved like any other.
  */
 import { urlHistory } from './history';
 import { carriesCredentials, excerpt, isMode, isStyle, urlLabel } from './record';
+import { urlSettings } from './settings';
 import {
   decodeUrl,
   detectedMode,
@@ -20,7 +25,7 @@ import {
   paramsToJson,
   parseUrl,
 } from '@workspace/tool-logic-url';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -134,9 +139,9 @@ const ParamsTable = ({ params }: { params: readonly QueryParam[] }): ReactElemen
 const UrlTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
   // Text handed over from the start page opens in the mode that recognised it (§7: a URL — Parse, %XX — Decode).
-  const [mode, setMode] = useState<UrlMode>(() => (initial ? (detectedMode(initial) ?? 'encode') : 'encode'));
-  const [style, setStyle] = useState<UrlStyle>('component');
-  const [plusAsSpace, setPlusAsSpace] = useState(false);
+  const [handedMode] = useState(() => (initial ? detectedMode(initial) : undefined));
+  const saved = useSavedSettings(host, 'url', urlSettings, { opening: handedMode ? { mode: handedMode } : undefined });
+  const { mode, style, plusAsSpace } = saved.values;
   const [restored, setRestored] = useState<string | null>(null);
   const { history, recorder } = useToolHistory(host, 'url', urlHistory);
 
@@ -191,9 +196,13 @@ const UrlTool = ({ input: initial, host, restore }: ToolProps): ReactElement => 
     edited.current = true;
     setRestored(null);
     if (next.input !== undefined) setInput(next.input);
-    if (next.mode !== undefined) setMode(next.mode);
-    if (next.style !== undefined) setStyle(next.style);
-    if (next.plusAsSpace !== undefined) setPlusAsSpace(next.plusAsSpace);
+    // The mode and options the person chose: shown and saved.
+    if (next.mode !== undefined || next.style !== undefined || next.plusAsSpace !== undefined)
+      saved.set({
+        ...(next.mode !== undefined && { mode: next.mode }),
+        ...(next.style !== undefined && { style: next.style }),
+        ...(next.plusAsSpace !== undefined && { plusAsSpace: next.plusAsSpace }),
+      });
   };
 
   // Swap: the result becomes the input, Encode ↔ Decode; the options stay as they are (§4).
@@ -218,9 +227,12 @@ const UrlTool = ({ input: initial, host, restore }: ToolProps): ReactElement => 
       edited.current = false;
       setInput(source);
       setSettled(source);
-      setMode(isMode(p.mode) ? p.mode : 'encode');
-      setStyle(isStyle(p.style) ? p.style : 'component');
-      setPlusAsSpace(p.plusAsSpace === true);
+      // The entry's mode and options for this visit; what is saved stays as it was.
+      saved.visit({
+        mode: isMode(p.mode) ? p.mode : 'encode',
+        style: isStyle(p.style) ? p.style : 'component',
+        plusAsSpace: p.plusAsSpace === true,
+      });
       setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
     });
   });

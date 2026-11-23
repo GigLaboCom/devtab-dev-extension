@@ -2,13 +2,21 @@
 // (§2) with the page's real controls, the largest texts the limits allow (§12: how long from the edit to the painted
 // text, the longest task meanwhile, and a text box of the same text set on its own — the text box's own cost), and its
 // history (D17): Generate writes one entry in clear with the settings and no text; Recent entries opens it back with
-// the same settings and a new text, and the page says so. Copying is checked against the page's own stand-in for
+// the same settings and a new text, and the page says so; the settings are kept as saved parameters (D21) and the page
+// opened again makes its first text with them. Copying is checked against the page's own stand-in for
 // navigator.clipboard.writeText (nothing reaches the machine's clipboard), put back before the module ends. The theme is
 // put back too. Run by scripts/e2e-tools.mjs; screenshots tool-lorem-ipsum-NN-….png.
 
-/* global document, location, requestAnimationFrame, HTMLInputElement -- page.evaluate callbacks run in the page */
+/* global chrome, document, location, requestAnimationFrame, HTMLInputElement -- page.evaluate callbacks run in the page */
 
-import { historyRecords, inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  historyRecords,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 
 const T = 'Lorem Ipsum';
 const ID = 'lorem-ipsum';
@@ -29,12 +37,17 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     return p;
   };
   let clipboard = null;
-  /** The tool afresh: reloaded (not a new history entry of the tab), every setting back to its default. */
+  /**
+   * The tool afresh: reloaded (not a new history entry of the tab), every setting back to its default. The settings are
+   * saved parameters: a change of the last 400 ms lands first, then they are forgotten and the page is read anew.
+   */
   const fresh = async () => {
     const hash = `#/tools/${ID}`;
     if (!page.url().startsWith(base)) await page.goto(`${base}${hash}`);
     else await page.evaluate(url => location.replace(url), `${base}${hash}`);
     await page.waitForFunction(h => location.hash === h, hash, { timeout: 5_000 });
+    await sleep(500);
+    await forgetSavedParameters(page, ID);
     await page.reload();
     // The tool's own element, not the heading: the page says "Loading…" until its history is open.
     await page.locator('[data-status]').waitFor();
@@ -285,6 +298,10 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
         (await historyRecords(page, ID)).length > before,
       record.label,
     );
+    // The settings above are saved parameters now: forgotten, so the page opens with the defaults and the entry alone
+    // brings its settings back.
+    await sleep(500);
+    await forgetSavedParameters(page, ID);
     await page.reload();
     await page.locator('[data-status]').waitFor();
     await page.locator('.kit-tool-history-recent summary').click();
@@ -307,6 +324,37 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     );
     await shot('tool-lorem-ipsum-04-restored-light.png');
 
+    // Saved parameters (D21): the settings a person chose are written 400 ms after the change; the page opened again
+    // shows them and makes its first text with them. The dark screenshots start afresh (forgotten), as before.
+    await fresh();
+    const stored = () =>
+      page.evaluate(async id => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.[id], ID);
+    await radio('Words').click();
+    await setCount('12');
+    await radio('HTML').click();
+    for (let i = 0; i < 25 && (await stored())?.values?.format !== 'html'; i++) await sleep(200);
+    await page.reload();
+    await page.locator('[data-status]').waitFor();
+    const keptText = await result();
+    const kept = {
+      words: await radio('Words').getAttribute('aria-checked'),
+      count: await count.inputValue(),
+      html: await radio('HTML').getAttribute('aria-checked'),
+      opening: await opening.getAttribute('aria-checked'),
+      text: keptText.slice(0, 40),
+      n: words(keptText),
+    };
+    check(
+      `${T}: Words, 12 and HTML chosen, the page opened again — as left, its first text made with them (saved parameters)`,
+      kept.words === 'true' &&
+        kept.count === '12' &&
+        kept.html === 'true' &&
+        kept.opening === 'true' &&
+        keptText.startsWith('<p>Lorem ipsum dolor sit amet') &&
+        kept.n === 12,
+      JSON.stringify({ kept, stored: await stored() }),
+    );
+
     await inDarkTheme(ctx, base, page, async () => {
       await fresh();
       await shot('tool-lorem-ipsum-05-opened-dark.png');
@@ -321,5 +369,9 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   } finally {
     await clipboard?.restore().catch(() => undefined);
     for (const p of opened) await p.close();
+    // The settings the dark screenshots chose are saved parameters (written 400 ms after the change): the next module
+    // opens the tool with its defaults.
+    await sleep(500);
+    await forgetSavedParameters(page, ID).catch(() => undefined);
   }
 };

@@ -2,12 +2,19 @@
 // does them — the page's real controls — run by scripts/e2e-tools.mjs. The clipboard is the page's own stand-in for the
 // length of this module (scripts/e2e-helpers.mjs), put back at the end, also when a check throws. Then: a copy is a
 // history record, 10,000 digits are converted as they are typed (the time is in the check's detail), a prefixed number
-// pasted on the start page opens the tool, and the page in the default dark theme.
+// pasted on the start page opens the tool, the options and N kept as saved parameters (D21), and the page in the
+// default dark theme.
 // Screenshots: tool-number-base-01 … (light), tool-number-base-0N-dark-… (dark).
 
-/* global document, location, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
+/* global document, location, DataTransfer, ClipboardEvent, chrome -- page.evaluate callbacks run in the page */
 
-import { inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 
 const T = 'Number Bases';
 const LABELS = ['Binary', 'Octal', 'Decimal', 'Hexadecimal'];
@@ -44,7 +51,7 @@ export default async ({ ctx, page, base, check, shoot }) => {
   };
 
   await tool();
-  const clipboard = await stubClipboard(page);
+  let clipboard = await stubClipboard(page);
   try {
     check(
       `${T}: the empty page — five fields with their placeholders, no details`,
@@ -202,6 +209,35 @@ export default async ({ ctx, page, base, check, shoot }) => {
     );
     await field('Binary').fill('');
 
+    // Saved parameters (D21): 8 bits chosen above (kept while Minus sign turns Width off), Uppercase and N chosen now
+    // are kept (written 400 ms after the change); the page opened again has them, every field empty.
+    const stored = () =>
+      page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.['number-base']);
+    await page.getByRole('checkbox', { name: 'Uppercase', exact: true }).click();
+    await radix.fill('16');
+    for (let i = 0; i < 25; i++) {
+      const v = (await stored())?.values;
+      if (v?.width === 8 && v?.uppercase === true && v?.radix === 16) break;
+      await page.waitForTimeout(200);
+    }
+    await page.reload();
+    await field('Decimal').waitFor({ timeout: 15_000 });
+    clipboard = await stubClipboard(page);
+    check(
+      `${T}: 8 bits, Uppercase and N = 16 chosen, the page opened again — as left, the fields empty (saved parameters)`,
+      (await page.getByRole('combobox', { name: 'Width', exact: true }).innerText()) === '8 bits' &&
+        (await page.getByRole('checkbox', { name: 'Uppercase', exact: true }).getAttribute('aria-checked')) ===
+          'true' &&
+        (await radix.inputValue()) === '16' &&
+        (await values()).every(v => v === ''),
+      JSON.stringify(await stored()),
+    );
+    // The start page's paste and the dark screenshots below open with the defaults: forgotten, the page read anew.
+    await forgetSavedParameters(page, 'number-base');
+    await page.reload();
+    await field('Decimal').waitFor({ timeout: 15_000 });
+    clipboard = await stubClipboard(page);
+
     // From the start page: a prefixed number pasted opens the tool in the field of its prefix (§7, D16).
     await go('#/start');
     const start = page.getByRole('combobox', { name: 'Find a tool or search the web' });
@@ -236,6 +272,8 @@ export default async ({ ctx, page, base, check, shoot }) => {
       await settledShot(shoot, frame, 'tool-number-base-07-dark-error.png');
     });
   } finally {
+    // Two's complement and Group digits were chosen for the dark screenshots: the next module opens with the defaults.
+    await forgetSavedParameters(page, 'number-base').catch(() => undefined);
     await clipboard.restore().catch(() => undefined);
   }
 };

@@ -8,6 +8,7 @@
 import { definition } from './definition';
 import { qrHistory } from './history';
 import QrTool from './QrTool';
+import { qrSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { svgFile } from '@workspace/tool-logic-qr';
 import { memoryHost, unlockedHost } from '@workspace/tools-host';
@@ -563,7 +564,9 @@ describe('history', () => {
     await host.vault.lock();
     render(<QrTool host={host} restore={{ id: entry!.id }} />);
     expect(await screen.findByText('This entry is encrypted: unlock the history to open it.')).toBeTruthy();
-    expect(field('Text').value).toBe('');
+    // Wi-Fi was the person's choice above, a saved parameter now: the form opens with nothing of the entry in it.
+    expect(field('Network name').value).toBe('');
+    expect(field('Password').value).toBe('');
   });
 
   it('a code read: its text is kept (never the image) and opens back in Read; a Wi-Fi code read only encrypted', async () => {
@@ -631,5 +634,131 @@ describe('history', () => {
     const { buildQr } = await import('./maker');
     const built = buildQr('HELLO WORLD', 'M');
     expect(built.ok && (await downloads[0]!.blob.text())).toBe(built.ok && svgFile(built.modules, 4, 8));
+  });
+});
+
+describe('the QR Code tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ReturnType<typeof memoryHost>) => host.settings.forTool('qr').saved();
+  const seed = async (host: ReturnType<typeof memoryHost>, values: Record<string, unknown>) => {
+    host.settings.forTool('qr').save(qrSettings.schema, values as never);
+    await host.settings.forTool('qr').flush();
+  };
+  const on = (group: string, name: string) => radio(group, name).getAttribute('aria-checked') === 'true';
+  const shows = () => ({
+    level: screen.getByLabelText('Error correction').textContent,
+    quiet: screen.getByLabelText('Quiet zone').textContent,
+    px: screen.getByLabelText('PNG size').textContent,
+  });
+  const pasteImage = () =>
+    act(() => {
+      const event = new Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'clipboardData', { value: { files: [png('clipboard.png')] } });
+      document.body.dispatchEvent(event);
+    });
+
+  it('opens with the defaults and saves nothing until an option changes; reopened, it is as left — never the network', async () => {
+    const host = memoryHost();
+    const first = render(<QrTool host={host} />);
+    expect(shows()).toEqual({ level: 'M — 15%', quiet: '4 modules', px: '8 px per module' });
+    type('Text', 'https://example.com/');
+    await code();
+    await host.settings.forTool('qr').flush();
+    expect(savedOf(host)).toBeUndefined();
+    await pick('Error correction', 'Q — 25%');
+    await pick('Quiet zone', '2 modules');
+    await pick('PNG size', '16 px per module');
+    fireEvent.click(radio('Content', 'Wi-Fi'));
+    type('Network name', 'Home');
+    await pick('Security', 'WEP');
+    type('Password', 'secret123');
+    fireEvent.click(screen.getByLabelText('Hidden network'));
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { content: 'wifi', level: 'Q', quiet: 2, px: 16 } });
+
+    const second = render(<QrTool host={host} />);
+    expect(on('Mode', 'Generate')).toBe(true);
+    expect(on('Content', 'Wi-Fi')).toBe(true);
+    expect(shows()).toEqual({ level: 'Q — 25%', quiet: '2 modules', px: '16 px per module' });
+    expect(field('Network name').value).toBe('');
+    expect(field('Password').value).toBe('');
+    expect(screen.getByLabelText('Security').textContent).toBe('WPA/WPA2/WPA3');
+    expect(screen.getByLabelText('Hidden network').getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(radio('Mode', 'Read'));
+    second.unmount();
+
+    render(<QrTool host={host} />);
+    expect(on('Mode', 'Read')).toBe(true);
+    expect(savedOf(host)!.values).toEqual({ mode: 'read', content: 'wifi', level: 'Q', quiet: 2, px: 16 });
+  });
+
+  it('a saved record it cannot show falls back field by field; the rest is used', async () => {
+    const host = memoryHost();
+    await seed(host, { mode: 'scan', content: 'wifi', level: 'X', quiet: 5, px: 16, password: 'x' });
+    render(<QrTool host={host} />);
+    expect(on('Mode', 'Generate')).toBe(true);
+    expect(on('Content', 'Wi-Fi')).toBe(true);
+    expect(shows()).toEqual({ level: 'M — 15%', quiet: '4 modules', px: '16 px per module' });
+  });
+
+  it('an opened entry, a text handed over and an image win for the visit and leave what is saved alone', async () => {
+    const host = memoryHost();
+    const session = host.history.forOwner('qr', qrHistory).session();
+    await session.commit({
+      kind: 'made',
+      label: 'made',
+      payload: { content: 'text', text: 'from history', level: 'Q', quiet: 4, px: 8 } as never,
+      blobs: {},
+    });
+    await session.commit({ kind: 'read', label: 'read', payload: { text: 'seen', count: 1 } as never, blobs: {} });
+    await session.end();
+    const list = await entries(host);
+    const values = { content: 'wifi', level: 'H', px: 32 };
+    await seed(host, values);
+
+    const made = render(<QrTool host={host} restore={{ id: list.find(e => e.label === 'made')!.id }} />);
+    expect(await screen.findByText('Opened from History: made.')).toBeTruthy();
+    expect(on('Content', 'Text')).toBe(true);
+    expect(field('Text').value).toBe('from history');
+    expect(shows()).toEqual({ level: 'Q — 25%', quiet: '4 modules', px: '8 px per module' });
+    made.unmount();
+    const read = render(<QrTool host={host} restore={{ id: list.find(e => e.label === 'read')!.id }} />);
+    expect(await screen.findByText(/^Opened from History: read\./)).toBeTruthy();
+    expect(on('Mode', 'Read')).toBe(true);
+    read.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values });
+
+    // A text handed over: Generate · Text with the saved options; an image pasted then: Read for the visit.
+    reader.readImage.mockResolvedValue(found('pasted'));
+    const handed = render(<QrTool host={host} input="handed over" />);
+    expect(on('Content', 'Text')).toBe(true);
+    expect(field('Text').value).toBe('handed over');
+    expect(shows()).toEqual({ level: 'H — 30%', quiet: '4 modules', px: '32 px per module' });
+    pasteImage();
+    expect(await screen.findByText('Found a QR code: 6 characters.')).toBeTruthy();
+    expect(on('Mode', 'Read')).toBe(true);
+    handed.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values });
+
+    // Opened with what is saved, an image pasted from Generate reads in Read, and nothing is written.
+    render(<QrTool host={host} />);
+    expect(on('Content', 'Wi-Fi')).toBe(true);
+    pasteImage();
+    await screen.findByText('Found a QR code: 6 characters.');
+    await host.settings.forTool('qr').flush();
+    expect(savedOf(host)).toEqual({ schema: 1, values });
+  });
+
+  it('reset puts every option back to its default and keeps the text; the code follows', async () => {
+    const host = memoryHost();
+    await seed(host, { level: 'H', quiet: 0, px: 32 });
+    render(<QrTool host={host} />);
+    type('Text', 'https://example.com/');
+    await code();
+    expect(info()).toMatch(/level H/);
+    await act(async () => host.settings.forTool('qr').reset());
+    expect(shows()).toEqual({ level: 'M — 15%', quiet: '4 modules', px: '8 px per module' });
+    expect(field('Text').value).toBe('https://example.com/');
+    await waitFor(() => expect(info()).toMatch(/level M/));
+    expect(savedOf(host)).toBeUndefined();
   });
 });

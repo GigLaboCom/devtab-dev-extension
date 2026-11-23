@@ -2,6 +2,7 @@ import { definition } from './definition';
 import { detect } from './detect';
 import JwtTool from './JwtTool';
 import { readPayload } from './payload';
+import { jwtSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { memoryHost } from '@workspace/tools-host';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -401,5 +402,149 @@ describe('the JWT tool’s history (D17)', () => {
       readPayload({ token: 'x', kind: 'jws', signature: 'valid', key: { field: 'secret', format: 'pem', text: '' } }),
     ).toBeUndefined();
     expect(readPayload(null)).toBeUndefined();
+  });
+});
+
+describe('the JWT tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ToolHost) => host.settings!.forTool('jwt').saved();
+  const seed = async (host: ToolHost, values: Record<string, unknown>) => {
+    host.settings!.forTool('jwt').save(jwtSettings.schema, values as never);
+    await host.settings!.forTool('jwt').flush();
+  };
+  const toMode = (name: 'Decode' | 'Sign') => fireEvent.click(screen.getByRole('radio', { name }));
+  const inSign = () => screen.getByRole('radio', { name: 'Sign' }).getAttribute('data-state') === 'on';
+  const format = () => screen.getByLabelText('Secret format').textContent;
+  const compact = () => screen.getByLabelText('Compact JSON').getAttribute('aria-checked');
+  /** The tool's history is all secret: a host whose history opens what the test puts in, with real saved parameters. */
+  const hostWithEntries = () => {
+    const spy = spyHost();
+    const host: ToolHost = { history: spy.host.history, settings: memoryHost().settings };
+    return { host, opened: spy.opened };
+  };
+  const entry = (id: string, kind: string) => ({
+    id,
+    owner: 'jwt',
+    kind,
+    session: 's',
+    time: 0,
+    schema: 1,
+    encrypted: true,
+    bytes: 1,
+  });
+
+  it('saves the secret formats and Compact JSON — never a token or a key; reopened, it is as left; the mode is not saved', async () => {
+    const host = memoryHost();
+    const first = render(<JwtTool host={host} />);
+    type('Token', T1);
+    await chooseFormat('Hex');
+    type('Secret', SECRET);
+    toMode('Sign');
+    fireEvent.click(screen.getByLabelText('Compact JSON'));
+    await chooseFormat('Base64');
+    type('Signing secret', SECRET);
+    first.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: { secretFormat: 'hex', compact: false, signSecretFormat: 'base64' },
+    });
+    expect(JSON.stringify(savedOf(host))).not.toContain(SECRET);
+    expect(JSON.stringify(savedOf(host))).not.toContain('eyJ');
+
+    render(<JwtTool host={host} />);
+    expect(inSign()).toBe(false);
+    type('Token', T1);
+    expect(format()).toBe('Hex');
+    expect((screen.getByLabelText('Secret') as HTMLInputElement).value).toBe('');
+    toMode('Sign');
+    expect(compact()).toBe('false');
+    expect(format()).toBe('Base64');
+    expect((screen.getByLabelText('Signing secret') as HTMLInputElement).value).toBe('');
+  });
+
+  it('a saved record it cannot show falls back field by field', async () => {
+    const host = memoryHost();
+    await seed(host, { secretFormat: 'pem', compact: 'yes', signSecretFormat: 'jwk' });
+    render(<JwtTool host={host} input={T1} />);
+    expect(format()).toBe('Text (UTF-8)');
+    toMode('Sign');
+    expect(compact()).toBe('true');
+    expect(format()).toBe('JWK');
+  });
+
+  it('a paste keeps what is saved; an entry and a key carried between the modes win for the visit; what is saved stays', async () => {
+    const { host, opened } = hostWithEntries();
+    await seed(host, { secretFormat: 'hex', compact: false });
+    const stored = { schema: 1, values: { secretFormat: 'hex', compact: false } };
+    const pasted = render(<JwtTool host={host} input={T1} />);
+    expect(inSign()).toBe(false);
+    expect(format()).toBe('Hex');
+    pasted.unmount();
+    expect(savedOf(host)).toEqual(stored);
+
+    const key: JwtPayload = {
+      token: T1,
+      kind: 'jws',
+      alg: 'HS256',
+      signature: 'valid',
+      key: { field: 'secret', format: 'base64', text: SECRET_BASE64 },
+    };
+    opened.set('e1', {
+      ok: true,
+      entry: entry('e1', 'checked'),
+      label: 'HS256 · signature verified',
+      payload: key as unknown as HistoryDraft['payload'],
+      blobs: {},
+    });
+    const checked = render(<JwtTool host={host} restore={{ id: 'e1' }} />);
+    expect(await screen.findByText('Opened from History: HS256 · signature verified.')).toBeTruthy();
+    expect(format()).toBe('Base64');
+    await verdict('Signature verified');
+    // Edit and sign: the decoded parts are only compacted, and the secret goes with its format — for this visit.
+    fireEvent.click(screen.getByRole('button', { name: 'Edit and sign' }));
+    expect(compact()).toBe('true');
+    expect(format()).toBe('Base64');
+    await waitFor(() => expect((screen.getByLabelText('Signed token') as HTMLTextAreaElement).value).toBe(T1));
+    checked.unmount();
+    expect(savedOf(host)).toEqual(stored);
+
+    opened.set('e2', {
+      ok: true,
+      entry: entry('e2', 'signed'),
+      label: 'HS256 · signed',
+      payload: {
+        mode: 'sign',
+        header: '{"alg":"HS256"}',
+        payload: '{"sub":"x"}',
+        compact: true,
+        alg: 'HS256',
+        token: 'x',
+      } as unknown as HistoryDraft['payload'],
+      blobs: {},
+    });
+    const signed = render(<JwtTool host={host} restore={{ id: 'e2' }} />);
+    expect(await screen.findByText(/^Opened from History: HS256 · signed\./)).toBeTruthy();
+    expect(compact()).toBe('true');
+    signed.unmount();
+    expect(savedOf(host)).toEqual(stored);
+    render(<JwtTool host={host} />);
+    toMode('Sign');
+    expect(compact()).toBe('false');
+  });
+
+  it('reset puts the formats and Compact JSON back to the defaults and keeps the token and the secret', async () => {
+    const host = memoryHost();
+    await seed(host, { secretFormat: 'base64', compact: false, signSecretFormat: 'hex' });
+    render(<JwtTool host={host} input={T1} />);
+    type('Secret', SECRET_BASE64);
+    await verdict('Signature verified');
+    await act(async () => host.settings!.forTool('jwt').reset());
+    expect(format()).toBe('Text (UTF-8)');
+    expect((screen.getByLabelText('Token') as HTMLTextAreaElement).value).toBe(T1);
+    expect((screen.getByLabelText('Secret') as HTMLInputElement).value).toBe(SECRET_BASE64);
+    await verdict('Signature does not match');
+    toMode('Sign');
+    expect(compact()).toBe('true');
+    expect(format()).toBe('Text (UTF-8)');
+    expect(savedOf(host)).toBeUndefined();
   });
 });

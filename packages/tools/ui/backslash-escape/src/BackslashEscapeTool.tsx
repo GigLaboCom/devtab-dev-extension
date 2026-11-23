@@ -6,11 +6,17 @@
  * wait; above that the tool refuses (§12). It records into the tool history through its host: an edit snapshot of the
  * input, the choices and the result (`change`), and a commit when the result is taken — Copy or Swap; an entry the host
  * asks to open comes back as the input and the choices. The page frame (title, summary, the history line) is the host's.
+ *
+ * The direction, the dialect, its quote and the options are saved parameters (settings.ts; docs/tools/settings.md): the
+ * tool opens with what the person chose last. A paste from the start page opens Unescape without With quotes (in the
+ * saved dialect) and an opened entry shows its own choices, both for the visit only. Swap is the person's change of
+ * direction, saved like any other.
  */
 import { createCompute } from './compute';
 import { entryLabel, excerpt, isDialect, isMode, isQuoteOf } from './entries';
 import { backslashEscapeHistory } from './history';
 import { EMPTY, TOO_LARGE, toOutcome } from './outcome';
+import { backslashEscapeSettings } from './settings';
 import { runJob } from './work';
 import {
   DIALECTS,
@@ -20,7 +26,7 @@ import {
   SETTLE_MS,
   quotesFor,
 } from '@workspace/tool-logic-backslash-escape';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -34,7 +40,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BackslashEscapePayload, Mode } from './history';
 import type { Outcome } from './outcome';
 import type { Job } from './work';
-import type { Dialect, Quote } from '@workspace/tool-logic-backslash-escape';
+import type { Quote } from '@workspace/tool-logic-backslash-escape';
 import type { HistoryDraft, ToolProps } from '@workspace/tools-host';
 import type { ReactElement } from 'react';
 
@@ -106,12 +112,14 @@ const useOutcome = (job: Job): { outcome: Outcome; current: boolean } => {
 
 const BackslashEscapeTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
-  // Text handed over from the start page was recognised as escaped text (detectBackslashEscape): it is there to be read.
-  const [mode, setMode] = useState<Mode>(initial ? 'unescape' : 'escape');
-  const [dialect, setDialect] = useState<Dialect>('json');
-  const [quote, setQuote] = useState<Quote>('"');
-  const [nonAscii, setNonAscii] = useState(false);
-  const [withQuotes, setWithQuotes] = useState(false);
+  // Text handed over from the start page was recognised as escaped text (detectBackslashEscape): it is there to be read,
+  // as it is (a pasted "…" keeps its quotes), in the dialect the person last chose — for this visit; what is saved stays.
+  const saved = useSavedSettings(host, 'backslash-escape', backslashEscapeSettings, {
+    opening: initial ? { mode: 'unescape', withQuotes: false } : undefined,
+  });
+  const { mode, dialect, nonAscii, withQuotes } = saved.values;
+  // A quote the dialect does not have (a record written in another dialect) is shown, and used, as the double quote.
+  const quote: Quote = isQuoteOf(dialect, saved.values.quote) ? saved.values.quote : '"';
   const [restored, setRestored] = useState<string | null>(null);
   const { history, recorder } = useToolHistory(host, 'backslash-escape', backslashEscapeHistory);
 
@@ -145,7 +153,7 @@ const BackslashEscapeTool = ({ input: initial, host, restore }: ToolProps): Reac
     take('swap');
     edit(() => {
       setInput(outcome.output);
-      setMode(mode === 'escape' ? 'unescape' : 'escape');
+      saved.set({ mode: mode === 'escape' ? 'unescape' : 'escape' });
     });
   };
 
@@ -165,11 +173,14 @@ const BackslashEscapeTool = ({ input: initial, host, restore }: ToolProps): Reac
       edited.current = false;
       const openedDialect = isDialect(p.dialect) ? p.dialect : 'json';
       setInput(text);
-      setMode(isMode(p.mode) ? p.mode : opened.entry.kind === 'unescape' ? 'unescape' : 'escape');
-      setDialect(openedDialect);
-      setQuote(isQuoteOf(openedDialect, p.quote) ? p.quote : '"');
-      setNonAscii(p.nonAscii === true);
-      setWithQuotes(p.withQuotes === true);
+      // The entry's choices for this visit; what is saved stays as it was.
+      saved.visit({
+        mode: isMode(p.mode) ? p.mode : opened.entry.kind === 'unescape' ? 'unescape' : 'escape',
+        dialect: openedDialect,
+        quote: isQuoteOf(openedDialect, p.quote) ? p.quote : '"',
+        nonAscii: p.nonAscii === true,
+        withQuotes: p.withQuotes === true,
+      });
       setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
     });
   });
@@ -186,7 +197,7 @@ const BackslashEscapeTool = ({ input: initial, host, restore }: ToolProps): Reac
           aria-label="Mode"
           value={mode}
           onValueChange={value => {
-            if (isMode(value) && value !== mode) edit(() => setMode(value));
+            if (isMode(value) && value !== mode) edit(() => saved.set({ mode: value }));
           }}>
           <ToggleGroupItem value="escape">Escape</ToggleGroupItem>
           <ToggleGroupItem value="unescape">Unescape</ToggleGroupItem>
@@ -198,11 +209,8 @@ const BackslashEscapeTool = ({ input: initial, host, restore }: ToolProps): Reac
           value={dialect}
           onValueChange={value => {
             if (!isDialect(value) || value === dialect) return;
-            edit(() => {
-              setDialect(value);
-              // §4: a new dialect starts from the double quote.
-              setQuote('"');
-            });
+            // §4: a new dialect starts from the double quote; both are the person's choice and saved.
+            edit(() => saved.set({ dialect: value, quote: '"' }));
           }}>
           <SelectTrigger id="backslash-escape-dialect" className="min-w-32">
             <SelectValue />
@@ -223,7 +231,7 @@ const BackslashEscapeTool = ({ input: initial, host, restore }: ToolProps): Reac
             <Select
               value={quote}
               onValueChange={value => {
-                if (isQuoteOf(dialect, value)) edit(() => setQuote(value));
+                if (isQuoteOf(dialect, value)) edit(() => saved.set({ quote: value }));
               }}>
               <SelectTrigger id="backslash-escape-quote" className="min-w-16 font-mono">
                 <SelectValue />
@@ -247,7 +255,7 @@ const BackslashEscapeTool = ({ input: initial, host, restore }: ToolProps): Reac
             <Checkbox
               id="backslash-escape-non-ascii"
               checked={nonAscii}
-              onCheckedChange={checked => edit(() => setNonAscii(checked === true))}
+              onCheckedChange={checked => edit(() => saved.set({ nonAscii: checked === true }))}
             />
             <Label htmlFor="backslash-escape-non-ascii" className="font-normal">
               Escape non-ASCII
@@ -258,7 +266,7 @@ const BackslashEscapeTool = ({ input: initial, host, restore }: ToolProps): Reac
           <Checkbox
             id="backslash-escape-with-quotes"
             checked={withQuotes}
-            onCheckedChange={checked => edit(() => setWithQuotes(checked === true))}
+            onCheckedChange={checked => edit(() => saved.set({ withQuotes: checked === true }))}
           />
           <Label htmlFor="backslash-escape-with-quotes" className="font-normal">
             With quotes

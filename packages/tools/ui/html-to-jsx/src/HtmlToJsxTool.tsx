@@ -8,10 +8,13 @@
  * is markup nested deeper than MAX_NESTING levels — found by a linear scan before the parser sees it (§12, §15).
  * DOMParser does not exist in a worker, so the work stays on the page; Convert paints "Working…" first. History: an
  * edit snapshot (`change`) once the result is there, a commit on Copy and on Convert; an entry the host asks to open
- * comes back as the input and the option. The page frame (title, summary, the history line) is the host's.
+ * comes back as the input and the option. Wrap in a component is a saved parameter (settings.ts;
+ * docs/tools/settings.md): the tool opens with what the person chose last; an opened entry shows its own for the visit
+ * only. The page frame (title, summary, the history line) is the host's.
  */
 import { draftOf, readEntry } from './entries';
 import { htmlToJsxHistory } from './history';
+import { htmlToJsxSettings } from './settings';
 import {
   LIVE_INPUT,
   MAX_INPUT,
@@ -21,7 +24,7 @@ import {
   loadAttributeNames,
   nestingDepth,
 } from '@workspace/tool-logic-html-to-jsx';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -66,7 +69,8 @@ const useAttributeNames = (needed: boolean): AttributeNames | null => {
 
 const HtmlToJsxTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
-  const [component, setComponent] = useState(false);
+  const saved = useSavedSettings(host, 'html-to-jsx', htmlToJsxSettings);
+  const { component } = saved.values;
   const [converted, setConverted] = useState<Conversion | null>(null);
   const [working, setWorking] = useState(false);
   const [restored, setRestored] = useState<string | null>(null);
@@ -154,7 +158,8 @@ const HtmlToJsxTool = ({ input: initial, host, restore }: ToolProps): ReactEleme
       if (!mounted.current) return;
       edited.current = false;
       setInput(text);
-      setComponent(entry.component);
+      // The entry's option for this visit; what is saved stays as it was.
+      saved.visit({ component: entry.component });
       // A large input's result is the one kept: it would otherwise wait for Convert.
       setConverted(
         text.length > LIVE_INPUT && text.length <= MAX_INPUT
@@ -173,7 +178,7 @@ const HtmlToJsxTool = ({ input: initial, host, restore }: ToolProps): ReactEleme
           <Checkbox
             id="html-to-jsx-component"
             checked={component}
-            onCheckedChange={checked => edit(() => setComponent(checked === true))}
+            onCheckedChange={checked => edit(() => saved.set({ component: checked === true }))}
           />
           <Label htmlFor="html-to-jsx-component" className="font-normal">
             Wrap in a component

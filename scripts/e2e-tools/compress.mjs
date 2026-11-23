@@ -6,14 +6,20 @@
 // with a file of the origin's private file system, so no system dialog opens and the saved bytes can be read back.
 // The copy button's clipboard is stubbed too; both are restored at the end.
 
-/* global document, location, window, HTMLTextAreaElement, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
+/* global document, location, window, chrome, HTMLTextAreaElement, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
 
 import { mkdirSync, rmSync, writeFileSync, createWriteStream } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
-import { inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = join(ROOT, '.state/e2e/compress');
@@ -41,7 +47,7 @@ const bomb = (path, size) =>
     write();
   });
 
-export default async ({ ctx, page, base, check, shoot, sleep }) => {
+export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   mkdirSync(OUT, { recursive: true });
   const workers = [];
   page.on('worker', w => workers.push(w.url()));
@@ -390,7 +396,91 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
       pasted.hash === '#/tools/compress' && pasted.result === 'hello' && textB64 === '#/tools/base64',
       `${JSON.stringify(pasted)} ${textB64}`,
     );
+
+    // ---- Saved parameters (D21): what a person chose in one tab is written 400 ms after the change; the tool opened
+    // again in a new tab is as it was left — and a saved zstd loads nothing until there is something to compress.
+    await forgetSavedParameters(page, 'compress');
+    const stored = p =>
+      p.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.compress);
+    const want = { direction: 'compress', cFormat: 'zstd', zstdLevel: 9, encoding: 'hex' };
+    const same = (a, b) => JSON.stringify(Object.entries(a ?? {}).sort()) === JSON.stringify(Object.entries(b).sort());
+    const chooser = await ctx.newPage();
+    await chooser.goto(`${base}#/tools/compress`);
+    await chooser.locator('[data-direction]').waitFor({ timeout: 15_000 });
+    await chooser
+      .getByRole('radiogroup', { name: 'Direction', exact: true })
+      .getByRole('radio', { name: 'Compress', exact: true })
+      .click();
+    for (const [label, option] of [
+      ['Format', 'zstd'],
+      ['Level', '9'],
+    ]) {
+      await chooser.getByLabel(label, { exact: true }).click();
+      await chooser.getByRole('option', { name: option, exact: true }).click();
+    }
+    await chooser
+      .getByRole('radiogroup', { name: 'View', exact: true })
+      .getByRole('radio', { name: 'Hex', exact: true })
+      .click();
+    for (let i = 0; i < 25 && !same((await stored(chooser))?.values, want); i++) await sleep(200);
+    const kept = (await stored(chooser))?.values;
+    await chooser.close();
+    const reopenedTab = await ctx.newPage();
+    const opened = { workers: [], requests: [] };
+    reopenedTab.on('worker', w => opened.workers.push(w.url()));
+    reopenedTab.on('request', r => opened.requests.push(r.url()));
+    await reopenedTab.goto(`${base}#/tools/compress`);
+    await reopenedTab.locator('[data-direction]').waitFor({ timeout: 15_000 });
+    await sleep(1_000);
+    const on = name =>
+      reopenedTab
+        .getByRole('radiogroup', { name, exact: true })
+        .locator('[data-state="on"]')
+        .innerText()
+        .catch(() => null);
+    const reopened = {
+      direction: await on('Direction'),
+      format: await reopenedTab.getByLabel('Format', { exact: true }).innerText(),
+      level: await reopenedTab.getByLabel('Level', { exact: true }).innerText(),
+      view: await on('View'),
+      input: await reopenedTab.locator('#compress-input').inputValue(),
+      workers: [...opened.workers],
+      libraries: opened.requests.filter(u => /zstd|brotli|\.worker-/.test(u)),
+    };
+    await reopenedTab.evaluate(() => {
+      const el = document.querySelector('#compress-input');
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, '68656c6c6f');
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    // Input encoding stays Text (not chosen): the field's text is compressed as text.
+    const compressed = await reopenedTab
+      .waitForFunction(() => /^28b52ffd/.test(document.querySelector('#compress-result')?.value ?? ''), null, {
+        timeout: 15_000,
+      })
+      .then(
+        () => true,
+        () => false,
+      );
+    const loadedAfter = opened.workers.filter(u => /\/assets\/zstd\.worker-[\w-]+\.js$/.test(u)).length;
+    await reopenedTab.close();
+    report.compressSavedOpening = { kept, ...reopened, compressed, zstdWorkerAfterInput: loadedAfter };
+    check(
+      `${T}: Compress, zstd 9 and Hex chosen in one tab, the tool opened in another — as left, the field empty, no worker started and no zstd or brotli file fetched; the first input starts the zstd worker (saved parameters)`,
+      same(kept, want) &&
+        reopened.direction === 'Compress' &&
+        reopened.format === 'zstd' &&
+        reopened.level === '9' &&
+        reopened.view === 'Hex' &&
+        reopened.input === '' &&
+        reopened.workers.length === 0 &&
+        reopened.libraries.length === 0 &&
+        compressed &&
+        loadedAfter === 1,
+      JSON.stringify(report.compressSavedOpening),
+    );
   } finally {
+    // The choices of this module are saved parameters: the next module opens the tool with its defaults.
+    await forgetSavedParameters(page, 'compress').catch(() => {});
     await page
       .evaluate(() => {
         delete window.showSaveFilePicker;

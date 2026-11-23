@@ -1,5 +1,6 @@
 import { definition } from './definition';
 import HtmlToJsxTool from './HtmlToJsxTool';
+import { htmlToJsxSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LIVE_INPUT, MAX_INPUT, loadAttributeNames } from '@workspace/tool-logic-html-to-jsx';
 import { memoryHost } from '@workspace/tools-host';
@@ -339,5 +340,81 @@ describe('the HTML to JSX tool’s history', () => {
     expect(output()).toBe('<br />\n');
     unmount();
     await waitFor(async () => expect(await entriesOf(host)).toHaveLength(1));
+  });
+});
+
+describe('the HTML to JSX tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ReturnType<typeof memoryHost>) => host.settings.forTool('html-to-jsx').saved();
+  const seed = async (host: ReturnType<typeof memoryHost>, values: Record<string, unknown>) => {
+    host.settings.forTool('html-to-jsx').save(htmlToJsxSettings.schema, values as never);
+    await host.settings.forTool('html-to-jsx').flush();
+  };
+  const wrap = () => screen.getByRole('checkbox', { name: 'Wrap in a component' }).getAttribute('aria-checked');
+  const WRAPPED = 'export default function Component() {\n  return (\n    <i>hi</i>\n  );\n}\n';
+
+  it('saves nothing until the option changes, never the markup; reopened, it is as left', async () => {
+    const host = memoryHost();
+    const first = render(<HtmlToJsxTool host={host} />);
+    type('<i>hi</i>');
+    await settle();
+    await host.settings.forTool('html-to-jsx').flush();
+    expect(savedOf(host)).toBeUndefined();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Wrap in a component' }));
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { component: true } });
+    expect(JSON.stringify(savedOf(host))).not.toContain('<i>');
+
+    render(<HtmlToJsxTool host={host} input="<i>hi</i>" />);
+    expect(wrap()).toBe('true');
+    await settle();
+    expect(output()).toBe(WRAPPED);
+  });
+
+  it('a saved record it cannot show falls back to the default', async () => {
+    const host = memoryHost();
+    await seed(host, { component: 'yes', unknown: 1 });
+    render(<HtmlToJsxTool host={host} />);
+    expect(wrap()).toBe('false');
+  });
+
+  it('an entry opened from History and a pasted text win for the visit and leave what is saved alone', async () => {
+    const host = memoryHost();
+    await host.history
+      .forOwner('html-to-jsx', definition.history!)
+      .session()
+      .commit({
+        kind: 'convert',
+        payload: { component: false, notes: [], action: 'copy' },
+        label: 'HTML → JSX · 9 characters · copied',
+        blobs: { input: new Blob(['<i>hi</i>']), output: new Blob(['<i>hi</i>\n']) },
+      });
+    const [entry] = (await host.history.forOwner('html-to-jsx', definition.history!).list({})).entries;
+    await seed(host, { component: true });
+    const opened = render(<HtmlToJsxTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText('Opened from History: HTML → JSX · 9 characters · copied.')).toBeTruthy();
+    expect(wrap()).toBe('false');
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { component: true } });
+
+    // Text handed over by the host: its markup, with the saved option.
+    render(<HtmlToJsxTool host={host} input="<i>hi</i>" />);
+    expect(wrap()).toBe('true');
+    await settle();
+    expect(output()).toBe(WRAPPED);
+    expect(savedOf(host)).toEqual({ schema: 1, values: { component: true } });
+  });
+
+  it('reset puts the option back to its default and keeps the input; the result follows', async () => {
+    const host = memoryHost();
+    await seed(host, { component: true });
+    render(<HtmlToJsxTool host={host} />);
+    type('<i>hi</i>');
+    await settle();
+    expect(output()).toBe(WRAPPED);
+    await act(async () => host.settings.forTool('html-to-jsx').reset());
+    expect(wrap()).toBe('false');
+    expect(field('HTML').value).toBe('<i>hi</i>');
+    expect(output()).toBe('<i>hi</i>\n');
+    expect(savedOf(host)).toBeUndefined();
   });
 });

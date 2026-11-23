@@ -2,6 +2,7 @@ import { definition } from './definition';
 import { readEntry, readSettings } from './entries';
 import { randomStringHistory } from './history';
 import RandomStringTool from './RandomStringTool';
+import { randomStringSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { AUTO_COPY, AUTO_COPY_REFUSED, memoryHost, memoryToolSettings, unlockedHost } from '@workspace/tools-host';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -676,8 +677,132 @@ describe('the Random String tool’s sources (§5.1, §5.6)', () => {
   it('use no Math.random, no console and no debug logger', () => {
     const root = dirname(fileURLToPath(import.meta.url));
     const files = readdirSync(root).filter(f => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f));
-    expect(files.length).toBe(4);
+    // definition, entries, history, the component, and the saved parameters (settings.ts, D21)
+    expect(files.length).toBe(5);
     for (const file of files)
       expect(readFileSync(join(root, file), 'utf8')).not.toMatch(/Math\.random|console\.|createDebug/);
+  });
+});
+
+describe('the Random String tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  type Host = Awaited<ReturnType<typeof autoCopyHost>>['host'];
+  const savedOf = (host: Host) => host.settings.forTool('random-string').saved();
+  const seed = async (host: Host, values: Record<string, unknown>) => {
+    host.settings.forTool('random-string').save(randomStringSettings.schema, values as never);
+    await host.settings.forTool('random-string').flush();
+  };
+  const value = (label: string) => (screen.getByLabelText(label) as HTMLInputElement).value;
+  const on = (name: string) => screen.getByRole('radio', { name }).getAttribute('aria-checked') === 'true';
+
+  it('saves the choices, and numbers only as a whole it accepts; reopened, the first batch is made with them — not recorded, not copied', async () => {
+    const { host, changes, commits } = await autoCopyHost(true);
+    const first = render(<RandomStringTool host={host} />);
+    await host.settings.forTool('random-string').flush();
+    expect(savedOf(host)).toBeUndefined();
+    await choose('Alphabet', 'Digits');
+    type('Length', '');
+    type('Length', '1000');
+    type('How many', '10000');
+    // An empty Length is not saved; 1,000 × 10 is, and 1,000 × 10,000 is refused: How many is not saved yet.
+    await host.settings.forTool('random-string').flush();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { preset: 'digits', length: 1000 } });
+    type('How many', '1000');
+    await host.settings.forTool('random-string').flush();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { preset: 'digits', length: 1000, count: 1000 } });
+    type('Length', '12');
+    type('How many', '');
+    type('How many', '5');
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { preset: 'digits', length: 12, count: 5 } });
+
+    changes.length = 0;
+    commits.length = 0;
+    render(<RandomStringTool host={host} />);
+    await settle();
+    expect(screen.getByLabelText('Alphabet').textContent).toBe('Digits');
+    expect(value('Length')).toBe('12');
+    expect(value('How many')).toBe('5');
+    const shown = strings();
+    expect(shown).toHaveLength(5);
+    for (const s of shown) expect(s).toMatch(/^\d{12}$/);
+    expect(changes).toHaveLength(0);
+    expect(commits).toHaveLength(0);
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('a saved record it cannot show falls back field by field; the rest is used', async () => {
+    const { host } = await autoCopyHost(false);
+    await seed(host, { mode: 'bytes', bytes: 2000, encoding: 'base32', count: 2, preset: 'nope', custom: 'aa' });
+    render(<RandomStringTool host={host} />);
+    expect(on('Bytes')).toBe(true);
+    expect(value('Bytes')).toBe('32');
+    expect(screen.getByLabelText('Encoding').textContent).toBe('Hex (lowercase)');
+    expect(value('How many')).toBe('2');
+    const shown = strings();
+    expect(shown).toHaveLength(2);
+    for (const s of shown) expect(s).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('an entry opened from History wins for the visit and leaves what is saved alone; a later change saves only itself', async () => {
+    const { host, opened } = await autoCopyHost(false);
+    opened.set(
+      'e1',
+      entry(
+        { settings: { mode: 'chars', preset: 'hex', custom: '', length: 4, count: 2 } },
+        { strings: new Blob(['00af\nbeef']) },
+        '2 strings · 4 characters · Hex, lowercase · 16 bits',
+      ),
+    );
+    const values = { mode: 'bytes', encoding: 'base64', count: 3 };
+    await seed(host, values);
+    const view = render(<RandomStringTool host={host} restore={{ id: 'e1' }} />);
+    expect(await screen.findByText(/^Opened from History: 2 strings/)).toBeTruthy();
+    expect(on('Characters')).toBe(true);
+    expect(strings()).toEqual(['00af', 'beef']);
+    view.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values });
+
+    // There is no paste (no detect); after an entry, How many is the only change and the only thing saved.
+    render(<RandomStringTool host={host} restore={{ id: 'e1' }} />);
+    await screen.findByText(/^Opened from History: 2 strings/);
+    type('How many', '4');
+    expect(strings()).toHaveLength(4);
+    await host.settings.forTool('random-string').flush();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { ...values, count: 4 } });
+  });
+
+  it('opened with a saved batch over 100,000 characters: Generating… first, then the batch — not recorded, not copied', async () => {
+    const { host, changes, commits } = await autoCopyHost(true);
+    await seed(host, { length: 1000, count: 1000 });
+    render(<RandomStringTool host={host} />);
+    expect(button('Generating…').disabled).toBe(true);
+    expect(strings()).toEqual([]);
+    await waitFor(() => expect(strings()).toHaveLength(1000), { timeout: 10_000 });
+    expect(strings()[0]).toMatch(/^[A-Za-z0-9]{1000}$/);
+    expect(button('Generate').disabled).toBe(false);
+    expect(changes).toHaveLength(0);
+    expect(commits).toHaveLength(0);
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('reset puts every setting back and makes a new batch — not recorded, not copied', async () => {
+    const { host, changes, commits } = await autoCopyHost(true);
+    await seed(host, { preset: 'custom', custom: 'ACGT', length: 8, count: 2 });
+    render(<RandomStringTool host={host} />);
+    await settle();
+    expect(value('Custom alphabet')).toBe('ACGT');
+    for (const s of strings()) expect(s).toMatch(/^[ACGT]{8}$/);
+    await act(async () => host.settings.forTool('random-string').reset());
+    expect(screen.getByLabelText('Alphabet').textContent).toBe('Letters and digits');
+    expect(screen.queryByLabelText('Custom alphabet')).toBeNull();
+    expect(value('Length')).toBe('32');
+    expect(value('How many')).toBe('10');
+    const shown = strings();
+    expect(shown).toHaveLength(10);
+    for (const s of shown) expect(s).toMatch(/^[A-Za-z0-9]{32}$/);
+    expect(changes).toHaveLength(0);
+    expect(commits).toHaveLength(0);
+    expect(writeText).not.toHaveBeenCalled();
+    expect(savedOf(host)).toBeUndefined();
   });
 });

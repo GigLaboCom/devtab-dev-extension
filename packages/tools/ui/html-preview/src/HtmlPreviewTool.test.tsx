@@ -1,6 +1,7 @@
 import { definition } from './definition';
 import { HINT } from './entries';
 import HtmlPreviewTool from './HtmlPreviewTool';
+import { htmlPreviewSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import {
   BASE_CSS,
@@ -412,5 +413,85 @@ describe('the HTML Preview tool’s history', () => {
     await settle();
     unmount();
     await waitFor(async () => expect(await entriesOf(host)).toHaveLength(1));
+  });
+});
+
+describe('the HTML Preview tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ReturnType<typeof memoryHost>) => host.settings.forTool('html-preview').saved();
+  const seed = async (host: ReturnType<typeof memoryHost>, values: Record<string, unknown>) => {
+    host.settings.forTool('html-preview').save(htmlPreviewSettings.schema, values as never);
+    await host.settings.forTool('html-preview').flush();
+  };
+  const shows = () => screen.getByLabelText('Width').textContent;
+
+  it('opens with Fit and saves nothing until the width changes; reopened, it is as left, the field empty', async () => {
+    const host = memoryHost();
+    const first = render(<HtmlPreviewTool host={host} />);
+    await loaded();
+    expect(shows()).toBe('Fit');
+    type('<p>Hi</p>');
+    await host.settings.forTool('html-preview').flush();
+    expect(savedOf(host)).toBeUndefined();
+    await choose('768 px');
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { width: '768' } });
+
+    render(<HtmlPreviewTool host={host} />);
+    expect(shows()).toBe('768 px');
+    expect(field().value).toBe('');
+    expect(frame().style.width).toBe('768px');
+  });
+
+  it('a saved width it cannot show is Fit; the frame keeps its sandbox and policy whatever is saved', async () => {
+    const host = memoryHost();
+    await seed(host, { width: '1280', unknown: 1 });
+    const first = render(<HtmlPreviewTool host={host} />);
+    expect(shows()).toBe('Fit');
+    expect(frame().style.width).toBe('');
+    first.unmount();
+
+    await seed(host, { width: '1024' });
+    render(<HtmlPreviewTool host={host} />);
+    expect(frame().style.width).toBe('1024px');
+    expect(frame().getAttribute('sandbox')).toBe(FRAME_SANDBOX);
+    expect(frame().getAttribute('srcdoc')).toBe(frameSource(undefined, FRAME_POLICY));
+  });
+
+  it('an entry opened from History and a pasted text win for the visit and leave what is saved alone', async () => {
+    const host = memoryHost();
+    await host.history
+      .forOwner('html-preview', definition.history!)
+      .session()
+      .commit({
+        kind: 'preview',
+        label: 'Notes',
+        payload: { width: 'fit', action: 'copy' } as never,
+        blobs: { input: new Blob(['<h1>Notes</h1>']) },
+      });
+    const [entry] = (await host.history.forOwner('html-preview', definition.history!).list({})).entries;
+    await seed(host, { width: '375' });
+    const opened = render(<HtmlPreviewTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText('Opened from History: Notes.')).toBeTruthy();
+    await waitFor(() => expect(shows()).toBe('Fit'));
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { width: '375' } });
+
+    // A paste from the start page: its HTML, with the saved width.
+    render(<HtmlPreviewTool host={host} input="<p>Pasted</p>" />);
+    expect(shows()).toBe('375 px');
+    expect(field().value).toBe('<p>Pasted</p>');
+    expect(savedOf(host)).toEqual({ schema: 1, values: { width: '375' } });
+  });
+
+  it('reset puts the width back to Fit and keeps the HTML', async () => {
+    const host = memoryHost();
+    await seed(host, { width: '1024' });
+    render(<HtmlPreviewTool host={host} />);
+    type('<p>Kept</p>');
+    await act(async () => host.settings.forTool('html-preview').reset());
+    expect(shows()).toBe('Fit');
+    expect(frame().style.width).toBe('');
+    expect(field().value).toBe('<p>Kept</p>');
+    expect(savedOf(host)).toBeUndefined();
   });
 });

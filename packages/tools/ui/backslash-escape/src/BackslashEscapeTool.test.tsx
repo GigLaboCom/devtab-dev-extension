@@ -1,8 +1,9 @@
-// The String Escape tool's component (docs/tools/specs/backslash-escape.md §2, §4, §6, §8, §12; D17): rendered with no
-// host, then with an in-memory host for the history. Control characters and lone surrogates are written as escapes.
+// The String Escape tool's component (docs/tools/specs/backslash-escape.md §2, §4, §6, §8, §12; D17; D21): rendered with
+// no host, then with an in-memory host for the history and the saved parameters. Control characters and lone surrogates are written as escapes.
 import BackslashEscapeTool from './BackslashEscapeTool';
 import { definition } from './definition';
 import { detect } from './detect';
+import { backslashEscapeSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LIVE_INPUT, MAX_INPUT, SETTLE_MS } from '@workspace/tool-logic-backslash-escape';
 import { memoryHost } from '@workspace/tools-host';
@@ -432,5 +433,126 @@ describe('the String Escape tool’s history', () => {
     render(<BackslashEscapeTool host={host} input={'line1\\nline2\\ttab'} />).unmount();
     await waitFor(async () => expect(await entriesOf(host, ['unescape'])).toHaveLength(1));
     expect((await entriesOf(host))[0]!.label).toBe('Unescape · JSON · 17 characters');
+  });
+});
+
+describe('the String Escape tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const entriesOf = async (host: ReturnType<typeof memoryHost>) =>
+    (await host.history.forOwner('backslash-escape', definition.history!).list({})).entries;
+  const savedOf = (host: ReturnType<typeof memoryHost>) => host.settings.forTool('backslash-escape').saved();
+  const seed = async (host: ReturnType<typeof memoryHost>, values: Record<string, unknown>) => {
+    host.settings.forTool('backslash-escape').save(backslashEscapeSettings.schema, values as never);
+    await host.settings.forTool('backslash-escape').flush();
+  };
+  const current = () =>
+    screen.getByRole('radio', { name: 'Unescape' }).getAttribute('aria-checked') === 'true' ? 'unescape' : 'escape';
+  const dialect = () => screen.getByLabelText('Dialect').textContent;
+  const quote = () => screen.queryByLabelText('Quote')?.textContent ?? null;
+  const ticked = (name: string) => screen.queryByLabelText(name)?.getAttribute('aria-checked') ?? null;
+
+  it('saves the direction, dialect, quote and options the person chose; reopened, it is as left; Swap is saved too', async () => {
+    const host = memoryHost();
+    const first = render(<BackslashEscapeTool host={host} />);
+    await choose('Dialect', 'JavaScript');
+    await choose('Quote', 'Single quote');
+    checkbox('Escape non-ASCII');
+    checkbox('With quotes');
+    first.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: { dialect: 'js', quote: "'", nonAscii: true, withQuotes: true },
+    });
+    const second = render(<BackslashEscapeTool host={host} />);
+    expect(current()).toBe('escape');
+    expect(dialect()).toBe('JavaScript');
+    expect(quote()).toBe("'Single quote");
+    expect(ticked('Escape non-ASCII')).toBe('true');
+    expect(ticked('With quotes')).toBe('true');
+    type("it's é");
+    expect(output()).toBe("'it\\'s \\u00e9'");
+    fireEvent.click(button('Swap'));
+    expect(current()).toBe('unescape');
+    expect(output()).toBe("it's é");
+    second.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: { mode: 'unescape', dialect: 'js', quote: "'", nonAscii: true, withQuotes: true },
+    });
+  });
+
+  it('a new dialect starts from the double quote, and both are saved', async () => {
+    const host = memoryHost();
+    await seed(host, { dialect: 'js', quote: '`' });
+    const { unmount } = render(<BackslashEscapeTool host={host} />);
+    expect(quote()).toBe('`Backtick');
+    await choose('Dialect', 'Python');
+    expect(quote()).toBe('"Double quote');
+    unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { dialect: 'python' } });
+  });
+
+  it('a saved record it cannot show falls back field by field; a quote its dialect lacks is the double quote', async () => {
+    const host = memoryHost();
+    await seed(host, { mode: 'sideways', dialect: 'python', quote: '`', nonAscii: 'yes', withQuotes: true });
+    render(<BackslashEscapeTool host={host} />);
+    expect(current()).toBe('escape');
+    expect(dialect()).toBe('Python');
+    expect(quote()).toBe('"Double quote');
+    expect(ticked('Escape non-ASCII')).toBe('false');
+    expect(ticked('With quotes')).toBe('true');
+    type('a"b');
+    expect(output()).toBe('"a\\"b"');
+  });
+
+  it('a paste opens Unescape without With quotes in the saved dialect, an entry shows its own — for the visit; what is saved stays', async () => {
+    const host = memoryHost();
+    await seed(host, { dialect: 'js', quote: "'", withQuotes: true });
+    const pasted = render(<BackslashEscapeTool host={host} input={'\\x41\\u{1F600}\\n'} />);
+    expect(current()).toBe('unescape');
+    expect(dialect()).toBe('JavaScript');
+    expect(ticked('With quotes')).toBe('false');
+    expect(output()).toBe('A\u{1F600}\n');
+    pasted.unmount();
+    await act(async () => undefined);
+    expect(savedOf(host)).toEqual({ schema: 1, values: { dialect: 'js', quote: "'", withQuotes: true } });
+
+    const recorder = host.history.forOwner('backslash-escape', definition.history!).session();
+    await recorder.commit({
+      kind: 'escape',
+      label: 'Escape · C / C++ · 3 characters',
+      payload: { mode: 'escape', dialect: 'c', quote: '"', nonAscii: false, withQuotes: false, outcome: 'text' },
+      blobs: { input: new Blob(['a"b']), output: new Blob(['a\\"b']) },
+    });
+    const entry = (await entriesOf(host)).find(e => e.label === 'Escape · C / C++ · 3 characters')!;
+    const opened = render(<BackslashEscapeTool host={host} restore={{ id: entry.id }} />);
+    expect(await screen.findByText('Opened from History: Escape · C / C++ · 3 characters.')).toBeTruthy();
+    expect(dialect()).toBe('C / C++');
+    expect(quote()).toBeNull();
+    expect(ticked('With quotes')).toBe('false');
+    expect(output()).toBe('a\\"b');
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { dialect: 'js', quote: "'", withQuotes: true } });
+    render(<BackslashEscapeTool host={host} />);
+    expect(current()).toBe('escape');
+    expect(dialect()).toBe('JavaScript');
+    expect(quote()).toBe("'Single quote");
+    expect(ticked('With quotes')).toBe('true');
+  });
+
+  it('reset puts every choice back to the defaults and keeps the input; the result follows', async () => {
+    const host = memoryHost();
+    await seed(host, { dialect: 'python', quote: "'", withQuotes: true, nonAscii: true });
+    render(<BackslashEscapeTool host={host} />);
+    type("é'");
+    expect(output()).toBe("'\\xe9\\''");
+    await act(async () => host.settings.forTool('backslash-escape').reset());
+    expect(current()).toBe('escape');
+    expect(dialect()).toBe('JSON');
+    expect(quote()).toBeNull();
+    expect(ticked('Escape non-ASCII')).toBe('false');
+    expect(ticked('With quotes')).toBe('false');
+    expect(field('Input').value).toBe("é'");
+    expect(output()).toBe("é'");
+    expect(savedOf(host)).toBeUndefined();
   });
 });

@@ -7,10 +7,15 @@
  * unlocked — the tool records the same way either way and says under the results what is true now. An edit of a text
  * is a `change` once its digests are there; a hashed file is a `commit` (choosing it is the action) with its name, size
  * and digests, never its contents.
+ *
+ * Input, Output, HMAC and Key format are saved parameters (settings.ts; docs/tools/settings.md): the tool opens with
+ * what the person chose last time where the host remembers it; text handed over opens in Text and an opened entry shows
+ * its own options, both for the visit only. The key and the expected hash are never saved.
  */
 import { excerpt, fileLabel, isInputFormat, isOutputFormat, textLabel } from './entries';
 import { hashFile } from './fileHash';
 import { hashHistory } from './history';
+import { hashSettings } from './settings';
 import {
   ALGORITHMS,
   compareExpected,
@@ -25,7 +30,7 @@ import {
   MAX_INPUT_BYTES,
   textHints,
 } from '@workspace/tool-logic-hash';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { FileDrop } from '@workspace/ui/file-drop';
@@ -100,15 +105,21 @@ const keptLine = (status: RecordingStatus): string =>
         : 'Nothing you hash here is kept: this tool’s history needs a master password (Settings → History).';
 
 const HashTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
-  const [mode, setMode] = useState<Mode>('text');
+  const saved = useSavedSettings(host, 'hash', hashSettings, {
+    // Text handed over is text to hash, whatever was saved: Text for this visit.
+    opening: initial ? { inputFormat: 'text' } : undefined,
+    // Back to Text: the file is let go, as on any change of Input (§11).
+    onReset: () => {
+      setFile(null);
+      setRestoredFile(null);
+    },
+  });
+  const { inputFormat: mode, output, hmac, keyFormat } = saved.values;
   const [text, setText] = useState(initial ?? '');
   const [file, setFile] = useState<File | null>(null);
   const [restoredFile, setRestoredFile] = useState<HashFilePayload['file'] | null>(null);
-  const [hmac, setHmac] = useState(false);
   const [key, setKey] = useState('');
-  const [keyFormat, setKeyFormat] = useState<InputFormat>('text');
   const [showKey, setShowKey] = useState(false);
-  const [output, setOutput] = useState<OutputFormat>('hex');
   const [expected, setExpected] = useState('');
   const [run, setRun] = useState<Run>({ state: 'idle' });
   const [restored, setRestored] = useState<string | null>(null);
@@ -266,7 +277,7 @@ const HashTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
   const chooseMode = (next: Mode): void =>
     edit(() => {
       generation.current++;
-      setMode(next);
+      saved.set({ inputFormat: next });
       // The file is let go when the mode changes (§11).
       if (next !== 'file') setFile(null);
       setRestoredFile(null);
@@ -287,15 +298,18 @@ const HashTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
     const p = (opened.payload ?? {}) as Partial<HashPayload>;
     edited.current = false;
     generation.current++;
-    setOutput(isOutputFormat(p.output) ? p.output : 'hex');
-    setHmac(p.hmac === true);
+    // The entry's options for this visit; what is saved stays as it was.
+    const options = {
+      output: isOutputFormat(p.output) ? p.output : ('hex' as const),
+      hmac: p.hmac === true,
+      keyFormat: isInputFormat(p.keyFormat) ? p.keyFormat : ('text' as const),
+    };
     setKey(typeof p.key === 'string' ? p.key : '');
-    setKeyFormat(isInputFormat(p.keyFormat) ? p.keyFormat : 'text');
     setExpected(typeof p.compare === 'string' ? p.compare : '');
     const label = opened.label ?? 'an entry';
     if (p.input === 'file' && p.file) {
       const kept = p.file;
-      setMode('file');
+      saved.visit({ ...options, inputFormat: 'file' });
       setFile(null);
       setRestoredFile(kept);
       setRun({ state: 'done', digests: fromHex(p.digests) });
@@ -303,7 +317,7 @@ const HashTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
       return;
     }
     void (opened.blobs.input?.text() ?? Promise.resolve('')).then(source => {
-      setMode(isInputFormat(p.input) ? p.input : 'text');
+      saved.visit({ ...options, inputFormat: isInputFormat(p.input) ? p.input : 'text' });
       setFile(null);
       setRestoredFile(null);
       setText(source);
@@ -357,7 +371,7 @@ const HashTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
           size="sm"
           aria-labelledby="hash-output-label"
           value={output}
-          onValueChange={value => value && edit(() => setOutput(value as OutputFormat))}>
+          onValueChange={value => value && edit(() => saved.set({ output: value as OutputFormat }))}>
           {OUTPUTS.map(o => (
             <ToggleGroupItem key={o.value} value={o.value}>
               {o.label}
@@ -365,7 +379,7 @@ const HashTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
           ))}
         </ToggleGroup>
         <div className="ml-2 flex items-center gap-2">
-          <Checkbox id="hash-hmac" checked={hmac} onCheckedChange={c => edit(() => setHmac(c === true))} />
+          <Checkbox id="hash-hmac" checked={hmac} onCheckedChange={c => edit(() => saved.set({ hmac: c === true }))} />
           <Label htmlFor="hash-hmac" className="font-normal">
             HMAC
           </Label>
@@ -398,7 +412,7 @@ const HashTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
             <Label htmlFor="hash-key-format" className="ml-2 text-muted-foreground">
               Key format
             </Label>
-            <Select value={keyFormat} onValueChange={v => edit(() => setKeyFormat(v as InputFormat))}>
+            <Select value={keyFormat} onValueChange={v => edit(() => saved.set({ keyFormat: v as InputFormat }))}>
               <SelectTrigger id="hash-key-format" className="min-w-32">
                 <SelectValue />
               </SelectTrigger>

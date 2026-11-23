@@ -7,12 +7,17 @@
  * History (D17, docs/tools/history.md §10): an edit of a field or an option that reads as a number is a snapshot
  * (`change`); copying a field or a row of details is a commit (the tool has no Run button: a copy is when a person takes
  * a result); an entry the host opens comes back as the source field, its text, N and the options.
+ *
+ * The options and N are saved parameters (settings.ts; docs/tools/settings.md): the tool opens with what the person
+ * chose last. N keeps its text in the page (a base being typed is shown as typed); a valid one is saved. An opened entry
+ * shows its own options and N for the visit only.
  */
 import { Details } from './Details';
 import { convertDraft, FIELD_IDS, FIELD_LABEL, readConvertPayload } from './entries';
 import { numberBaseHistory } from './history';
+import { numberBaseSettings } from './settings';
 import { fieldOfText, formatNumber, MESSAGES, parseNumber, radixOf, WIDTHS } from '@workspace/tool-logic-number-base';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Input } from '@workspace/ui/input';
@@ -59,14 +64,10 @@ interface State {
   prefixes: boolean;
 }
 
-const INITIAL: Omit<State, 'source'> = {
-  radix: '36',
-  negative: 'sign',
-  width: 32,
-  uppercase: false,
-  grouped: false,
-  prefixes: false,
-};
+/** What the page holds itself: the source field and the text of N. The options are the saved parameters. */
+type Own = Pick<State, 'source' | 'radix'>;
+
+const OPTIONS = ['negative', 'width', 'uppercase', 'grouped', 'prefixes'] as const;
 
 const EMPTY: ParseResult = { ok: true, value: null };
 
@@ -95,10 +96,24 @@ const draftOf = (s: State): HistoryDraft | null => {
 };
 
 const NumberBaseTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
-  const [state, setState] = useState<State>(() => ({
-    ...INITIAL,
+  const saved = useSavedSettings(host, 'number-base', numberBaseSettings, {
+    // The text of N goes back to the default too; a number typed in the Base field keeps its value (§4, as a new N).
+    onReset: defaults => {
+      const radix = String(defaults.radix);
+      if (own.source?.field === 'base' && value !== null)
+        setOwn({ radix, source: { field: 'decimal', text: formatNumber(value, 10, defaults).shown } });
+      else setOwn(o => ({ ...o, radix }));
+    },
+  });
+  const { negative, width, uppercase, grouped, prefixes } = saved.values;
+  const [own, setOwn] = useState<Own>(() => ({
     source: initial ? { field: FIELD_OF_RADIX[fieldOfText(initial)], text: initial } : null,
+    radix: String(saved.values.radix),
   }));
+  const state = useMemo<State>(
+    () => ({ ...own, negative, width, uppercase, grouped, prefixes }),
+    [own, negative, width, uppercase, grouped, prefixes],
+  );
   const [restored, setRestored] = useState<string | null>(null);
   const { history, recorder } = useToolHistory(host, 'number-base', numberBaseHistory);
 
@@ -108,7 +123,14 @@ const NumberBaseTool = ({ input: initial, host, restore }: ToolProps): ReactElem
 
   const edit = (next: Partial<State>): void => {
     const after = { ...state, ...next };
-    setState(after);
+    setOwn({ source: after.source, radix: after.radix });
+    // The options the person chose, and N when it is a base: shown and saved.
+    const radix = next.radix === undefined ? null : radixOf(next.radix);
+    const options = {
+      ...Object.fromEntries(OPTIONS.filter(key => next[key] !== undefined).map(key => [key, next[key]])),
+      ...(radix !== null && { radix }),
+    } as Partial<typeof saved.values>;
+    if (Object.keys(options).length > 0) saved.set(options);
     setRestored(null);
     const draft = draftOf(after);
     if (draft) recorder.change(draft);
@@ -144,8 +166,11 @@ const NumberBaseTool = ({ input: initial, host, restore }: ToolProps): ReactElem
       );
       return;
     }
-    const { field, text, ...options } = readConvertPayload(opened.payload);
-    setState({ ...options, source: { field, text } });
+    const { field, text, radix, ...options } = readConvertPayload(opened.payload);
+    setOwn({ source: { field, text }, radix });
+    // The entry's options and N for this visit; what is saved stays as it was.
+    const n = radixOf(radix);
+    saved.visit({ ...options, ...(n !== null && { radix: n }) });
     setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
   });
 

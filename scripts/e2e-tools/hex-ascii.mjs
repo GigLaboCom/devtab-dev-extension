@@ -3,12 +3,19 @@
 // of this module (scripts/e2e-helpers.mjs), put back at the end, also when a check throws. Then: the keyboard order (§8),
 // what `TextDecoder('latin1')` gives in Chrome (§10), the limits timed in the browser with the text box's own cost apart
 // (§12), hex pasted on the start page (§7, with the `0x…` paste that Number Bases takes first), a copy recorded in the
-// history and opened back (D17), and the page in the default dark theme.
+// history and opened back (D17), the direction and options kept as saved parameters (D21), and the page in the default
+// dark theme.
 // Screenshots: tool-hex-ascii-01 … (light), tool-hex-ascii-0N-dark-… (dark).
 
-/* global document, location, HTMLTextAreaElement, requestAnimationFrame, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
+/* global chrome, document, location, HTMLTextAreaElement, requestAnimationFrame, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
 
-import { inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 
 const T = 'Hex and Text';
 
@@ -367,6 +374,35 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
       JSON.stringify(restored),
     );
 
+    // Saved parameters (D21): the steps above changed the direction and the options, and those are kept now. From the
+    // defaults, the options the person chose are written 400 ms after the change; the page opened again shows them,
+    // without the text. Then they are forgotten (and the page loaded again, so it reads that): the dark screenshots open
+    // with the defaults, as before.
+    const stored = () =>
+      page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.['hex-ascii']);
+    await forgetSavedParameters(page, 'hex-ascii');
+    await page.reload();
+    await input.waitFor();
+    await choose('Encoding', 'UTF-16 BE');
+    await choose('Format', 'Colons — 48:65:6c');
+    for (let i = 0; i < 25 && (await stored())?.values?.format !== 'colons'; i++) await sleep(200);
+    await page.reload();
+    await input.waitFor();
+    const kept = {
+      mode: await radio('Text to hex').getAttribute('aria-checked'),
+      encoding: (await page.getByRole('combobox', { name: 'Encoding', exact: true }).innerText()).trim(),
+      format: (await page.getByRole('combobox', { name: 'Format', exact: true }).innerText()).trim(),
+      input: await input.inputValue(),
+    };
+    check(
+      `${T}: UTF-16 BE and Colons chosen, the page opened again — as left, in Text to hex, the field empty (saved parameters)`,
+      kept.mode === 'true' && kept.encoding === 'UTF-16 BE' && kept.format.startsWith('Colons') && kept.input === '',
+      JSON.stringify({ kept, stored: await stored() }),
+    );
+    await forgetSavedParameters(page, 'hex-ascii');
+    await page.reload();
+    await input.waitFor();
+
     // The page in the default dark theme, entered afresh ("Recent entries" closed), then the theme mode as it was.
     await go('#/start');
     await tool();
@@ -385,5 +421,9 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
     await input.fill('');
   } finally {
     await clipboard.restore();
+    // The direction and format the dark screenshots chose are saved parameters (written 400 ms after the change): the
+    // next module opens the tool with its defaults.
+    await sleep(500);
+    await forgetSavedParameters(page, 'hex-ascii').catch(() => undefined);
   }
 };

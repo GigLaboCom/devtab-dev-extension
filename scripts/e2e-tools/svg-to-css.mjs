@@ -16,7 +16,7 @@
 //   the browser context recorded (Playwright and CDP; remote names are *.invalid, answered by a route), a canary a
 //   script would set, the page's address, popups, `securitypolicyviolation`, the longest frame, the preview's pixels.
 // - §12: a megabyte of SVG and four, both encodings — the tool's work, the parser's and the text field's cost apart.
-// - §7 on the start page, history (D17), light and dark screenshots.
+// - §7 on the start page, history (D17), the options kept as saved parameters (D21), light and dark screenshots.
 // The clipboard is a stand-in (stubClipboard), put back before the module ends; so are URL.createObjectURL / revoke.
 // Navigates by replacing the current history entry (Chrome keeps 50 per tab).
 
@@ -25,7 +25,14 @@
 
 import { createServer } from 'node:http';
 import { inflateSync } from 'node:zlib';
-import { historyRecords, inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  historyRecords,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 
 const T = 'SVG to CSS';
 const INVALID = /^(?:https?|wss?):\/\/[^/?#]*\.invalid(?:[:/?#]|$)/;
@@ -1078,6 +1085,40 @@ ${styles.join('\n')}
     );
   }
 
+  // ---- Saved parameters (D21): the options a person chose are written 400 ms after the change; the tool opened again
+  // shows them, without the SVG. In a page of its own (this page carries the module's stand-ins), then forgotten: the
+  // dark screenshots and the next module open with the defaults.
+  {
+    const own = await ctx.newPage();
+    const stored = () =>
+      own.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.['svg-to-css']);
+    await own.goto(toolUrl);
+    await own.locator('#svg-to-css-input').waitFor({ timeout: 30_000 });
+    await forgetSavedParameters(own, 'svg-to-css');
+    await own.reload();
+    await own.locator('#svg-to-css-input').waitFor({ timeout: 30_000 });
+    await own.getByLabel('Output').click();
+    await own.getByRole('option', { name: 'url()', exact: true }).click();
+    await own.getByRole('radio', { name: 'Base64', exact: true }).click();
+    await own.getByRole('checkbox', { name: 'Minify' }).click();
+    for (let i = 0; i < 25 && (await stored())?.values?.minify !== false; i++) await sleep(200);
+    await own.reload();
+    await own.locator('#svg-to-css-input').waitFor({ timeout: 30_000 });
+    const kept = {
+      output: (await own.locator('#svg-to-css-output').innerText()).trim(),
+      base64: await own.getByRole('radio', { name: 'Base64', exact: true }).getAttribute('aria-checked'),
+      minify: await own.getByRole('checkbox', { name: 'Minify' }).getAttribute('aria-checked'),
+      input: await own.locator('#svg-to-css-input').inputValue(),
+    };
+    check(
+      `${T}: url(), Base64 and Minify off chosen, the tool opened again — as left, the SVG field empty (saved parameters)`,
+      kept.output === 'url()' && kept.base64 === 'true' && kept.minify === 'false' && kept.input === '',
+      JSON.stringify({ kept, stored: await stored() }),
+    );
+    await forgetSavedParameters(own, 'svg-to-css');
+    await own.close();
+  }
+
   // ---- §7 on the start page: what opens for each kind of paste
   {
     const start = await ctx.newPage();
@@ -1160,4 +1201,8 @@ ${styles.join('\n')}
   await cdp.detach().catch(() => {});
   await ctx.unroute(INVALID);
   await page.evaluate(url => location.replace(url), `${base}#/tools`);
+  // The output the dark screenshots chose is a saved parameter (written 400 ms after the change, or on leaving the
+  // tool): the next module opens the tool with its defaults.
+  await sleep(500);
+  await forgetSavedParameters(page, 'svg-to-css').catch(() => undefined);
 };

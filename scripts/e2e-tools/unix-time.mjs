@@ -3,9 +3,12 @@
 // trusted: DevTools emulates the browser's zone (Europe/Berlin, the zone of §2; then a half-hour, a southern and a
 // legacy-named zone) and en-US, and puts both back at the end. The clipboard is the page's own stand-in for the length
 // of this module (what was copied is read from it; nothing reaches the machine's clipboard).
-// Screenshots: tool-unix-time-01 … (light), tool-unix-time-0N-dark-… (the default dark theme).
+// Screenshots: tool-unix-time-01 … (light), tool-unix-time-0N-dark-… (the default dark theme). The zone chosen is a
+// saved parameter (D21): checked once, then forgotten so that the browser's zone is the default again.
 
-/* global document, location, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
+/* global document, location, DataTransfer, ClipboardEvent, chrome -- page.evaluate callbacks run in the page */
+
+import { forgetSavedParameters } from '../e2e-helpers.mjs';
 
 const T = 'Unix Time';
 /** ICU puts a narrow no-break space before AM / PM. */
@@ -188,6 +191,20 @@ export default async ({ page, base, check, shoot, sleep }) => {
         (await zoneLine()) === 'UTC+05:30 · India Standard Time',
     );
 
+    // Saved parameters (D21): the zone chosen is kept (written 400 ms after the change); the page opened again shows
+    // it, with the field empty.
+    const stored = () =>
+      page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.['unix-time']);
+    for (let i = 0; i < 25 && (await stored())?.values?.timeZone !== 'Asia/Kolkata'; i++) await sleep(200);
+    await page.reload();
+    await field.waitFor({ timeout: 15_000 });
+    await stubClipboard();
+    check(
+      `${T}: Asia/Kolkata chosen, the page opened again — still Asia/Kolkata, the field empty (saved parameter)`,
+      (await picker.inputValue()) === 'Asia/Kolkata' && (await field.inputValue()) === '',
+      JSON.stringify(await stored()),
+    );
+
     // §2.10 — Now writes the current milliseconds into the field and the instant stops.
     await page.getByRole('button', { name: 'Now', exact: true }).click();
     const written = await field.inputValue();
@@ -223,6 +240,9 @@ export default async ({ page, base, check, shoot, sleep }) => {
         (await picker.inputValue()) === 'Asia/Kolkata' &&
         (await value('seconds')) === '1699980180',
     );
+
+    // The zone chosen above is forgotten: from here the browser's zone is the default again.
+    await forgetSavedParameters(page, 'unix-time');
 
     // Node and Chrome agree whatever the machine's zone: the same inputs under three more browser zones.
     const answers = [];
@@ -284,6 +304,8 @@ export default async ({ page, base, check, shoot, sleep }) => {
     await page.goto(`${base}#/settings`);
     await page.getByRole('radio', { name: 'System' }).first().click();
     await page.locator('html[data-mode="light"]').waitFor();
+    // Saved parameters: the next module opens Unix Time with its defaults.
+    await forgetSavedParameters(page, 'unix-time');
   } finally {
     await cdp.send('Emulation.setTimezoneOverride', { timezoneId: '' }).catch(() => undefined);
     await cdp.send('Emulation.setLocaleOverride', {}).catch(() => undefined);

@@ -17,11 +17,15 @@
  * copies the text, as Copy would — never the opening of the page (its first text is not copied), a change of a setting
  * that remakes the text, or the opening of an entry. It records nothing more (Generate committed); the line under the
  * result says what the copy did (`… · copied`, `… · not copied automatically`).
+ *
+ * The settings are saved parameters (settings.ts; docs/tools/settings.md): the page opens with what the person chose
+ * last and makes its first text with it; an opened entry shows its own for the visit only. The reset control puts the
+ * defaults back and makes a new text — not copied, not recorded.
  */
 import { draftOf, labelOf, readSettings } from './entries';
 import { loremIpsumHistory } from './history';
+import { loremIpsumSettings } from './settings';
 import {
-  DEFAULT_SETTINGS,
   FORMAT_LABELS,
   FORMATS,
   RANDOM_FAILED,
@@ -34,7 +38,7 @@ import {
   parseCount,
   statusLine,
 } from '@workspace/tool-logic-lorem-ipsum';
-import { AUTO_COPY_REFUSED, useAutoCopy, useRestore, useToolHistory } from '@workspace/tools-host';
+import { AUTO_COPY_REFUSED, useAutoCopy, useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -97,9 +101,26 @@ const LoremIpsumTool = ({ host, restore }: ToolProps): ReactElement => {
     }
   };
 
-  const [fields, setFields] = useState<Fields>(() => fieldsOf(DEFAULT_SETTINGS));
+  const saved = useSavedSettings(host, 'lorem-ipsum', loremIpsumSettings, {
+    // The reset control put the settings back: the form follows and a new text is made — not copied, not recorded.
+    onReset: defaults => {
+      const next = fieldsOf(defaults);
+      latest.current = next;
+      setFields(next);
+      setRestored(null);
+      setAutoCopied(null);
+      replay.current!.reset();
+      setShown(make(defaults));
+    },
+  });
+  // The saved settings; a saved Count above its unit's limit is brought to that limit, as a change of Unit would.
+  const [opening] = useState<LoremSettings>(() => {
+    const { unit, count, startWithLorem, format } = saved.values;
+    return { unit, count: Number(countForUnit(String(count), unit)), startWithLorem, format };
+  });
+  const [fields, setFields] = useState<Fields>(() => fieldsOf(opening));
   // §2.1: the page opens with a text (made from the empty record, so already random) — not copied, not recorded.
-  const [shown, setShown] = useState<Shown>(() => make(DEFAULT_SETTINGS));
+  const [shown, setShown] = useState<Shown>(() => make(opening));
   // The automatic copy of the last Generate; any other change of the text forgets it.
   const [autoCopied, setAutoCopied] = useState<AutoCopyOutcome | null>(null);
   const [restored, setRestored] = useState<string | null>(null);
@@ -115,6 +136,13 @@ const LoremIpsumTool = ({ host, restore }: ToolProps): ReactElement => {
     setRestored(null);
     setAutoCopied(null);
     const settings = settingsOf(next);
+    // What the person changed is saved: Count (and a Unit that changed it) only while it is a valid number.
+    saved.set({
+      ...(change.unit !== undefined ? { unit: change.unit } : {}),
+      ...(change.startWithLorem !== undefined ? { startWithLorem: change.startWithLorem } : {}),
+      ...(change.format !== undefined ? { format: change.format } : {}),
+      ...(change.count !== undefined && settings ? { count: settings.count } : {}),
+    });
     if (!settings) return;
     const made = make(settings);
     setShown(made);
@@ -158,6 +186,8 @@ const LoremIpsumTool = ({ host, restore }: ToolProps): ReactElement => {
     const next = fieldsOf(settings);
     latest.current = next;
     setFields(next);
+    // The entry's settings for this visit; what is saved stays as it was.
+    saved.visit(settings);
     // The text was never kept: new bytes, a new text with the entry's settings — not recorded, not copied.
     replay.current!.reset();
     setShown(make(settings));

@@ -7,12 +7,17 @@
  * (§12). It records into the tool history through its host: an edit snapshot with its result (`change`) and a commit
  * when the result is made by Run or taken — Copy, Save; an entry the host asks to open comes back as the code, the
  * language and the options. The page frame is the host's.
+ *
+ * The Language choice and the options are saved parameters (settings.ts; docs/tools/settings.md): the tool opens with
+ * what the person chose last. A paste from the start page opens Auto, an opened file its own language and an opened
+ * entry its own choice and options, all for the visit only. A saved language loads nothing: the formatter's modules
+ * load with the first code to format, as before.
  */
 import { MIME, entryLabel, excerpt, isChoice, isLanguage, settingsOf } from './entries';
 import { createFormatter, NO_WORKERS } from './formatter';
 import { codeFormatHistory } from './history';
+import { codeFormatSettings } from './settings';
 import {
-  DEFAULT_SETTINGS,
   HTML_NOTE,
   LANGUAGES,
   LANGUAGE_EXTENSIONS,
@@ -34,7 +39,7 @@ import {
   loadingMessage,
   tooLargeMessage,
 } from '@workspace/tool-logic-code-format';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -152,8 +157,16 @@ const save = (text: string, language: CodeLanguage): void => {
 
 const CodeFormatTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
-  const [choice, setChoice] = useState<Choice>('auto');
-  const [settings, setSettings] = useState<FormatSettings>(DEFAULT_SETTINGS);
+  // Text handed over from the start page is formatted as what Auto recognises in it, for this visit; what is saved stays.
+  const saved = useSavedSettings(host, 'code-format', codeFormatSettings, {
+    opening: initial ? { language: 'auto' } : undefined,
+  });
+  const choice: Choice = saved.values.language;
+  const { indent: chosenIndent, lineWidth, semi, singleQuote, trailingComma, whitespace, proseWrap } = saved.values;
+  const settings = useMemo<FormatSettings>(
+    () => ({ indent: chosenIndent, lineWidth, semi, singleQuote, trailingComma, whitespace, proseWrap }),
+    [chosenIndent, lineWidth, semi, singleQuote, trailingComma, whitespace, proseWrap],
+  );
   const [done, setDone] = useState<Done | null>(null);
   const [working, setWorking] = useState<FormatJob | null>(null);
   const [loading, setLoading] = useState<CodeLanguage | null>(null);
@@ -281,8 +294,9 @@ const CodeFormatTool = ({ input: initial, host, restore }: ToolProps): ReactElem
     setMessage(null);
     apply();
   };
+  // The option the person chose: shown and saved.
   const setOption = <K extends keyof FormatSettings>(key: K, value: FormatSettings[K]): void =>
-    edit(() => setSettings(s => ({ ...s, [key]: value })));
+    edit(() => saved.set({ [key]: value } as Partial<FormatSettings>));
 
   const take = (action: 'copy' | 'save'): void => {
     if (!current || !done) return;
@@ -304,7 +318,8 @@ const CodeFormatTool = ({ input: initial, host, restore }: ToolProps): ReactElem
     }
     edit(() => {
       setInput(decoded.text);
-      setChoice(named ?? 'auto');
+      // The file's language (by its extension) for this visit; what is saved stays.
+      saved.visit({ language: named ?? 'auto' });
       // Opening a file is an explicit action: a large one is formatted at once.
       runOnce.current = true;
     });
@@ -326,8 +341,11 @@ const CodeFormatTool = ({ input: initial, host, restore }: ToolProps): ReactElem
       edited.current = false;
       setMessage(null);
       setInput(text);
-      setChoice(isChoice(p.choice) ? p.choice : isLanguage(p.language) ? p.language : 'auto');
-      setSettings(settingsOf(p.settings));
+      // The entry's choice and options for this visit; what is saved stays as it was.
+      saved.visit({
+        language: isChoice(p.choice) ? p.choice : isLanguage(p.language) ? p.language : 'auto',
+        ...settingsOf(p.settings),
+      });
       runOnce.current = true;
       setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
     });
@@ -394,7 +412,7 @@ const CodeFormatTool = ({ input: initial, host, restore }: ToolProps): ReactElem
         <Select
           value={choice}
           onValueChange={value => {
-            if (isChoice(value) && value !== choice) edit(() => setChoice(value));
+            if (isChoice(value) && value !== choice) edit(() => saved.set({ language: value }));
           }}>
           <SelectTrigger id="code-format-language" className="min-w-36">
             <SelectValue />

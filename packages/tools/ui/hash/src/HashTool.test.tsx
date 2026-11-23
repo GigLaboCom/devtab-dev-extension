@@ -1,5 +1,6 @@
 import { definition } from './definition';
 import HashTool from './HashTool';
+import { hashSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { memoryHost } from '@workspace/tools-host';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -397,5 +398,112 @@ describe('the Hash tool’s history (D17: secret kinds only)', () => {
     history.open = async () => ({ ok: false, reason: 'locked' });
     render(<HashTool host={host} restore={{ id: 'x' }} />);
     expect(await screen.findByText('This entry is encrypted: unlock the history to open it.')).toBeTruthy();
+  });
+});
+
+describe('the Hash tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ToolHost) => host.settings!.forTool('hash').saved();
+  const seed = async (host: ToolHost, values: Record<string, unknown>) => {
+    host.settings!.forTool('hash').save(hashSettings.schema, values as never);
+    await host.settings!.forTool('hash').flush();
+  };
+  const on = (group: 'Input' | 'Output') =>
+    within(screen.getByRole('radiogroup', { name: group }))
+      .getAllByRole('radio')
+      .find(r => r.getAttribute('aria-checked') === 'true')?.textContent;
+  const hmac = () => screen.getByLabelText('HMAC').getAttribute('aria-checked');
+  const keyFormat = () => screen.getByLabelText('Key format').textContent;
+  const EXPECTED = ABC['SHA-256'];
+
+  it('saves Input, Output, HMAC and Key format — never the key or the expected hash; reopened, it is as left', async () => {
+    const host = memoryHost();
+    const first = render(<HashTool host={host} />);
+    press('Hex');
+    press('Base64', 'Output');
+    fireEvent.click(screen.getByLabelText('HMAC'));
+    type('Key', 'Jefe');
+    await pickKeyFormat('Base64');
+    type('Compare with', EXPECTED);
+    first.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: { inputFormat: 'hex', output: 'base64', hmac: true, keyFormat: 'base64' },
+    });
+    expect(JSON.stringify(savedOf(host))).not.toContain('Jefe');
+    expect(JSON.stringify(savedOf(host))).not.toContain(EXPECTED);
+
+    render(<HashTool host={host} />);
+    expect(on('Input')).toBe('Hex');
+    expect(on('Output')).toBe('Base64');
+    expect(hmac()).toBe('true');
+    expect(keyFormat()).toBe('Base64');
+    expect(field('Key').value).toBe('');
+    expect(field('Compare with').value).toBe('');
+  });
+
+  it('a saved record it cannot show falls back field by field', async () => {
+    const host = memoryHost();
+    await seed(host, { inputFormat: 'binary', output: 'HEX', hmac: 1, keyFormat: 'hex' });
+    render(<HashTool host={host} />);
+    expect(on('Input')).toBe('Text');
+    expect(on('Output')).toBe('HEX');
+    expect(hmac()).toBe('false');
+    await rowValue('MD5', EMPTY_MD5.toUpperCase());
+    fireEvent.click(screen.getByLabelText('HMAC'));
+    expect(keyFormat()).toBe('Hex');
+  });
+
+  it('handed text opens in Text and an opened entry shows its own options — for the visit; what is saved stays', async () => {
+    const memory = memoryHost();
+    const { host: recording, kept } = recordingHost('unlocked');
+    const host: ToolHost = { history: recording.history, settings: memory.settings };
+    await seed(host, { inputFormat: 'hex', output: 'HEX' });
+    const stored = { schema: 1, values: { inputFormat: 'hex', output: 'HEX' } };
+    const handed = render(<HashTool host={host} input="abc" />);
+    expect(on('Input')).toBe('Text');
+    await rowValue('MD5', ABC.MD5.toUpperCase());
+    handed.unmount();
+    expect(savedOf(host)).toEqual(stored);
+
+    kept.push({
+      id: 'e1',
+      how: 'commit',
+      draft: {
+        kind: 'text',
+        label: 'Base64 · 4 characters',
+        payload: { input: 'base64', output: 'hex', hmac: false, compare: '', digests: {} },
+        blobs: { input: new Blob(['YWJj'], { type: 'text/plain' }) },
+      },
+    });
+    const opened = render(<HashTool host={host} restore={{ id: 'e1' }} />);
+    expect(await screen.findByText('Opened from History: Base64 · 4 characters.')).toBeTruthy();
+    expect(on('Input')).toBe('Base64');
+    expect(on('Output')).toBe('hex');
+    await rowValue('MD5', ABC.MD5);
+    opened.unmount();
+    expect(savedOf(host)).toEqual(stored);
+    render(<HashTool host={host} />);
+    expect(on('Input')).toBe('Hex');
+    expect(on('Output')).toBe('HEX');
+  });
+
+  it('reset puts the options back to the defaults and keeps the key; a file is let go, as on any change of Input', async () => {
+    const host = memoryHost();
+    await seed(host, { inputFormat: 'file', output: 'base64', hmac: true, keyFormat: 'hex' });
+    render(<HashTool host={host} />);
+    chooseFile(new File(['abc'], 'abc.txt'));
+    type('Key', '6b');
+    await waitFor(() => expect(row('HMAC-MD5')).not.toBe(''));
+    await act(async () => host.settings!.forTool('hash').reset());
+    expect(on('Input')).toBe('Text');
+    expect(on('Output')).toBe('hex');
+    expect(hmac()).toBe('false');
+    await rowValue('MD5', EMPTY_MD5);
+    expect(savedOf(host)).toBeUndefined();
+    fireEvent.click(screen.getByLabelText('HMAC'));
+    expect(field('Key').value).toBe('6b');
+    expect(keyFormat()).toBe('Text (UTF-8)');
+    press('File');
+    expect(screen.queryByText(/abc\.txt/)).toBeNull();
   });
 });

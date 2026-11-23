@@ -2,12 +2,19 @@
 // page's real controls — run by scripts/e2e-tools.mjs. Nothing of the machine is trusted: DevTools emulates the
 // browser's zone (Europe/Berlin, then a southern, a half-hour and a western zone) and en-US; the page's clock
 // (`Date.now`) is set to the moment of each scenario and its clipboard is the page's own stand-in. All three are put
-// back before the module ends, also when a check throws.
+// back before the module ends, also when a check throws. Dialect, Time zone and Runs are saved parameters (D21): checked
+// once, and forgotten wherever a later step expects the defaults.
 // Screenshots: tool-cron-01 … (light), tool-cron-0N-dark-… (the default dark theme).
 
-/* global document, window, location, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
+/* global document, window, location, DataTransfer, ClipboardEvent, chrome -- page.evaluate callbacks run in the page */
 
-import { inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 
 const T = 'Cron';
 const NOW = '2026-11-19T18:30:00Z'; // §2: Thursday
@@ -201,6 +208,32 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
     ).catch(() => null);
     check(`${T}: a copy is kept in History (commit)`, kept?.kind === 'explain', kept?.label);
 
+    // Saved parameters (D21): Runs 5 chosen above and the dialect chosen now are kept (written 400 ms after the
+    // change); the page opened again has them, without the expression.
+    const stored = () =>
+      page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.cron);
+    await chooseOption('Dialect', 'Unix cron (5 fields)');
+    for (let i = 0; i < 25; i++) {
+      const values = (await stored())?.values;
+      if (values?.dialect === 'unix' && values?.runs === 5) break;
+      await sleep(200);
+    }
+    await page.reload();
+    await field.waitFor({ timeout: 15_000 });
+    check(
+      `${T}: Unix cron and Runs 5 chosen, the page opened again — still Unix cron and 5, the field empty (saved parameters)`,
+      (await page.getByLabel('Dialect', { exact: true }).innerText()) === 'Unix cron (5 fields)' &&
+        (await page.getByLabel('Runs', { exact: true }).innerText()) === '5' &&
+        (await picker.inputValue()) === 'UTC' &&
+        (await field.inputValue()) === '',
+      JSON.stringify(await stored()),
+    );
+    // The scenarios and screenshots below open with the defaults (10 runs): forgotten, and the page read anew.
+    await forgetSavedParameters(page, 'cron');
+    await page.reload();
+    await field.waitFor({ timeout: 15_000 });
+    clipboard = await stubClipboard(page);
+
     // §2.5 — the night the clocks move forward in Europe/Berlin; the zone picker finds the zone by a word.
     await openAt('2027-03-26T12:00:00Z', '30 2 * * *');
     await chooseZone('berlin', 'Europe/Berlin');
@@ -253,6 +286,8 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
 
     // Node and Chrome agree whatever the browser's zone: the same answers with three other browser zones.
     for (const zone of ['Australia/Sydney', 'Asia/Kolkata', 'America/New_York']) {
+      // The zones chosen before are saved: forgotten, so that each browser zone opens with the default, UTC.
+      await forgetSavedParameters(page, 'cron');
       await emulate(zone);
       await page.reload();
       await field.waitFor();
@@ -272,6 +307,7 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
         `${local.join(',')} · ${berlin.join(' / ')} · ${sydney}`,
       );
     }
+    await forgetSavedParameters(page, 'cron');
     await emulate('Europe/Berlin');
     await page.reload();
     await field.waitFor();
@@ -324,6 +360,8 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
       await picker.press('Escape');
     });
   } finally {
+    // The zone chosen for the dark screenshots is saved: the next module opens Cron with its defaults.
+    await forgetSavedParameters(page, 'cron').catch(() => undefined);
     await restoreClock().catch(() => undefined);
     await clipboard?.restore().catch(() => undefined);
     await cdp.send('Emulation.setTimezoneOverride', { timezoneId: '' }).catch(() => undefined);

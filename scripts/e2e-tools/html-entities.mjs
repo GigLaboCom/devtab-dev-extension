@@ -1,14 +1,20 @@
 // The HTML Entities tool in the built extension (docs/tools/specs/html-entities.md): its scenarios (§2) with the page's
 // real controls, the notes (§6), the keyboard (§8), the limits timed in the browser (§12), the table of names loading
 // only when needed, pasting into the start page's field (§7), an entry opened back from the tool's history (D17), the
-// page in the light and the dark theme — and the decoder's agreement with the browser's own parser: every name of the
+// direction and options kept as saved parameters (D21), the page in the light and the dark theme — and the decoder's agreement with the browser's own parser: every name of the
 // table and a set of malformed references, decoded by the tool's page and by DOMParser on a whole document (inert:
 // nothing loads, nothing runs), text and attribute values, every difference listed in the report. Run by
 // scripts/e2e-tools.mjs; navigates by replacing the current history entry (Chrome keeps 50 per tab, shared by modules).
 
-/* global document, location, DOMParser, HTMLTextAreaElement, requestAnimationFrame, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
+/* global chrome, document, location, DOMParser, HTMLTextAreaElement, requestAnimationFrame, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
 
-import { inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -615,6 +621,30 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     notOurs.join(', '),
   );
 
+  // Saved parameters (D21): the steps above changed the direction and the options, and those are kept now. From the
+  // defaults, the options the person chose are written 400 ms after the change; the page opened again shows them,
+  // without the text. Then they are forgotten: the dark screenshots open with the defaults, as before.
+  const stored = () =>
+    page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.['html-entities']);
+  await forgetSavedParameters(page, 'html-entities');
+  await go('#/tools/html-entities');
+  await page.reload();
+  await input.waitFor();
+  await choose('html-entities-scope', 'Also non-ASCII');
+  await choose('html-entities-format', 'Hex');
+  for (let i = 0; i < 25 && (await stored())?.values?.format !== 'hex'; i++) await sleep(200);
+  await page.reload();
+  await input.waitFor();
+  check(
+    `${T}: Also non-ASCII and Hex chosen, the page opened again — as left, in Encode, the field empty (saved parameters)`,
+    (await radio('Encode').getAttribute('aria-checked')) === 'true' &&
+      (await page.locator('#html-entities-scope').innerText()).includes('Also non-ASCII') &&
+      (await page.locator('#html-entities-format').innerText()).includes('Hex') &&
+      (await input.inputValue()) === '',
+    JSON.stringify(await stored()),
+  );
+  await forgetSavedParameters(page, 'html-entities');
+
   // The page in the dark theme, then the theme mode as it was.
   await go('#/tools/html-entities');
   await page.reload();
@@ -628,6 +658,10 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     await settledShot(shoot, frame, 'tool-html-entities-05-decode-dark.png');
   });
   await input.fill('');
+  // The direction the dark screenshots chose is a saved parameter (written 400 ms after the change): the next module
+  // opens the tool with its defaults.
+  await sleep(500);
+  await forgetSavedParameters(page, 'html-entities');
   await go('#/start');
   page.off('request', onRequest);
 };

@@ -3,11 +3,18 @@
 // into /64s (the page of 1,000 rows, the longest frame, Copy subnets of 65,536 rows), a split over the copy limit, and
 // summarizing 100,000 blocks in the worker. No request may leave the extension while addresses and host-looking text are
 // typed into every field (Playwright's context and the page's CDP Network domain both listen). Also a block pasted into
-// the start page, and an entry of the tool history opened back. Copies are caught in the page (stubClipboard).
+// the start page, an entry of the tool history opened back, and the task and Split by kept as saved parameters (D21).
+// Copies are caught in the page (stubClipboard).
 
-/* global document, window, location, requestAnimationFrame, HTMLTextAreaElement, HTMLInputElement, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
+/* global chrome, document, window, location, requestAnimationFrame, HTMLTextAreaElement, HTMLInputElement, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
 
-import { inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 
 const T = 'Subnet Calculator';
 
@@ -45,10 +52,14 @@ export default async args => {
     // The page stays for the next modules: the stand-in for the clipboard and the listeners go.
     await args.page.evaluate(() => delete navigator.clipboard.writeText).catch(() => undefined);
     await cleanup?.().catch(() => undefined);
+    // The task the steps chose is a saved parameter (written 400 ms after the change): the next module opens the tool
+    // with its defaults.
+    await args.sleep(500);
+    await forgetSavedParameters(args.page, 'subnet').catch(() => undefined);
   }
 };
 
-const run = async ({ ctx, page, base, check, shoot, report }) => {
+const run = async ({ ctx, page, base, check, shoot, sleep, report }) => {
   // `new URL(base).origin` is "null" in Node for a chrome-extension: address — the origin is built from the id.
   const origin = /^chrome-extension:\/\/[^/]+/.exec(base)?.[0] ?? new URL(base).origin;
   const outside = [];
@@ -432,6 +443,31 @@ const run = async ({ ctx, page, base, check, shoot, report }) => {
     `${T}: the entry opens back into Explain with the block`,
     (await block.inputValue()) === '172.16.5.4/20' && (await detail('network')) === '172.16.0.0/20',
   );
+
+  // Saved parameters (D21): the task and Split by a person chose are written 400 ms after the change; the tool opened
+  // again shows them, its fields empty. Then they are forgotten: the start page's pastes below choose for their visit.
+  const stored = () =>
+    page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.subnet);
+  await forgetSavedParameters(page, 'subnet');
+  await task('Split');
+  await page.getByRole('radio', { name: 'Number of subnets', exact: true }).click();
+  await page.locator('#subnet-count').fill('3');
+  for (let i = 0; i < 25 && (await stored())?.values?.by !== 'count'; i++) await sleep(200);
+  await open('#/tools');
+  await open('#/tools/subnet');
+  await block.waitFor();
+  const keptTask = {
+    split: await page.getByRole('radio', { name: 'Split', exact: true }).getAttribute('aria-checked'),
+    count: await page.getByRole('radio', { name: 'Number of subnets', exact: true }).getAttribute('aria-checked'),
+    block: await block.inputValue(),
+    subnets: await page.locator('#subnet-count').inputValue(),
+  };
+  check(
+    `${T}: Split by Number of subnets chosen, the tool opened again — as left, its fields empty (saved parameters)`,
+    keptTask.split === 'true' && keptTask.count === 'true' && keptTask.block === '' && keptTask.subnets === '',
+    JSON.stringify({ keptTask, stored: await stored() }),
+  );
+  await forgetSavedParameters(page, 'subnet');
 
   // §7: a block pasted into the start page opens this tool in Explain; a column opens Summarize; a bare address does not.
   const paste = async text => {

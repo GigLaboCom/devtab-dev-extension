@@ -5,6 +5,7 @@
 import CronTool from './CronTool';
 import { definition } from './definition';
 import { detect } from './detect';
+import { cronSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import * as logic from '@workspace/tool-logic-cron';
 import { memoryHost } from '@workspace/tools-host';
@@ -472,5 +473,109 @@ describe('the Cron tool’s history', () => {
     expect(zonePicker().value).toBe('UTC');
     expect(screen.getByLabelText('Dialect').textContent).toBe('Auto');
     expect(screen.getByLabelText('Runs').textContent).toBe('10');
+  });
+});
+
+describe('the Cron tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ToolHost) => host.settings!.forTool('cron').saved();
+  const seed = async (host: ToolHost, values: Record<string, unknown>) => {
+    host.settings!.forTool('cron').save(cronSettings.schema, values as never);
+    await host.settings!.forTool('cron').flush();
+  };
+  const shown = (label: string) => screen.getByLabelText(label).textContent;
+
+  it('saves Dialect, Time zone and Runs the person chose; reopened, it is as left, with no expression', async () => {
+    const host = memoryHost();
+    const first = render(<CronTool host={host} />);
+    type('0 0 12 * * 1-5');
+    await choose('Dialect', 'With seconds (6 fields)');
+    await choose('Runs', '20');
+    chooseZone('kolkata');
+    first.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: { dialect: 'seconds', timeZone: 'Asia/Kolkata', runs: 20 },
+    });
+
+    render(<CronTool host={host} />);
+    expect(field().value).toBe('');
+    expect(shown('Dialect')).toBe('With seconds (6 fields)');
+    expect(shown('Runs')).toBe('20');
+    expect(zonePicker().value).toBe('Asia/Kolkata');
+    type('0 0 12 * * 1-5');
+    expect(table()).toHaveLength(20);
+  });
+
+  it('a saved record it cannot show falls back field by field', async () => {
+    const host = memoryHost();
+    // An old name of a zone is not how the list writes it: UTC, as for a zone this browser does not know.
+    await seed(host, { dialect: 'cobol', timeZone: 'Asia/Calcutta', runs: 50 });
+    render(<CronTool host={host} />);
+    expect(shown('Dialect')).toBe('Auto');
+    expect(zonePicker().value).toBe('UTC');
+    expect(shown('Runs')).toBe('50');
+    cleanup();
+    await seed(host, { dialect: 'quartz', timeZone: 'Mars/Base', runs: 7 });
+    render(<CronTool host={host} />);
+    expect(shown('Dialect')).toBe('Quartz (6–7 fields)');
+    expect(zonePicker().value).toBe('UTC');
+    expect(shown('Runs')).toBe('10');
+  });
+
+  it('a handed-over expression keeps the saved options; an opened entry shows its own for the visit', async () => {
+    const host = memoryHost();
+    const kept = { dialect: 'seconds', timeZone: 'Asia/Kolkata', runs: 5 };
+    await seed(host, kept);
+    const handed = render(<CronTool host={host} input="0 0 12 * * 1-5" />);
+    expect(field().value).toBe('0 0 12 * * 1-5');
+    expect(shown('Dialect')).toBe('With seconds (6 fields)');
+    expect(table()).toHaveLength(5);
+    handed.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: kept });
+    // The handed-over expression's first snapshot carries the options the page opened with.
+    await waitFor(async () =>
+      expect(
+        (await host.history.forOwner('cron', definition.history!).list({ kinds: ['explain'] })).entries,
+      ).toHaveLength(1),
+    );
+
+    await host.history
+      .forOwner('cron', definition.history!)
+      .session()
+      .commit({
+        kind: 'explain',
+        payload: { expression: '@hourly', dialect: 'unix', timeZone: 'Europe/Berlin', runs: 20 },
+        label: 'kept entry',
+      });
+    const entry = (await host.history.forOwner('cron', definition.history!).list({ kinds: ['explain'] })).entries.find(
+      e => e.label === 'kept entry',
+    );
+    const opened = render(<CronTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText('Opened from History: kept entry.')).toBeTruthy();
+    expect(shown('Dialect')).toBe('Unix cron (5 fields)');
+    expect(zonePicker().value).toBe('Europe/Berlin');
+    expect(shown('Runs')).toBe('20');
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: kept });
+
+    render(<CronTool host={host} />);
+    expect(shown('Dialect')).toBe('With seconds (6 fields)');
+    expect(zonePicker().value).toBe('Asia/Kolkata');
+    expect(shown('Runs')).toBe('5');
+  });
+
+  it('reset puts the options back to the defaults and keeps the expression; the runs follow', async () => {
+    const host = memoryHost();
+    await seed(host, { dialect: 'unix', timeZone: 'Asia/Kolkata', runs: 5 });
+    render(<CronTool host={host} />);
+    type('0 9 * * 1-5');
+    expect(table()).toHaveLength(5);
+    await act(async () => host.settings!.forTool('cron').reset());
+    expect(shown('Dialect')).toBe('Auto');
+    expect(zonePicker().value).toBe('UTC');
+    expect(shown('Runs')).toBe('10');
+    expect(field().value).toBe('0 9 * * 1-5');
+    expect(table()).toHaveLength(10);
+    expect(savedOf(host)).toBeUndefined();
   });
 });

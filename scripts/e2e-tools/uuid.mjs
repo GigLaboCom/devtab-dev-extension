@@ -1,9 +1,12 @@
 // The UUID / ULID tool in the built extension (docs/tools/specs/uuid.md): its scenarios (§2) the way a person does
 // them — the page's real controls — run by scripts/e2e-tools.mjs. The clipboard is the page's own stand-in for the
 // length of this module (what was copied is read from it, nothing reaches the machine's clipboard); it is put back at
-// the end. Screenshots: tool-uuid-01 … (light), tool-uuid-0N-dark-… (the default dark theme).
+// the end. Screenshots: tool-uuid-01 … (light), tool-uuid-0N-dark-… (the default dark theme). The options of Generate
+// are saved parameters (D21): checked once, then forgotten, so that the later steps open the tool with its defaults.
 
-/* global document, location, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
+/* global document, location, DataTransfer, ClipboardEvent, chrome -- page.evaluate callbacks run in the page */
+
+import { forgetSavedParameters } from '../e2e-helpers.mjs';
 
 const A6 = '017F22E2-79B0-7CC3-98C4-DC0C0C07398F';
 const V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -26,6 +29,10 @@ export default async ({ page, base, check, shoot, sleep }) => {
   const frame = page.locator('[data-slot="tool-page"]');
 
   await tool();
+  // Another module may have left this tool's parameters saved: the scenarios below start from the defaults.
+  await forgetSavedParameters(page, 'uuid');
+  await page.reload();
+  await page.getByLabel('Generated identifiers').waitFor();
   await page.evaluate(() => {
     Object.defineProperty(navigator.clipboard, 'writeText', {
       configurable: true,
@@ -150,6 +157,30 @@ export default async ({ page, base, check, shoot, sleep }) => {
     generated.replaceAll('\n', ' '),
   );
 
+  // Saved parameters (D21): the type and How many are kept (written 400 ms after the change); the page opened again
+  // makes its first batch with them.
+  const stored = () =>
+    page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.uuid);
+  await choose('Type', 'ULID');
+  await page.getByLabel('How many').fill('3');
+  for (let i = 0; i < 25; i++) {
+    const values = (await stored())?.values;
+    if (values?.type === 'ulid' && values?.count === 3) break;
+    await sleep(200);
+  }
+  await page.reload();
+  await page.getByLabel('Generated identifiers').waitFor({ timeout: 15_000 });
+  const firstBatch = (await result()).split('\n');
+  check(
+    'UUID / ULID: ULID and How many 3 chosen, the page opened again — three ULIDs at once (saved parameters)',
+    (await page.getByLabel('Type', { exact: true }).innerText()) === 'ULID' &&
+      (await page.getByLabel('How many').inputValue()) === '3' &&
+      firstBatch.length === 3 &&
+      firstBatch.every(l => /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/.test(l)),
+    JSON.stringify(await stored()),
+  );
+  await forgetSavedParameters(page, 'uuid');
+
   // From the start page: pasting a UUID opens the tool with Inspect filled (§8, D16).
   await page.goto(`${base}#/start`);
   const field = page.getByRole('combobox', { name: 'Find a tool or search the web' });
@@ -184,6 +215,8 @@ export default async ({ page, base, check, shoot, sleep }) => {
   await page.goto(`${base}#/settings`);
   await page.getByRole('radio', { name: 'System' }).first().click();
   await page.locator('html[data-mode="light"]').waitFor();
+  // Saved parameters: the next module opens UUID / ULID with its defaults.
+  await forgetSavedParameters(page, 'uuid');
 
   await page.evaluate(() => {
     delete navigator.clipboard.writeText;

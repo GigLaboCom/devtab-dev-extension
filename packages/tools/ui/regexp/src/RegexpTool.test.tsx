@@ -1,11 +1,14 @@
 import { definition } from './definition';
+import { draft } from './entries';
 import RegexpTool, { TEXTS } from './RegexpTool';
 import { RegexpRunner } from './runner';
+import { regexpSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { runRegexp } from '@workspace/tool-logic-regexp';
 import { memoryHost } from '@workspace/tools-host';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { JobMessage } from './runner';
+import type { ToolHost } from '@workspace/tools-host';
 
 // jsdom has no Worker: a fake one runs the logic's runRegexp off the test's stack (as the real worker does off the
 // page's thread), or never answers (a pattern that backtracks for ever), or fails.
@@ -419,5 +422,98 @@ describe('the RegExp tool’s history', () => {
     expect(field('Test text').value).toBe('x1 y2');
     expect(field('Replace with').value).toBe('$2$1');
     await waitFor(() => expect(field('Result').value).toBe('1x 2y'));
+  });
+});
+
+describe('the RegExp tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ToolHost) => host.settings!.forTool('regexp').saved();
+  const seed = async (host: ToolHost, values: Record<string, unknown>) => {
+    host.settings!.forTool('regexp').save(regexpSettings.schema, values as never);
+    await host.settings!.forTool('regexp').flush();
+  };
+  const shownFlags = () => document.querySelector('[data-flags]')?.textContent;
+  const replaceOn = () => screen.getByLabelText('Replace').getAttribute('aria-checked');
+
+  it('saves the flags and Replace the person chose; reopened, it is as left, with no pattern or text', async () => {
+    const host = memoryHost();
+    const first = render(<RegexpTool host={host} />);
+    type('Pattern', 'a');
+    type('Test text', 'aA');
+    fireEvent.click(flag('ignore case'));
+    fireEvent.click(flag('multiline'));
+    fireEvent.click(flag('global'));
+    fireEvent.click(screen.getByLabelText('Replace'));
+    type('Replace with', 'b');
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { flags: 'im', replace: true } });
+
+    render(<RegexpTool host={host} />);
+    expect(shownFlags()).toBe('ignore case, multiline');
+    expect(replaceOn()).toBe('true');
+    expect(field('Pattern').value).toBe('');
+    expect(field('Test text').value).toBe('');
+    expect(field('Replace with').value).toBe('');
+  });
+
+  it('a saved record it cannot show falls back field by field', async () => {
+    const host = memoryHost();
+    await seed(host, { flags: 'uv', replace: true });
+    render(<RegexpTool host={host} />);
+    expect(shownFlags()).toBe('global');
+    expect(replaceOn()).toBe('true');
+    cleanup();
+    await seed(host, { flags: 'mi', replace: 'yes' });
+    render(<RegexpTool host={host} />);
+    expect(shownFlags()).toBe('global');
+    expect(replaceOn()).toBe('false');
+  });
+
+  it('a pasted literal and an opened entry show their own flags — for the visit; what is saved stays', async () => {
+    const host = memoryHost();
+    await seed(host, { flags: 'gi', replace: true });
+    const pasted = render(<RegexpTool host={host} input="text from the start page" />);
+    expect(field('Test text').value).toBe('text from the start page');
+    expect(shownFlags()).toBe('global, ignore case');
+    fireEvent.paste(field('Pattern'), { clipboardData: { getData: () => '/^#/my' } });
+    expect(shownFlags()).toBe('multiline, sticky');
+    // Keep as pasted puts back the flags shown before the paste.
+    fireEvent.click(screen.getByRole('button', { name: 'Keep as pasted' }));
+    expect(shownFlags()).toBe('global, ignore case');
+    fireEvent.paste(field('Pattern'), { clipboardData: { getData: () => '/^#/my' } });
+    pasted.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { flags: 'gi', replace: true } });
+
+    const recorder = host.history.forOwner('regexp', definition.history!).session();
+    await recorder.commit(
+      draft({ pattern: 'b+', flags: 'sy', text: 'abbc', replace: false, replacement: '' }, undefined, 'copy-regex'),
+    );
+    const [entry] = (await host.history.forOwner('regexp', definition.history!).list({})).entries;
+    const opened = render(<RegexpTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText(/^Opened from History/)).toBeTruthy();
+    expect(shownFlags()).toBe('dotAll, sticky');
+    expect(replaceOn()).toBe('false');
+    expect(field('Test text').value).toBe('abbc');
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { flags: 'gi', replace: true } });
+
+    render(<RegexpTool host={host} />);
+    expect(shownFlags()).toBe('global, ignore case');
+    expect(replaceOn()).toBe('true');
+  });
+
+  it('reset puts the flags and Replace back to the defaults and keeps the input; the matches follow', async () => {
+    const host = memoryHost();
+    await seed(host, { flags: 'gi', replace: true });
+    render(<RegexpTool host={host} />);
+    type('Pattern', 'a');
+    type('Test text', 'aA');
+    await until('2 matches');
+    await act(async () => host.settings!.forTool('regexp').reset());
+    expect(shownFlags()).toBe('global');
+    expect(replaceOn()).toBe('false');
+    expect(field('Pattern').value).toBe('a');
+    expect(field('Test text').value).toBe('aA');
+    await until('1 match');
+    expect(savedOf(host)).toBeUndefined();
   });
 });

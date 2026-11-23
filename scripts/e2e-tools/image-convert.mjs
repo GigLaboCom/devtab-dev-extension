@@ -195,9 +195,23 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   const button = name => page.getByRole('button', { name, exact: true });
   const radio = name => page.getByRole('radio', { name, exact: true });
   const fileInput = () => page.locator('input[type="file"]').first();
+  /** How many times a click in a list had to be made again (reported with the loop of 50 conversions). */
+  let chooseRetries = 0;
   const choose = async (label, option) => {
-    await page.getByLabel(label, { exact: true }).click();
-    await page.getByRole('option', { name: option, exact: true }).click();
+    // A click on an option has been seen to hang once in the full run, in the loop that opens the list a hundred
+    // times; a second attempt is counted and shown rather than hidden.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        if ((await page.getByRole('listbox').count()) === 0)
+          await page.getByLabel(label, { exact: true }).click({ timeout: 5_000 });
+        await page.getByRole('option', { name: option, exact: true }).click({ timeout: 5_000 });
+        break;
+      } catch (error) {
+        if (attempt === 2) throw error;
+        chooseRetries++;
+        await page.keyboard.press('Escape');
+      }
+    }
     await page.getByRole('listbox').waitFor({ state: 'detached' });
   };
   const setNumber = (label, value) => page.getByLabel(label, { exact: true }).fill(String(value));
@@ -886,7 +900,7 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     await clear();
     await sleep(300);
     const after = await urls();
-    facts.loop = { before, after, rss };
+    facts.loop = { before, after, rss, chooseRetries };
     check(
       `${T}: 50 conversions in a row — ${after.made - before.made} object URLs made, ${after.live} live after Clear (before: ${before.live}); this browser's processes ${rss[0]} MiB after 5, ${rss[1]} MiB after 50`,
       after.live === before.live && (rss[0] === null || rss[1] - rss[0] < 300),

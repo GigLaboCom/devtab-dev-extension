@@ -2,14 +2,16 @@
 // page's real controls — run by scripts/e2e-tools.mjs. A file is hashed by the tool's module worker, loaded from the
 // package's own file (never blob: or data:). The tool's history keeps only secrets: nothing without a master password,
 // encrypted entries with one (a throwaway password made here, turned off again — which deletes them — at the end).
-// The copy button's clipboard write is caught in the page, so the run never touches a real clipboard.
+// The copy button's clipboard write is caught in the page, so the run never touches a real clipboard. Input, Output and
+// HMAC are saved parameters (D21): checked once at the end, then forgotten.
 
-/* global indexedDB, window -- page.evaluate callbacks run in the page */
+/* global indexedDB, window, chrome -- page.evaluate callbacks run in the page */
 
 import { mkdirSync, rmSync, truncateSync, writeFileSync } from 'node:fs';
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { forgetSavedParameters } from '../e2e-helpers.mjs';
 import { themeMode, withSettings } from '../e2e-theme.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -281,6 +283,39 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
   await shoot(page, 'tool-hash-06-file-hmac-dark.png');
   await themeMode(ctx, base, before || 'Light');
   await page.locator('html[data-mode="light"]').waitFor();
+
+  // Saved parameters (D21): Input, Output and HMAC are kept (written 400 ms after the change), never the key, the
+  // expected hash or the file; the page opened again is as left, its fields empty.
+  const stored = () =>
+    page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.hash);
+  await output('HEX');
+  for (let i = 0; i < 25 && (await stored())?.values?.output !== 'HEX'; i++) await sleep(200);
+  const keptParams = await stored();
+  await page.reload();
+  await group('Input').waitFor({ timeout: 15_000 });
+  const checked = name => group(name).locator('[role="radio"][aria-checked="true"]').innerText();
+  const reopened = {
+    input: await checked('Input'),
+    output: await checked('Output'),
+    hmac: await page.getByLabel('HMAC', { exact: true }).isChecked(),
+    key: await page.getByLabel('Key', { exact: true }).inputValue(),
+    compare: await page.getByLabel('Compare with', { exact: true }).inputValue(),
+    file: await page.locator('[data-file]').count(),
+  };
+  check(
+    'Hash: File, HEX and HMAC chosen, the page opened again — as left, no key, expected hash or file (saved parameters)',
+    reopened.input === 'File' &&
+      reopened.output === 'HEX' &&
+      reopened.hmac &&
+      reopened.key === '' &&
+      reopened.compare === '' &&
+      reopened.file === 0 &&
+      !JSON.stringify(keptParams).includes(darkKey) &&
+      !JSON.stringify(keptParams).includes(signature),
+    JSON.stringify({ values: keptParams?.values, ...reopened }),
+  );
+  // Input, Output, HMAC and Key format are saved parameters: the next module opens Hash with its defaults.
+  await forgetSavedParameters(page, 'hash');
 
   // Turning the master password off deletes the encrypted entries: the history is as the run found it.
   await history.getByRole('button', { name: 'Turn off…' }).click();

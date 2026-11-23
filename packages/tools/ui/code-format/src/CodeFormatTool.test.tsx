@@ -2,13 +2,15 @@
  * The Code Formatter's page (docs/tools/specs/code-format.md §2, §6, §8) in jsdom. jsdom has no workers, so the module
  * that starts them (formatter.ts) is replaced by one that formats on the page with the same libraries and the same
  * logic the workers run — Prettier 3.9.10's modules and saxes, imported here — and that announces the first use of a
- * language as the worker does.
+ * language as the worker does. The saved parameters (D21, docs/tools/settings.md) run on an in-memory host.
  */
 import CodeFormatTool from './CodeFormatTool';
 import { definition } from './definition';
 import { detect } from './detect';
+import { codeFormatSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import {
+  DEFAULT_SETTINGS,
   LIVE_INPUT,
   MAX_INPUT,
   PRETTIER_PLUGINS,
@@ -490,5 +492,170 @@ describe('the Code Formatter’s history', () => {
     unmount();
     await waitFor(async () => expect(await entriesOf(host)).toHaveLength(1), WAIT);
     expect((await entriesOf(host))[0]!.label).toBe('JavaScript (Auto) · 2 spaces · 9 characters');
+  });
+});
+
+describe('the Code Formatter’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const entriesOf = async (host: ReturnType<typeof memoryHost>) =>
+    (await host.history.forOwner('code-format', definition.history!).list({})).entries;
+  const savedOf = (host: ReturnType<typeof memoryHost>) => host.settings.forTool('code-format').saved();
+  const seeded = async (values: Record<string, unknown>) => {
+    const host = memoryHost();
+    host.settings.forTool('code-format').save(codeFormatSettings.schema, values as never);
+    await host.settings.forTool('code-format').flush();
+    return host;
+  };
+  const shown = (label: string) => screen.getByLabelText(label).textContent;
+  const ticked = (label: string) => screen.getByLabelText(label).getAttribute('aria-checked');
+  const quotes = () =>
+    screen.getByRole('radio', { name: 'Single' }).getAttribute('aria-checked') === 'true' ? 'single' : 'double';
+
+  it('saves the language and every option the person chose; reopened, it is as left', async () => {
+    const host = memoryHost();
+    const first = render(<CodeFormatTool host={host} />);
+    await choose('Language', 'HTML');
+    await choose('Whitespace', 'Strict');
+    await choose('Language', 'Markdown');
+    await choose('Prose wrap', 'Always');
+    await choose('Language', 'JavaScript');
+    await choose('Indent', '4 spaces');
+    await choose('Line width', '100');
+    fireEvent.click(screen.getByLabelText('Semicolons'));
+    fireEvent.click(screen.getByRole('radio', { name: 'Single' }));
+    await choose('Trailing commas', 'ES5');
+    first.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: {
+        language: 'javascript',
+        indent: 4,
+        lineWidth: 100,
+        semi: false,
+        singleQuote: true,
+        trailingComma: 'es5',
+        whitespace: 'strict',
+        proseWrap: 'always',
+      },
+    });
+    render(<CodeFormatTool host={host} />);
+    expect(shown('Language')).toBe('JavaScript');
+    expect(shown('Indent')).toBe('4 spaces');
+    expect(shown('Line width')).toBe('100');
+    expect(ticked('Semicolons')).toBe('false');
+    expect(quotes()).toBe('single');
+    expect(shown('Trailing commas')).toBe('ES5');
+    type('function f(a,b){return [a,"x"+b,]}');
+    await result("function f(a, b) {\n    return [a, 'x' + b]\n}\n");
+    await choose('Language', 'HTML');
+    expect(shown('Whitespace')).toBe('Strict');
+    await choose('Language', 'Markdown');
+    expect(shown('Prose wrap')).toBe('Always');
+  });
+
+  it('a saved record it cannot show falls back field by field; a value a list no longer has is its default', async () => {
+    render(
+      <CodeFormatTool
+        host={await seeded({
+          language: 'javascript',
+          indent: 3,
+          lineWidth: 90,
+          semi: 'no',
+          singleQuote: true,
+          trailingComma: 'some',
+        })}
+      />,
+    );
+    expect(shown('Language')).toBe('JavaScript');
+    expect(shown('Indent')).toBe('2 spaces');
+    expect(shown('Line width')).toBe('80');
+    expect(ticked('Semicolons')).toBe('true');
+    expect(quotes()).toBe('single');
+    expect(shown('Trailing commas')).toBe('All');
+    cleanup();
+    render(<CodeFormatTool host={await seeded({ language: 'html', whitespace: 'tight' })} />);
+    expect(shown('Whitespace')).toBe('CSS');
+    cleanup();
+    render(<CodeFormatTool host={await seeded({ language: 'markdown', proseWrap: 'sometimes', lineWidth: 120 })} />);
+    expect(shown('Prose wrap')).toBe('Preserve');
+    expect(shown('Line width')).toBe('120');
+    cleanup();
+    render(<CodeFormatTool host={await seeded({ language: 'cobol', indent: 'tab' })} />);
+    expect(shown('Language')).toBe('Auto');
+    expect(shown('Indent')).toBe('Tab');
+  });
+
+  it('YAML shows 2 spaces for a saved Tab and keeps the Tab; a saved language loads nothing until there is code', async () => {
+    const host = await seeded({ language: 'yaml', indent: 'tab' });
+    const first = render(<CodeFormatTool host={host} />);
+    expect(shown('Language')).toBe('YAML');
+    expect(shown('Indent')).toBe('2 spaces');
+    await new Promise(resolve => setTimeout(resolve, 400));
+    expect(fake.jobs).toEqual([]);
+    expect([...fake.loaded]).toEqual([]);
+    expect(status()).toBe('');
+    type('a:   1');
+    await result('a: 1\n');
+    expect(fake.jobs.map(j => j.language)).toEqual(['yaml']);
+    await choose('Language', 'JavaScript');
+    expect(shown('Indent')).toBe('Tab');
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { language: 'javascript', indent: 'tab' } });
+  });
+
+  it('a paste opens Auto, a file its language and an entry its own — for the visit; what is saved stays', async () => {
+    const host = await seeded({ language: 'css', indent: 4 });
+    const pasted = render(<CodeFormatTool host={host} input="const a={b:1}" />);
+    expect(shown('Indent')).toBe('4 spaces');
+    await result('const a = { b: 1 };\n');
+    expect(shown('Language')).toBe('Auto (JavaScript)');
+    pasted.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { language: 'css', indent: 4 } });
+
+    const filed = render(<CodeFormatTool host={host} />);
+    expect(shown('Language')).toBe('CSS');
+    const picker = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(picker, { target: { files: [new File(['*  a'], 'notes.md')] } });
+    await result('- a\n');
+    expect(shown('Language')).toBe('Markdown');
+    filed.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { language: 'css', indent: 4 } });
+
+    const recorder = host.history.forOwner('code-format', definition.history!).session();
+    await recorder.commit({
+      kind: 'format',
+      label: 'TypeScript · 2 spaces · 14 characters',
+      payload: {
+        choice: 'typescript',
+        language: 'typescript',
+        settings: { ...DEFAULT_SETTINGS },
+        outcome: 'ok',
+        lines: 1,
+      },
+      blobs: { input: new Blob(['let a:number=1']), output: new Blob(['let a: number = 1;\n']) },
+    });
+    const entry = (await entriesOf(host)).find(e => e.label === 'TypeScript · 2 spaces · 14 characters')!;
+    const opened = render(<CodeFormatTool host={host} restore={{ id: entry.id }} />);
+    expect(await screen.findByText('Opened from History: TypeScript · 2 spaces · 14 characters.')).toBeTruthy();
+    expect(shown('Language')).toBe('TypeScript');
+    expect(shown('Indent')).toBe('2 spaces');
+    await result('let a: number = 1;\n');
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { language: 'css', indent: 4 } });
+    render(<CodeFormatTool host={host} />);
+    expect(shown('Language')).toBe('CSS');
+    expect(shown('Indent')).toBe('4 spaces');
+  });
+
+  it('reset puts the language and the options back to the defaults and keeps the code; the result follows', async () => {
+    const host = await seeded({ language: 'javascript', indent: 4, semi: false, singleQuote: true });
+    render(<CodeFormatTool host={host} />);
+    type('let a="b"');
+    await result("let a = 'b'\n");
+    await act(async () => host.settings.forTool('code-format').reset());
+    expect(shown('Language')).toBe('Auto (JavaScript)');
+    expect(shown('Indent')).toBe('2 spaces');
+    expect(input().value).toBe('let a="b"');
+    await result('let a = "b";\n');
+    expect(savedOf(host)).toBeUndefined();
   });
 });

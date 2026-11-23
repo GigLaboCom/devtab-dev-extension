@@ -9,10 +9,14 @@
  * History (D17, docs/tools/history.md §10): an edit of the expression, the dialect, the zone or the number of runs that
  * reads is a snapshot (`change`); Copy description and Copy runs are commits; an entry the host opens comes back as the
  * expression and the three options.
+ *
+ * Dialect, Time zone and Runs are saved parameters (settings.ts; docs/tools/settings.md): the tool opens with what the
+ * person chose last. An opened entry shows its own options for the visit only; a handed-over expression keeps them.
  */
 import { explainDraft, readExplainPayload } from './entries';
 import { cronHistory } from './history';
 import { NextRuns } from './Runs';
+import { cronSettings } from './settings';
 import {
   browserTimeZone,
   describeCron,
@@ -27,7 +31,7 @@ import {
   TOO_LONG,
   zoneOptions,
 } from '@workspace/tool-logic-cron';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Combobox } from '@workspace/ui/combobox';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Input } from '@workspace/ui/input';
@@ -48,9 +52,6 @@ const DIALECTS: Array<{ value: DialectOption; label: string }> = [
   { value: 'quartz', label: 'Quartz (6–7 fields)' },
 ];
 const NO_MATCH = 'No time zones match.';
-/** §4: UTC — the zone most schedules that are read here run in (GitHub Actions, Kubernetes, servers). */
-const DEFAULT_ZONE = 'UTC';
-const DEFAULT_RUNS = 10;
 
 type State = { input: string; dialect: DialectOption; zone: string; runs: number };
 
@@ -83,9 +84,8 @@ const draftOf = (state: State, reading: Reading): HistoryDraft | null => {
 
 const CronTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
-  const [dialect, setDialect] = useState<DialectOption>('auto');
-  const [zone, setZone] = useState(DEFAULT_ZONE);
-  const [runs, setRuns] = useState(DEFAULT_RUNS);
+  const saved = useSavedSettings(host, 'cron', cronSettings);
+  const { dialect, timeZone: zone, runs } = saved.values;
   const [restored, setRestored] = useState<string | null>(null);
   const { history, recorder } = useToolHistory(host, 'cron', cronHistory);
 
@@ -96,9 +96,10 @@ const CronTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
   const edit = (next: Partial<State>): void => {
     const after = { ...state, ...next };
     if (next.input !== undefined) setInput(next.input);
-    if (next.dialect !== undefined) setDialect(next.dialect);
-    if (next.zone !== undefined) setZone(next.zone);
-    if (next.runs !== undefined) setRuns(next.runs);
+    // The options the person chose: shown and saved.
+    if (next.dialect !== undefined) saved.set({ dialect: next.dialect });
+    if (next.zone !== undefined) saved.set({ timeZone: next.zone });
+    if (next.runs !== undefined) saved.set({ runs: next.runs as (typeof RUN_COUNTS)[number] });
     setRestored(null);
     const draft = draftOf(after, read(after.input, after.dialect));
     if (draft) recorder.change(draft);
@@ -130,9 +131,12 @@ const CronTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
     }
     const p = readExplainPayload(opened.payload);
     setInput(p.expression);
-    setDialect(p.dialect);
-    setZone((p.timeZone && resolveTimeZone(p.timeZone)) || DEFAULT_ZONE);
-    setRuns(p.runs);
+    // The entry's options for this visit; what is saved stays as it was.
+    saved.visit({
+      dialect: p.dialect,
+      timeZone: (p.timeZone && resolveTimeZone(p.timeZone)) || cronSettings.fields.timeZone.default,
+      runs: p.runs as (typeof RUN_COUNTS)[number],
+    });
     setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
   });
 

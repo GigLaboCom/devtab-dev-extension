@@ -4,6 +4,7 @@
 import { definition } from './definition';
 import { detect } from './detect';
 import NumberBaseTool from './NumberBaseTool';
+import { numberBaseSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { memoryHost } from '@workspace/tools-host';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -373,5 +374,127 @@ describe('the Number Bases tool’s history', () => {
     expect(await screen.findByText('Opened from History: kept.')).toBeTruthy();
     expect(values()).toEqual(['', '', '', '', '']);
     expect(radix().value).toBe('36');
+  });
+});
+
+describe('the Number Bases tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ToolHost) => host.settings!.forTool('number-base').saved();
+  const seed = async (host: ToolHost, values: Record<string, unknown>) => {
+    host.settings!.forTool('number-base').save(numberBaseSettings.schema, values as never);
+    await host.settings!.forTool('number-base').flush();
+  };
+  const shown = (label: string) => screen.getByRole('combobox', { name: label }).textContent;
+  const ticked = (name: string) => screen.getByRole('checkbox', { name }).getAttribute('aria-checked');
+
+  it('saves the options and a valid N the person chose; reopened, it is as left, with every field empty', async () => {
+    const host = memoryHost();
+    const first = render(<NumberBaseTool host={host} />);
+    await twos('16 bits');
+    check('Uppercase');
+    check('Prefixes');
+    type(radix(), '1');
+    type(radix(), '12');
+    type(field('Decimal'), '255');
+    first.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: { negative: 'twos', width: 16, uppercase: true, prefixes: true, radix: 12 },
+    });
+
+    const second = render(<NumberBaseTool host={host} />);
+    expect(values()).toEqual(['', '', '', '', '']);
+    expect(shown('Negative numbers')).toBe("Two's complement");
+    expect(shown('Width')).toBe('16 bits');
+    expect([ticked('Uppercase'), ticked('Group digits'), ticked('Prefixes')]).toEqual(['true', 'false', 'true']);
+    expect(radix().value).toBe('12');
+    type(field('Decimal'), '-1');
+    expect(field('Hexadecimal').value).toBe('0xFFFF');
+    // N being typed or out of range is shown, not saved: what was saved stays.
+    type(radix(), '');
+    type(radix(), '37');
+    second.unmount();
+    expect(savedOf(host)?.values.radix).toBe(12);
+  });
+
+  it('a saved record it cannot show falls back field by field', async () => {
+    const host = memoryHost();
+    await seed(host, { negative: 'twos', width: 12, uppercase: 'yes', grouped: true, radix: 40 });
+    render(<NumberBaseTool host={host} />);
+    expect(shown('Negative numbers')).toBe("Two's complement");
+    expect(shown('Width')).toBe('32 bits');
+    expect([ticked('Uppercase'), ticked('Group digits'), ticked('Prefixes')]).toEqual(['false', 'true', 'false']);
+    expect(radix().value).toBe('36');
+  });
+
+  it('a handed-over number keeps the saved options; an opened entry shows its own for the visit', async () => {
+    const host = memoryHost();
+    const kept = { negative: 'twos', width: 8, grouped: true, radix: 7 };
+    await seed(host, kept);
+    const handed = render(<NumberBaseTool host={host} input="0xff" />);
+    expect(field('Hexadecimal').value).toBe('0xff');
+    expect(field('Decimal').value).toBe('-1');
+    expect(radix().value).toBe('7');
+    handed.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: kept });
+
+    await host.history
+      .forOwner('number-base', definition.history!)
+      .session()
+      .commit({
+        kind: 'convert',
+        label: 'kept entry',
+        payload: {
+          field: 'decimal',
+          text: '255',
+          radix: '16',
+          negative: 'sign',
+          width: 32,
+          uppercase: true,
+          grouped: false,
+          prefixes: false,
+          decimal: '255',
+        },
+      });
+    const [entry] = (await host.history.forOwner('number-base', definition.history!).list({ kinds: ['convert'] }))
+      .entries;
+    const opened = render(<NumberBaseTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText('Opened from History: kept entry.')).toBeTruthy();
+    expect(shown('Negative numbers')).toBe('Minus sign');
+    expect([ticked('Uppercase'), ticked('Group digits')]).toEqual(['true', 'false']);
+    expect(radix().value).toBe('16');
+    expect(field('Hexadecimal').value).toBe('FF');
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: kept });
+
+    render(<NumberBaseTool host={host} />);
+    expect(shown('Negative numbers')).toBe("Two's complement");
+    expect(shown('Width')).toBe('8 bits');
+    expect(radix().value).toBe('7');
+  });
+
+  it('reset puts the options and N back to the defaults and keeps the number; the fields follow', async () => {
+    const host = memoryHost();
+    await seed(host, { negative: 'twos', width: 8, uppercase: true, radix: 16 });
+    const first = render(<NumberBaseTool host={host} />);
+    type(field('Hexadecimal'), 'ff');
+    expect(field('Decimal').value).toBe('-1');
+    await act(async () => host.settings!.forTool('number-base').reset());
+    expect(shown('Negative numbers')).toBe('Minus sign');
+    expect(ticked('Uppercase')).toBe('false');
+    expect(radix().value).toBe('36');
+    expect(field('Hexadecimal').value).toBe('ff');
+    expect(field('Decimal').value).toBe('255');
+    expect(baseField().value).toBe('73');
+    expect(savedOf(host)).toBeUndefined();
+    first.unmount();
+
+    // A number typed in the Base field keeps its value as N goes back to 36: Decimal becomes the source (§4).
+    await seed(host, { radix: 16 });
+    render(<NumberBaseTool host={host} />);
+    type(baseField(), 'ff');
+    await act(async () => host.settings!.forTool('number-base').reset());
+    expect(radix().value).toBe('36');
+    expect(field('Decimal').value).toBe('255');
+    expect(baseField().value).toBe('73');
   });
 });

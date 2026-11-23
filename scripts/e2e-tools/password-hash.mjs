@@ -6,13 +6,15 @@
 //     localStorage or chrome.storage;
 //   - without a master password nothing is written; with a throwaway master password made here, a Hash writes one
 //     encrypted entry (no hash, label or payload in clear); locked, it does not open; unlocked, History's "Open" brings
-//     the hash and its parameters back with the password field empty; the master password is turned off again.
+//     the hash and its parameters back with the password field empty; the master password is turned off again;
+//   - the algorithm, its cost and the format are saved parameters (D21): the tool opened again shows them, never the
+//     password or the user.
 // Only test passwords and the specification's vectors are used; the master password is never written anywhere.
 // Copy is checked against a stand-in for navigator.clipboard.writeText (restored at the end). Run by scripts/e2e-tools.mjs.
 
 /* global document, window, location, chrome, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
 
-import { historyRecords, inDarkTheme, settledShot, stubClipboard } from '../e2e-helpers.mjs';
+import { forgetSavedParameters, historyRecords, inDarkTheme, settledShot, stubClipboard } from '../e2e-helpers.mjs';
 
 const T = 'Password Hash';
 // A test password (not anybody's): the specification's own.
@@ -287,6 +289,56 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     await settledShot(shoot, page, 'tool-password-hash-07-argon2id-dark.png');
   });
 
+  // Saved parameters (D21): the algorithm, its cost and the format a person chose are written 400 ms after the change;
+  // the tool opened again shows them — the password and the user empty, nothing of them in the stored record. In a page
+  // of its own (this one carries the clipboard's stand-in), then forgotten: the steps below open with the defaults.
+  {
+    const own = await ctx.newPage();
+    const stored = () =>
+      own.evaluate(
+        async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.['password-hash'],
+      );
+    await own.goto(`${base}#/tools/password-hash`);
+    await password(own).waitFor();
+    // The dark screenshots' last choice is written 400 ms after it: let it land before it is forgotten.
+    await sleep(500);
+    await forgetSavedParameters(own, 'password-hash');
+    await own.reload();
+    await password(own).waitFor();
+    await password(own).fill(PASSWORD);
+    await choose(own, 'Algorithm', 'bcrypt');
+    await own.getByLabel('Cost', { exact: true }).fill('3'); // beyond the limits: not saved
+    await own.getByLabel('Cost', { exact: true }).fill('11');
+    await choose(own, 'Format', 'htpasswd line');
+    await own.getByLabel('User', { exact: true }).fill('alice');
+    for (let i = 0; i < 25 && (await stored())?.values?.format !== 'htpasswd'; i++) await sleep(200);
+    const record = await stored();
+    await own.reload();
+    await password(own).waitFor();
+    const kept = {
+      algorithm: await own.getByLabel('Algorithm', { exact: true }).innerText(),
+      cost: await own.getByLabel('Cost', { exact: true }).inputValue(),
+      format: await own.getByLabel('Format', { exact: true }).innerText(),
+      password: await password(own).inputValue(),
+      user: await own.getByLabel('User', { exact: true }).inputValue(),
+      warning: await own.locator('[data-warning]').count(),
+    };
+    check(
+      `${T}: bcrypt, cost 11 and htpasswd line chosen, the tool opened again — as left, password and user empty, neither stored (saved parameters)`,
+      kept.algorithm === 'bcrypt' &&
+        kept.cost === '11' &&
+        kept.format === 'htpasswd line' &&
+        kept.password === '' &&
+        kept.user === '' &&
+        kept.warning === 0 &&
+        JSON.stringify(record) ===
+          JSON.stringify({ schema: 1, values: { algorithm: 'bcrypt', bcryptCost: 11, format: 'htpasswd' } }),
+      JSON.stringify({ kept, record }),
+    );
+    await forgetSavedParameters(own, 'password-hash');
+    await own.close();
+  }
+
   // §7: a hash pasted on the start page opens this tool in Verify with it; the password field stays empty.
   const paste = async text => {
     await page.goto(`${base}#/start`);
@@ -460,4 +512,8 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   await password(page).waitFor();
   check(`${T}: with the master password off again, its entries are gone`, (await rowsOf(page)) === 0);
   for (const p of opened) await p.close();
+  // The algorithm and cost the steps above chose are saved parameters (written 400 ms after the change): the next
+  // module opens the tool with its defaults.
+  await sleep(500);
+  await forgetSavedParameters(page, 'password-hash').catch(() => undefined);
 };

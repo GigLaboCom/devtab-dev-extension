@@ -4,11 +4,18 @@
 // worker (§12), an entry opened back from the tool's own history (D17), and the page in the light and the dark theme.
 // The browser's language is not trusted: DevTools sets it to sv-SE (where ä sorts after z) for the length of this module,
 // and the sort must still be the fixed 'en' order (§5.9.2); it is put back at the end. The clipboard is stubbed for one press.
+// The steps are saved parameters (D21): checked once; every scenario starts from a page with them forgotten.
 // Run by scripts/e2e-tools.mjs.
 
-/* global document, HTMLTextAreaElement, requestAnimationFrame -- page.evaluate callbacks run in the page */
+/* global document, HTMLTextAreaElement, requestAnimationFrame, chrome -- page.evaluate callbacks run in the page */
 
-import { inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 
 const T = 'Lines';
 
@@ -127,8 +134,14 @@ const run = async ({ ctx, page, base, check, shoot, sleep }) => {
     await page.getByRole('option', { name: option, exact: true }).click();
   };
   const type = (label, value) => page.getByRole('textbox', { name: label, exact: true }).fill(value);
-  /** The tool afresh: every step off, both fields empty (the page reloaded). */
+  /**
+   * The tool afresh: every step off, both fields empty. The steps are saved parameters: the page is left first (its
+   * last changes are written as it goes), then they are forgotten and the page is read anew.
+   */
   const fresh = async () => {
+    await page.reload();
+    await input.waitFor();
+    await forgetSavedParameters(page, 'lines');
     await page.reload();
     await input.waitFor();
   };
@@ -208,6 +221,35 @@ const run = async ({ ctx, page, base, check, shoot, sleep }) => {
     `${JSON.stringify(copied.at(-1))}; ${record}`,
   );
   await settledShot(shoot, page, 'tool-lines-02-addresses-light.png');
+
+  // Saved parameters (D21): the steps of §2.1 are kept (written 400 ms after the change); the page opened again has
+  // them, with both fields empty.
+  const stored = () =>
+    page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.lines);
+  const kept = ['trimEnabled', 'blankEnabled', 'duplicatesEnabled', 'duplicatesIgnoreCase', 'orderEnabled'];
+  for (let i = 0; i < 25; i++) {
+    const values = (await stored())?.values;
+    if (kept.every(key => values?.[key] === true)) break;
+    await sleep(200);
+  }
+  await page.reload();
+  await input.waitFor({ timeout: 15_000 });
+  const reopened = {
+    on: await stepsOn().count(),
+    trim: await step('Trim').getAttribute('aria-checked'),
+    ignoreCase: await step('Ignore case').getAttribute('aria-checked'),
+    input: await input.inputValue(),
+    result: await result.inputValue(),
+  };
+  check(
+    `${T}: the steps of §2.1 built, the page opened again — the same four steps on, Ignore case too, the fields empty (saved parameters)`,
+    reopened.on === 4 &&
+      reopened.trim === 'true' &&
+      reopened.ignoreCase === 'true' &&
+      reopened.input === '' &&
+      reopened.result === '',
+    JSON.stringify({ ...reopened, stored: await stored() }),
+  );
 
   // D17: the copied result of §2.1 is in the tool's history (its recent eight) and opens back into the tool.
   await fresh();
@@ -571,4 +613,6 @@ const run = async ({ ctx, page, base, check, shoot, sleep }) => {
     limit,
   );
   await put('');
+  // The steps of the screenshots are saved: the next module opens Lines with its defaults.
+  await forgetSavedParameters(page, 'lines');
 };

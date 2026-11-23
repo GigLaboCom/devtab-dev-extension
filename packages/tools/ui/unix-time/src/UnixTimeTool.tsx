@@ -9,10 +9,14 @@
  * History (D17, docs/tools/history.md §10): an edit of the field, the unit or the zone that reads as an instant is a
  * snapshot (`change`); Now and a copied row are commits; an entry the host opens comes back as the field, the unit and
  * the zone.
+ *
+ * Unit and Time zone are saved parameters (settings.ts; docs/tools/settings.md): the tool opens with what the person
+ * chose last time where the host remembers it; an opened entry shows its own unit and zone for the visit only.
  */
 import { convertDraft, readConvertPayload } from './entries';
 import { unixTimeHistory } from './history';
 import { EmptyResults, FixedResults, LiveResults, LiveZoneLine, ZoneLine } from './Results';
+import { unixTimeSettings } from './settings';
 import {
   browserTimeZone,
   formatIsoUtc,
@@ -22,7 +26,7 @@ import {
   unitApplies,
   zoneOptions,
 } from '@workspace/tool-logic-unix-time';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Combobox } from '@workspace/ui/combobox';
 import { Input } from '@workspace/ui/input';
@@ -63,8 +67,8 @@ const draftOf = ({ input, unit, zone }: State, parsed: ParsedInput): HistoryDraf
 const UnixTimeTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const field = useRef<HTMLInputElement>(null);
   const [input, setInput] = useState(initial ?? '');
-  const [unit, setUnit] = useState<UnitOption>('auto');
-  const [zone, setZone] = useState(browserTimeZone);
+  const saved = useSavedSettings(host, 'unix-time', unixTimeSettings);
+  const { unit, timeZone: zone } = saved.values;
   const [restored, setRestored] = useState<string | null>(null);
   const { history, recorder } = useToolHistory(host, 'unix-time', unixTimeHistory);
 
@@ -75,14 +79,18 @@ const UnixTimeTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
   const edit = (next: Partial<State>): void => {
     const after = { ...state, ...next };
     if (next.input !== undefined) setInput(next.input);
-    if (next.unit !== undefined) setUnit(next.unit);
-    if (next.zone !== undefined) setZone(next.zone);
+    // The unit and the zone the person chose: shown and saved.
+    if (next.unit !== undefined || next.zone !== undefined)
+      saved.set({
+        ...(next.unit !== undefined && { unit: next.unit }),
+        ...(next.zone !== undefined && { timeZone: next.zone }),
+      });
     setRestored(null);
     const draft = draftOf(after, parseInput(after.input, { timeZone: after.zone, unit: after.unit }));
     if (draft) recorder.change(draft);
   };
 
-  // Text handed over from the start page is the first edit of this visit.
+  // Text handed over from the start page is the first edit of this visit, with the unit and zone the page opened with.
   const handed = useRef({ input: initial ?? '', unit, zone });
   useEffect(() => {
     const first = handed.current;
@@ -124,8 +132,8 @@ const UnixTimeTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
     }
     const p = readConvertPayload(opened.payload);
     setInput(p.input);
-    setUnit(p.unit);
-    setZone((p.timeZone && resolveTimeZone(p.timeZone)) || browserTimeZone());
+    // The entry's unit and zone for this visit; what is saved stays as it was.
+    saved.visit({ unit: p.unit, timeZone: (p.timeZone && resolveTimeZone(p.timeZone)) || browserTimeZone() });
     setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
   });
 

@@ -9,12 +9,15 @@
  * It records into the tool history through its host: an edit snapshot with its result when the input or an option
  * changes (`change`), and a commit when the result is taken — Copy, Save, Swap — both only for an input up to
  * RECORD_LIMIT characters (entries.ts: a larger table is not recorded at all). An entry the host asks to open comes
- * back as the input, the direction and every option. The page frame is the host's.
+ * back as the input, the direction and every option (for the visit). The direction and the options the person
+ * chooses are saved parameters (settings.ts); a paste or an opened file chooses the direction for the visit only. The
+ * page frame is the host's.
  */
 import { convertWithSize, sameJob } from './conversion';
-import { DEFAULT_OPTIONS, draftOf, isDirection, isLayout, readEntry } from './entries';
+import { draftOf, isDirection, isLayout, readEntry } from './entries';
 import { jsonCsvHistory } from './history';
 import { createRunner } from './runner';
+import { jsonCsvSettings, nameOfDelimiter, optionsOfSaved, savedOfOptions } from './settings';
 import {
   LIVE_INPUT,
   MAX_INPUT,
@@ -28,7 +31,7 @@ import {
   measureText,
   withBom,
 } from '@workspace/tool-logic-json-csv';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -40,7 +43,8 @@ import { ToolMessage, ToolOptions, ToolPane, ToolPanes } from '@workspace/ui/too
 import { CircleAlertIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ConvertJob, Done } from './conversion';
-import type { Direction, JsonCsvOptionsPayload, JsonCsvPayload } from './history';
+import type { JsonCsvOptionsPayload, JsonCsvPayload } from './history';
+import type { JsonCsvSettings } from './settings';
 import type { Delimiter, Layout, ToCsvOptions, ToJsonOptions } from '@workspace/tool-logic-json-csv';
 import type { ToolProps } from '@workspace/tools-host';
 import type { ReactElement, ReactNode } from 'react';
@@ -117,11 +121,12 @@ const Option = ({
 const JsonCsvTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
   const [file, setFile] = useState<LoadedFile | null>(null);
-  // Text handed over from the start page was recognised as CSV (detectCsv): it is there to become JSON.
-  const [direction, setDirection] = useState<Direction>(() => (initial && detectCsv(initial) ? 'to-json' : 'to-csv'));
-  const [header, setHeader] = useState(DEFAULT_OPTIONS.header);
-  const [csv, setCsv] = useState(DEFAULT_OPTIONS.toCsv);
-  const [json, setJson] = useState(DEFAULT_OPTIONS.toJson);
+  // Text handed over from the start page was recognised as CSV (detectCsv): it is there to become JSON — for the visit.
+  const [opening] = useState<Partial<JsonCsvSettings> | undefined>(() =>
+    initial ? { direction: detectCsv(initial) ? 'to-json' : 'to-csv' } : undefined,
+  );
+  const saved = useSavedSettings(host, 'json-csv', jsonCsvSettings, { opening });
+  const { direction, header, toCsv: csv, toJson: json } = useMemo(() => optionsOfSaved(saved.values), [saved.values]);
   /** What went wrong opening a file (too large, not UTF-8) or running. */
   const [message, setMessage] = useState<string | null>(null);
   const [restored, setRestored] = useState<string | null>(null);
@@ -188,6 +193,8 @@ const JsonCsvTool = ({ input: initial, host, restore }: ToolProps): ReactElement
     setMessage(null);
     apply();
   };
+  /** The person changed a parameter: shown and saved. */
+  const change = (patch: Partial<JsonCsvSettings>): void => edit(() => saved.set(patch));
 
   const take = (action: NonNullable<JsonCsvPayload['action']>): void => {
     if (!current) return;
@@ -237,12 +244,10 @@ const JsonCsvTool = ({ input: initial, host, restore }: ToolProps): ReactElement
     const name = picked.name.toLowerCase();
     edit(() => {
       place(decoded.text, picked.name, picked.size);
-      if (name.endsWith('.json')) setDirection('to-csv');
-      else if (name.endsWith('.csv')) setDirection('to-json');
-      else if (name.endsWith('.tsv')) {
-        setDirection('to-json');
-        setJson(j => ({ ...j, delimiter: '\t' }));
-      }
+      // The file's extension chose these, not the person: for the visit.
+      if (name.endsWith('.json')) saved.visit({ direction: 'to-csv' });
+      else if (name.endsWith('.csv')) saved.visit({ direction: 'to-json' });
+      else if (name.endsWith('.tsv')) saved.visit({ direction: 'to-json', jsonDelimiter: 'tab' });
     });
   };
 
@@ -262,10 +267,7 @@ const JsonCsvTool = ({ input: initial, host, restore }: ToolProps): ReactElement
       edited.current = false;
       setMessage(null);
       place(text, 'History entry', measureText(text).bytes);
-      setDirection(entry.direction);
-      setHeader(entry.header);
-      setCsv(entry.toCsv);
-      setJson(entry.toJson);
+      saved.visit(savedOfOptions(entry));
       setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
     });
   });
@@ -293,13 +295,12 @@ const JsonCsvTool = ({ input: initial, host, restore }: ToolProps): ReactElement
     const used = 'delimiter' in result.notes ? result.notes.delimiter : csv.delimiter;
     edit(() => {
       place(next, toCsv ? 'converted.csv' : 'converted.json', measureText(next).bytes);
+      // Swap is the person's choice: the new direction and the delimiter it hands over are saved.
       if (toCsv) {
         // The CSV just written goes back with the delimiter it was written with.
-        setJson(j => ({ ...j, delimiter: csv.delimiter }));
-        setDirection('to-json');
+        saved.set({ direction: 'to-json', jsonDelimiter: nameOfDelimiter(csv.delimiter) });
       } else {
-        setCsv(c => ({ ...c, delimiter: used }));
-        setDirection('to-csv');
+        saved.set({ direction: 'to-csv', csvDelimiter: nameOfDelimiter(used) });
       }
     });
   };
@@ -359,7 +360,7 @@ const JsonCsvTool = ({ input: initial, host, restore }: ToolProps): ReactElement
           aria-label="Direction"
           value={direction}
           onValueChange={value => {
-            if (isDirection(value) && value !== direction) edit(() => setDirection(value));
+            if (isDirection(value) && value !== direction) change({ direction: value });
           }}>
           <ToggleGroupItem value="to-csv">JSON → CSV</ToggleGroupItem>
           <ToggleGroupItem value="to-json">CSV → JSON</ToggleGroupItem>
@@ -372,8 +373,8 @@ const JsonCsvTool = ({ input: initial, host, restore }: ToolProps): ReactElement
           onValueChange={value => {
             const next = delimiterOfValue(value);
             if (next === null) return;
-            if (toCsv && next !== 'auto') edit(() => setCsv(c => ({ ...c, delimiter: next })));
-            else if (!toCsv) edit(() => setJson(j => ({ ...j, delimiter: next })));
+            if (toCsv && next !== 'auto') change({ csvDelimiter: nameOfDelimiter(next) });
+            else if (!toCsv) change({ jsonDelimiter: next === 'auto' ? 'auto' : nameOfDelimiter(next) });
           }}>
           <SelectTrigger id="json-csv-delimiter" className="min-w-28">
             <SelectValue />
@@ -387,7 +388,7 @@ const JsonCsvTool = ({ input: initial, host, restore }: ToolProps): ReactElement
             ))}
           </SelectContent>
         </Select>
-        <Option id="json-csv-header" checked={header} onChange={v => edit(() => setHeader(v))}>
+        <Option id="json-csv-header" checked={header} onChange={v => change({ header: v })}>
           Header row
         </Option>
         <Button variant="outline" className="ml-auto" disabled={!taken || working !== null} onClick={swap}>
@@ -414,10 +415,7 @@ const JsonCsvTool = ({ input: initial, host, restore }: ToolProps): ReactElement
       <ToolOptions data-part="direction-options">
         {toCsv ? (
           <>
-            <Option
-              id="json-csv-flatten"
-              checked={csv.flatten}
-              onChange={v => edit(() => setCsv(c => ({ ...c, flatten: v })))}>
+            <Option id="json-csv-flatten" checked={csv.flatten} onChange={v => change({ csvFlatten: v })}>
               Flatten nested objects
             </Option>
             <Label htmlFor="json-csv-newline" className="ml-2 text-muted-foreground">
@@ -426,7 +424,7 @@ const JsonCsvTool = ({ input: initial, host, restore }: ToolProps): ReactElement
             <Select
               value={csv.newline}
               onValueChange={value => {
-                if (value === 'crlf' || value === 'lf') edit(() => setCsv(c => ({ ...c, newline: value })));
+                if (value === 'crlf' || value === 'lf') change({ csvNewline: value });
               }}>
               <SelectTrigger id="json-csv-newline" className="min-w-20">
                 <SelectValue />
@@ -436,28 +434,22 @@ const JsonCsvTool = ({ input: initial, host, restore }: ToolProps): ReactElement
                 <SelectItem value="lf">LF</SelectItem>
               </SelectContent>
             </Select>
-            <Option
-              id="json-csv-quote-all"
-              checked={csv.quoteAll}
-              onChange={v => edit(() => setCsv(c => ({ ...c, quoteAll: v })))}>
+            <Option id="json-csv-quote-all" checked={csv.quoteAll} onChange={v => change({ csvQuoteAll: v })}>
               Quote all fields
             </Option>
             <Option
               id="json-csv-formulas"
               checked={csv.protectFormulas}
-              onChange={v => edit(() => setCsv(c => ({ ...c, protectFormulas: v })))}>
+              onChange={v => change({ csvProtectFormulas: v })}>
               Protect from formulas
             </Option>
-            <Option id="json-csv-bom" checked={csv.bom} onChange={v => edit(() => setCsv(c => ({ ...c, bom: v })))}>
+            <Option id="json-csv-bom" checked={csv.bom} onChange={v => change({ csvBom: v })}>
               Add BOM (for Excel)
             </Option>
           </>
         ) : (
           <>
-            <Option
-              id="json-csv-types"
-              checked={json.detectTypes}
-              onChange={v => edit(() => setJson(j => ({ ...j, detectTypes: v })))}>
+            <Option id="json-csv-types" checked={json.detectTypes} onChange={v => change({ jsonDetectTypes: v })}>
               Detect types
             </Option>
             <Label htmlFor="json-csv-empty" className="ml-2 text-muted-foreground">
@@ -467,7 +459,7 @@ const JsonCsvTool = ({ input: initial, host, restore }: ToolProps): ReactElement
               value={json.empty}
               onValueChange={value => {
                 const next = EMPTY_ITEMS.find(i => i.value === value)?.value;
-                if (next) edit(() => setJson(j => ({ ...j, empty: next })));
+                if (next) change({ jsonEmpty: next });
               }}>
               <SelectTrigger id="json-csv-empty" className="min-w-28">
                 <SelectValue />
@@ -480,10 +472,7 @@ const JsonCsvTool = ({ input: initial, host, restore }: ToolProps): ReactElement
                 ))}
               </SelectContent>
             </Select>
-            <Option
-              id="json-csv-nest"
-              checked={json.nest}
-              onChange={v => edit(() => setJson(j => ({ ...j, nest: v })))}>
+            <Option id="json-csv-nest" checked={json.nest} onChange={v => change({ jsonNest: v })}>
               Nest dotted headers
             </Option>
             <Label htmlFor="json-csv-indent" className="ml-2 text-muted-foreground">
@@ -493,7 +482,7 @@ const JsonCsvTool = ({ input: initial, host, restore }: ToolProps): ReactElement
               value={String(json.layout)}
               onValueChange={value => {
                 const next = value === 'tab' || value === 'minify' ? value : Number(value);
-                if (isLayout(next)) edit(() => setJson(j => ({ ...j, layout: next })));
+                if (isLayout(next)) change({ jsonIndent: next });
               }}>
               <SelectTrigger id="json-csv-indent" className="min-w-28">
                 <SelectValue />

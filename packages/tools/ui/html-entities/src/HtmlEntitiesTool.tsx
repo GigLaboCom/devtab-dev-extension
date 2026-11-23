@@ -6,6 +6,10 @@
  * SETTLE_MS after the last edit up to MAX_INPUT, and above that the tool refuses (§12). It records into the tool history
  * through its host: an edit snapshot (`change`) and a commit when the result is taken — Copy or Swap; an entry the host
  * asks to open comes back as the input and the options. The page frame (title, summary, the history line) is the host's.
+ *
+ * The direction and the Encode options are saved parameters (settings.ts; docs/tools/settings.md): the tool opens with
+ * what the person chose last. A paste from the start page opens Decode and an opened entry shows its own direction and
+ * options, both for the visit only. Swap is the person's change of direction, saved like any other.
  */
 import {
   ENCODED_AGAIN,
@@ -21,6 +25,7 @@ import {
   unknownNote,
 } from './entries';
 import { htmlEntitiesHistory } from './history';
+import { htmlEntitiesSettings } from './settings';
 import {
   LIVE_INPUT,
   MAX_INPUT,
@@ -31,7 +36,7 @@ import {
   loadReferenceTable,
   mayContainNames,
 } from '@workspace/tool-logic-html-entities';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Label } from '@workspace/ui/label';
@@ -132,10 +137,12 @@ const useReferenceTable = (needed: boolean): ReferenceTable | null => {
 
 const HtmlEntitiesTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
-  // Text handed over from the start page was recognised as text with references (detect): it is there to be decoded.
-  const [mode, setMode] = useState<Mode>(initial ? 'decode' : 'encode');
-  const [scope, setScope] = useState<EncodeScope>('special');
-  const [format, setFormat] = useState<NumericFormat>('decimal');
+  // Text handed over from the start page was recognised as text with references (detect): it is there to be decoded,
+  // for this visit; what is saved stays.
+  const saved = useSavedSettings(host, 'html-entities', htmlEntitiesSettings, {
+    opening: initial ? { mode: 'decode' } : undefined,
+  });
+  const { mode, scope, format } = saved.values;
   const [restored, setRestored] = useState<string | null>(null);
   const { history, recorder } = useToolHistory(host, 'html-entities', htmlEntitiesHistory);
 
@@ -167,7 +174,7 @@ const HtmlEntitiesTool = ({ input: initial, host, restore }: ToolProps): ReactEl
     take('swap');
     edit(() => {
       setInput(outcome.output);
-      setMode(mode === 'encode' ? 'decode' : 'encode');
+      saved.set({ mode: mode === 'encode' ? 'decode' : 'encode' });
     });
   };
 
@@ -186,9 +193,12 @@ const HtmlEntitiesTool = ({ input: initial, host, restore }: ToolProps): ReactEl
     void (opened.blobs.input?.text() ?? Promise.resolve('')).then(text => {
       edited.current = false;
       setInput(text);
-      setMode(isMode(p.mode) ? p.mode : opened.entry.kind === 'decode' ? 'decode' : 'encode');
-      setScope(isScope(p.scope) ? p.scope : 'special');
-      setFormat(isFormat(p.format) ? p.format : 'decimal');
+      // The entry's direction and options for this visit; what is saved stays as it was.
+      saved.visit({
+        mode: isMode(p.mode) ? p.mode : opened.entry.kind === 'decode' ? 'decode' : 'encode',
+        scope: isScope(p.scope) ? p.scope : 'special',
+        format: isFormat(p.format) ? p.format : 'decimal',
+      });
       setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
     });
   });
@@ -203,7 +213,7 @@ const HtmlEntitiesTool = ({ input: initial, host, restore }: ToolProps): ReactEl
           aria-label="Direction"
           value={mode}
           onValueChange={value => {
-            if (isMode(value) && value !== mode) edit(() => setMode(value));
+            if (isMode(value) && value !== mode) edit(() => saved.set({ mode: value }));
           }}>
           <ToggleGroupItem value="encode">Encode</ToggleGroupItem>
           <ToggleGroupItem value="decode">Decode</ToggleGroupItem>
@@ -216,7 +226,7 @@ const HtmlEntitiesTool = ({ input: initial, host, restore }: ToolProps): ReactEl
             <Select
               value={scope}
               onValueChange={value => {
-                if (isScope(value)) edit(() => setScope(value));
+                if (isScope(value)) edit(() => saved.set({ scope: value }));
               }}>
               <SelectTrigger id="html-entities-scope" className="min-w-36">
                 <SelectValue />
@@ -233,7 +243,7 @@ const HtmlEntitiesTool = ({ input: initial, host, restore }: ToolProps): ReactEl
               value={format}
               disabled={scope === 'special'}
               onValueChange={value => {
-                if (isFormat(value)) edit(() => setFormat(value));
+                if (isFormat(value)) edit(() => saved.set({ format: value }));
               }}>
               <SelectTrigger id="html-entities-format" className="min-w-24">
                 <SelectValue />

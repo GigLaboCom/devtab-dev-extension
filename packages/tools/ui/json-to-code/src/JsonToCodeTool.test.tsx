@@ -6,6 +6,7 @@
 import { definition } from './definition';
 import { jsonToCodeHistory } from './history';
 import JsonToCodeTool from './JsonToCodeTool';
+import { jsonToCodeSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LIVE_INPUT, MAX_INPUT } from '@workspace/tool-logic-json-to-code';
 import { memoryHost } from '@workspace/tools-host';
@@ -310,5 +311,94 @@ describe('the JSON to Code tool’s history', () => {
     const [entry] = await entriesOf(host);
     render(<JsonToCodeTool host={host} restore={{ id: entry!.id }} />);
     expect(await screen.findByText('This entry was kept by a newer version of the tool.')).toBeTruthy();
+  });
+});
+
+describe('the JSON to Code tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ReturnType<typeof memoryHost>) => host.settings.forTool('json-to-code').saved();
+  const seed = async (host: ReturnType<typeof memoryHost>, values: Record<string, unknown>) => {
+    host.settings.forTool('json-to-code').save(jsonToCodeSettings.schema, values as never);
+    await host.settings.forTool('json-to-code').flush();
+  };
+  const language = () => screen.getByLabelText('Language').textContent;
+  const typescript = () => ({
+    declaration:
+      screen.getByRole('radio', { name: 'type' }).getAttribute('aria-checked') === 'true' ? 'type' : 'interface',
+    exportTypes: screen.getByLabelText('Export').getAttribute('data-state'),
+  });
+  const SAMPLE = '{"id": 7}';
+
+  it('saves nothing until an option changes, never the sample or the root type; reopened, it is as left', async () => {
+    const host = memoryHost();
+    const first = render(<JsonToCodeTool host={host} />);
+    type(SAMPLE);
+    fireEvent.change(root(), { target: { value: 'Event' } });
+    await host.settings.forTool('json-to-code').flush();
+    expect(savedOf(host)).toBeUndefined();
+    fireEvent.click(screen.getByRole('radio', { name: 'type' }));
+    fireEvent.click(screen.getByLabelText('Export'));
+    await choose('Language', 'Rust');
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { language: 'rust', declaration: 'type', exportTypes: false } });
+    expect(JSON.stringify(savedOf(host))).not.toMatch(/Event|"id"/);
+
+    render(<JsonToCodeTool host={host} input={SAMPLE} />);
+    expect(language()).toBe('Rust');
+    expect(root().value).toBe('');
+    expect(output()).toMatch(/pub struct Root \{/);
+    await choose('Language', 'TypeScript');
+    expect(typescript()).toEqual({ declaration: 'type', exportTypes: 'unchecked' });
+    expect(output()).toBe('type Root = {\n  id: number;\n};\n');
+  });
+
+  it('a saved record it cannot show falls back field by field — a language the list no longer has is TypeScript', async () => {
+    const host = memoryHost();
+    await seed(host, { language: 'kotlin', declaration: 'type', exportTypes: 'no', unknown: 1 });
+    render(<JsonToCodeTool host={host} />);
+    expect(language()).toBe('TypeScript');
+    expect(typescript()).toEqual({ declaration: 'type', exportTypes: 'checked' });
+  });
+
+  it('an entry opened from History and a pasted sample win for the visit and leave what is saved alone', async () => {
+    const host = memoryHost();
+    const session = host.history.forOwner('json-to-code', jsonToCodeHistory).session();
+    await session.commit({
+      kind: 'edit',
+      payload: { language: 'typescript', rootName: 'user', declaration: 'interface', exportTypes: true },
+      label: 'Edit · TypeScript · 9 characters',
+      blobs: { input: new Blob([SAMPLE]) },
+    });
+    await session.end();
+    const [entry] = (await host.history.forOwner('json-to-code', jsonToCodeHistory).list({})).entries;
+    await seed(host, { language: 'go', declaration: 'type', exportTypes: false });
+    const opened = render(<JsonToCodeTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText('Opened from History: Edit · TypeScript · 9 characters.')).toBeTruthy();
+    expect(language()).toBe('TypeScript');
+    expect(typescript()).toEqual({ declaration: 'interface', exportTypes: 'checked' });
+    expect(output()).toBe('export interface User {\n  id: number;\n}\n');
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { language: 'go', declaration: 'type', exportTypes: false } });
+
+    // A paste from the start page: its sample, with the saved options.
+    render(<JsonToCodeTool host={host} input={SAMPLE} />);
+    expect(language()).toBe('Go');
+    expect(output()).toMatch(/^type Root struct \{/);
+    expect(savedOf(host)).toEqual({ schema: 1, values: { language: 'go', declaration: 'type', exportTypes: false } });
+  });
+
+  it('reset puts every option back to its default and keeps the sample and the root type; the result follows', async () => {
+    const host = memoryHost();
+    await seed(host, { language: 'python', exportTypes: false });
+    render(<JsonToCodeTool host={host} />);
+    type(SAMPLE);
+    fireEvent.change(root(), { target: { value: 'Event' } });
+    expect(output()).toMatch(/class Event\(TypedDict\)/);
+    await act(async () => host.settings.forTool('json-to-code').reset());
+    expect(language()).toBe('TypeScript');
+    expect(typescript()).toEqual({ declaration: 'interface', exportTypes: 'checked' });
+    expect(input().value).toBe(SAMPLE);
+    expect(root().value).toBe('Event');
+    expect(output()).toBe('export interface Event {\n  id: number;\n}\n');
+    expect(savedOf(host)).toBeUndefined();
   });
 });

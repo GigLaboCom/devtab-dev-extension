@@ -13,12 +13,16 @@
  * History (D17): choosing an image, Copy, Save, Save image, Copy data URI and Copy image are commits; a change of the
  * output form, or a person's edit of Decode's text that gives an image, is a snapshot; an image over 1 MiB is not kept
  * (entries.ts). An entry opens back into the direction it was made in, with its image.
+ *
+ * Saved parameters (D21, settings.ts): the direction, the output form and the line length the person chooses. A text
+ * handed over, an image taken, image data pasted in Encode and an opened entry choose the direction for the visit.
  */
 import { createCodec } from './codec';
 import { FORM_LABELS, draftOf, readEntry } from './entries';
 import { base64ImageHistory } from './history';
 import { copyPng, pngOf, saveText, saveUrl, useObjectUrl } from './image';
 import { Facts, Preview } from './parts';
+import { base64ImageSettings } from './settings';
 import {
   ACTIVE_SVG_NOTE,
   INPUT_TOO_LARGE,
@@ -37,7 +41,7 @@ import {
   toDataUri,
   truncatedNote,
 } from '@workspace/tool-logic-base64-image';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { FileDrop } from '@workspace/ui/file-drop';
@@ -48,7 +52,7 @@ import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { ToolMessage, ToolOptions, ToolPane, ToolPanes } from '@workspace/ui/tool-page';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Encoded } from './codec.worker';
-import type { Action, Mode } from './entries';
+import type { Action } from './entries';
 import type {
   DecodeImageResult,
   DecodedImage,
@@ -110,10 +114,13 @@ const inputOf = (image: Pick<DecodedImage, 'bytes' | 'type'>, declared: string |
 type CopyState = { of: unknown; ok: boolean } | null;
 
 const Base64ImageTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
-  // Text handed over from the start page was recognised as image data (detectBase64Image): it is there to be decoded.
-  const [mode, setMode] = useState<Mode>(initial ? 'decode' : 'encode');
-  const [form, setForm] = useState<OutputForm>('dataUri');
-  const [lineLength, setLineLength] = useState<LineLength>(0);
+  // Text handed over from the start page was recognised as image data (detectBase64Image): it is there to be decoded —
+  // for the visit.
+  const saved = useSavedSettings(host, 'base64-image', base64ImageSettings, {
+    opening: initial ? { mode: 'decode' } : undefined,
+  });
+  const { mode, form, lineLength } = saved.values;
+  const { visit } = saved;
   const [encoded, setEncoded] = useState<EncodeState>({ state: 'empty' });
   const [several, setSeveral] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -166,7 +173,8 @@ const Base64ImageTool = ({ input: initial, host, restore }: ToolProps): ReactEle
     if (!file) return;
     edited.current = true;
     setRestored(null);
-    setMode('encode');
+    // The image chose Encode, not the person: for the visit.
+    visit({ mode: 'encode' });
     setSeveral(files.length > 1);
     // §6: refused by its size before it is read.
     if (file.size > MAX_IMAGE_BYTES) {
@@ -284,11 +292,11 @@ const Base64ImageTool = ({ input: initial, host, restore }: ToolProps): ReactEle
       setRestored(null);
       setPasteRefused(false);
       setText(pasted);
-      setMode('decode');
+      visit({ mode: 'decode' });
     };
     document.addEventListener('paste', onPaste);
     return () => document.removeEventListener('paste', onPaste);
-  }, []);
+  }, [visit]);
 
   // ---- Opening an entry of the history
   useRestore(history, restore, opened => {
@@ -308,10 +316,13 @@ const Base64ImageTool = ({ input: initial, host, restore }: ToolProps): ReactEle
       const bytes = new Uint8Array(buffer);
       edited.current = false;
       formEdited.current = false;
-      setForm(entry.form);
-      setLineLength(entry.lineLength);
       setSeveral(false);
-      setMode(entry.mode);
+      // An entry of Encode brings its form and line length; one of Decode only its direction (its form is no choice).
+      visit(
+        entry.mode === 'encode'
+          ? { mode: 'encode', form: entry.form, lineLength: entry.lineLength }
+          : { mode: 'decode' },
+      );
       if (entry.mode === 'encode') takeImage(bytes, null, false);
       else {
         setPasteRefused(false);
@@ -372,7 +383,7 @@ const Base64ImageTool = ({ input: initial, host, restore }: ToolProps): ReactEle
           aria-label="Direction"
           value={mode}
           onValueChange={value => {
-            if ((value === 'encode' || value === 'decode') && value !== mode) edit(() => setMode(value));
+            if ((value === 'encode' || value === 'decode') && value !== mode) edit(() => saved.set({ mode: value }));
           }}>
           <ToggleGroupItem value="encode">Encode</ToggleGroupItem>
           <ToggleGroupItem value="decode">Decode</ToggleGroupItem>
@@ -387,7 +398,7 @@ const Base64ImageTool = ({ input: initial, host, restore }: ToolProps): ReactEle
               onValueChange={value => {
                 if (!FORMS.includes(value as OutputForm)) return;
                 formEdited.current = true;
-                edit(() => setForm(value as OutputForm));
+                edit(() => saved.set({ form: value as OutputForm }));
               }}>
               <SelectTrigger id="base64-image-output" className="min-w-32">
                 <SelectValue />
@@ -411,7 +422,7 @@ const Base64ImageTool = ({ input: initial, host, restore }: ToolProps): ReactEle
                     const next = Number(value);
                     if (next !== 0 && next !== 64 && next !== 76) return;
                     formEdited.current = true;
-                    edit(() => setLineLength(next));
+                    edit(() => saved.set({ lineLength: next }));
                   }}>
                   <SelectTrigger id="base64-image-line-length" className="min-w-32">
                     <SelectValue />

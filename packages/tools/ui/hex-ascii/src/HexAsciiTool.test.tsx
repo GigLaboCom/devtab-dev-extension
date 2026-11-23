@@ -1,6 +1,7 @@
 import { definition } from './definition';
 import { detect } from './detect';
 import HexAsciiTool from './HexAsciiTool';
+import { hexAsciiSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LIVE_INPUT, MAX_HEX_INPUT, MAX_TEXT_INPUT, SETTLE_MS } from '@workspace/tool-logic-hex-ascii';
 import { memoryHost } from '@workspace/tools-host';
@@ -456,5 +457,127 @@ describe('the Hex and Text tool’s history', () => {
     type('a'.repeat(MAX_TEXT_INPUT + 1));
     refused.unmount();
     expect(await settledEntries(other)).toHaveLength(0);
+  });
+});
+
+describe('the Hex and Text tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const entriesOf = async (host: ReturnType<typeof memoryHost>) =>
+    (await host.history.forOwner('hex-ascii', definition.history!).list({})).entries;
+  const savedOf = (host: ReturnType<typeof memoryHost>) => host.settings.forTool('hex-ascii').saved();
+  const seed = async (host: ReturnType<typeof memoryHost>, values: Record<string, unknown>) => {
+    host.settings.forTool('hex-ascii').save(hexAsciiSettings.schema, values as never);
+    await host.settings.forTool('hex-ascii').flush();
+  };
+  const direction = () =>
+    screen.getByRole('radio', { name: 'Hex to text' }).getAttribute('aria-checked') === 'true' ? 'to-text' : 'to-hex';
+  /** The options as the page shows them (Text to hex). */
+  const options = () => ({
+    encoding: screen.getByLabelText('Encoding').textContent,
+    format: screen.getByLabelText('Format').textContent,
+    uppercase: screen.getByLabelText('Uppercase').getAttribute('aria-checked'),
+    bytesPerLine: screen.getByLabelText('Bytes per line').textContent,
+  });
+
+  it('saves the direction and options the person chose; reopened, it is as left; Swap is saved too', async () => {
+    const host = memoryHost();
+    const first = render(<HexAsciiTool host={host} />);
+    await choose('Encoding', 'UTF-16 LE');
+    await choose('Format', 'Spaced — 48 65 6c');
+    fireEvent.click(screen.getByLabelText('Uppercase'));
+    await choose('Bytes per line', '8');
+    first.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: { encoding: 'utf-16le', format: 'spaced', uppercase: true, bytesPerLine: 8 },
+    });
+    const second = render(<HexAsciiTool host={host} />);
+    expect(direction()).toBe('to-hex');
+    expect(options()).toEqual({
+      encoding: 'UTF-16 LE',
+      format: 'Spaced — 48 65 6c',
+      uppercase: 'true',
+      bytesPerLine: '8',
+    });
+    type('é');
+    expect(output()).toBe('E9 00');
+    fireEvent.click(button('Swap'));
+    expect(direction()).toBe('to-text');
+    expect(output()).toBe('é');
+    second.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: { mode: 'to-text', encoding: 'utf-16le', format: 'spaced', uppercase: true, bytesPerLine: 8 },
+    });
+  });
+
+  it('a saved record it cannot show falls back field by field; Bytes per line is kept while Dump greys it out', async () => {
+    const host = memoryHost();
+    await seed(host, { mode: 'sideways', encoding: 'ebcdic', format: 'dump', uppercase: 1, bytesPerLine: 32 });
+    render(<HexAsciiTool host={host} />);
+    expect(direction()).toBe('to-hex');
+    expect(options()).toEqual({
+      encoding: 'UTF-8',
+      format: 'Dump — offsets and text',
+      uppercase: 'false',
+      bytesPerLine: '32',
+    });
+    expect((screen.getByLabelText('Bytes per line') as HTMLButtonElement).disabled).toBe(true);
+    await seed(host, { bytesPerLine: 12 });
+    cleanup();
+    render(<HexAsciiTool host={host} />);
+    expect(options().bytesPerLine).toBe('No wrapping');
+  });
+
+  it('a paste opens Hex to text and an opened entry shows its own — for the visit; what is saved stays', async () => {
+    const host = memoryHost();
+    await seed(host, { format: 'c', encoding: 'iso-8859-1' });
+    const pasted = render(<HexAsciiTool host={host} input="48656c6c6fe9" />);
+    expect(direction()).toBe('to-text');
+    expect(screen.getByLabelText('Encoding').textContent).toBe('ISO-8859-1');
+    expect(output()).toBe('Helloé');
+    pasted.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { format: 'c', encoding: 'iso-8859-1' } });
+
+    const recorder = host.history.forOwner('hex-ascii', definition.history!).session();
+    await recorder.commit({
+      kind: 'to-hex',
+      label: 'Text to hex · UTF-8 · Plain · 2 bytes',
+      payload: { mode: 'to-hex', encoding: 'utf-8', format: 'plain', uppercase: false, bytesPerLine: 0, outcome: 'ok' },
+      blobs: { input: new Blob(['Hi']), output: new Blob(['4869']) },
+    });
+    const entry = (await entriesOf(host)).find(e => e.label === 'Text to hex · UTF-8 · Plain · 2 bytes')!;
+    const opened = render(<HexAsciiTool host={host} restore={{ id: entry.id }} />);
+    expect(await screen.findByText('Opened from History: Text to hex · UTF-8 · Plain · 2 bytes.')).toBeTruthy();
+    expect(options()).toEqual({
+      encoding: 'UTF-8',
+      format: 'Plain — 48656c',
+      uppercase: 'false',
+      bytesPerLine: 'No wrapping',
+    });
+    expect(output()).toBe('4869');
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { format: 'c', encoding: 'iso-8859-1' } });
+    render(<HexAsciiTool host={host} />);
+    expect(direction()).toBe('to-hex');
+    expect(options()).toMatchObject({ encoding: 'ISO-8859-1', format: 'C array — 0x48, 0x65' });
+  });
+
+  it('reset puts the direction and options back to the defaults and keeps the input; the result follows', async () => {
+    const host = memoryHost();
+    await seed(host, { format: 'spaced', uppercase: true });
+    render(<HexAsciiTool host={host} />);
+    type('é');
+    expect(output()).toBe('C3 A9');
+    await act(async () => host.settings.forTool('hex-ascii').reset());
+    expect(direction()).toBe('to-hex');
+    expect(options()).toEqual({
+      encoding: 'UTF-8',
+      format: 'Plain — 48656c',
+      uppercase: 'false',
+      bytesPerLine: 'No wrapping',
+    });
+    expect(input().value).toBe('é');
+    expect(output()).toBe('c3a9');
+    expect(savedOf(host)).toBeUndefined();
   });
 });

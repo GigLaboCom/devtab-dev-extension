@@ -4,6 +4,7 @@
 // follows the machine's language, so its expectation is computed with the same call.
 import { definition } from './definition';
 import { detect } from './detect';
+import { unixTimeSettings } from './settings';
 import UnixTimeTool from './UnixTimeTool';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import * as logic from '@workspace/tool-logic-unix-time';
@@ -439,5 +440,104 @@ describe('the Unix Time tool’s history', () => {
     expect(await screen.findByText('Opened from History: kept.')).toBeTruthy();
     expect((screen.getByRole('combobox', { name: 'Time zone' }) as HTMLInputElement).value).toBe('Europe/Berlin');
     expect(within(screen.getByLabelText('Result')).getAllByText('1970-01-01T00:00:00Z')).toHaveLength(1);
+  });
+});
+
+describe('the Unix Time tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ToolHost) => host.settings!.forTool('unix-time').saved();
+  const seed = async (host: ToolHost, values: Record<string, unknown>) => {
+    host.settings!.forTool('unix-time').save(unixTimeSettings.schema, values as never);
+    await host.settings!.forTool('unix-time').flush();
+  };
+  const picker = () => screen.getByRole('combobox', { name: 'Time zone' }) as HTMLInputElement;
+  const pickZone = (words: string) => {
+    fireEvent.click(picker());
+    fireEvent.change(picker(), { target: { value: words } });
+    fireEvent.keyDown(picker(), { key: 'Enter' });
+  };
+  const unit = () => screen.getByLabelText('Unit').textContent;
+  const entries = async (host: ToolHost) =>
+    (await host.history.forOwner('unix-time', definition.history!).list({ kinds: ['convert'] })).entries;
+
+  it('saves the unit and the zone the person chose; reopened, it is as left; the browser’s zone is not stored', async () => {
+    const host = memoryHost();
+    const first = render(<UnixTimeTool host={host} />);
+    type('1700000000');
+    await choose('Unit', 'Milliseconds');
+    pickZone('kolkata');
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { unit: 'ms', timeZone: 'Asia/Kolkata' } });
+    expect(JSON.stringify(savedOf(host))).not.toContain('1700000000');
+    const second = render(<UnixTimeTool host={host} />);
+    expect(field().value).toBe('');
+    expect(unit()).toBe('Milliseconds');
+    expect(picker().value).toBe('Asia/Kolkata');
+    pickZone('berlin');
+    second.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { unit: 'ms' } });
+  });
+
+  it('a saved record it cannot show falls back field by field', async () => {
+    const host = memoryHost();
+    // An old zone name the picker does not list; then a unit that does not exist.
+    await seed(host, { unit: 'ns', timeZone: 'Asia/Calcutta' });
+    const first = render(<UnixTimeTool host={host} />);
+    expect(unit()).toBe('Nanoseconds');
+    expect(picker().value).toBe('Europe/Berlin');
+    first.unmount();
+    await seed(host, { unit: 'minutes', timeZone: 'UTC' });
+    render(<UnixTimeTool host={host} />);
+    expect(unit()).toBe('Auto');
+    expect(picker().value).toBe('UTC');
+  });
+
+  it('a paste opens with what is saved; an opened entry shows its own unit and zone for the visit; what is saved stays', async () => {
+    const host = memoryHost();
+    await seed(host, { unit: 'ms', timeZone: 'UTC' });
+    const pasted = render(<UnixTimeTool host={host} input="1700000000" />);
+    expect(unit()).toBe('Milliseconds');
+    expect(rows().seconds).toBe('1700000');
+    pasted.unmount();
+    // The handed text's snapshot is taken with the unit and the zone the page opened with.
+    let list: Awaited<ReturnType<typeof entries>> = [];
+    await waitFor(async () => {
+      list = await entries(host);
+      expect(list).toHaveLength(1);
+    });
+    const kept = await host.history.forOwner('unix-time', definition.history!).open(list[0]!.id);
+    expect(kept.ok && kept.payload).toMatchObject({ unit: 'ms', timeZone: 'UTC' });
+
+    await host.history
+      .forOwner('unix-time', definition.history!)
+      .session()
+      .commit({
+        kind: 'convert',
+        payload: { input: '0', unit: 'auto', timeZone: 'Asia/Kolkata', epochNs: '0', isoUtc: '1970-01-01T00:00:00Z' },
+        label: 'kept in Kolkata',
+      });
+    const entry = (await entries(host)).find(e => e.label === 'kept in Kolkata')!;
+    const opened = render(<UnixTimeTool host={host} restore={{ id: entry.id }} />);
+    expect(await screen.findByText('Opened from History: kept in Kolkata.')).toBeTruthy();
+    expect(unit()).toBe('Auto');
+    expect(picker().value).toBe('Asia/Kolkata');
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { unit: 'ms', timeZone: 'UTC' } });
+    render(<UnixTimeTool host={host} />);
+    expect(unit()).toBe('Milliseconds');
+    expect(picker().value).toBe('UTC');
+  });
+
+  it('reset puts the unit and the zone back to the defaults (the browser’s zone) and keeps the input', async () => {
+    const host = memoryHost();
+    await seed(host, { unit: 'ms', timeZone: 'UTC' });
+    render(<UnixTimeTool host={host} />);
+    type('1700000000');
+    expect(rows().seconds).toBe('1700000');
+    await act(async () => host.settings!.forTool('unix-time').reset());
+    expect(unit()).toBe('Auto');
+    expect(picker().value).toBe('Europe/Berlin');
+    expect(field().value).toBe('1700000000');
+    expect(rows().seconds).toBe('1700000000');
+    expect(savedOf(host)).toBeUndefined();
   });
 });

@@ -2,6 +2,7 @@ import { definition } from './definition';
 import { draftOf, labelOf, readSettings } from './entries';
 import { loremIpsumHistory } from './history';
 import LoremIpsumTool from './LoremIpsumTool';
+import { loremIpsumSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { CLASSIC_SENTENCE } from '@workspace/tool-logic-lorem-ipsum';
 import { AUTO_COPY, AUTO_COPY_REFUSED, memoryHost, memoryToolSettings } from '@workspace/tools-host';
@@ -546,11 +547,108 @@ describe('Copy automatically after generating (docs/tools/copying.md)', () => {
   });
 });
 
+describe('the Lorem Ipsum tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ToolHost) => host.settings!.forTool('lorem-ipsum').saved();
+  const seed = async (host: ToolHost, values: Record<string, unknown>) => {
+    host.settings!.forTool('lorem-ipsum').save(loremIpsumSettings.schema, values as never);
+    await host.settings!.forTool('lorem-ipsum').flush();
+  };
+  const checked = (name: string) => screen.getByRole('radio', { name }).getAttribute('aria-checked') === 'true';
+  const shows = () => ({
+    unit: ['Words', 'Sentences', 'Paragraphs'].find(checked),
+    count: count().value,
+    start: start().getAttribute('aria-checked'),
+    format: ['Plain text', 'HTML'].find(checked),
+  });
+  const DEFAULTS = { unit: 'Paragraphs', count: '3', start: 'true', format: 'Plain text' };
+
+  it('saves the settings the person chose — Count only when valid; reopened, the first text is made with them', async () => {
+    const host = memoryHost();
+    const first = render(<LoremIpsumTool host={host} />);
+    expect(shows()).toEqual(DEFAULTS);
+    await host.settings.forTool('lorem-ipsum').flush();
+    expect(savedOf(host)).toBeUndefined();
+    pick('Words');
+    typeCount('12');
+    pick('HTML');
+    typeCount('1'); // being typed on the way to 15: valid, saved, then overwritten
+    typeCount('15');
+    typeCount(''); // empty: not saved
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { unit: 'words', count: 15, format: 'html' } });
+
+    const second = render(<LoremIpsumTool host={host} />);
+    expect(shows()).toEqual({ unit: 'Words', count: '15', start: 'true', format: 'HTML' });
+    expect(result()).toMatch(/^<p>Lorem ipsum dolor sit amet consectetur adipiscing elit /);
+    expect(words(result())).toHaveLength(15);
+    // A change of Unit that brings Count to the unit's limit saves both.
+    typeCount('5000');
+    pick('Paragraphs');
+    expect(count().value).toBe('100');
+    fireEvent.click(start());
+    second.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: { count: 100, startWithLorem: false, format: 'html' },
+    });
+    render(<LoremIpsumTool host={host} />);
+    expect(shows()).toEqual({ unit: 'Paragraphs', count: '100', start: 'false', format: 'HTML' });
+    expect(result().split('\n')).toHaveLength(100);
+  });
+
+  it('a saved record it cannot show falls back field by field; a Count above its unit’s limit opens at the limit', async () => {
+    const host = memoryHost();
+    await seed(host, { unit: 'lines', count: 20_000, startWithLorem: 'no', format: 'html', unknown: 1 });
+    const first = render(<LoremIpsumTool host={host} />);
+    expect(shows()).toEqual({ ...DEFAULTS, format: 'HTML' });
+    first.unmount();
+
+    const other = memoryHost();
+    await seed(other, { unit: 'sentences', count: 5000 });
+    render(<LoremIpsumTool host={other} />);
+    expect(shows()).toEqual({ ...DEFAULTS, unit: 'Sentences', count: '1000' });
+    expect(countError()).toBeNull();
+  });
+
+  it('an entry opened from History wins for the visit and leaves what is saved alone (the tool takes no paste)', async () => {
+    const host = memoryHost();
+    await host.history
+      .forOwner('lorem-ipsum', loremIpsumHistory)
+      .session()
+      .commit(draftOf({ unit: 'sentences', count: 7, startWithLorem: false, format: 'plain' }));
+    const [listed] = (await host.history.forOwner('lorem-ipsum', loremIpsumHistory).list()).entries;
+    await seed(host, { unit: 'words', count: 40, format: 'html' });
+    const opened = render(<LoremIpsumTool host={host} restore={{ id: listed!.id }} />);
+    expect(await screen.findByText(/^Opened from History: 7 sentences/)).toBeTruthy();
+    expect(shows()).toEqual({ unit: 'Sentences', count: '7', start: 'false', format: 'Plain text' });
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { unit: 'words', count: 40, format: 'html' } });
+    render(<LoremIpsumTool host={host} />);
+    expect(shows()).toEqual({ unit: 'Words', count: '40', start: 'true', format: 'HTML' });
+  });
+
+  it('reset puts the settings back to the defaults and makes a new text — not copied, not recorded', async () => {
+    const host = memoryHost();
+    await host.settings.setForAll(['lorem-ipsum'], { [AUTO_COPY]: true });
+    await seed(host, { unit: 'sentences', count: 4, startWithLorem: false });
+    render(<LoremIpsumTool host={host} />);
+    expect(result().split(/(?<=\.) /)).toHaveLength(4);
+    await act(async () => host.settings.forTool('lorem-ipsum').reset());
+    expect(shows()).toEqual(DEFAULTS);
+    expect(result().split('\n\n')).toHaveLength(3);
+    expect(result().startsWith(CLASSIC_SENTENCE)).toBe(true);
+    expect(savedOf(host)).toBeUndefined();
+    await settle();
+    expect(writeText).not.toHaveBeenCalled();
+    expect((await host.history.forOwner('lorem-ipsum', loremIpsumHistory).list()).entries).toHaveLength(0);
+  });
+});
+
 describe('the Lorem Ipsum tool’s sources (§5.2)', () => {
   it('use no Math.random, no console and no debug logger', () => {
     const root = dirname(fileURLToPath(import.meta.url));
     const files = readdirSync(root).filter(f => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f));
-    expect(files.sort()).toEqual(['LoremIpsumTool.tsx', 'definition.ts', 'entries.ts', 'history.ts']);
+    expect(files.sort()).toEqual(['LoremIpsumTool.tsx', 'definition.ts', 'entries.ts', 'history.ts', 'settings.ts']);
     for (const file of files)
       expect(readFileSync(join(root, file), 'utf8')).not.toMatch(/Math\.random|console\.|createDebug|getRandomValues/);
   });

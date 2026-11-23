@@ -4,11 +4,13 @@
  */
 import { definition } from './definition';
 import { detect } from './detect';
+import { yamlJsonSettings } from './settings';
 import YamlJsonTool from './YamlJsonTool';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LIVE_INPUT, MAX_INPUT } from '@workspace/tool-logic-yaml-json';
 import { memoryHost } from '@workspace/tools-host';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ToolHost } from '@workspace/tools-host';
 
 afterEach(() => {
   cleanup();
@@ -366,5 +368,126 @@ describe('the YAML and JSON tool’s history', () => {
     await result('{\n  "a": 1,\n  "b": 2\n}');
     unmount();
     await waitFor(async () => expect(await entriesOf(host, ['to-json'])).toHaveLength(1), WAIT);
+  });
+});
+
+describe('the YAML and JSON tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ToolHost) => host.settings!.forTool('yaml-json').saved();
+  const seed = async (host: ToolHost, values: Record<string, unknown>) => {
+    host.settings!.forTool('yaml-json').save(yamlJsonSettings.schema, values as never);
+    await host.settings!.forTool('yaml-json').flush();
+  };
+  const current = () =>
+    (['YAML → JSON', 'JSON → YAML'] as const).find(
+      name => screen.getByRole('radio', { name }).getAttribute('aria-checked') === 'true',
+    );
+  const shown = (label: string) => screen.getByLabelText(label).textContent;
+
+  it('saves the direction, the version and both indents the person chose; reopened, it is as left', async () => {
+    const host = memoryHost();
+    const first = render(<YamlJsonTool host={host} />);
+    direction('JSON → YAML');
+    await choose('Indent', '4 spaces');
+    direction('YAML → JSON');
+    await choose('YAML version', 'YAML 1.1');
+    await choose('Indent', 'Tab');
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { version: '1.1', jsonIndent: 'tab', yamlIndent: 4 } });
+
+    const second = render(<YamlJsonTool host={host} />);
+    expect(current()).toBe('YAML → JSON');
+    expect(shown('YAML version')).toContain('YAML 1.1');
+    expect(shown('Indent')).toContain('Tab');
+    type('a: 1');
+    await result('{\n\t"a": 1\n}');
+    // Swap is the person's change of direction: saved too.
+    fireEvent.click(button('Swap'));
+    expect(current()).toBe('JSON → YAML');
+    second.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: { direction: 'json-to-yaml', version: '1.1', jsonIndent: 'tab', yamlIndent: 4 },
+    });
+
+    render(<YamlJsonTool host={host} />);
+    expect(current()).toBe('JSON → YAML');
+    expect(shown('Indent')).toContain('4 spaces');
+    expect(input().value).toBe('');
+  });
+
+  it('a saved record it cannot show falls back field by field', async () => {
+    const host = memoryHost();
+    await seed(host, { direction: 'sideways', version: '1.1', jsonIndent: 3, yamlIndent: 'tab' });
+    render(<YamlJsonTool host={host} />);
+    expect(current()).toBe('YAML → JSON');
+    expect(shown('YAML version')).toContain('YAML 1.1');
+    expect(shown('Indent')).toContain('2 spaces');
+    direction('JSON → YAML');
+    expect(shown('Indent')).toContain('2 spaces');
+  });
+
+  it('a handed-over text, a file and an opened entry choose for the visit; what is saved stays', async () => {
+    const host = memoryHost();
+    const kept = { direction: 'json-to-yaml', jsonIndent: 4, yamlIndent: 4 };
+    await seed(host, kept);
+    // Text from the start page is YAML (detect): YAML → JSON, with the saved JSON indent.
+    const pasted = render(<YamlJsonTool host={host} input="a: 1" />);
+    expect(current()).toBe('YAML → JSON');
+    await result('{\n    "a": 1\n}');
+    pasted.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: kept });
+
+    const filed = render(<YamlJsonTool host={host} />);
+    expect(current()).toBe('JSON → YAML');
+    const picker = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(picker, { target: { files: [new File(['a: 1'], 'conf.yaml')] } });
+    await waitFor(() => expect(current()).toBe('YAML → JSON'));
+    filed.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: kept });
+
+    await host.history
+      .forOwner('yaml-json', definition.history!)
+      .session()
+      .commit({
+        kind: 'to-json',
+        label: 'YAML 1.1 → JSON · Minified · 5 characters · copied',
+        payload: {
+          direction: 'yaml-to-json',
+          version: '1.1',
+          layout: 'minify',
+          indent: 2,
+          outcome: 'ok',
+          action: 'copy',
+        },
+        blobs: { input: new Blob(['a: on']) },
+      });
+    const [entry] = (await host.history.forOwner('yaml-json', definition.history!).list({})).entries;
+    const opened = render(<YamlJsonTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText(/^Opened from History/)).toBeTruthy();
+    expect(current()).toBe('YAML → JSON');
+    expect(shown('YAML version')).toContain('YAML 1.1');
+    expect(shown('Indent')).toContain('Minified');
+    await result('{"a":true}');
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: kept });
+
+    render(<YamlJsonTool host={host} />);
+    expect(current()).toBe('JSON → YAML');
+    expect(shown('Indent')).toContain('4 spaces');
+  });
+
+  it('reset puts the direction and the options back to the defaults and keeps the input; the result follows', async () => {
+    const host = memoryHost();
+    await seed(host, { direction: 'json-to-yaml', version: '1.1', yamlIndent: 4 });
+    render(<YamlJsonTool host={host} />);
+    type('{"a":[1]}');
+    await result('a:\n    - 1\n');
+    await act(async () => host.settings!.forTool('yaml-json').reset());
+    expect(current()).toBe('YAML → JSON');
+    expect(shown('YAML version')).toContain('YAML 1.2');
+    expect(shown('Indent')).toContain('2 spaces');
+    expect(input().value).toBe('{"a":[1]}');
+    await result('{\n  "a": [\n    1\n  ]\n}');
+    expect(savedOf(host)).toBeUndefined();
   });
 });

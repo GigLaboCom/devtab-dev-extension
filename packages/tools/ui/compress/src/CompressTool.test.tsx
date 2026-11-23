@@ -2,6 +2,7 @@ import CompressTool from './CompressTool';
 import { definition } from './definition';
 import { detect } from './detect';
 import { pageCodecs } from './runner';
+import { compressSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { memoryHost } from '@workspace/tools-host';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -241,5 +242,158 @@ describe('history (D17)', () => {
     await waitFor(() => expect(result()).not.toBe(''), WAIT);
     await new Promise(r => setTimeout(r, 50));
     expect(await entriesOf(host)).toHaveLength(0);
+  });
+});
+
+describe('saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ReturnType<typeof memoryHost>) => host.settings.forTool('compress').saved();
+  const seed = async (host: ReturnType<typeof memoryHost>, values: Record<string, unknown>) => {
+    host.settings.forTool('compress').save(compressSettings.schema, values as never);
+    await host.settings.forTool('compress').flush();
+  };
+  /** The segment that is on in a toggle group. */
+  const on = (group: string) =>
+    within(screen.getByLabelText(group))
+      .getAllByRole('radio')
+      .find(r => r.getAttribute('data-state') === 'on')?.textContent;
+  const shown = (label: string) => screen.getByLabelText(label).textContent;
+
+  it('saves what the person chose; reopened, it is as left', async () => {
+    const host = memoryHost();
+    const first = render(<CompressTool host={host} />);
+    await pick('Format', 'brotli');
+    segment('Base64', 'View');
+    segment('Compress');
+    await pick('Format', 'zstd');
+    await pick('Level', '9');
+    segment('Hex', 'View');
+    segment('Hex', 'Input encoding');
+    first.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: {
+        dFormat: 'brotli',
+        view: 'base64',
+        direction: 'compress',
+        cFormat: 'zstd',
+        zstdLevel: 9,
+        encoding: 'hex',
+        cInput: 'hex',
+      },
+    });
+    render(<CompressTool host={host} />);
+    expect(on('Direction')).toBe('Compress');
+    expect([shown('Format'), shown('Level'), on('View'), on('Input encoding')]).toEqual(['zstd', '9', 'Hex', 'Hex']);
+    expect(input().value).toBe('');
+    typeIn('68656c6c6f');
+    await waitFor(() => expect(result()).toMatch(/^28b52ffd/), WAIT);
+    segment('Decompress');
+    expect([shown('Format'), on('View'), on('Input encoding')]).toEqual(['brotli', 'Base64', 'Base64']);
+    typeIn('CwKAaGVsbG8D');
+    await waitFor(() => expect(result()).toBe('aGVsbG8='), WAIT);
+  });
+
+  it('a saved record it cannot show falls back field by field', async () => {
+    const host = memoryHost();
+    await seed(host, {
+      direction: 'sideways',
+      dFormat: 'lz4',
+      cFormat: 'xz',
+      zstdLevel: 25,
+      brotliQuality: 5,
+      keepName: 'yes',
+      dInput: 'file',
+      cInput: 'url',
+      view: 'pixels',
+      encoding: 'base64url',
+    });
+    render(<CompressTool host={host} />);
+    expect(on('Direction')).toBe('Decompress');
+    expect([shown('Format'), on('Input encoding'), on('View')]).toEqual([
+      'Auto — from the first bytes',
+      'File',
+      'Text',
+    ]);
+    segment('Compress');
+    expect([shown('Format'), on('Input encoding'), on('View')]).toEqual(['gzip', 'Text', 'Base64 URL-safe']);
+    await pick('Format', 'zstd');
+    expect(shown('Level')).toBe('3');
+    await pick('Format', 'brotli');
+    expect(shown('Quality')).toBe('5');
+  });
+
+  it('a paste, an opened entry and Decompress again choose for the visit; what is saved stays', async () => {
+    const host = memoryHost();
+    const kept = { direction: 'compress', dFormat: 'brotli', dInput: 'hex', view: 'base64' };
+    await seed(host, kept);
+    // Text handed over from the start page: Decompress, Auto, Base64; the saved view stays.
+    const pasted = render(<CompressTool host={host} input={HELLO_GZ} />);
+    expect(on('Direction')).toBe('Decompress');
+    expect([shown('Format'), on('Input encoding')]).toEqual(['Auto — from the first bytes', 'Base64']);
+    await waitFor(() => expect(result()).toBe('aGVsbG8='), WAIT);
+    pasted.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: kept });
+
+    // An entry of the history: its direction, format, level, input and view.
+    await host.history
+      .forOwner('compress', definition.history!)
+      .session()
+      .commit({
+        kind: 'compress',
+        label: 'Compress · zstd 5',
+        payload: { direction: 'compress', format: 'zstd', input: 'text', level: 5, view: 'hex', inputBytes: 5 },
+        blobs: { input: new Blob(['hello'], { type: 'text/plain' }) },
+      });
+    const [entry] = await entriesOf(host);
+    const opened = render(<CompressTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText('Opened from History: Compress · zstd 5.')).toBeTruthy();
+    expect([shown('Format'), shown('Level'), on('View'), on('Input encoding')]).toEqual(['zstd', '5', 'Hex', 'Text']);
+    await waitFor(() => expect(result()).toMatch(/^28b52ffd/), WAIT);
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: kept });
+
+    // Decompress again: the result's bytes choose Auto, File and the view; the saved ones stay.
+    const again = memoryHost();
+    await seed(again, { dFormat: 'gzip', view: 'hex' });
+    render(<CompressTool host={again} />);
+    typeIn(gzipSync(gzipSync('inner')).toString('base64'));
+    await waitFor(() => expect(notes()).toContain('The result is gzip data too.'), WAIT);
+    fireEvent.click(screen.getByRole('button', { name: 'Decompress again' }));
+    await waitFor(() => expect(result()).toBe('inner'), WAIT);
+    expect([shown('Format'), on('Input encoding'), on('View')]).toEqual([
+      'Auto — from the first bytes',
+      'File',
+      'Text',
+    ]);
+    await again.settings.forTool('compress').flush();
+    expect(savedOf(again)).toEqual({ schema: 1, values: { dFormat: 'gzip', view: 'hex' } });
+  });
+
+  it('reset puts every parameter back to its default and keeps the input; the result follows', async () => {
+    const host = memoryHost();
+    await seed(host, { direction: 'compress', cFormat: 'zlib', encoding: 'hex' });
+    render(<CompressTool host={host} />);
+    typeIn('hello');
+    await waitFor(() => expect(result()).toBe('789ccb48cdc9c90700062c0215'), WAIT);
+    await act(async () => host.settings.forTool('compress').reset());
+    expect(on('Direction')).toBe('Decompress');
+    expect(savedOf(host)).toBeUndefined();
+    segment('Compress');
+    expect(input().value).toBe('hello');
+    expect([shown('Format'), on('View')]).toEqual(['gzip', 'Base64']);
+    await waitFor(() => expect(result()).toBe('H4sIAAAAAAAA/8tIzcnJBwCGphA2BQAAAA=='), WAIT);
+  });
+
+  it('a saved zstd loads nothing until there is something to compress', async () => {
+    const host = memoryHost();
+    await seed(host, { direction: 'compress', cFormat: 'zstd' });
+    const load = vi.spyOn(pageCodecs, 'load');
+    render(<CompressTool host={host} />);
+    expect(shown('Format')).toBe('zstd');
+    await new Promise(r => setTimeout(r, 50));
+    expect(load).not.toHaveBeenCalled();
+    typeIn('hello');
+    await waitFor(() => expect(result()).toBe('KLUv/QBYKQAAaGVsbG8='), WAIT);
+    expect(load).toHaveBeenCalledWith('zstd');
   });
 });

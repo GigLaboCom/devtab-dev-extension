@@ -12,6 +12,8 @@
 
 /* global document, chrome -- page.evaluate callbacks run in the page */
 
+import { forgetSavedParameters } from '../e2e-helpers.mjs';
+
 const T = 'Auto-copy';
 
 export default async ({ ctx, page, base, id, check, sleep, report }) => {
@@ -223,6 +225,12 @@ export default async ({ ctx, page, base, id, check, sleep, report }) => {
     );
   } finally {
     for (const p of opened) await p.close();
+    // What this module chose in the generators (How many, Length, Count, an algorithm) is saved by them (D21): forgotten
+    // here, after their pages are closed, so that each tool's own module opens it with its defaults.
+    await sleep(500);
+    await forgetSavedParameters(page, 'password', 'uuid', 'random-string', 'lorem-ipsum', 'keys').catch(
+      () => undefined,
+    );
     await cdp.send('Browser.resetPermissions').catch(() => undefined);
     await cdp.detach().catch(() => undefined);
   }

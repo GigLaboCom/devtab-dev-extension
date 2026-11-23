@@ -3,6 +3,8 @@
 // worker: jsdom has none, so a fake one does what subnet.worker.ts does, off the test's stack.
 import { definition } from './definition';
 import { detect } from './detect';
+import { splitDraft } from './entries';
+import { subnetSettings } from './settings';
 import SubnetTool from './SubnetTool';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { runMatch, runSummarize } from '@workspace/tool-logic-subnet';
@@ -383,5 +385,103 @@ describe('history', () => {
   it('says why an entry cannot be opened', async () => {
     render(<SubnetTool host={memoryHost()} restore={{ id: 'missing' }} />);
     expect(await screen.findByText('This entry could not be opened.')).toBeTruthy();
+  });
+});
+
+describe('saved parameters (D21, docs/tools/settings.md)', () => {
+  const entries = async (host: ToolHost) =>
+    (await host.history.forOwner('subnet', definition.history!).list({})).entries;
+  const savedOf = (host: ToolHost) => host.settings!.forTool('subnet').saved();
+  const seed = async (host: ToolHost, values: Record<string, unknown>) => {
+    host.settings!.forTool('subnet').save(subnetSettings.schema, values as never);
+    await host.settings!.forTool('subnet').flush();
+  };
+  const on = (name: string) => screen.getByRole('radio', { name }).getAttribute('aria-checked') === 'true';
+  const shownTask = () => ['Explain', 'Match', 'Split', 'Summarize'].find(on);
+  const shownBy = () => (on('Number of subnets') ? 'count' : 'prefix');
+
+  it('saves the task and Split by the person chose — never a block or a number; reopened, it is as left', async () => {
+    const host = memoryHost();
+    const first = render(<SubnetTool host={host} />);
+    type(blockField(), '10.0.0.0/24');
+    await host.settings!.forTool('subnet').flush();
+    expect(savedOf(host)).toBeUndefined();
+    task('Split');
+    fireEvent.click(screen.getByRole('radio', { name: 'Number of subnets' }));
+    type(screen.getByLabelText('Count'), '3');
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { task: 'split', by: 'count' } });
+    expect(JSON.stringify(savedOf(host))).not.toMatch(/10\.0|"3"/);
+
+    const second = render(<SubnetTool host={host} />);
+    expect(shownTask()).toBe('Split');
+    expect(shownBy()).toBe('count');
+    expect(blockField().value).toBe('');
+    expect((screen.getByLabelText('Count') as HTMLInputElement).value).toBe('');
+    // Summarize this range is the person's choice of task too.
+    type(blockField(), '10.0.0.1 - 10.0.0.9');
+    fireEvent.click(screen.getByRole('button', { name: 'Summarize this range' }));
+    second.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { task: 'summarize', by: 'count' } });
+  });
+
+  it('a saved record it cannot show falls back field by field; the rest is used', async () => {
+    const host = memoryHost();
+    await seed(host, { task: 'supernet', by: 'count', unknown: 1 });
+    render(<SubnetTool host={host} />);
+    expect(shownTask()).toBe('Explain');
+    task('Split');
+    expect(shownBy()).toBe('count');
+  });
+
+  it('an entry opened from History and a paste win for the visit and leave what is saved alone', async () => {
+    const host = memoryHost();
+    await host.history
+      .forOwner('subnet', definition.history!)
+      .session()
+      .commit(
+        splitDraft({ block: '10.0.0.0/24', by: 'prefix', prefix: '26', count: '', subnets: '4' }, '10.0.0.0/24', 26),
+      );
+    const [entry] = await entries(host);
+    await seed(host, { task: 'match', by: 'count' });
+    const opened = render(<SubnetTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText(/^Opened from History: Split 10\.0\.0\.0\/24/)).toBeTruthy();
+    expect(shownTask()).toBe('Split');
+    expect(shownBy()).toBe('prefix');
+    expect((screen.getByLabelText('New prefix length') as HTMLInputElement).value).toBe('26');
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { task: 'match', by: 'count' } });
+
+    // A paste from the start page: a block opens Explain, a column Summarize — for the visit.
+    const block = render(<SubnetTool host={host} input="10.0.0.0/8" />);
+    expect(shownTask()).toBe('Explain');
+    expect(rows().network).toBe('10.0.0.0/8');
+    block.unmount();
+    const column = render(<SubnetTool host={host} input={'10.0.0.0/25\n10.0.0.128/25'} />);
+    expect(shownTask()).toBe('Summarize');
+    column.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { task: 'match', by: 'count' } });
+    render(<SubnetTool host={host} />);
+    expect(shownTask()).toBe('Match');
+  });
+
+  it('reset puts the task and Split by back to their defaults and keeps every field', async () => {
+    const host = memoryHost();
+    await seed(host, { task: 'split', by: 'count' });
+    render(<SubnetTool host={host} />);
+    type(blockField(), '10.0.0.0/24');
+    type(screen.getByLabelText('Count'), '3');
+    await act(async () => host.settings!.forTool('subnet').reset());
+    expect(shownTask()).toBe('Explain');
+    expect(blockField().value).toBe('10.0.0.0/24');
+    expect(rows().network).toBe('10.0.0.0/24');
+    task('Split');
+    expect(shownBy()).toBe('prefix');
+    fireEvent.click(screen.getByRole('radio', { name: 'Number of subnets' }));
+    expect((screen.getByLabelText('Count') as HTMLInputElement).value).toBe('3');
+    await host.settings!.forTool('subnet').flush();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { task: 'split', by: 'count' } });
+    await act(async () => host.settings!.forTool('subnet').reset());
+    expect(savedOf(host)).toBeUndefined();
   });
 });

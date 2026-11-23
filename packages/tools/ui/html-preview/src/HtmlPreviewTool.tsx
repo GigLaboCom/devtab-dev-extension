@@ -7,11 +7,13 @@
  * nodes, constructed sheets and CSSOM inline styles — never markup, never `innerHTML` on this page (§5.1–§5.3). The
  * preview follows every edit up to LIVE_INPUT characters, comes SETTLE_MS after the last edit up to MAX_INPUT, and above
  * that the tool refuses (§6, §12). It records into the tool history through its host: an edit snapshot (`change`) and a
- * commit when the HTML is taken (Copy HTML); an entry the host asks to open comes back as the HTML and its width. The
- * page frame (title, summary, the history line) is the host's.
+ * commit when the HTML is taken (Copy HTML); an entry the host asks to open comes back as the HTML and its width (for
+ * the visit). The width the person chooses is a saved parameter (settings.ts); it sizes the frame and nothing else. The
+ * page frame (title, summary, the history line, the reset of saved parameters) is the host's.
  */
 import { HINT, PLACEHOLDER, TOO_DEEP, TOO_LARGE, WIDTHS, entryLabel, excerpt, isWidth, readPayload } from './entries';
 import { htmlPreviewHistory } from './history';
+import { htmlPreviewSettings } from './settings';
 import {
   FRAME_POLICY,
   LIVE_INPUT,
@@ -24,7 +26,7 @@ import {
   sanitizeHtml,
   serializeSanitized,
 } from '@workspace/tool-logic-html-preview';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { FramedDocument } from '@workspace/ui/framed-document';
 import { Label } from '@workspace/ui/label';
@@ -66,7 +68,8 @@ const draftOf = (input: string, width: Width, action?: 'copy'): HistoryDraft | n
 
 const HtmlPreviewTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
-  const [width, setWidth] = useState<Width>('fit');
+  const saved = useSavedSettings(host, 'html-preview', htmlPreviewSettings);
+  const { width } = saved.values;
   const [restored, setRestored] = useState<string | null>(null);
   const { history, recorder } = useToolHistory(host, 'html-preview', htmlPreviewHistory);
 
@@ -108,7 +111,7 @@ const HtmlPreviewTool = ({ input: initial, host, restore }: ToolProps): ReactEle
     void (opened.blobs.input?.text() ?? Promise.resolve('')).then(text => {
       edited.current = false;
       setInput(text);
-      setWidth(readPayload(opened.payload).width);
+      saved.visit({ width: readPayload(opened.payload).width });
       setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
     });
   });
@@ -151,7 +154,7 @@ const HtmlPreviewTool = ({ input: initial, host, restore }: ToolProps): ReactEle
               <Select
                 value={width}
                 onValueChange={value => {
-                  if (isWidth(value) && value !== width) edit(() => setWidth(value));
+                  if (isWidth(value) && value !== width) edit(() => saved.set({ width: value }));
                 }}>
                 <SelectTrigger id="html-preview-width" size="sm" className="min-w-24">
                   <SelectValue />

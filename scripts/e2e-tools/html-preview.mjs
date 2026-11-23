@@ -25,7 +25,13 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 
 const T = 'HTML Preview';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -833,6 +839,42 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
       JSON.stringify(restored),
     );
 
+    // ---- Saved parameters (D21): the width the person chose is written 400 ms after the change; the page opened
+    // again shows it, the field empty, and the frame keeps the sandbox and the policy it opened with. Then Fit again
+    // (the default: the record goes away) for what follows.
+    const stored = () =>
+      page.evaluate(
+        async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.['html-preview'],
+      );
+    await chooseWidth('768 px');
+    for (let i = 0; i < 25 && (await stored())?.values?.width !== '768'; i++) await sleep(200);
+    await go('#/start');
+    await go('#/tools/html-preview');
+    await page.reload();
+    await input.waitFor();
+    await page.locator(`${FRAME}[data-rendered]`).waitFor();
+    const kept = {
+      stored: await stored(),
+      width: await page.getByLabel('Width').innerText(),
+      frame: Math.round((await frameEl.boundingBox()).width),
+      input: await input.inputValue(),
+      sandbox: await frameEl.getAttribute('sandbox'),
+      policy: await (
+        await preview()
+      ).evaluate(() => document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content')),
+    };
+    check(
+      `${T}: Width 768 px chosen, the page opened again — as left, the field empty; the frame’s sandbox and policy as on opening (saved parameters)`,
+      kept.width.includes('768 px') &&
+        kept.frame === 768 &&
+        kept.input === '' &&
+        kept.sandbox === SANDBOX &&
+        kept.policy === emptyState.policy,
+      JSON.stringify(kept),
+    );
+    await chooseWidth('Fit');
+    for (let i = 0; i < 25 && (await stored()) !== undefined; i++) await sleep(200);
+
     // ---- §7: what opens for a pasted HTML document on the start page (the tools' detect, in the registry's order).
     await go('#/start');
     const startField = page.getByRole('combobox', { name: 'Find a tool or search the web' });
@@ -1079,6 +1121,7 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   await go('#/tools/html-preview');
   await input.waitFor();
   await show('');
+  await forgetSavedParameters(page, 'html-preview');
   await go('#/start');
   for (const p of popups) await p.close().catch(() => {});
   await ctx.unroute(SAFE);

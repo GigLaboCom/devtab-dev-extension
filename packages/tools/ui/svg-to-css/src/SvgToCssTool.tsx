@@ -11,13 +11,16 @@
  *
  * History (D17): an edit that gives a result is a snapshot; Copy and Open file are commits; an SVG over 1 MiB is not
  * kept (entries.ts). An entry opens back with its SVG and options; the result is made again.
+ *
+ * The options are saved parameters (settings.ts; docs/tools/settings.md): the tool opens with what the person chose
+ * last; an opened entry shows its own for the visit only.
  */
 import { createConverter } from './converter';
 import { MAX_KEPT_BYTES, OUTPUTS, OUTPUT_LABELS, draftOf, readEntry } from './entries';
 import { svgToCssHistory } from './history';
 import { Preview, useObjectUrl } from './preview';
+import { svgToCssSettings } from './settings';
 import {
-  DEFAULT_OPTIONS,
   LIVE_INPUT,
   MAX_INPUT,
   SETTLE_MS,
@@ -30,7 +33,7 @@ import {
   shownNote,
   svgToCss,
 } from '@workspace/tool-logic-svg-to-css';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -85,7 +88,13 @@ const offsetAt = (text: string, line: number, column: number): number => {
 
 const SvgToCssTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
-  const [options, setOptions] = useState<SvgOptions>(DEFAULT_OPTIONS);
+  const saved = useSavedSettings(host, 'svg-to-css', svgToCssSettings);
+  const { output: chosenOutput, encoding, minify } = saved.values;
+  // One object while the options stay the same: a worker's result is matched to the options it was made with.
+  const options = useMemo<SvgOptions>(
+    () => ({ output: chosenOutput, encoding, minify }),
+    [chosenOutput, encoding, minify],
+  );
   const [fileError, setFileError] = useState<string | null>(null);
   const [restored, setRestored] = useState<string | null>(null);
   const { history, recorder, status } = useToolHistory(host, 'svg-to-css', svgToCssHistory);
@@ -161,7 +170,7 @@ const SvgToCssTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
     apply();
   };
   const setOption = <K extends keyof SvgOptions>(key: K, value: SvgOptions[K]): void =>
-    edit(() => setOptions(o => ({ ...o, [key]: value })));
+    edit(() => saved.set({ [key]: value }));
 
   const openFile = (file: File): void => {
     edit(() => undefined);
@@ -193,7 +202,8 @@ const SvgToCssTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
       pendingCommit.current = null;
       setFileError(null);
       setInput(text);
-      setOptions(entry.options);
+      // The entry's options for this visit; what is saved stays as it was.
+      saved.visit({ output: entry.options.output, encoding: entry.options.encoding, minify: entry.options.minify });
       setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
     });
   });

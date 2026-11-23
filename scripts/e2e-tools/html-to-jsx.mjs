@@ -1,7 +1,8 @@
 // The HTML to JSX tool in the built extension (docs/tools/specs/html-to-jsx.md): its scenarios (§2) with the page's
 // real controls and a stubbed clipboard, the notes (§5), the keyboard (§8), the limits timed in Chrome (§12), the table
-// of attribute names loading only with the first input, an entry opened back from the tool's history (D17), the page in
-// the light and the dark theme — and the two promises of §11 and §10:
+// of attribute names loading only with the first input, an entry opened back from the tool's history (D17), Wrap in a
+// component kept as a saved parameter (D21), the page in the light and the dark theme — and the two promises of §11 and
+// §10:
 //   - parsing runs nothing and loads nothing: markup with scripts, handlers, images, links, frames, objects, a refresh,
 //     <base>, SVG <use> and <image>, CSS url() in style attributes — no request outside the extension (Playwright and
 //     CDP), no canary set, no navigation, no securitypolicyviolation and no console line; a probe page of its own shows
@@ -13,9 +14,16 @@
 // in registry order, are found by running every tool's detect module (bundled by esbuild) in Node.
 // Run by scripts/e2e-tools.mjs; navigates by replacing the current history entry (Chrome keeps 50 per tab).
 
-/* global document, location, DOMParser, HTMLTextAreaElement, DataTransfer, ClipboardEvent, window */
+/* global chrome, document, location, DOMParser, HTMLTextAreaElement, DataTransfer, ClipboardEvent, window */
 
-import { extensionOrigin, inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  extensionOrigin,
+  forgetSavedParameters,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -565,6 +573,28 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
         restored.result === '<button className="btn" onClick={() => { go() }}>Go</button>\n',
       JSON.stringify(restored),
     );
+
+    // Saved parameters (D21): Wrap in a component, turned on, is written 400 ms after the change; the page opened again
+    // shows it on, without the HTML. Then it is forgotten (and the page loaded again, so it reads that): the dark
+    // screenshots below start with Wrap off, as before.
+    const stored = () =>
+      page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.['html-to-jsx']);
+    await forgetSavedParameters(page, 'html-to-jsx');
+    await page.reload();
+    await input.waitFor();
+    await wrap.click();
+    for (let i = 0; i < 25 && (await stored())?.values?.component !== true; i++) await sleep(200);
+    await page.reload();
+    await input.waitFor();
+    const keptWrap = { wrap: await wrap.getAttribute('aria-checked'), input: await input.inputValue() };
+    check(
+      `${T}: Wrap in a component turned on, the page opened again — still on, the field empty (saved parameters)`,
+      keptWrap.wrap === 'true' && keptWrap.input === '',
+      JSON.stringify({ keptWrap, stored: await stored() }),
+    );
+    await forgetSavedParameters(page, 'html-to-jsx');
+    await page.reload();
+    await input.waitFor();
   } finally {
     await clipboard.restore();
   }
@@ -750,6 +780,10 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   });
   await setInput('');
   await go('#/start');
+  // Wrap, toggled in the dark screenshots, is a saved parameter (written 400 ms after the change): the next module
+  // opens the tool with its defaults.
+  await sleep(500);
+  await forgetSavedParameters(page, 'html-to-jsx').catch(() => undefined);
   page.off('request', onPageRequest);
   page.off('console', onConsole);
   ctx.off('request', onRequest);

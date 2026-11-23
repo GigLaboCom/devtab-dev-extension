@@ -4,14 +4,21 @@
 // dialects formatting in its module worker under the extension's CSP with no violation and no eval in its source; the
 // limits of §12 timed in the browser (a megabyte by Run, Cancel and Esc, thousands of nested parentheses, one enormous
 // IN list) with the longest task on the page; pasting SQL into the start page's field (§7); an entry opened back from
-// the tool's own history (D17); the page in the light and the dark theme. Run by scripts/e2e-tools.mjs.
+// the tool's own history (D17); the options kept as saved parameters (D21); the page in the light and the dark theme.
+// Run by scripts/e2e-tools.mjs.
 //
 // It navigates with location.replace (the e2e modules share one tab, and Chrome keeps 50 entries of its history) and
 // puts the page's clipboard back before it ends.
 
-/* global document, location, HTMLTextAreaElement, requestAnimationFrame, DataTransfer, ClipboardEvent, Worker, self -- callbacks run in the page or the worker */
+/* global chrome, document, location, HTMLTextAreaElement, requestAnimationFrame, DataTransfer, ClipboardEvent, Worker, self -- callbacks run in the page or the worker */
 
-import { inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 
 const T = 'SQL Formatter';
 const NOT_CHECKED = "Formatting doesn't check that the query is valid.";
@@ -630,6 +637,33 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
     JSON.stringify(restored),
   );
 
+  // Saved parameters (D21): the options chosen above (SQL Server, Preserve, 4 spaces) are kept, and so is a Layout
+  // chosen now (written 400 ms after the change); the page opened again shows them, with an empty field. Then they are
+  // forgotten: the light and dark screenshots open with the defaults, as before.
+  const stored = () =>
+    page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.['sql-format']);
+  await choose('Layout', 'Tabular left');
+  for (let i = 0; i < 25 && (await stored())?.values?.layout !== 'tabularLeft'; i++) await sleep(200);
+  await page.reload();
+  await input.waitFor();
+  const reopened = {
+    dialect: await page.getByLabel('Dialect', { exact: true }).innerText(),
+    preserve: await radio('Preserve').getAttribute('aria-checked'),
+    indent: await page.getByLabel('Indent', { exact: true }).innerText(),
+    layout: await page.getByLabel('Layout', { exact: true }).innerText(),
+    input: await input.inputValue(),
+  };
+  check(
+    `${T}: SQL Server, Preserve, 4 spaces and Tabular left chosen, the page opened again — as left, the field empty (saved parameters)`,
+    reopened.dialect.includes('SQL Server') &&
+      reopened.preserve === 'true' &&
+      reopened.indent.includes('4 spaces') &&
+      reopened.layout.includes('Tabular left') &&
+      reopened.input === '',
+    JSON.stringify({ reopened, stored: await stored() }),
+  );
+  await forgetSavedParameters(page, 'sql-format');
+
   // The page in the light and the dark theme (entered afresh).
   await page.reload();
   await input.waitFor();
@@ -661,6 +695,10 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
   });
 
   await input.fill('');
+  // The options the screenshots chose are saved parameters (written 400 ms after the change): the next module opens the
+  // tool with its defaults.
+  await sleep(500);
+  await forgetSavedParameters(page, 'sql-format');
   await clipboard.restore();
   page.off('request', onRequest);
   page.off('worker', onWorker);

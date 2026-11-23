@@ -3,9 +3,12 @@
 // headless browser keeps it to itself, never the system's) — plus what only the real browser can show: Chrome's URL
 // parser held to the URL Standard where it differs from Node's (a space in a host, file://localhost, the origin of an
 // extension URL), the keyboard path, long values in the parameters table, and an entry of History opening back into
-// the tool. Run by scripts/e2e-tools.mjs. Screenshots: tool-url-NN-…, light and dark.
+// the tool, and the mode kept as a saved parameter (D21). Run by scripts/e2e-tools.mjs. Screenshots: tool-url-NN-…,
+// light and dark.
 
-/* global document -- page.evaluate callbacks run in the page */
+/* global document, chrome -- page.evaluate callbacks run in the page */
+
+import { forgetSavedParameters } from '../e2e-helpers.mjs';
 
 export default async ({ page, base, check, shoot, sleep }) => {
   // Not `new URL(base).origin`: by the URL Standard (and in Node) a chrome-extension: URL's origin is opaque, "null".
@@ -218,6 +221,23 @@ export default async ({ page, base, check, shoot, sleep }) => {
         (await page.getByRole('radio', { name: 'Encode' }).getAttribute('aria-checked')) === 'true',
       await page.getByLabel('Input', { exact: true }).inputValue(),
     );
+
+    // Saved parameters (D21): the mode the person chose is kept (written 400 ms after the change); the page opened
+    // again is in that mode, without the text.
+    const stored = () =>
+      page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.url);
+    await page.getByRole('radio', { name: 'Parse' }).click();
+    for (let i = 0; i < 25 && (await stored())?.values?.mode !== 'parse'; i++) await sleep(200);
+    await page.reload();
+    await page.getByLabel('URL', { exact: true }).waitFor({ timeout: 15_000 });
+    check(
+      'URL: Parse chosen, the page opened again — still Parse, the field empty (saved parameter)',
+      (await page.getByRole('radio', { name: 'Parse' }).getAttribute('aria-checked')) === 'true' &&
+        (await page.getByLabel('URL', { exact: true }).inputValue()) === '',
+      JSON.stringify(await stored()),
+    );
+    // The mode and options it chose are saved parameters: the next module opens URL with its defaults.
+    await forgetSavedParameters(page, 'url');
   } finally {
     await page.emulateMedia({ colorScheme: 'light' }).catch(() => {});
     await cdp.detach().catch(() => {});

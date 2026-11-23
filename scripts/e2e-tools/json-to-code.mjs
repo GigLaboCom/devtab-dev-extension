@@ -3,11 +3,18 @@
 // Root type, an identifier beyond i64, an error that puts the caret on its place — then Copy (the page's clipboard
 // stubbed) and its history record, nesting far past the limit, the largest live input timed, a large input waiting for
 // Generate and generated in the tool's worker (16 MiB, timed apart from the text box), the record opened back into the
-// tool, and the page in the dark theme. Run by scripts/e2e-tools.mjs.
+// tool, the language and the TypeScript options kept as saved parameters (D21), and the page in the dark theme. Run by
+// scripts/e2e-tools.mjs.
 
-/* global document, HTMLTextAreaElement, requestAnimationFrame -- page.evaluate callbacks run in the page */
+/* global chrome, document, HTMLTextAreaElement, requestAnimationFrame -- page.evaluate callbacks run in the page */
 
-import { inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 
 const MiB = 1024 * 1024;
 
@@ -333,6 +340,44 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   await page.locator('#json-to-code-root').fill('');
   await language('TypeScript');
 
+  // Saved parameters (D21): the language and the TypeScript options a person chose are written 400 ms after the change;
+  // the page opened again shows them, without the sample or the Root type. Then they are forgotten (and the page loaded
+  // again, so it reads that): the dark screenshots open with TypeScript, interface and Export, as before.
+  const stored = () =>
+    page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.['json-to-code']);
+  await forgetSavedParameters(page, 'json-to-code');
+  await page.reload();
+  await input.waitFor({ timeout: 15_000 });
+  await page.getByRole('radio', { name: 'type', exact: true }).click();
+  await page.getByLabel('Export', { exact: true }).click();
+  await page.locator('#json-to-code-root').fill('Order');
+  await language('Go');
+  for (let i = 0; i < 25 && (await stored())?.values?.language !== 'go'; i++) await sleep(200);
+  await page.reload();
+  await input.waitFor({ timeout: 15_000 });
+  const keptGo = {
+    language: (await page.locator('#json-to-code-language').innerText()).trim(),
+    root: await page.locator('#json-to-code-root').inputValue(),
+    input: await input.inputValue(),
+  };
+  await language('TypeScript');
+  const keptTs = {
+    type: await page.getByRole('radio', { name: 'type', exact: true }).getAttribute('aria-checked'),
+    exported: await page.getByLabel('Export', { exact: true }).getAttribute('data-state'),
+  };
+  check(
+    'JSON to Code: Go, type and Export off chosen, the page opened again — as left, the sample and the Root type empty (saved parameters)',
+    keptGo.language === 'Go' &&
+      keptGo.root === '' &&
+      keptGo.input === '' &&
+      keptTs.type === 'true' &&
+      keptTs.exported === 'unchecked',
+    JSON.stringify({ keptGo, keptTs, stored: await stored() }),
+  );
+  await forgetSavedParameters(page, 'json-to-code');
+  await page.reload();
+  await input.waitFor({ timeout: 15_000 });
+
   // The page in the dark theme, then back.
   await input.fill('[{"id":1,"email":"a@x","tags":["a"]},{"id":2,"email":null,"phone":"1"}]');
   await until(r => r.includes('phone'));
@@ -353,4 +398,8 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   await page.locator('#json-to-code-input').fill('');
   check('JSON to Code: no page error', pageErrors.length === 0, pageErrors.join(' | '));
   page.off('pageerror', onError);
+  // The language the dark screenshots chose is a saved parameter (written 400 ms after the change): the next module
+  // opens the tool with its defaults.
+  await sleep(500);
+  await forgetSavedParameters(page, 'json-to-code').catch(() => undefined);
 };

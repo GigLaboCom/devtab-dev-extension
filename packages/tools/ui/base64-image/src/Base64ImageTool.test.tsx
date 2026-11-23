@@ -2,6 +2,7 @@ import Base64ImageTool from './Base64ImageTool';
 import { definition } from './definition';
 import { detect } from './detect';
 import { DAMAGED } from './parts';
+import { base64ImageSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MAX_IMAGE_BYTES, MAX_INPUT_CHARS } from '@workspace/tool-logic-base64-image';
 import { memoryHost } from '@workspace/tools-host';
@@ -398,6 +399,8 @@ describe('history (D17)', () => {
     expect((await entriesOf(host))[0]!.label).toBe('Decode · PNG · 3 × 2 · 78 bytes');
 
     const second = render(<Base64ImageTool host={host} />);
+    // Decode, chosen above, is a saved parameter now: the page opens in it.
+    mode('Encode');
     const big = new Uint8Array(1024 * 1024 + 1);
     big.set(bytesOf(PNG_B64).subarray(0, 33));
     choose(fileOf(big, 'big.png'));
@@ -419,7 +422,9 @@ describe('history (D17)', () => {
     render(<Base64ImageTool host={host} restore={{ id: entry!.id }} />);
     expect(await screen.findByText('Opened from History: Decode · PNG · 3 × 2 · 78 bytes.')).toBeTruthy();
     expect(field('Base64 or data URI').value).toBe(`url("data:image/jpeg;base64,${PNG_B64}")`);
-    expect(notes()).toContain('Declared image/jpeg, but the bytes are PNG.');
+    // The page opened in Decode (saved above), so the entry's text arrives without a change of direction: its note
+    // follows a moment later.
+    await waitFor(() => expect(notes()).toContain('Declared image/jpeg, but the bytes are PNG.'));
     cleanup();
     await act(async () => undefined);
     expect(await entriesOf(host)).toHaveLength(1);
@@ -442,5 +447,134 @@ describe('history (D17)', () => {
     await waitFor(() => expect(field('Result').value).toBe(PNG_B64));
     expect(fact('File')).toBeNull();
     expect(screen.getByLabelText('Output').textContent).toContain('Base64');
+  });
+});
+
+describe('the Base64 Image tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ReturnType<typeof memoryHost>) => host.settings.forTool('base64-image').saved();
+  const seed = async (host: ReturnType<typeof memoryHost>, values: Record<string, unknown>) => {
+    host.settings.forTool('base64-image').save(base64ImageSettings.schema, values as never);
+    await host.settings.forTool('base64-image').flush();
+  };
+  const entriesOf = async (host: ReturnType<typeof memoryHost>) =>
+    (await host.history.forOwner('base64-image', definition.history!).list()).entries;
+  const on = (name: 'Encode' | 'Decode') => screen.getByRole('radio', { name }).getAttribute('aria-checked') === 'true';
+  const output = () => screen.getByLabelText('Output').textContent;
+  const lineLength = () => screen.queryByLabelText('Line length')?.textContent ?? null;
+  const paste = (target: EventTarget, data: { files?: File[]; text?: string }) => {
+    const items = (data.files ?? []).map(f => ({ kind: 'file', type: f.type, getAsFile: () => f }));
+    const event = new Event('paste', { bubbles: true, cancelable: true }) as Event & { clipboardData: unknown };
+    event.clipboardData = { items, files: data.files ?? [], getData: () => data.text ?? '' };
+    act(() => void target.dispatchEvent(event));
+  };
+  const png = () => fileOf(bytesOf(PNG_B64), 'logo.png', 'image/png');
+
+  it('opens with the defaults and saves nothing until an option changes; reopened, it is as left, with no image', async () => {
+    const host = memoryHost();
+    const first = render(<Base64ImageTool host={host} />);
+    choose(png());
+    await waitFor(() => expect(field('Result').value).toBe(`data:image/png;base64,${PNG_B64}`));
+    await host.settings.forTool('base64-image').flush();
+    expect(savedOf(host)).toBeUndefined();
+    await pick('Output', 'Base64');
+    await pick('Line length', '64');
+    await pick('Output', 'CSS url()');
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { form: 'css', lineLength: 64 } });
+
+    const second = render(<Base64ImageTool host={host} />);
+    expect(on('Encode')).toBe(true);
+    expect(output()).toContain('CSS url()');
+    expect(fact('Type')).toBeNull();
+    expect(field('Result').value).toBe('');
+    // The line length was kept while CSS url() hid it.
+    await pick('Output', 'Base64');
+    expect(lineLength()).toContain('64');
+    mode('Decode');
+    second.unmount();
+
+    render(<Base64ImageTool host={host} />);
+    expect(on('Decode')).toBe(true);
+    expect(field('Base64 or data URI').value).toBe('');
+    expect(savedOf(host)).toEqual({ schema: 1, values: { mode: 'decode', form: 'base64', lineLength: 64 } });
+  });
+
+  it('a saved record it cannot show falls back field by field; the rest is used', async () => {
+    const host = memoryHost();
+    await seed(host, { mode: 'view', form: 'base64', lineLength: 80, image: 'x' });
+    render(<Base64ImageTool host={host} />);
+    expect(on('Encode')).toBe(true);
+    expect(output()).toContain('Base64');
+    expect(lineLength()).toContain('No wrapping');
+  });
+
+  it('an opened entry, a text handed over, an image and pasted image data win for the visit and leave what is saved alone', async () => {
+    const host = memoryHost();
+    const recorder = host.history.forOwner('base64-image', definition.history!).session();
+    const image = new Blob([bytesOf(PNG_B64)], { type: 'image/png' });
+    await recorder.commit({
+      kind: 'encode',
+      label: 'encoded',
+      payload: { mode: 'encode', mime: 'image/png', form: 'dataUri', lineLength: 0 } as never,
+      blobs: { image },
+    });
+    await recorder.commit({
+      kind: 'decode',
+      label: 'decoded',
+      payload: { mode: 'decode', mime: 'image/png', shape: 'data-uri' } as never,
+      blobs: { image },
+    });
+    await recorder.end();
+    const list = await entriesOf(host);
+    const values = { mode: 'decode', form: 'base64', lineLength: 76 };
+    await seed(host, values);
+
+    // An entry of Encode brings its form and line length; one of Decode only Decode.
+    const encoded = render(<Base64ImageTool host={host} restore={{ id: list.find(e => e.label === 'encoded')!.id }} />);
+    expect(await screen.findByText('Opened from History: encoded.')).toBeTruthy();
+    expect(on('Encode')).toBe(true);
+    expect(output()).toContain('Data URI');
+    await waitFor(() => expect(field('Result').value).toBe(`data:image/png;base64,${PNG_B64}`));
+    encoded.unmount();
+    const decoded = render(<Base64ImageTool host={host} restore={{ id: list.find(e => e.label === 'decoded')!.id }} />);
+    expect(await screen.findByText('Opened from History: decoded.')).toBeTruthy();
+    expect(on('Decode')).toBe(true);
+    decoded.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values });
+
+    // An image pasted in Decode: Encode for the visit, with the saved form.
+    const pasted = render(<Base64ImageTool host={host} />);
+    expect(on('Decode')).toBe(true);
+    paste(field('Base64 or data URI'), { files: [png()] });
+    await waitFor(() => expect(field('Result').value).toBe(PNG_B64.match(/.{1,76}/g)!.join('\n')));
+    expect(on('Encode')).toBe(true);
+    // Image data pasted in Encode: Decode for the visit.
+    paste(document.body, { text: `data:image/png;base64,${PNG_B64}` });
+    await waitFor(() => expect(on('Decode')).toBe(true));
+    pasted.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values });
+
+    // A text handed over opens Decode whatever is saved.
+    const other = memoryHost();
+    await seed(other, { form: 'img' });
+    render(<Base64ImageTool host={other} input={`data:image/png;base64,${PNG_B64}`} />);
+    expect(on('Decode')).toBe(true);
+    await waitFor(() => expect(fact('Dimensions')).toBe('3 × 2'));
+    await other.settings.forTool('base64-image').flush();
+    expect(savedOf(other)).toEqual({ schema: 1, values: { form: 'img' } });
+  });
+
+  it('reset puts every option back to its default and keeps the image; the result follows', async () => {
+    const host = memoryHost();
+    await seed(host, { form: 'base64', lineLength: 64 });
+    render(<Base64ImageTool host={host} />);
+    choose(png());
+    await waitFor(() => expect(field('Result').value).toBe(PNG_B64.match(/.{1,64}/g)!.join('\n')));
+    await act(async () => host.settings.forTool('base64-image').reset());
+    expect(on('Encode')).toBe(true);
+    expect(output()).toContain('Data URI');
+    expect(lineLength()).toBeNull();
+    expect(field('Result').value).toBe(`data:image/png;base64,${PNG_B64}`);
+    expect(savedOf(host)).toBeUndefined();
   });
 });

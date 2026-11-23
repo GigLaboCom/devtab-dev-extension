@@ -1,6 +1,7 @@
 import { definition } from './definition';
 import { detect } from './detect';
 import HtmlEntitiesTool from './HtmlEntitiesTool';
+import { htmlEntitiesSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LIVE_INPUT, MAX_INPUT, SETTLE_MS, loadReferenceTable } from '@workspace/tool-logic-html-entities';
 import { memoryHost } from '@workspace/tools-host';
@@ -8,7 +9,7 @@ import { MAX_SHOWN_CHARS } from '@workspace/ui/result-field';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 // docs/tools/specs/html-entities.md §2 (scenarios), §6 (notes, word for word), §8 (the page), §12 (limits) and the
-// tool's history (D17, docs/tools/history.md §10 row 17).
+// tool's history (D17, docs/tools/history.md §10 row 17) and its saved parameters (D21, docs/tools/settings.md §3).
 
 beforeAll(async () => {
   await loadReferenceTable(); // the table's module, once: later loads resolve at once
@@ -381,5 +382,93 @@ describe('the HTML Entities tool’s history', () => {
     unmount();
     await waitFor(async () => expect(await entriesOf(host, ['decode'])).toHaveLength(1));
     expect((await entriesOf(host))[0]!.label).toBe('Decode · 15 characters');
+  });
+});
+
+describe('the HTML Entities tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const entriesOf = async (host: ReturnType<typeof memoryHost>) =>
+    (await host.history.forOwner('html-entities', definition.history!).list({})).entries;
+  const savedOf = (host: ReturnType<typeof memoryHost>) => host.settings.forTool('html-entities').saved();
+  const seed = async (host: ReturnType<typeof memoryHost>, values: Record<string, unknown>) => {
+    host.settings.forTool('html-entities').save(htmlEntitiesSettings.schema, values as never);
+    await host.settings.forTool('html-entities').flush();
+  };
+  const direction = () =>
+    screen.getByRole('radio', { name: 'Decode' }).getAttribute('aria-checked') === 'true' ? 'decode' : 'encode';
+  const options = () => ({
+    scope: document.getElementById('html-entities-scope')!.textContent,
+    format: document.getElementById('html-entities-format')!.textContent,
+  });
+
+  it('saves the direction and options the person chose; reopened, it is as left; Swap is saved too', async () => {
+    const host = memoryHost();
+    const first = render(<HtmlEntitiesTool host={host} />);
+    await choose('html-entities-scope', 'Also non-ASCII');
+    await choose('html-entities-format', 'Hex');
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { scope: 'nonAscii', format: 'hex' } });
+    const second = render(<HtmlEntitiesTool host={host} />);
+    expect(direction()).toBe('encode');
+    expect(options()).toEqual({ scope: 'Also non-ASCII', format: 'Hex' });
+    type('café');
+    expect(output()).toBe('caf&#xE9;');
+    fireEvent.click(button('Swap'));
+    expect(direction()).toBe('decode');
+    second.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { mode: 'decode', scope: 'nonAscii', format: 'hex' } });
+    render(<HtmlEntitiesTool host={host} />);
+    expect(direction()).toBe('decode');
+  });
+
+  it('a saved record it cannot show falls back field by field', async () => {
+    const host = memoryHost();
+    await seed(host, { mode: 'sideways', scope: 'nonAscii', format: 'octal' });
+    render(<HtmlEntitiesTool host={host} />);
+    expect(direction()).toBe('encode');
+    expect(options()).toEqual({ scope: 'Also non-ASCII', format: 'Decimal' });
+  });
+
+  it('a paste opens Decode and an opened entry shows its own — for the visit; what is saved stays', async () => {
+    const host = memoryHost();
+    await seed(host, { scope: 'nonAscii', format: 'hex' });
+    const pasted = render(<HtmlEntitiesTool host={host} input="Tom &amp; Jerry" />);
+    await settle();
+    expect(direction()).toBe('decode');
+    expect(output()).toBe('Tom & Jerry');
+    pasted.unmount();
+    await settle();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { scope: 'nonAscii', format: 'hex' } });
+
+    const recorder = host.history.forOwner('html-entities', definition.history!).session();
+    await recorder.commit({
+      kind: 'encode',
+      label: 'Encode · 3 characters',
+      payload: { mode: 'encode', scope: 'special', format: 'decimal' },
+      blobs: { input: new Blob(['<é>']), output: new Blob(['&lt;é&gt;']) },
+    });
+    const entry = (await entriesOf(host)).find(e => e.label === 'Encode · 3 characters')!;
+    const opened = render(<HtmlEntitiesTool host={host} restore={{ id: entry.id }} />);
+    expect(await screen.findByText('Opened from History: Encode · 3 characters.')).toBeTruthy();
+    expect(options()).toEqual({ scope: 'Only & < > " \'', format: 'Decimal' });
+    expect(output()).toBe('&lt;é&gt;');
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { scope: 'nonAscii', format: 'hex' } });
+    render(<HtmlEntitiesTool host={host} />);
+    expect(direction()).toBe('encode');
+    expect(options()).toEqual({ scope: 'Also non-ASCII', format: 'Hex' });
+  });
+
+  it('reset puts the direction and options back to the defaults and keeps the input; the result follows', async () => {
+    const host = memoryHost();
+    await seed(host, { scope: 'nonAscii', format: 'hex' });
+    render(<HtmlEntitiesTool host={host} />);
+    type('<é>');
+    expect(output()).toBe('&lt;&#xE9;&gt;');
+    await act(async () => host.settings.forTool('html-entities').reset());
+    expect(direction()).toBe('encode');
+    expect(options()).toEqual({ scope: 'Only & < > " \'', format: 'Decimal' });
+    expect(field('Input').value).toBe('<é>');
+    expect(output()).toBe('&lt;é&gt;');
+    expect(savedOf(host)).toBeUndefined();
   });
 });

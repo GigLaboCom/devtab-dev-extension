@@ -2,12 +2,13 @@
  * The SQL Formatter's page (docs/tools/specs/sql-format.md §2, §3, §4, §6, §8) in jsdom. There are no workers here, so
  * every dialect's worker is replaced by the worker's own body (serve.ts) run on the page with the real library, behind
  * the same messages and the same runner. And its history: edits as snapshots, Copy, Save and Run at once, a query with
- * a password only encrypted, an entry opened back with its dialect and options.
+ * a password only encrypted, an entry opened back with its dialect and options. And its saved parameters (D21).
  */
 import { definition } from './definition';
 import { detect } from './detect';
 import { sqlFormatHistory } from './history';
 import { serve } from './serve';
+import { sqlFormatSettings } from './settings';
 import SqlFormatTool from './SqlFormatTool';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { DIALECTS, DIALECT_LABELS, LIVE_INPUT, MAX_INPUT } from '@workspace/tool-logic-sql-format';
@@ -488,5 +489,135 @@ describe('the SQL Formatter’s history', () => {
     const { start } = pageWorkers();
     render(<SqlFormatTool host={host} startWorker={start} restore={{ id: entry!.id }} />);
     expect(await screen.findByText('This entry was kept by a newer version of the tool.')).toBeTruthy();
+  });
+});
+
+describe('the SQL Formatter’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const entriesOf = async (host: ReturnType<typeof memoryHost>) =>
+    (await host.history.forOwner('sql-format', sqlFormatHistory).list({})).entries;
+  const savedOf = (host: ReturnType<typeof memoryHost>) => host.settings.forTool('sql-format').saved();
+  const seeded = async (values: Record<string, unknown>) => {
+    const host = memoryHost();
+    host.settings.forTool('sql-format').save(sqlFormatSettings.schema, values as never);
+    await host.settings.forTool('sql-format').flush();
+    return host;
+  };
+  const keywordCase = () =>
+    (['UPPER', 'lower', 'Preserve'] as const).find(
+      name => screen.getByRole('radio', { name }).getAttribute('aria-checked') === 'true',
+    );
+  const options = () => ({
+    dialect: screen.getByLabelText('Dialect').textContent,
+    keywordCase: keywordCase(),
+    indent: screen.getByLabelText('Indent').textContent,
+    layout: screen.getByLabelText('Layout').textContent,
+  });
+
+  it('saves the four options the person chose; reopened, it is as left', async () => {
+    const host = memoryHost();
+    const { start } = pageWorkers();
+    const first = render(<SqlFormatTool host={host} startWorker={start} />);
+    await choose('Dialect', 'PostgreSQL');
+    fireEvent.click(screen.getByRole('radio', { name: 'lower' }));
+    await choose('Indent', '4 spaces');
+    await choose('Layout', 'Tabular right');
+    first.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: { dialect: 'postgresql', keywordCase: 'lower', indent: 4, layout: 'tabularRight' },
+    });
+    render(<SqlFormatTool host={host} startWorker={start} />);
+    expect(options()).toEqual({
+      dialect: 'PostgreSQL',
+      keywordCase: 'lower',
+      indent: '4 spaces',
+      layout: 'Tabular right',
+    });
+    type('select created::date from t');
+    await formatted(lines('   select created::date', '     from t'));
+  });
+
+  it('Tabular turning Tab into 2 spaces is saved too', async () => {
+    const host = await seeded({ indent: 'tab' });
+    const { start } = pageWorkers();
+    const { unmount } = render(<SqlFormatTool host={host} startWorker={start} />);
+    expect(options().indent).toBe('Tab');
+    await choose('Layout', 'Tabular left');
+    expect(options().indent).toBe('2 spaces');
+    unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { layout: 'tabularLeft' } });
+  });
+
+  it('a saved record it cannot show falls back field by field; a stored Tab with Tabular is 2 spaces', async () => {
+    const { start } = pageWorkers();
+    render(
+      <SqlFormatTool
+        host={await seeded({ dialect: 'cobol', keywordCase: 'title', indent: 8, layout: 'tabularLeft' })}
+        startWorker={start}
+      />,
+    );
+    expect(options()).toEqual({
+      dialect: 'Standard SQL',
+      keywordCase: 'UPPER',
+      indent: '2 spaces',
+      layout: 'Tabular left',
+    });
+    cleanup();
+    render(<SqlFormatTool host={await seeded({ indent: 'tab', layout: 'tabularRight' })} startWorker={start} />);
+    expect(options()).toEqual({
+      dialect: 'Standard SQL',
+      keywordCase: 'UPPER',
+      indent: '2 spaces',
+      layout: 'Tabular right',
+    });
+    type('select a from t');
+    await formatted(lines('   SELECT a', '     FROM t'));
+  });
+
+  it('a paste and a file bring only the text; an opened entry shows its own options for the visit; what is saved stays', async () => {
+    const host = await seeded({ dialect: 'postgresql', keywordCase: 'lower' });
+    const { start } = pageWorkers();
+    const pasted = render(<SqlFormatTool host={host} startWorker={start} input="select created::date from t" />);
+    await formatted(lines('select', '  created::date', 'from', '  t'));
+    open(new File(['SELECT id FROM users'], 'query.sql'));
+    await formatted(lines('select', '  id', 'from', '  users'));
+    expect(options()).toMatchObject({ dialect: 'PostgreSQL', keywordCase: 'lower' });
+    pasted.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { dialect: 'postgresql', keywordCase: 'lower' } });
+
+    const recorder = host.history.forOwner('sql-format', sqlFormatHistory).session();
+    await recorder.commit({
+      kind: 'format',
+      label: 'MySQL · UPPER · 4 spaces · 15 characters',
+      payload: { dialect: 'mysql', keywordCase: 'upper', indent: 4, layout: 'standard', outcome: 'ok' },
+      blobs: { input: new Blob(['select a from t']), output: new Blob(['SELECT\n    a\nFROM\n    t']) },
+    });
+    const entry = (await entriesOf(host)).find(e => e.label === 'MySQL · UPPER · 4 spaces · 15 characters')!;
+    const opened = render(<SqlFormatTool host={host} startWorker={start} restore={{ id: entry.id }} />);
+    expect(await screen.findByText('Opened from History: MySQL · UPPER · 4 spaces · 15 characters.')).toBeTruthy();
+    expect(options()).toEqual({ dialect: 'MySQL', keywordCase: 'UPPER', indent: '4 spaces', layout: 'Standard' });
+    await formatted(lines('SELECT', '    a', 'FROM', '    t'));
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { dialect: 'postgresql', keywordCase: 'lower' } });
+    render(<SqlFormatTool host={host} startWorker={start} />);
+    expect(options()).toEqual({ dialect: 'PostgreSQL', keywordCase: 'lower', indent: '2 spaces', layout: 'Standard' });
+  });
+
+  it('reset puts the four options back to the defaults and keeps the query; the result follows', async () => {
+    const host = await seeded({ keywordCase: 'lower', indent: 4 });
+    const { start } = pageWorkers();
+    render(<SqlFormatTool host={host} startWorker={start} />);
+    type('select a from t');
+    await formatted(lines('select', '    a', 'from', '    t'));
+    await act(async () => host.settings.forTool('sql-format').reset());
+    expect(options()).toEqual({
+      dialect: 'Standard SQL',
+      keywordCase: 'UPPER',
+      indent: '2 spaces',
+      layout: 'Standard',
+    });
+    expect(input().value).toBe('select a from t');
+    await formatted(lines('SELECT', '  a', 'FROM', '  t'));
+    expect(savedOf(host)).toBeUndefined();
   });
 });

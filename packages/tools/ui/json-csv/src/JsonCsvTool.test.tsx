@@ -7,6 +7,7 @@ import { definition } from './definition';
 import { detect } from './detect';
 import { jsonCsvHistory } from './history';
 import JsonCsvTool from './JsonCsvTool';
+import { jsonCsvSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MAX_INPUT } from '@workspace/tool-logic-json-csv';
 import { memoryHost } from '@workspace/tools-host';
@@ -505,5 +506,134 @@ describe('the JSON and CSV tool’s history', () => {
     odd.unmount();
     render(<JsonCsvTool host={host} restore={{ id: entries.find(e => e.label === 'From the future')!.id }} />);
     expect(await screen.findByText('This entry was kept by a newer version of the tool.')).toBeTruthy();
+  });
+});
+
+describe('the JSON and CSV tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ReturnType<typeof memoryHost>) => host.settings.forTool('json-csv').saved();
+  const seed = async (host: ReturnType<typeof memoryHost>, values: Record<string, unknown>) => {
+    host.settings.forTool('json-csv').save(jsonCsvSettings.schema, values as never);
+    await host.settings.forTool('json-csv').flush();
+  };
+  const toJson = () => screen.getByRole('radio', { name: 'CSV → JSON' }).getAttribute('aria-checked') === 'true';
+  const label = (name: string) => screen.getByLabelText(name).textContent;
+
+  it('opens with the defaults and saves nothing until an option changes; reopened, it is as left; Swap is saved', async () => {
+    const host = memoryHost();
+    const first = render(<JsonCsvTool host={host} />);
+    type('[{"a":1,"b":"x"}]');
+    await host.settings.forTool('json-csv').flush();
+    expect(savedOf(host)).toBeUndefined();
+    await choose('Delimiter', 'Semicolon');
+    check('Protect from formulas');
+    check('Add BOM (for Excel)');
+    first.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: { csvDelimiter: 'semicolon', csvProtectFormulas: false, csvBom: true },
+    });
+
+    const second = render(<JsonCsvTool host={host} />);
+    expect(toJson()).toBe(false);
+    expect(input().value).toBe('');
+    expect(label('Delimiter')).toContain('Semicolon');
+    expect(checked('Protect from formulas')).toBe(false);
+    expect(checked('Add BOM (for Excel)')).toBe(true);
+    // Swap is the person's: the new direction and the delimiter it hands over are saved.
+    type('[{"a":1,"b":"x"}]');
+    fireEvent.click(button('Swap'));
+    expect(toJson()).toBe(true);
+    second.unmount();
+    expect(savedOf(host)!.values).toMatchObject({ direction: 'to-json', jsonDelimiter: 'semicolon' });
+
+    render(<JsonCsvTool host={host} />);
+    expect(toJson()).toBe(true);
+    expect(label('Delimiter')).toContain('Semicolon');
+  });
+
+  it('a saved record it cannot show falls back field by field; the rest is used', async () => {
+    const host = memoryHost();
+    await seed(host, {
+      direction: 'to-json',
+      jsonDelimiter: ';',
+      jsonEmpty: 'omit',
+      jsonIndent: 3,
+      jsonDetectTypes: 'no',
+      jsonNest: true,
+      header: false,
+      unknown: 1,
+    });
+    render(<JsonCsvTool host={host} />);
+    expect(toJson()).toBe(true);
+    expect(label('Delimiter')).toContain('Auto');
+    expect(label('Empty cells')).toContain('Leave out');
+    expect(label('Indent')).toContain('2 spaces');
+    expect(checked('Detect types')).toBe(true);
+    expect(checked('Nest dotted headers')).toBe(true);
+    expect(checked('Header row')).toBe(false);
+  });
+
+  it('an entry opened from History, a pasted text and an opened file win for the visit and leave what is saved alone', async () => {
+    const host = memoryHost();
+    const session = host.history.forOwner('json-csv', jsonCsvHistory).session();
+    await session.commit({
+      kind: 'to-csv',
+      payload: {
+        direction: 'to-csv',
+        header: true,
+        toCsv: { delimiter: ',', flatten: true, newline: 'crlf', quoteAll: false, protectFormulas: true, bom: false },
+        toJson: { delimiter: 'auto', detectTypes: true, empty: 'null', nest: false, layout: 2 },
+        outcome: 'ok',
+      } as never,
+      label: 'Plain',
+      blobs: { input: new Blob(['[{"a":1}]']) },
+    });
+    await session.end();
+    const [entry] = (await host.history.forOwner('json-csv', jsonCsvHistory).list({})).entries;
+    const values = { direction: 'to-json', jsonIndent: 'tab', csvDelimiter: 'pipe', csvQuoteAll: true };
+    await seed(host, values);
+    const opened = render(<JsonCsvTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText('Opened from History: Plain.')).toBeTruthy();
+    expect(toJson()).toBe(false);
+    expect(label('Delimiter')).toContain('Comma');
+    expect(checked('Quote all fields')).toBe(false);
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values });
+
+    // A pasted JSON text opens JSON → CSV for the visit, with the saved options of that direction.
+    const pasted = render(<JsonCsvTool host={host} input={'[{"a":1}]'} />);
+    expect(toJson()).toBe(false);
+    expect(label('Delimiter')).toContain('Pipe');
+    expect(checked('Quote all fields')).toBe(true);
+    pasted.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values });
+
+    // A .json file chooses JSON → CSV for the visit, a .tsv file CSV → JSON and Tab; a later change saves only itself.
+    render(<JsonCsvTool host={host} />);
+    open(new File(['[{"a":1}]'], 'data.json'));
+    await waitFor(() => expect(input().value).toBe('[{"a":1}]'));
+    expect(toJson()).toBe(false);
+    open(new File(['a\tb\n1\t2'], 'sheet.tsv'));
+    await waitFor(() => expect(input().value).toBe('a\tb\n1\t2'));
+    expect(toJson()).toBe(true);
+    expect(label('Delimiter')).toContain('Tab');
+    check('Nest dotted headers');
+    await host.settings.forTool('json-csv').flush();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { ...values, jsonNest: true } });
+  });
+
+  it('reset puts every option back to its default and keeps the input; the result follows', async () => {
+    const host = memoryHost();
+    await seed(host, { csvDelimiter: 'semicolon', header: false, csvNewline: 'lf' });
+    render(<JsonCsvTool host={host} />);
+    type('[{"a":1,"b":"x"}]');
+    expect(output()).toBe('1;x\n');
+    await act(async () => host.settings.forTool('json-csv').reset());
+    expect(label('Delimiter')).toContain('Comma');
+    expect(checked('Header row')).toBe(true);
+    expect(label('Line breaks')).toContain('CRLF');
+    expect(input().value).toBe('[{"a":1,"b":"x"}]');
+    expect(output()).toBe(shown('a,b\r\n1,x\r\n'));
+    expect(savedOf(host)).toBeUndefined();
   });
 });

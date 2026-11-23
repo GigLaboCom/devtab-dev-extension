@@ -3,7 +3,9 @@
  * the logic sees only as their result (Split on `Custom…` with its field, Join with `Custom…`), the defaults of §4, the
  * option lists with their words, the mapping to the logic's Pipeline, and a reader that takes a stored value back
  * (a history entry) field by field, falling back to the default where a field is missing or not one of the choices.
+ * The saved parameters (settings.ts) are the same steps as flat keys: `flatOf` and `stepsOf` go between the two.
  */
+import type { linesSettings } from './settings';
 import type {
   BlankMode,
   DuplicateMode,
@@ -14,6 +16,7 @@ import type {
   SortKind,
   TrimMode,
 } from '@workspace/tool-logic-lines';
+import type { SettingsValues } from '@workspace/tools-host';
 
 export type SplitOn = 'comma' | 'semicolon' | 'tab' | 'pipe' | 'whitespace' | 'custom';
 export type JoinWith = 'comma-space' | 'comma' | 'semicolon-space' | 'space' | 'tab' | 'pipe' | 'nothing' | 'custom';
@@ -280,4 +283,74 @@ export const readSteps = (raw: unknown): Steps => {
       custom: text(join.custom, ''),
     },
   };
+};
+
+/** The steps as saved parameters: one flat key per option, everything but the Filter text. */
+export type SavedSteps = SettingsValues<typeof linesSettings>;
+
+/** The steps as saved parameters (the Filter text is not one). */
+export const flatOf = (s: Steps): SavedSteps => ({
+  splitEnabled: s.split.enabled,
+  splitOn: s.split.on,
+  splitCustom: s.split.custom,
+  trimEnabled: s.trim.enabled,
+  trimEnds: s.trim.mode,
+  trimCollapse: s.trim.collapse,
+  filterEnabled: s.filter.enabled,
+  filterMode: s.filter.mode,
+  filterMatchCase: s.filter.matchCase,
+  blankEnabled: s.blank.enabled,
+  blankMode: s.blank.mode,
+  duplicatesEnabled: s.duplicates.enabled,
+  duplicatesMode: s.duplicates.mode,
+  duplicatesIgnoreCase: s.duplicates.ignoreCase,
+  duplicatesIgnoreWhitespace: s.duplicates.ignoreWhitespace,
+  orderEnabled: s.order.enabled,
+  orderKind: s.order.kind,
+  orderSort: s.order.sort,
+  orderDescending: s.order.descending,
+  orderUppercaseFirst: s.order.uppercaseFirst,
+  affixEnabled: s.affix.enabled,
+  affixPrefix: s.affix.prefix,
+  affixSuffix: s.affix.suffix,
+  numberEnabled: s.number.enabled,
+  numberFormat: s.number.format,
+  numberStart: s.number.start,
+  numberPad: s.number.pad,
+  joinEnabled: s.join.enabled,
+  joinWith: s.join.with,
+  joinCustom: s.join.custom,
+});
+
+/** The steps from saved parameters and the Filter text the page holds. */
+export const stepsOf = (v: SavedSteps, filterText: string): Steps => ({
+  split: { enabled: v.splitEnabled, on: v.splitOn, custom: v.splitCustom },
+  trim: { enabled: v.trimEnabled, mode: v.trimEnds, collapse: v.trimCollapse },
+  filter: { enabled: v.filterEnabled, mode: v.filterMode, text: filterText, matchCase: v.filterMatchCase },
+  blank: { enabled: v.blankEnabled, mode: v.blankMode },
+  duplicates: {
+    enabled: v.duplicatesEnabled,
+    mode: v.duplicatesMode,
+    ignoreCase: v.duplicatesIgnoreCase,
+    ignoreWhitespace: v.duplicatesIgnoreWhitespace,
+  },
+  order: {
+    enabled: v.orderEnabled,
+    kind: v.orderKind,
+    sort: v.orderSort,
+    descending: v.orderDescending,
+    uppercaseFirst: v.orderUppercaseFirst,
+  },
+  affix: { enabled: v.affixEnabled, prefix: v.affixPrefix, suffix: v.affixSuffix },
+  number: { enabled: v.numberEnabled, format: v.numberFormat, start: v.numberStart, pad: v.numberPad },
+  join: { enabled: v.joinEnabled, with: v.joinWith, custom: v.joinCustom },
+});
+
+/** The saved parameters that differ between two sets of steps — what a change of the person's touched. */
+export const changedOf = (before: Steps, after: Steps): Partial<SavedSteps> => {
+  const a = flatOf(before);
+  const b = flatOf(after);
+  return Object.fromEntries(
+    (Object.keys(b) as Array<keyof SavedSteps>).filter(key => a[key] !== b[key]).map(key => [key, b[key]]),
+  ) as Partial<SavedSteps>;
 };

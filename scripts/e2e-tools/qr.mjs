@@ -16,7 +16,7 @@
 //   password made here (never printed), not opened while locked, opened back unlocked, and the master password is
 //   turned off again at the end (its entries go with it). The Wi-Fi details are invented.
 
-/* global document, window, location, requestAnimationFrame, OffscreenCanvas, createImageBitmap, indexedDB,
+/* global chrome, document, window, location, requestAnimationFrame, OffscreenCanvas, createImageBitmap, indexedDB,
    DataTransfer, ClipboardEvent, DragEvent, Image -- page.evaluate callbacks run in the pages */
 
 import { createHash, randomBytes } from 'node:crypto';
@@ -24,7 +24,13 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 
 const T = 'QR Code';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -681,6 +687,48 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   });
   check(`${T}: no content security policy violation on the way`, violations.length === 0, violations.join('; '));
   facts.loaded = loaded;
+
+  // Saved parameters (D21): Generate · Wi-Fi with the invented details still in the form, H and 16 px chosen — written
+  // 400 ms after the change, without anything of the network; the page opened again is as left, the form empty.
+  const stored = () =>
+    page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.qr);
+  await page.getByRole('radio', { name: 'Generate', exact: true }).click();
+  await page.getByRole('radio', { name: 'Wi-Fi', exact: true }).click();
+  const choose = async (label, option) => {
+    await page.getByLabel(label, { exact: true }).click();
+    await page.getByRole('option', { name: option, exact: true }).click();
+  };
+  await choose('Error correction', 'H — 30%');
+  await choose('PNG size', '16 px per module');
+  for (let i = 0; i < 25 && (await stored())?.values?.px !== 16; i++) await sleep(200);
+  const formBefore = await page.getByLabel('Network name', { exact: true }).inputValue();
+  await page.reload();
+  await page.getByLabel('Network name', { exact: true }).waitFor();
+  const kept = {
+    stored: await stored(),
+    generate: await page.getByRole('radio', { name: 'Generate', exact: true }).getAttribute('aria-checked'),
+    wifi: await page.getByRole('radio', { name: 'Wi-Fi', exact: true }).getAttribute('aria-checked'),
+    level: await page.getByLabel('Error correction', { exact: true }).innerText(),
+    px: await page.getByLabel('PNG size', { exact: true }).innerText(),
+    ssid: await page.getByLabel('Network name', { exact: true }).inputValue(),
+    password: await page.getByLabel('Password', { exact: true }).inputValue(),
+  };
+  const storedText = JSON.stringify(kept.stored ?? null);
+  check(
+    `${T}: Generate · Wi-Fi, H and 16 px chosen, the page opened again — as left, the Wi-Fi form empty; nothing of the network saved (saved parameters)`,
+    formBefore === WIFI.ssid &&
+      kept.generate === 'true' &&
+      kept.wifi === 'true' &&
+      kept.level.includes('H — 30%') &&
+      kept.px.includes('16 px per module') &&
+      kept.ssid === '' &&
+      kept.password === '' &&
+      JSON.stringify(Object.keys(kept.stored?.values ?? {}).sort()) === JSON.stringify(['content', 'level', 'px']) &&
+      !storedText.includes('Example') &&
+      !storedText.includes(WIFI.password),
+    JSON.stringify({ ...kept, stored: kept.stored?.values }),
+  );
+  await forgetSavedParameters(page, 'qr');
 
   for (const p of opened) await p.close();
   await blank.close();

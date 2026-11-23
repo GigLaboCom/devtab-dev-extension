@@ -16,9 +16,14 @@
  * "Copy automatically after generating" (the host's per-tool setting, docs/tools/copying.md): a press of Generate also
  * copies the whole batch, as Copy / Copy all would — never a change of the settings, the opening of the tool or of an
  * entry. It is not recorded again (Generate committed the batch); the screen reader hears one sentence for both.
+ *
+ * Saved parameters (D21, settings.ts): the first batch is made with the saved settings; the person's changes are saved
+ * (numbers and a custom alphabet only as a whole the tool accepts); an opened entry shows its settings for the visit; the
+ * reset control brings the defaults and a new batch, neither recorded nor copied. No string is ever a parameter.
  */
-import { DEFAULT_FIELDS, draftOf, fieldsOf, readEntry, settingsOf } from './entries';
+import { draftOf, fieldsOf, readEntry, settingsOf } from './entries';
 import { randomStringHistory } from './history';
+import { fieldsFromSaved, randomStringSettings, savedOf } from './settings';
 import {
   ENCODING_LABELS,
   ENCODING_ORDER,
@@ -33,7 +38,14 @@ import {
   generatedLine,
   wholeBits,
 } from '@workspace/tool-logic-random-string';
-import { AUTO_COPY_REFUSED, announceGenerated, useAutoCopy, useRestore, useToolHistory } from '@workspace/tools-host';
+import {
+  AUTO_COPY_REFUSED,
+  announceGenerated,
+  useAutoCopy,
+  useRestore,
+  useSavedSettings,
+  useToolHistory,
+} from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Input } from '@workspace/ui/input';
@@ -68,7 +80,13 @@ const keptSentence = (status: RecordingStatus): string =>
 type Made = Extract<Generated, { ok: true }>;
 /** What the page shows: a batch and the settings it was made with, or why there is none. */
 type Shown = { settings: Settings; made: Made; bits: number } | { errors: FieldError[] };
-type Origin = 'edit' | 'generate';
+/** What made a batch: a person's edit (a change), Generate (a commit), or the opening / the reset (neither). */
+type Origin = 'edit' | 'generate' | 'open' | 'reset';
+/** The fields saved only as a whole the tool accepts, by the mode they belong to. */
+const WHOLE: Readonly<Record<Fields['mode'], ReadonlyArray<keyof Fields>>> = {
+  chars: ['custom', 'length', 'count'],
+  bytes: ['bytes', 'count'],
+};
 
 /** The large batch's field, rendered again only when its text changes: a megabyte in a text area is costly to touch. */
 const BatchField = memo(({ text }: { text: string }) => (
@@ -94,15 +112,33 @@ const makeShown = (settings: Settings): Shown => {
 };
 
 const RandomStringTool = ({ host, restore }: ToolProps): ReactElement => {
-  const [fields, setFields] = useState<Fields>(DEFAULT_FIELDS);
-  // The batch is made when the tool opens (§4, §6).
-  const [shown, setShown] = useState<Shown>(() => makeShown(settingsOf(DEFAULT_FIELDS)));
-  const [pending, setPending] = useState(false);
+  const saved = useSavedSettings(host, 'random-string', randomStringSettings, {
+    // The reset control put the settings back: the form follows and a new batch is made — not recorded, not copied.
+    onReset: defaults => {
+      const next = fieldsFromSaved(defaults);
+      unsaved.current.clear();
+      latest.current = next;
+      setFields(next);
+      setRestored(null);
+      run(next, 'reset');
+    },
+  });
+  const [opened] = useState<Fields>(() => fieldsFromSaved(saved.values));
+  const [fields, setFields] = useState<Fields>(opened);
+  // The batch is made when the tool opens (§4, §6), with the saved settings; a large one after the first paint (§12).
+  const [openedLarge] = useState(() => {
+    const c = check(settingsOf(opened));
+    return c.ok && c.total > LIVE_TOTAL;
+  });
+  const [shown, setShown] = useState<Shown>(() => (openedLarge ? { errors: [] } : makeShown(settingsOf(opened))));
+  const [pending, setPending] = useState(openedLarge);
   const [announcement, setAnnouncement] = useState('');
   const [restored, setRestored] = useState<string | null>(null);
   const { history, recorder, status } = useToolHistory(host, 'random-string', randomStringHistory);
   const autoCopy = useAutoCopy(host, 'random-string');
   const latest = useRef(fields);
+  /** Numbers and a custom alphabet the person changed that are not saved yet: saved once the whole is accepted. */
+  const unsaved = useRef(new Set<keyof Fields>());
   // Every new request (an edit, Generate, an entry opened) takes a new number; late work of an older one is dropped.
   const request = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -128,7 +164,7 @@ const RandomStringTool = ({ host, restore }: ToolProps): ReactElement => {
       const result = makeShown(nextSettings);
       setPending(false);
       setShown(result);
-      if (!('made' in result)) return;
+      if (!('made' in result) || origin === 'open' || origin === 'reset') return;
       const generated = generatedLine(result.made.values.length);
       const draft = draftOf(nextSettings, result.made, result.bits);
       if (origin === 'edit') {
@@ -154,11 +190,26 @@ const RandomStringTool = ({ host, restore }: ToolProps): ReactElement => {
     else afterPaint(make);
   };
 
+  // Opened with a saved batch too large to make at once: made after the first paint, "Generating…" meanwhile.
+  useEffect(() => {
+    if (openedLarge) run(opened, 'open');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the page opens
+  }, []);
+
+  /** Saves what the person changed: the choices at once, numbers and a custom alphabet once the whole is accepted. */
+  const remember = (change: Partial<Fields>, next: Fields): void => {
+    const keys = (['mode', 'preset', 'encoding'] as const).filter(key => key in change) as Array<keyof Fields>;
+    for (const key of ['custom', 'length', 'bytes', 'count'] as const) if (key in change) unsaved.current.add(key);
+    if (check(settingsOf(next)).ok) for (const key of WHOLE[next.mode]) if (unsaved.current.delete(key)) keys.push(key);
+    if (keys.length > 0) saved.set(savedOf(next, keys));
+  };
+
   const edit = (change: Partial<Fields>): void => {
     const next = { ...latest.current, ...change };
     latest.current = next;
     setFields(next);
     setRestored(null);
+    remember(change, next);
     run(next, 'edit');
   };
 
@@ -195,6 +246,15 @@ const RandomStringTool = ({ host, restore }: ToolProps): ReactElement => {
         const next = fieldsOf(entry.settings, latest.current);
         latest.current = next;
         setFields(next);
+        // The entry's settings are for the visit; what the person had not saved yet is dropped with them.
+        unsaved.current.clear();
+        saved.visit(
+          savedOf(next, [
+            'mode',
+            ...(entry.settings.mode === 'chars' ? ['preset'] : ['encoding']),
+            ...WHOLE[next.mode],
+          ] as Array<keyof Fields>),
+        );
         // The batch as it was, not a new one: opening an entry generates, records and copies nothing.
         const entropyBits = check(entry.settings);
         setShown({

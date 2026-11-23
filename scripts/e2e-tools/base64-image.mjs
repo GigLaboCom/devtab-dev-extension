@@ -28,7 +28,14 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
-import { historyRecords, inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  historyRecords,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 
 const T = 'Base64 Image';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -391,11 +398,14 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     await field.waitFor();
     await start.waitForLoadState('networkidle');
     await field.fill('data uri');
-    const first = (await start.getByRole('option').first().innerText()).split('\n')[0];
+    await start.getByRole('option').first().waitFor();
+    // Base64 File has the same keyword, and of two equal matches the one opened last comes first: the tool is looked
+    // for among the rows, not in the first one.
+    const rows = (await start.getByRole('option').allInnerTexts()).map(text => text.split('\n')[0]);
     check(
       `${T}: nothing of the tool on the start route; its field finds it by "data uri"`,
-      loaded.length === 0 && first.includes(T),
-      `loaded ${JSON.stringify(loaded)}; first row "${first}"`,
+      loaded.length === 0 && rows.some(row => row.includes(T)),
+      `loaded ${JSON.stringify(loaded)}; rows ${JSON.stringify(rows.slice(0, 4))}`,
     );
     await start.close();
   }
@@ -1126,6 +1136,47 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     `${records.length} records; ${JSON.stringify(reopened)}`,
   );
 
+  // ---- Saved parameters (D21): Output Base64 and Line length 76 chosen are written 400 ms after the change; the tool
+  // opened again (in a page of its own, so this page keeps its stand-ins) is as left, with no image. Then the defaults
+  // again here, for the screenshots below.
+  {
+    const stored = () =>
+      page.evaluate(
+        async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.['base64-image'],
+      );
+    const choose = async (label, option) => {
+      await page.getByLabel(label, { exact: true }).click();
+      await page.getByRole('option', { name: option, exact: true }).click();
+    };
+    await choose('Output', 'Base64');
+    await choose('Line length', '76');
+    for (let i = 0; i < 25 && (await stored())?.values?.lineLength !== 76; i++) await sleep(200);
+    const again = await ctx.newPage();
+    await again.goto(toolUrl);
+    await again.locator('[data-slot="file-drop"]').waitFor({ timeout: 30_000 });
+    const kept = {
+      stored: (await stored())?.values,
+      encode: await again.getByRole('radio', { name: 'Encode', exact: true }).getAttribute('aria-checked'),
+      output: await again.getByLabel('Output', { exact: true }).innerText(),
+      lineLength: await again.getByLabel('Line length', { exact: true }).innerText(),
+      image: await again.locator('[data-encoded]').count(),
+      result: await again.locator('#base64-image-result').inputValue(),
+    };
+    await again.close();
+    check(
+      `${T}: Output Base64 and Line length 76 chosen, the tool opened again — as left, in Encode, with no image (saved parameters)`,
+      kept.encode === 'true' &&
+        kept.output.includes('Base64') &&
+        kept.lineLength.includes('76') &&
+        kept.image === 0 &&
+        kept.result === '',
+      JSON.stringify(kept),
+    );
+    await choose('Line length', 'No wrapping');
+    await choose('Output', 'Data URI');
+    for (let i = 0; i < 25 && (await stored()) !== undefined; i++) await sleep(200);
+  }
+
   // ---- §7 on the start page: what opens for each kind of paste
   {
     const start = await ctx.newPage();
@@ -1177,6 +1228,10 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
     await settledPreview();
     await settledShot(shoot, page, 'tool-base64-image-06-decode-dark.png');
   });
+  // Decode, chosen for the dark screenshot, is a saved parameter (written 400 ms after the change): the next module
+  // opens the tool with its defaults.
+  await sleep(500);
+  await forgetSavedParameters(page, 'base64-image');
 
   // ---- Nothing left the browser in the whole module; put back what was replaced
   const finalViolations = await page.evaluate(() => {

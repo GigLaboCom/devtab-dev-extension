@@ -6,6 +6,11 @@
  * refuses (§12). It records into the tool history through its host: an edit snapshot (`change`) and a commit when the
  * result is taken — Copy or Swap; an entry the host asks to open comes back as the input and the options. The page frame
  * (title, summary, the history line) is the host's.
+ *
+ * The direction, the encoding and the Text to hex options are saved parameters (settings.ts; docs/tools/settings.md):
+ * the tool opens with what the person chose last. A paste from the start page opens Hex to text and an opened entry
+ * shows its own direction and options, both for the visit only. Swap is the person's change of direction, saved like any
+ * other.
  */
 import {
   BYTES_PER_LINE,
@@ -19,6 +24,7 @@ import {
   isMode,
 } from './entries';
 import { hexAsciiHistory } from './history';
+import { hexAsciiSettings } from './settings';
 import {
   BOM_NOTE,
   HEX_TOO_LARGE,
@@ -37,7 +43,7 @@ import {
   showControls,
   textToBytes,
 } from '@workspace/tool-logic-hex-ascii';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -159,12 +165,12 @@ const useSettled = (input: string, limit: number): string => {
 
 const HexAsciiTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
-  // Text handed over from the start page was recognised as hex of text (detectHex): it is there to be read.
-  const [mode, setMode] = useState<Mode>(initial ? 'to-text' : 'to-hex');
-  const [encoding, setEncoding] = useState<TextEncodingId>('utf-8');
-  const [format, setFormat] = useState<OutputFormat>('plain');
-  const [uppercase, setUppercase] = useState(false);
-  const [bytesPerLine, setBytesPerLine] = useState<BytesPerLine>(0);
+  // Text handed over from the start page was recognised as hex of text (detectHex): it is there to be read, for this
+  // visit; what is saved stays.
+  const saved = useSavedSettings(host, 'hex-ascii', hexAsciiSettings, {
+    opening: initial ? { mode: 'to-text' } : undefined,
+  });
+  const { mode, encoding, format, uppercase, bytesPerLine } = saved.values;
   const [restored, setRestored] = useState<string | null>(null);
   const { history, recorder } = useToolHistory(host, 'hex-ascii', hexAsciiHistory);
 
@@ -199,7 +205,7 @@ const HexAsciiTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
     take('swap');
     edit(() => {
       setInput(outcome.output);
-      setMode(mode === 'to-hex' ? 'to-text' : 'to-hex');
+      saved.set({ mode: mode === 'to-hex' ? 'to-text' : 'to-hex' });
     });
   };
 
@@ -218,11 +224,14 @@ const HexAsciiTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
     void (opened.blobs.input?.text() ?? Promise.resolve('')).then(text => {
       edited.current = false;
       setInput(text);
-      setMode(isMode(p.mode) ? p.mode : opened.entry.kind === 'to-text' ? 'to-text' : 'to-hex');
-      setEncoding(isEncoding(p.encoding) ? p.encoding : 'utf-8');
-      setFormat(isFormat(p.format) ? p.format : 'plain');
-      setUppercase(p.uppercase === true);
-      setBytesPerLine(isBytesPerLine(p.bytesPerLine) ? p.bytesPerLine : 0);
+      // The entry's direction and options for this visit; what is saved stays as it was.
+      saved.visit({
+        mode: isMode(p.mode) ? p.mode : opened.entry.kind === 'to-text' ? 'to-text' : 'to-hex',
+        encoding: isEncoding(p.encoding) ? p.encoding : 'utf-8',
+        format: isFormat(p.format) ? p.format : 'plain',
+        uppercase: p.uppercase === true,
+        bytesPerLine: isBytesPerLine(p.bytesPerLine) ? p.bytesPerLine : 0,
+      });
       setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
     });
   });
@@ -243,7 +252,7 @@ const HexAsciiTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
           aria-label="Direction"
           value={mode}
           onValueChange={value => {
-            if (isMode(value) && value !== mode) edit(() => setMode(value));
+            if (isMode(value) && value !== mode) edit(() => saved.set({ mode: value }));
           }}>
           <ToggleGroupItem value="to-hex">Text to hex</ToggleGroupItem>
           <ToggleGroupItem value="to-text">Hex to text</ToggleGroupItem>
@@ -254,7 +263,7 @@ const HexAsciiTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
         <Select
           value={encoding}
           onValueChange={value => {
-            if (isEncoding(value)) edit(() => setEncoding(value));
+            if (isEncoding(value)) edit(() => saved.set({ encoding: value }));
           }}>
           <SelectTrigger id="hex-ascii-encoding" className="min-w-32">
             <SelectValue />
@@ -275,7 +284,7 @@ const HexAsciiTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
             <Select
               value={format}
               onValueChange={value => {
-                if (isFormat(value)) edit(() => setFormat(value));
+                if (isFormat(value)) edit(() => saved.set({ format: value }));
               }}>
               <SelectTrigger id="hex-ascii-format" className="min-w-44">
                 <SelectValue />
@@ -292,7 +301,7 @@ const HexAsciiTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
               <Checkbox
                 id="hex-ascii-uppercase"
                 checked={uppercase}
-                onCheckedChange={checked => edit(() => setUppercase(checked === true))}
+                onCheckedChange={checked => edit(() => saved.set({ uppercase: checked === true }))}
               />
               <Label htmlFor="hex-ascii-uppercase" className="font-normal">
                 Uppercase
@@ -306,7 +315,7 @@ const HexAsciiTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
               disabled={format === 'dump'}
               onValueChange={value => {
                 const next = Number(value);
-                if (isBytesPerLine(next)) edit(() => setBytesPerLine(next));
+                if (isBytesPerLine(next)) edit(() => saved.set({ bytesPerLine: next }));
               }}>
               <SelectTrigger id="hex-ascii-per-line" className="min-w-32">
                 <SelectValue />

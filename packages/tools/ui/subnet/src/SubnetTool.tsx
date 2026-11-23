@@ -7,12 +7,16 @@
  *
  * History (D17, docs/tools/history.md §10): an edit that reads is a snapshot (`change`) of the task's kind — for the
  * lists, once their answer came; a copy is a commit; an opened entry comes back as its task and fields.
+ *
+ * The task and Split by are saved parameters (settings.ts; docs/tools/settings.md): the page opens with what the person
+ * chose last; a paste from the start page (Explain or Summarize) and an opened entry choose for the visit only.
  */
 import { ChunkedRows } from './ChunkedRows';
 import { explainDraft, matchDraft, readEntry, splitDraft, summarizeDraft } from './entries';
 import { ExplainRows } from './ExplainRows';
 import { subnetHistory } from './history';
 import { Pager } from './Pager';
+import { subnetSettings } from './settings';
 import { useListAnswer, useRunner } from './useListAnswer';
 import {
   BITS,
@@ -32,7 +36,7 @@ import {
   splitSummary,
   splitText,
 } from '@workspace/tool-logic-subnet';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Input } from '@workspace/ui/input';
@@ -105,11 +109,12 @@ const readBlock = (
 
 const SubnetTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const handed = initial?.trim() ? initial : '';
-  const [task, setTask] = useState<Task>(() =>
-    handed && detectedTask(handed) === 'summarize' ? 'summarize' : 'explain',
-  );
+  const saved = useSavedSettings(host, 'subnet', subnetSettings, {
+    // A paste opens Summarize (several blocks) or Explain for this visit; what is saved stays as it was.
+    opening: handed ? { task: detectedTask(handed) === 'summarize' ? 'summarize' : 'explain' } : undefined,
+  });
+  const { task, by } = saved.values;
   const [blockText, setBlockText] = useState(() => (handed && detectedTask(handed) !== 'summarize' ? handed : ''));
-  const [by, setBy] = useState<SplitBy>('prefix');
   const [prefixText, setPrefixText] = useState('');
   const [countText, setCountText] = useState('');
   const [addressesText, setAddressesText] = useState('');
@@ -212,9 +217,9 @@ const SubnetTool = ({ input: initial, host, restore }: ToolProps): ReactElement 
     }
     edited.current = false;
     const r = readEntry(opened.entry.kind, opened.payload);
-    setTask(r.task);
+    // The entry's task (and a split's Split by) for this visit; what is saved stays as it was.
+    saved.visit(r.by ? { task: r.task, by: r.by } : { task: r.task });
     if (r.block !== undefined) setBlockText(r.block);
-    if (r.by) setBy(r.by);
     if (r.prefix !== undefined) setPrefixText(r.prefix);
     if (r.count !== undefined) setCountText(r.count);
     const text = (name: string): Promise<string> => opened.blobs[name]?.text() ?? Promise.resolve('');
@@ -267,7 +272,7 @@ const SubnetTool = ({ input: initial, host, restore }: ToolProps): ReactElement 
               onClick={() =>
                 edit(() => {
                   setListText(t => (t.trim() ? `${t.replace(/\n*$/, '')}\n${blockText.trim()}` : blockText.trim()));
-                  setTask('summarize');
+                  saved.set({ task: 'summarize' });
                 })
               }>
               Summarize this range
@@ -307,7 +312,7 @@ const SubnetTool = ({ input: initial, host, restore }: ToolProps): ReactElement 
           onValueChange={v => {
             if (isTask(v) && v !== task) {
               setRestored(null);
-              setTask(v);
+              saved.set({ task: v });
             }
           }}>
           {TASKS.map(t => (
@@ -338,7 +343,7 @@ const SubnetTool = ({ input: initial, host, restore }: ToolProps): ReactElement 
               aria-labelledby="subnet-split-by"
               value={by}
               onValueChange={v => {
-                if ((v === 'prefix' || v === 'count') && v !== by) edit(() => setBy(v));
+                if ((v === 'prefix' || v === 'count') && v !== by) edit(() => saved.set({ by: v }));
               }}>
               <ToggleGroupItem value="prefix">Prefix length</ToggleGroupItem>
               <ToggleGroupItem value="count">Number of subnets</ToggleGroupItem>

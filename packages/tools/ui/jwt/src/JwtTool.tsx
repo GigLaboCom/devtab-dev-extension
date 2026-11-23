@@ -8,10 +8,15 @@
  * it). An edit is a `change` once its result is known; a Copy is a `commit`. The history keeps them only encrypted,
  * with a master password set and unlocked; the hint says which applies now. An entry opened from History brings the
  * token and the key back and records nothing. The page frame (title, summary, the history line) is the host's.
+ *
+ * Saved parameters (settings.ts; docs/tools/settings.md): the secret's format in Decode and in Sign, and Compact JSON.
+ * An opened entry and a key carried between the modes show their own format (and a signed entry its Compact JSON) for
+ * the visit only. The mode is not saved: the tool opens in Decode.
  */
 import { jwtHistory } from './history';
 import { Caption, ClaimsTable, PartView, SignatureStatus, TimeStatusLine, partText } from './parts';
 import { draftOf, readPayload, readSignedPayload } from './payload';
+import { jwtSettings } from './settings';
 import { DEFAULT_SEED, SignView } from './SignView';
 import {
   MAX_TOKEN,
@@ -23,7 +28,7 @@ import {
   verificationWithoutCrypto,
   verifyToken,
 } from '@workspace/tool-logic-jwt';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Input } from '@workspace/ui/input';
@@ -36,7 +41,7 @@ import { EyeIcon, EyeOffIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Shown } from './parts';
 import type { JwtPayload, KeyField } from './payload';
-import type { SignSeed } from './SignView';
+import type { SignOptions, SignSeed } from './SignView';
 import type { Decoded, ParsedKey, SecretFormat, Verification } from '@workspace/tool-logic-jwt';
 import type { RecordingStatus, ToolProps } from '@workspace/tools-host';
 import type { ReactElement } from 'react';
@@ -66,13 +71,14 @@ type Origin = 'edit' | 'restore';
 const JwtTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [token, setToken] = useState(initial ?? '');
   const [secret, setSecret] = useState('');
-  const [format, setFormat] = useState<SecretFormat>('text');
   const [publicKey, setPublicKey] = useState('');
   const [showSecret, setShowSecret] = useState(false);
   const [restored, setRestored] = useState<string | null>(null);
   // §16: Sign, with what it starts from (the defaults, a decoded token to edit, an entry); its key never leaves it.
   const [mode, setMode] = useState<'decode' | 'sign'>('decode');
   const [seed, setSeed] = useState<{ n: number; seed: SignSeed }>({ n: 0, seed: DEFAULT_SEED });
+  const saved = useSavedSettings(host, 'jwt', jwtSettings);
+  const { secretFormat: format, compact, signSecretFormat } = saved.values;
   const { history, recorder, status } = useToolHistory(host, 'jwt', jwtHistory);
   // Text handed over from the start page is the person's first edit; an opened entry is not an edit.
   const origin = useRef<Origin>('edit');
@@ -173,10 +179,9 @@ const JwtTool = ({ input: initial, host, restore }: ToolProps): ReactElement => 
     const signedEntry = opened.entry.kind === 'signed' ? readSignedPayload(opened.payload) : undefined;
     if (signedEntry) {
       origin.current = 'restore';
-      setSeed(s => ({
-        n: s.n + 1,
-        seed: { header: signedEntry.header, payload: signedEntry.payload, compact: signedEntry.compact },
-      }));
+      setSeed(s => ({ n: s.n + 1, seed: { header: signedEntry.header, payload: signedEntry.payload } }));
+      // The entry's Compact JSON for this visit; what is saved stays as it was.
+      saved.visit({ compact: signedEntry.compact });
       setMode('sign');
       setRestored(`Opened from History: ${opened.label ?? 'an entry'}. The signing key is never kept: enter it again.`);
       return;
@@ -191,7 +196,7 @@ const JwtTool = ({ input: initial, host, restore }: ToolProps): ReactElement => 
     setToken(entry.token);
     if (entry.key?.field === 'secret') {
       setSecret(entry.key.text);
-      setFormat(entry.key.format);
+      saved.visit({ secretFormat: entry.key.format });
     } else setSecret('');
     setPublicKey(entry.key?.field === 'public' ? entry.key.text : '');
     setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
@@ -207,15 +212,17 @@ const JwtTool = ({ input: initial, host, restore }: ToolProps): ReactElement => 
 
   const editAndSign = (): void => {
     if (!decoded || !header) return;
+    const carry = keyField === 'secret' && secret !== '';
     setSeed(s => ({
       n: s.n + 1,
       seed: {
         header: partText(header),
         payload: payload ? partText(payload) : '',
-        compact: true,
-        ...(keyField === 'secret' && secret !== '' ? { secret: { text: secret, format } } : {}),
+        ...(carry ? { secret } : {}),
       },
     }));
+    // The decoded parts re-sign as they were only compacted, and a carried secret keeps its format: for this visit.
+    saved.visit({ compact: true, ...(carry ? { signSecretFormat: format } : {}) });
     setRestored(null);
     setMode('sign');
   };
@@ -225,7 +232,7 @@ const JwtTool = ({ input: initial, host, restore }: ToolProps): ReactElement => 
       setToken(signed);
       if (carried) {
         setSecret(carried.text);
-        setFormat(carried.format);
+        saved.visit({ secretFormat: carried.format });
       }
     });
 
@@ -250,7 +257,15 @@ const JwtTool = ({ input: initial, host, restore }: ToolProps): ReactElement => 
       <div className="flex flex-col gap-3">
         {restored && <ToolMessage data-restored>{restored}</ToolMessage>}
         <div>{modeSwitch}</div>
-        <SignView key={seed.n} seed={seed.seed} recorder={recorder} status={status} onDecode={decodeSigned} />
+        <SignView
+          key={seed.n}
+          seed={seed.seed}
+          options={{ compact, format: signSecretFormat }}
+          onOptions={change => saved.set(signOptions(change))}
+          recorder={recorder}
+          status={status}
+          onDecode={decodeSigned}
+        />
       </div>
     );
 
@@ -334,7 +349,9 @@ const JwtTool = ({ input: initial, host, restore }: ToolProps): ReactElement => 
                 <Label htmlFor="jwt-secret-format" className="ml-2 text-muted-foreground">
                   Secret format
                 </Label>
-                <Select value={format} onValueChange={value => edit(() => setFormat(value as SecretFormat))}>
+                <Select
+                  value={format}
+                  onValueChange={value => edit(() => saved.set({ secretFormat: value as SecretFormat }))}>
                   <SelectTrigger id="jwt-secret-format" className="min-w-36">
                     <SelectValue />
                   </SelectTrigger>
@@ -427,6 +444,12 @@ const JwtTool = ({ input: initial, host, restore }: ToolProps): ReactElement => 
     </div>
   );
 };
+
+/** Sign's options as the tool's saved parameters. */
+const signOptions = (change: Partial<SignOptions>) => ({
+  ...(change.compact !== undefined && { compact: change.compact }),
+  ...(change.format !== undefined && { signSecretFormat: change.format }),
+});
 
 /** Under the key field: why it cannot be read, or what it is and what to know about it (§8). */
 const KeyMessages = ({ parsed, error }: { parsed: ParsedKey | undefined; error: string }): ReactElement | null => {

@@ -7,10 +7,17 @@
  * History (D17): two secret kinds — the host keeps them only encrypted, with a master password and the history
  * unlocked. A finished Hash or Verify and a Copy are a `commit`; editing a field records nothing (there is no result
  * until the button is pressed). The password is never part of a record, of the address, of the console or of a store.
+ *
+ * Saved parameters (settings.ts; docs/tools/settings.md): the mode, the algorithm, its cost, the format and the custom
+ * salt's format — what any hash string says in the open — so the page opens as the person left it; a cost is saved only
+ * as a set the tool takes, and one outside today's limits opens as the recommended cost. A pasted hash opens Verify and
+ * an opened entry shows its own for the visit only. The password, the secret key, the user, the salt and the hash never
+ * are.
  */
 import { FIELD_NAMES, hashedLabel, readHashed, readVerified, verifiedLabel } from './entries';
 import { passwordHashHistory } from './history';
 import { runInWorker } from './runner';
+import { costKeys, passwordHashSettings, savedCost, savedFormat } from './settings';
 import {
   ALGORITHM_NAMES,
   assess,
@@ -34,7 +41,7 @@ import {
   TEXT_SALT_FORMATS,
   utf8,
 } from '@workspace/tool-logic-password-hash';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Input } from '@workspace/ui/input';
 import { Label } from '@workspace/ui/label';
@@ -192,19 +199,36 @@ const Warning = ({ children }: { children: ReactNode }): ReactElement => (
 );
 
 const PasswordHashTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
-  const [mode, setMode] = useState<Mode>(initial ? 'verify' : 'hash');
+  const saved = useSavedSettings(host, 'password-hash', passwordHashSettings, {
+    // A pasted hash opens Verify for this visit; what is saved stays as it was.
+    opening: initial ? { mode: 'verify' } : undefined,
+    // The reset control put the parameters back: the cost fields follow, as after an edit (the result goes).
+    onReset: defaults =>
+      edit(() => {
+        latestFields.current = fieldsOf(savedCost(defaults, defaults.algorithm));
+        setFields(latestFields.current);
+      }),
+  });
+  const { mode, algorithm, saltFormat } = saved.values;
+  const format = savedFormat(saved.values.format, algorithm);
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   /** Argon2's secret key (pepper): never recorded, never in the address or a store (§5.10). */
   const [secret, setSecret] = useState('');
   const [showSecret, setShowSecret] = useState(false);
-  const [algorithm, setAlgorithm] = useState<Algorithm>('argon2id');
-  const [fields, setFields] = useState<Fields>(() => fieldsOf(RECOMMENDED.argon2id));
-  const [format, setFormat] = useState<Format>('phc');
+  // The cost fields as typed; they open with the saved cost of the saved algorithm (or its recommended one).
+  const [fields, setFields] = useState<Fields>(() => fieldsOf(savedCost(saved.values, saved.values.algorithm)));
+  const latestFields = useRef(fields);
+  /** The cost fields change: shown as typed, saved when the tool takes the algorithm's set whole. */
+  const setCostFields = (next: Fields, of: Algorithm = algorithm): void => {
+    latestFields.current = next;
+    setFields(next);
+    const cost = paramsOf(of, next);
+    if (checkParams(cost).length === 0) saved.set(costKeys(cost));
+  };
   const [user, setUser] = useState('');
   const [saltMode, setSaltMode] = useState<'random' | 'custom'>('random');
   const [saltText, setSaltText] = useState('');
-  const [saltFormat, setSaltFormat] = useState<SaltFormat>('hex');
   const [hashText, setHashText] = useState(initial?.trim() ?? '');
   const [run, setRun] = useState<Run>({ state: 'idle' });
   const [restored, setRestored] = useState<string | null>(null);
@@ -270,11 +294,11 @@ const PasswordHashTool = ({ input: initial, host, restore }: ToolProps): ReactEl
 
   const chooseAlgorithm = (next: Algorithm): void =>
     edit(() => {
-      setAlgorithm(next);
+      // The algorithm sets its format and its recommended cost: all of it is the person's choice, all of it is saved.
+      saved.set({ algorithm: next, format: formatsOf(next)[0]! });
       // The secret key belongs to Argon2 only: leaving it lets it go.
       if (!next.startsWith('argon2')) setSecret('');
-      setFields(f => fieldsOf(RECOMMENDED[next], f));
-      setFormat(formatsOf(next)[0]!);
+      setCostFields(fieldsOf(RECOMMENDED[next], latestFields.current), next);
     });
 
   const start = (op: Mode): void => {
@@ -396,7 +420,7 @@ const PasswordHashTool = ({ input: initial, host, restore }: ToolProps): ReactEl
     if (opened.entry.kind === 'verified') {
       const v = readVerified(opened.payload);
       if (!v) return setRestored('This entry could not be opened.');
-      setMode('verify');
+      saved.visit({ mode: 'verify' });
       setHashText(v.hash);
       setRun({ state: 'idle' });
       setRestored(said(v.keyed));
@@ -404,16 +428,20 @@ const PasswordHashTool = ({ input: initial, host, restore }: ToolProps): ReactEl
     }
     const h = readHashed(opened.payload);
     if (!h) return setRestored('This entry could not be opened.');
-    setMode('hash');
-    setAlgorithm(h.algorithm);
+    // The entry's algorithm, cost and format (and a custom salt's format) for this visit; what is saved stays as it was.
+    const cost = paramsOf(h.algorithm, h.fields);
+    saved.visit({
+      mode: 'hash',
+      algorithm: h.algorithm,
+      format: h.format,
+      ...(checkParams(cost).length === 0 ? costKeys(cost) : {}),
+      ...(h.salt.mode === 'custom' ? { saltFormat: h.salt.format } : {}),
+    });
+    latestFields.current = h.fields;
     setFields(h.fields);
-    setFormat(h.format);
     setUser(h.user ?? '');
     setSaltMode(h.salt.mode);
-    if (h.salt.mode === 'custom') {
-      setSaltText(h.salt.text);
-      setSaltFormat(h.salt.format);
-    }
+    if (h.salt.mode === 'custom') setSaltText(h.salt.text);
     setRun({ state: 'hashed', encoded: h.encoded, summary: '' });
     setRestored(said(h.keyed));
   });
@@ -442,7 +470,7 @@ const PasswordHashTool = ({ input: initial, host, restore }: ToolProps): ReactEl
           aria-describedby={error ? `${id}-error` : undefined}
           onChange={e => {
             const value = e.target.value;
-            edit(() => setFields(f => ({ ...f, [spec.name]: value })));
+            edit(() => setCostFields({ ...latestFields.current, [spec.name]: value }));
           }}
           onKeyDown={e => e.key === 'Enter' && start('hash')}
         />
@@ -473,7 +501,7 @@ const PasswordHashTool = ({ input: initial, host, restore }: ToolProps): ReactEl
           size="sm"
           aria-label="Mode"
           value={mode}
-          onValueChange={value => value && edit(() => setMode(value as Mode))}>
+          onValueChange={value => value && edit(() => saved.set({ mode: value as Mode }))}>
           <ToggleGroupItem value="hash">Hash</ToggleGroupItem>
           <ToggleGroupItem value="verify">Verify</ToggleGroupItem>
         </ToggleGroup>
@@ -595,7 +623,7 @@ const PasswordHashTool = ({ input: initial, host, restore }: ToolProps): ReactEl
               variant="outline"
               size="sm"
               disabled={sameParams(params, RECOMMENDED[algorithm])}
-              onClick={() => edit(() => setFields(f => fieldsOf(RECOMMENDED[algorithm], f)))}>
+              onClick={() => edit(() => setCostFields(fieldsOf(RECOMMENDED[algorithm], latestFields.current)))}>
               Use recommended
             </Button>
           </div>
@@ -610,7 +638,7 @@ const PasswordHashTool = ({ input: initial, host, restore }: ToolProps): ReactEl
             {formats.length > 1 && (
               <div className="flex flex-col gap-1">
                 <Label htmlFor="password-hash-format">Format</Label>
-                <Select value={format} onValueChange={v => edit(() => setFormat(v as Format))}>
+                <Select value={format} onValueChange={v => edit(() => saved.set({ format: v as Format }))}>
                   <SelectTrigger id="password-hash-format" className="min-w-44">
                     <SelectValue />
                   </SelectTrigger>
@@ -674,7 +702,9 @@ const PasswordHashTool = ({ input: initial, host, restore }: ToolProps): ReactEl
                       }}
                     />
                     {!textSalt && (
-                      <Select value={saltFormat} onValueChange={v => edit(() => setSaltFormat(v as SaltFormat))}>
+                      <Select
+                        value={saltFormat}
+                        onValueChange={v => edit(() => saved.set({ saltFormat: v as SaltFormat }))}>
                         <SelectTrigger aria-label="Salt format" className="min-w-32">
                           <SelectValue />
                         </SelectTrigger>

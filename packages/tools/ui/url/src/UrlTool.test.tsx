@@ -2,6 +2,7 @@ import { definition } from './definition';
 import { detect } from './detect';
 import { urlHistory } from './history';
 import { carriesCredentials } from './record';
+import { urlSettings } from './settings';
 import UrlTool from './UrlTool';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { memoryHost } from '@workspace/tools-host';
@@ -401,5 +402,89 @@ describe('the URL tool’s history', () => {
     unmount();
     await act(async () => undefined);
     expect(await entries(host)).toEqual([]);
+  });
+});
+
+describe('the URL tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const entries = async (host: ToolHost) => (await host.history.forOwner('url', urlHistory).list({})).entries;
+  const savedOf = (host: ToolHost) => host.settings!.forTool('url').saved();
+  const seed = async (host: ToolHost, values: Record<string, unknown>) => {
+    host.settings!.forTool('url').save(urlSettings.schema, values as never);
+    await host.settings!.forTool('url').flush();
+  };
+  const checked = (name: string) => screen.getByRole('radio', { name }).getAttribute('aria-checked') === 'true';
+  const current = () => (['Encode', 'Decode', 'Parse'] as const).find(checked);
+  const plus = () => screen.getByLabelText('Decode + as space').getAttribute('aria-checked');
+
+  it('saves the mode and options the person chose; reopened, it is as left; Swap is saved too', async () => {
+    const host = memoryHost();
+    const first = render(<UrlTool host={host} />);
+    pickStyle('Whole URL');
+    mode('Decode');
+    fireEvent.click(screen.getByLabelText('Decode + as space'));
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { mode: 'decode', style: 'whole', plusAsSpace: true } });
+    const second = render(<UrlTool host={host} />);
+    expect(current()).toBe('Decode');
+    expect(plus()).toBe('true');
+    type('Input', 'a+b');
+    expect(output()).toBe('a b');
+    fireEvent.click(button('Swap'));
+    expect(current()).toBe('Encode');
+    expect(screen.getByLabelText('Encode as').textContent).toBe('Whole URL');
+    second.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { style: 'whole', plusAsSpace: true } });
+  });
+
+  it('a saved record it cannot show falls back field by field', async () => {
+    const host = memoryHost();
+    await seed(host, { mode: 'sideways', style: 'form', plusAsSpace: 'yes' });
+    render(<UrlTool host={host} />);
+    expect(current()).toBe('Encode');
+    expect(screen.getByLabelText('Encode as').textContent).toBe('Form (+ for spaces)');
+    mode('Decode');
+    expect(plus()).toBe('false');
+  });
+
+  it('a paste opens its mode and an opened entry shows its own — for the visit; what is saved stays', async () => {
+    const host = memoryHost();
+    await seed(host, { mode: 'decode', style: 'form', plusAsSpace: true });
+    const pasted = render(<UrlTool host={host} input="https://example.com/?a=1" />);
+    expect(current()).toBe('Parse');
+    pasted.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { mode: 'decode', style: 'form', plusAsSpace: true } });
+
+    const recorder = host.history.forOwner('url', urlHistory).session();
+    await recorder.commit({
+      kind: 'encode',
+      label: 'Encode · 3 characters',
+      payload: { mode: 'encode', style: 'component', plusAsSpace: false },
+      blobs: { input: new Blob(['a b']), output: new Blob(['a%20b']) },
+    });
+    const [entry] = await entries(host);
+    const opened = render(<UrlTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText('Opened from History: Encode · 3 characters.')).toBeTruthy();
+    expect(current()).toBe('Encode');
+    expect(screen.getByLabelText('Encode as').textContent).toBe('Component');
+    expect(output()).toBe('a%20b');
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { mode: 'decode', style: 'form', plusAsSpace: true } });
+    render(<UrlTool host={host} />);
+    expect(current()).toBe('Decode');
+    expect(plus()).toBe('true');
+  });
+
+  it('reset puts the mode and options back to the defaults and keeps the input; the result follows', async () => {
+    const host = memoryHost();
+    await seed(host, { mode: 'decode', plusAsSpace: true });
+    render(<UrlTool host={host} />);
+    type('Input', 'a+b%20c');
+    expect(output()).toBe('a b c');
+    await act(async () => host.settings!.forTool('url').reset());
+    expect(current()).toBe('Encode');
+    expect(screen.getByLabelText('Encode as').textContent).toBe('Component');
+    expect(field('Input').value).toBe('a+b%20c');
+    expect(output()).toBe('a%2Bb%2520c');
+    expect(savedOf(host)).toBeUndefined();
   });
 });

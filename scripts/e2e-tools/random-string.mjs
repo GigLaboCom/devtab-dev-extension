@@ -12,9 +12,9 @@
 // blurred in the screenshots. Copying is checked against the page's own stand-in for navigator.clipboard.writeText
 // (nothing reaches the machine's clipboard), put back before the module ends. Run by scripts/e2e-tools.mjs.
 
-/* global document, indexedDB, location, requestAnimationFrame, HTMLTextAreaElement -- page.evaluate callbacks run in the page */
+/* global chrome, document, indexedDB, location, requestAnimationFrame, HTMLTextAreaElement -- page.evaluate callbacks run in the page */
 
-import { inDarkTheme, settledShot, stubClipboard } from '../e2e-helpers.mjs';
+import { forgetSavedParameters, inDarkTheme, settledShot, stubClipboard } from '../e2e-helpers.mjs';
 
 const T = 'Random String';
 const ID = 'random-string';
@@ -63,12 +63,17 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   };
   // The page's clipboard stand-in; a reload drops it, so `fresh` puts it back.
   let clipboard = null;
-  /** The tool afresh: reloaded (not a new history entry of the tab), every choice back to its default. */
+  /**
+   * The tool afresh: reloaded (not a new history entry of the tab), every choice back to its default — the saved
+   * parameters (D21) forgotten first, once the last change has been written (400 ms after it).
+   */
   const fresh = async () => {
     const hash = `#/tools/${ID}`;
     if (!page.url().startsWith(base)) await page.goto(`${base}${hash}`);
     else await page.evaluate(url => location.replace(url), `${base}${hash}`);
     await page.waitForFunction(h => location.hash === h, hash, { timeout: 5_000 });
+    await sleep(500);
+    await forgetSavedParameters(page, ID);
     await page.reload();
     await page.locator('[data-entropy]').waitFor();
     clipboard = await stubClipboard(page);
@@ -351,6 +356,41 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
       `press → painted ${big.runs.map(ms).join(', ')}; longest task ${ms(big.longest)}; the text box alone ${ms(big.textBox)}; next edit answered in ${ms(answered)}`,
     );
 
+    // Saved parameters (D21): Hex, uppercase, Length 16 and How many 3 are written 400 ms after the last change; the
+    // page opened again shows them, and its first batch is made with them. No string is in the record.
+    await fresh();
+    const savedRecord = () =>
+      page.evaluate(async id => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.[id], ID);
+    await choose(page, 'Alphabet', 'Hex, uppercase');
+    await fill(page, 'Length', '16');
+    await fill(page, 'How many', '3');
+    const left = await strings(page);
+    for (let i = 0; i < 25 && (await savedRecord())?.values?.count !== 3; i++) await sleep(200);
+    await page.reload();
+    await page.locator('[data-entropy]').waitFor();
+    clipboard = await stubClipboard(page);
+    const kept = {
+      stored: await savedRecord(),
+      alphabet: await page.getByLabel('Alphabet', { exact: true }).innerText(),
+      length: await page.getByLabel('Length', { exact: true }).inputValue(),
+      count: await page.getByLabel('How many', { exact: true }).inputValue(),
+      strings: await strings(page),
+    };
+    check(
+      `${T}: Hex, uppercase, Length 16, How many 3 chosen, the page opened again — as left, its first batch made with them; no string saved (saved parameters)`,
+      Object.keys(kept.stored?.values ?? {}).length === 3 &&
+        kept.stored.values.preset === 'HEX' &&
+        kept.stored.values.length === 16 &&
+        kept.stored.values.count === 3 &&
+        kept.alphabet.includes('Hex, uppercase') &&
+        kept.length === '16' &&
+        kept.count === '3' &&
+        kept.strings.length === 3 &&
+        kept.strings.every(s => /^[0-9A-F]{16}$/.test(s)) &&
+        !left.some(s => JSON.stringify(kept.stored).includes(s)),
+      JSON.stringify({ ...kept, strings: kept.strings.length }),
+    );
+
     await inDarkTheme(ctx, base, page, async () => {
       await fresh();
       await shot(page, 'tool-random-string-05-opened-dark.png');
@@ -495,5 +535,7 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   } finally {
     await clipboard?.restore().catch(() => undefined);
     for (const p of opened) await p.close();
+    await sleep(500);
+    await forgetSavedParameters(page, ID).catch(() => undefined);
   }
 };

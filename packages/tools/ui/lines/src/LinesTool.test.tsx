@@ -1,10 +1,13 @@
 import { definition } from './definition';
+import { draftOf } from './entries';
 import LinesTool from './LinesTool';
+import { linesSettings, TEXT_JSON_MAX } from './settings';
 import { DEFAULT_STEPS, readSteps, toPipeline } from './steps';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { DEFAULT_PIPELINE, SETTLE_MS } from '@workspace/tool-logic-lines';
-import { memoryHost } from '@workspace/tools-host';
+import { memoryHost, SAVED_PARAMETERS_MAX_CHARS } from '@workspace/tools-host';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ToolHost } from '@workspace/tools-host';
 
 afterEach(() => {
   cleanup();
@@ -429,5 +432,201 @@ describe('the Lines tool’s history', () => {
     fireEvent.click(screen.getByRole('button', { name: 'clear the input' }));
     expect(field('Input').readOnly).toBe(false);
     expect(field('Input').value).toBe('');
+  });
+});
+
+describe('the Lines tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ToolHost) => host.settings!.forTool('lines').saved();
+  const seed = async (host: ToolHost, values: Record<string, unknown>) => {
+    host.settings!.forTool('lines').save(linesSettings.schema, values as never);
+    await host.settings!.forTool('lines').flush();
+  };
+  const box = (label: string) => screen.getByRole('textbox', { name: label }) as HTMLInputElement;
+  const shown = (label: string) => screen.getByRole('combobox', { name: label }).textContent;
+
+  it('saves the steps the person built, never the Filter text; reopened, it is as left; Use as input is saved', async () => {
+    const host = memoryHost();
+    const first = render(<LinesTool host={host} />);
+    type('a;;b');
+    enable('Split lines');
+    await choose('Split on', 'Custom…');
+    text('Custom separator', ';;');
+    enable('Trim');
+    await choose('Trim where', 'End');
+    enable('Filter');
+    text('Filter text', 'b');
+    enable('Prefix and suffix');
+    text('Prefix', "'");
+    text('Suffix', "',");
+    expect(output()).toBe("'b',");
+    first.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: {
+        splitEnabled: true,
+        splitOn: 'custom',
+        splitCustom: ';;',
+        trimEnabled: true,
+        trimEnds: 'end',
+        filterEnabled: true,
+        affixEnabled: true,
+        affixPrefix: "'",
+        affixSuffix: "',",
+      },
+    });
+
+    const second = render(<LinesTool host={host} />);
+    expect(field('Input').value).toBe('');
+    expect([checked('Split lines'), checked('Trim'), checked('Filter'), checked('Prefix and suffix')]).toEqual([
+      true,
+      true,
+      true,
+      true,
+    ]);
+    expect(box('Custom separator').value).toBe(';;');
+    expect(shown('Trim where')).toBe('End');
+    expect(box('Filter text').value).toBe('');
+    type('a;;b ;;c');
+    expect(output()).toBe("'a',\n'b',\n'c',");
+    // Use as input turns every step off: the person's change, saved; the options inside stay.
+    fireEvent.click(button('Use as input'));
+    expect(checked('Split lines')).toBe(false);
+    second.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: { splitOn: 'custom', splitCustom: ';;', trimEnds: 'end', affixPrefix: "'", affixSuffix: "'," },
+    });
+  });
+
+  it('a saved record it cannot show falls back field by field; a text too long to keep is used, not saved', async () => {
+    const host = memoryHost();
+    await seed(host, {
+      orderEnabled: true,
+      orderKind: 'zigzag',
+      orderSort: 'natural',
+      affixPrefix: 'x'.repeat(TEXT_JSON_MAX),
+      numberStart: 2,
+      joinEnabled: 'yes',
+      affixSuffix: ';',
+    });
+    render(<LinesTool host={host} />);
+    expect(checked('Order')).toBe(true);
+    expect(screen.getByRole('radio', { name: 'Sort' }).getAttribute('aria-checked')).toBe('true');
+    expect(shown('Sort by')).toBe('Natural (file2 before file10)');
+    expect(box('Prefix').value).toBe('');
+    expect(box('Suffix').value).toBe(';');
+    expect(shown('Start at')).toBe('Start at 1');
+    expect(checked('Join into one line')).toBe(false);
+
+    enable('Prefix and suffix');
+    text('Prefix', 'ok');
+    const long = 'y'.repeat(TEXT_JSON_MAX - 1);
+    text('Prefix', long);
+    type('a');
+    expect(output()).toBe(`${long}a;`);
+    cleanup();
+    expect(savedOf(host)?.values.affixPrefix).toBe('ok');
+  });
+
+  it('a handed-over text keeps the saved steps; an opened entry shows its own for the visit', async () => {
+    const host = memoryHost();
+    const kept = { trimEnabled: true, duplicatesEnabled: true };
+    await seed(host, kept);
+    const handed = render(<LinesTool host={host} input={' a\na'} />);
+    expect([checked('Trim'), checked('Duplicates')]).toEqual([true, true]);
+    expect(output()).toBe('a');
+    handed.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: kept });
+
+    const steps = {
+      ...DEFAULT_STEPS,
+      filter: { ...DEFAULT_STEPS.filter, enabled: true, mode: 'remove' as const, text: 'zz' },
+      order: { ...DEFAULT_STEPS.order, enabled: true },
+    };
+    await host.history
+      .forOwner('lines', definition.history!)
+      .session()
+      .commit(draftOf({ input: 'b\nzz\na', steps, output: 'a\nb', linesIn: 3, linesOut: 2, tape: null }, 'copy')!);
+    const entry = (await host.history.forOwner('lines', definition.history!).list({})).entries.find(e =>
+      e.label?.endsWith('copied'),
+    );
+    const opened = render(<LinesTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText(/^Opened from History/)).toBeTruthy();
+    expect([checked('Trim'), checked('Duplicates'), checked('Filter'), checked('Order')]).toEqual([
+      false,
+      false,
+      true,
+      true,
+    ]);
+    expect(box('Filter text').value).toBe('zz');
+    expect(output()).toBe('a\nb');
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: kept });
+
+    render(<LinesTool host={host} />);
+    expect([checked('Trim'), checked('Duplicates'), checked('Filter'), checked('Order')]).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ]);
+    expect(box('Filter text').value).toBe('');
+  });
+
+  it('reset turns every step off with the Filter text and keeps the input; the result follows', async () => {
+    const host = memoryHost();
+    await seed(host, { trimEnabled: true, orderEnabled: true, orderDescending: true });
+    render(<LinesTool host={host} />);
+    enable('Filter');
+    text('Filter text', 'a');
+    type('b\na\nab');
+    expect(output()).toBe('ab\na');
+    await act(async () => host.settings!.forTool('lines').reset());
+    expect([checked('Trim'), checked('Filter'), checked('Order')]).toEqual([false, false, false]);
+    expect(box('Filter text').value).toBe('');
+    expect(field('Input').value).toBe('b\na\nab');
+    expect(output()).toBe('b\na\nab');
+    expect(savedOf(host)).toBeUndefined();
+  });
+
+  it('every step away from its defaults with the four texts at their longest fits in what a tool may keep', async () => {
+    const longest = 'x'.repeat(TEXT_JSON_MAX - 2);
+    const values = {
+      splitEnabled: true,
+      splitOn: 'whitespace',
+      splitCustom: longest,
+      trimEnabled: true,
+      trimEnds: 'start',
+      trimCollapse: true,
+      filterEnabled: true,
+      filterMode: 'remove',
+      filterMatchCase: true,
+      blankEnabled: true,
+      blankMode: 'repeated',
+      duplicatesEnabled: true,
+      duplicatesMode: 'unique',
+      duplicatesIgnoreCase: true,
+      duplicatesIgnoreWhitespace: true,
+      orderEnabled: true,
+      orderKind: 'shuffle',
+      orderSort: 'codepoint',
+      orderDescending: true,
+      orderUppercaseFirst: true,
+      affixEnabled: true,
+      affixPrefix: longest,
+      affixSuffix: longest,
+      numberEnabled: true,
+      numberFormat: 'paren',
+      numberStart: 0,
+      numberPad: 'spaces',
+      joinEnabled: true,
+      joinWith: 'semicolon-space',
+      joinCustom: longest,
+    };
+    expect(Object.keys(values).sort()).toEqual(Object.keys(linesSettings.fields).sort());
+    expect(JSON.stringify({ schema: 1, values }).length).toBeLessThanOrEqual(SAVED_PARAMETERS_MAX_CHARS);
+    const host = memoryHost();
+    await seed(host, values);
+    expect(savedOf(host)).toEqual({ schema: 1, values });
   });
 });

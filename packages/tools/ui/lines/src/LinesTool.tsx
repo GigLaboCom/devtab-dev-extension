@@ -8,13 +8,17 @@
  * It records into the tool history through its host: an edit snapshot (`change`) and a commit when the result is taken
  * — Copy, Use as input; an entry the host asks to open comes back as the input, the steps and the shuffled order. The
  * page frame (title, summary, the history line) is the host's.
+ *
+ * The steps are saved parameters (settings.ts; docs/tools/settings.md): the tool opens with the pipeline the person
+ * built last, every option in it but the Filter text, which the page holds for the visit. An opened entry shows its own
+ * steps for the visit only. Use as input turns every step off — the person's change, saved like any other.
  */
 import { createCompute } from './compute';
 import { draftOf } from './entries';
 import { linesHistory } from './history';
+import { linesSettings } from './settings';
 import {
   BLANK_MODES,
-  DEFAULT_STEPS,
   DIRECTIONS,
   DUPLICATE_MODES,
   FILTER_MODES,
@@ -28,8 +32,11 @@ import {
   STEP_ORDER,
   TRIM_WHERE,
   allOff,
+  changedOf,
+  flatOf,
   isShuffling,
   readSteps,
+  stepsOf,
   takesUppercaseFirst,
   toPipeline,
 } from './steps';
@@ -43,7 +50,7 @@ import {
   runPipeline,
   summaryText,
 } from '@workspace/tool-logic-lines';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -167,7 +174,10 @@ const OptionInput = ({
 
 const LinesTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
-  const [steps, setSteps] = useState<Steps>(DEFAULT_STEPS);
+  // The Filter text is not saved: a reset of the saved steps empties it with them.
+  const saved = useSavedSettings(host, 'lines', linesSettings, { onReset: () => setFilterText('') });
+  const [filterText, setFilterText] = useState('');
+  const steps = useMemo(() => stepsOf(saved.values, filterText), [saved.values, filterText]);
   const [shuffleKey, setShuffleKey] = useState(0);
   const [restored, setRestored] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -252,8 +262,14 @@ const LinesTool = ({ input: initial, host, restore }: ToolProps): ReactElement =
     tape.current = createShuffleTape();
     setShuffleKey(k => k + 1);
   };
+  /** The person's change of the steps: the Filter text into the page's state, every other option saved. */
+  const change = (next: Steps): void => {
+    if (next.filter.text !== steps.filter.text) setFilterText(next.filter.text);
+    const changed = changedOf(steps, next);
+    if (Object.keys(changed).length > 0) saved.set(changed);
+  };
   const set = <K extends StepId>(id: K, patch: Partial<Steps[K]>): void =>
-    edit(() => setSteps(s => ({ ...s, [id]: { ...s[id], ...patch } })));
+    edit(() => change({ ...steps, [id]: { ...steps[id], ...patch } }));
   const toggle = (id: StepId, enabled: boolean): void => {
     // Turning Order on with Shuffle chosen draws a new order (§5.9.6).
     if (id === 'order' && enabled && steps.order.kind === 'shuffle') resetTape();
@@ -272,7 +288,7 @@ const LinesTool = ({ input: initial, host, restore }: ToolProps): ReactElement =
     const next = taken.text;
     edit(() => {
       setInput(next);
-      setSteps(s => allOff(s));
+      change(allOff(steps));
       resetTape();
     });
   };
@@ -297,7 +313,10 @@ const LinesTool = ({ input: initial, host, restore }: ToolProps): ReactElement =
       tape.current = createShuffleTape(undefined, bytes ? new Uint8Array(bytes) : undefined);
       setShuffleKey(k => k + 1);
       setInput(text);
-      setSteps(readSteps(p.steps));
+      // The entry's steps for this visit; what is saved stays as it was.
+      const kept = readSteps(p.steps);
+      saved.visit(flatOf(kept));
+      setFilterText(kept.filter.text);
       setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
     });
   });

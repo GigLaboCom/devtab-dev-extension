@@ -1,6 +1,7 @@
 import { definition } from './definition';
 import { passwordHashHistory } from './history';
 import PasswordHashTool from './PasswordHashTool';
+import { passwordHashSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { parseHash, verifyPassword } from '@workspace/tool-logic-password-hash';
 import { memoryHost, unlockedHost } from '@workspace/tools-host';
@@ -537,5 +538,168 @@ describe('history (D17, §11)', () => {
     render(<PasswordHashTool host={host} restore={{ id: 'x' }} />);
     expect(await screen.findByText('This entry could not be opened.')).toBeTruthy();
     expect(commits).toHaveLength(0);
+  });
+});
+
+describe('saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ToolHost) => host.settings!.forTool('password-hash').saved();
+  const seed = async (host: ToolHost, values: Record<string, unknown>) => {
+    host.settings!.forTool('password-hash').save(passwordHashSettings.schema, values as never);
+    await host.settings!.forTool('password-hash').flush();
+  };
+  const value = (label: string) => (screen.getByLabelText(label) as HTMLInputElement).value;
+  const on = (name: string) => screen.getByRole('radio', { name }).getAttribute('aria-checked') === 'true';
+  const warnings = () => [...document.querySelectorAll('[data-warning]')].map(w => w.textContent);
+  const SALT = '000102030405060708090a0b0c0d0e0f';
+
+  it('saves the algorithm, its cost and the formats — never the password, user or salt; reopened, it is as left', async () => {
+    const host = memoryHost();
+    const first = render(<PasswordHashTool host={host} />);
+    type('Password', PASSWORD);
+    type('Secret key (pepper)', 'pepper-value');
+    type('Parallelism', '2');
+    type('Memory (KiB)', '8'); // below 8 KiB per lane: a set the tool refuses, not saved
+    type('Memory (KiB)', '32768');
+    await host.settings.forTool('password-hash').flush();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { argon2Memory: 32768, argon2Parallelism: 2 } });
+
+    await choose('Algorithm', 'bcrypt');
+    type('Cost', '3'); // beyond the limits: not saved
+    type('Cost', '11');
+    await choose('Format', 'htpasswd line');
+    type('User', 'alice');
+    fireEvent.click(screen.getByRole('radio', { name: 'Custom' }));
+    type('Salt', SALT);
+    await choose('Salt format', 'Base64');
+    first.unmount();
+    // Each family keeps its own cost; choosing an algorithm sets its recommended cost (Argon2's again when chosen).
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: {
+        algorithm: 'bcrypt',
+        argon2Memory: 32768,
+        argon2Parallelism: 2,
+        bcryptCost: 11,
+        format: 'htpasswd',
+        saltFormat: 'base64',
+      },
+    });
+    const stored = JSON.stringify(savedOf(host));
+    for (const secret of [PASSWORD, 'pepper-value', 'alice', SALT]) expect(stored).not.toContain(secret);
+
+    render(<PasswordHashTool host={host} />);
+    expect(on('Hash')).toBe(true);
+    expect(screen.getByLabelText('Algorithm').textContent).toBe('bcrypt');
+    expect(value('Cost')).toBe('11');
+    expect(screen.getByLabelText('Format').textContent).toBe('htpasswd line');
+    expect(value('Password')).toBe('');
+    expect(value('User')).toBe('');
+    expect(on('Random')).toBe(true);
+    fireEvent.click(screen.getByRole('radio', { name: 'Custom' }));
+    expect(value('Salt')).toBe('');
+    expect(screen.getByLabelText('Salt format').textContent).toBe('Base64');
+  });
+
+  it('a saved record it cannot show falls back field by field; a cost outside today’s limits or a refused set opens as recommended', async () => {
+    const host = memoryHost();
+    await seed(host, {
+      mode: 'sign',
+      algorithm: 'scrypt',
+      scryptLogN: 30,
+      scryptR: 16,
+      format: 'phc',
+      saltFormat: 'bin',
+    });
+    const first = render(<PasswordHashTool host={host} />);
+    expect(on('Hash')).toBe(true);
+    expect(screen.getByLabelText('Algorithm').textContent).toBe('scrypt');
+    expect([value('Cost (log2 N)'), value('Block size (r)'), value('Parallelism (p)')]).toEqual(['17', '16', '1']);
+    expect(screen.getByLabelText('Format').textContent).toBe('$scrypt$ (passlib)');
+    fireEvent.click(screen.getByRole('radio', { name: 'Custom' }));
+    expect(screen.getByLabelText('Salt format').textContent).toBe('Hex');
+    first.unmount();
+
+    // Below what the page lets a person choose: never applied — the recommended cost.
+    const below = memoryHost();
+    await seed(below, { algorithm: 'bcrypt', bcryptCost: 3 });
+    const second = render(<PasswordHashTool host={below} />);
+    expect(value('Cost')).toBe('12');
+    expect(warnings()).toEqual([]);
+    second.unmount();
+
+    // Each field within its limits, the set refused (8 KiB per lane): Argon2's recommended cost, whole.
+    const refused = memoryHost();
+    await seed(refused, { argon2Memory: 16, argon2Iterations: 2, argon2Parallelism: 4 });
+    const third = render(<PasswordHashTool host={refused} />);
+    expect([value('Memory (KiB)'), value('Iterations'), value('Parallelism')]).toEqual(['65536', '3', '4']);
+    third.unmount();
+
+    // Within the limits but below today's recommendations: applied, with the page's warning, never silently.
+    const weak = memoryHost();
+    await seed(weak, { algorithm: 'bcrypt', bcryptCost: 4 });
+    render(<PasswordHashTool host={weak} />);
+    expect(value('Cost')).toBe('4');
+    expect(warnings()).toEqual(['Below the OWASP minimum for bcrypt: use cost 10 or more.']);
+    expect(button('Use recommended').disabled).toBe(false);
+  });
+
+  it('a pasted hash and an entry opened from History win for the visit and leave what is saved alone', async () => {
+    const host = await unlockedHost();
+    const values = { algorithm: 'bcrypt', bcryptCost: 11, format: 'bcrypt-2y' };
+    await seed(host, values);
+    const pasted = render(<PasswordHashTool host={host} input={BCRYPT} />);
+    expect(on('Verify')).toBe(true);
+    expect(value('Hash')).toBe(BCRYPT);
+    pasted.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values });
+
+    const history = host.history.forOwner('password-hash', passwordHashHistory);
+    await history.session().commit({
+      kind: 'hashed',
+      label: 'scrypt · N=2^15, r=8, p=2',
+      payload: {
+        algorithm: 'scrypt',
+        fields: { memory: '', iterations: '', parallelism: '', cost: '', logN: '15', r: '8', p: '2', pbkdf2: '' },
+        format: 'scrypt-7',
+        salt: { mode: 'custom', text: 'seasalt', format: 'text' },
+        encoded: '$7$example',
+        keyed: false,
+      },
+    });
+    const [entry] = (await history.list()).entries;
+    const opened = render(<PasswordHashTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText(/^Opened from History: scrypt · N=2\^15, r=8, p=2\./)).toBeTruthy();
+    expect(on('Hash')).toBe(true);
+    expect(screen.getByLabelText('Algorithm').textContent).toBe('scrypt');
+    expect([value('Cost (log2 N)'), value('Block size (r)'), value('Parallelism (p)')]).toEqual(['15', '8', '2']);
+    expect(screen.getByLabelText('Format').textContent).toBe('$7$ (libsodium)');
+    expect(value('Salt')).toBe('seasalt');
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values });
+
+    render(<PasswordHashTool host={host} />);
+    expect(on('Hash')).toBe(true);
+    expect(value('Cost')).toBe('11');
+    expect(screen.getByLabelText('Format').textContent).toBe('$2y$');
+  });
+
+  it('reset puts every parameter back to its default, keeps the password and drops the result', async () => {
+    const host = memoryHost();
+    await seed(host, { algorithm: 'bcrypt', bcryptCost: 4, format: 'htpasswd' });
+    render(<PasswordHashTool host={host} />);
+    type('Password', PASSWORD);
+    type('User', 'alice');
+    fireEvent.click(button('Hash'));
+    await waitFor(() => expect(result()).toMatch(/^alice:\$2y\$04\$/));
+    await act(async () => host.settings.forTool('password-hash').reset());
+    expect(screen.getByLabelText('Algorithm').textContent).toBe('Argon2id');
+    expect([value('Memory (KiB)'), value('Iterations'), value('Parallelism')]).toEqual(['65536', '3', '4']);
+    expect(screen.queryByLabelText('Format')).toBeNull();
+    expect(screen.queryByLabelText('User')).toBeNull();
+    expect(warnings()).toEqual([]);
+    expect(value('Password')).toBe(PASSWORD);
+    expect(result()).toBe('');
+    expect(button('Hash').disabled).toBe(false);
+    expect(savedOf(host)).toBeUndefined();
   });
 });

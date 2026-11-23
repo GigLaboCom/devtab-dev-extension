@@ -1,6 +1,7 @@
 import Base64FileTool from './Base64FileTool';
 import { definition } from './definition';
 import { detect } from './detect';
+import { base64FileSettings } from './settings';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { FIELD_MAX_CHARS, MAX_FILE_BYTES } from '@workspace/tool-logic-base64-file';
 import { memoryHost, unlockedHost } from '@workspace/tools-host';
@@ -488,5 +489,145 @@ describe('history (D17, §11)', () => {
     render(<Base64FileTool host={host} restore={{ id: copied.id }} />);
     await waitFor(() => expect(result()).toBe(`data:application/pdf;base64,${PDF_B64}`));
     expect(fact('File')).toBeNull();
+  });
+});
+
+describe('saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ReturnType<typeof memoryHost>) => host.settings.forTool('base64-file').saved();
+  const seed = async (host: ReturnType<typeof memoryHost>, values: Record<string, unknown>) => {
+    host.settings.forTool('base64-file').save(base64FileSettings.schema, values as never);
+    await host.settings.forTool('base64-file').flush();
+  };
+  const direction = () =>
+    screen.getByRole('radio', { name: 'Decode' }).getAttribute('data-state') === 'on' ? 'decode' : 'encode';
+  const options = () => ({
+    alphabet: screen.getByLabelText('Alphabet').textContent,
+    padding: screen.getByRole('checkbox', { name: 'Padding' }).getAttribute('aria-checked'),
+    lineLength: screen.getByLabelText('Line length').textContent,
+  });
+  const commitEntry = (host: ReturnType<typeof memoryHost>, kind: 'encode' | 'decode', label: string) =>
+    host.history
+      .forOwner('base64-file', definition.history!)
+      .session()
+      .commit({
+        kind,
+        label,
+        payload:
+          kind === 'encode'
+            ? {
+                mode: 'encode',
+                type: 'pdf',
+                mime: 'application/pdf',
+                bytes: PDF.length,
+                form: 'base64',
+                alphabet: 'standard',
+                padding: true,
+                lineLength: 0,
+                action: 'copy',
+              }
+            : {
+                mode: 'decode',
+                type: 'pdf',
+                mime: 'application/pdf',
+                bytes: PDF.length,
+                shape: 'base64',
+                action: 'save',
+              },
+        blobs: { file: new Blob([PDF as Uint8Array<ArrayBuffer>]) },
+      });
+  const entriesOf = async (host: ReturnType<typeof memoryHost>) =>
+    (await host.history.forOwner('base64-file', definition.history!).list()).entries;
+
+  it('saves the direction and the output options the person chose; reopened, it is as left', async () => {
+    const host = memoryHost();
+    const first = render(<Base64FileTool host={host} />);
+    await pick('Alphabet', 'URL-safe');
+    await pick('Line length', '64');
+    await pick('Output', 'Data URI');
+    mode('Decode');
+    first.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: { alphabet: 'url', padding: false, lineLength: 64, form: 'dataUri', mode: 'decode' },
+    });
+    render(<Base64FileTool host={host} />);
+    expect(direction()).toBe('decode');
+    expect(field('Base64 or data URI').value).toBe('');
+    mode('Encode');
+    expect(screen.getByLabelText('Output').textContent).toBe('Data URI');
+    choose(fileOf(Uint8Array.from([0xfb, 0xff]), 'x.bin'));
+    await waitFor(() => expect(result()).toBe('data:application/octet-stream;base64,+/8='));
+    // The options hidden under Data URI kept their values.
+    await pick('Output', 'Base64');
+    expect(options()).toEqual({ alphabet: 'URL-safe', padding: 'false', lineLength: '64' });
+    await waitFor(() => expect(result()).toBe('-_8'));
+  });
+
+  it('a saved record it cannot show falls back field by field', async () => {
+    const host = memoryHost();
+    await seed(host, { mode: 'sideways', form: 'png', alphabet: 'url', padding: 'no', lineLength: 80 });
+    render(<Base64FileTool host={host} />);
+    expect(direction()).toBe('encode');
+    expect(screen.getByLabelText('Output').textContent).toBe('Base64');
+    expect(options()).toEqual({ alphabet: 'URL-safe', padding: 'true', lineLength: 'No wrapping' });
+  });
+
+  it('handed text, a file pasted on the page and an opened entry choose for the visit; what is saved stays', async () => {
+    const host = memoryHost();
+    const kept = { mode: 'decode', alphabet: 'url', padding: false, lineLength: 76 };
+    await seed(host, { alphabet: 'url', padding: false, lineLength: 76 });
+    // Text handed over from the start page opens Decode.
+    const handed = render(<Base64FileTool host={host} input={PDF_B64} />);
+    expect(direction()).toBe('decode');
+    await waitFor(() => expect(fact('Type')).toBe('PDF document (application/pdf)'));
+    handed.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { alphabet: 'url', padding: false, lineLength: 76 } });
+
+    // Saved Decode; a file pasted on the page opens Encode, with the saved output options.
+    await seed(host, kept);
+    const page = render(<Base64FileTool host={host} />);
+    expect(direction()).toBe('decode');
+    paste(document.body, { files: [fileOf(Uint8Array.from([0xfb, 0xff]), 'x.bin')] });
+    await waitFor(() => expect(result()).toBe('-_8'));
+    expect(direction()).toBe('encode');
+    page.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: kept });
+
+    // An Encode entry shows its own options; a Decode entry opens Decode.
+    await commitEntry(host, 'encode', 'Encode · PDF document');
+    await commitEntry(host, 'decode', 'Decode · PDF document');
+    const entries = await entriesOf(host);
+    const encodeEntry = entries.find(e => e.kind === 'encode')!;
+    const decodeEntry = entries.find(e => e.kind === 'decode')!;
+    const encoded = render(<Base64FileTool host={host} restore={{ id: encodeEntry.id }} />);
+    expect(await screen.findByText('Opened from History: Encode · PDF document.')).toBeTruthy();
+    expect(direction()).toBe('encode');
+    expect(options()).toEqual({ alphabet: 'Standard', padding: 'true', lineLength: 'No wrapping' });
+    await waitFor(() => expect(result()).toBe(PDF_B64));
+    encoded.unmount();
+    const decodedEntry = render(<Base64FileTool host={host} restore={{ id: decodeEntry.id }} />);
+    expect(await screen.findByText('Opened from History: Decode · PDF document.')).toBeTruthy();
+    expect(direction()).toBe('decode');
+    expect(field('Base64 or data URI').value).toBe(PDF_B64);
+    decodedEntry.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: kept });
+    render(<Base64FileTool host={host} />);
+    mode('Encode');
+    expect(options()).toEqual({ alphabet: 'URL-safe', padding: 'false', lineLength: '76' });
+  });
+
+  it('reset puts the direction and options back to the defaults and keeps the input', async () => {
+    const host = memoryHost();
+    await seed(host, { mode: 'decode', form: 'dataUri' });
+    render(<Base64FileTool host={host} />);
+    typeIn(PDF_B64);
+    await waitFor(() => expect(fact('Type')).toBe('PDF document (application/pdf)'));
+    await act(async () => host.settings.forTool('base64-file').reset());
+    expect(direction()).toBe('encode');
+    expect(savedOf(host)).toBeUndefined();
+    expect(screen.getByLabelText('Output').textContent).toBe('Base64');
+    expect(options()).toEqual({ alphabet: 'Standard', padding: 'true', lineLength: 'No wrapping' });
+    mode('Decode');
+    expect(field('Base64 or data URI').value).toBe(PDF_B64);
   });
 });

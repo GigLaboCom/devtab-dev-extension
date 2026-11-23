@@ -3,10 +3,12 @@
 // and the library does every conversion below without it); the copy goes to the test browser's own clipboard (CDP
 // grants the read). Then the limits of §12 timed in the browser (a multi-megabyte document by Run, Cancel, deep
 // nesting, the alias bomb), pasting YAML into the start page's field (§7), an entry opened back from the tool's own
-// history (D17), and the page in the light and the dark theme. Run by scripts/e2e-tools.mjs.
+// history (D17), the options kept as saved parameters (D21), and the page in the light and the dark theme. Run by
+// scripts/e2e-tools.mjs.
 
-/* global document, location, HTMLTextAreaElement, requestAnimationFrame, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
+/* global document, location, HTMLTextAreaElement, requestAnimationFrame, DataTransfer, ClipboardEvent, chrome -- page.evaluate callbacks run in the page */
 
+import { forgetSavedParameters } from '../e2e-helpers.mjs';
 import { themeMode, withSettings } from '../e2e-theme.mjs';
 
 const LOST = 'JSON has no comments, anchors, tags or YAML styles: they are not carried over.';
@@ -429,6 +431,31 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
     JSON.stringify(restored),
   );
 
+  // Saved parameters (D21): YAML 1.1 chosen above and the JSON indent chosen now are kept (written 400 ms after the
+  // change); the page opened again has them, without the input.
+  const stored = () =>
+    page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.['yaml-json']);
+  await choose('Indent', '4 spaces');
+  for (let i = 0; i < 25; i++) {
+    const values = (await stored())?.values;
+    if (values?.version === '1.1' && values?.jsonIndent === 4) break;
+    await sleep(200);
+  }
+  await page.reload();
+  await input.waitFor({ timeout: 15_000 });
+  check(
+    'YAML and JSON: YAML 1.1 and 4 spaces chosen, the page opened again — still YAML 1.1 and 4 spaces, the input empty (saved parameters)',
+    (await radio('YAML → JSON').getAttribute('aria-checked')) === 'true' &&
+      (await page.getByLabel('YAML version', { exact: true }).innerText()).includes('YAML 1.1') &&
+      (await page.getByLabel('Indent', { exact: true }).innerText()).includes('4 spaces') &&
+      (await input.inputValue()) === '',
+    JSON.stringify(await stored()),
+  );
+  // The screenshots below are taken with the defaults: forgotten, and the page read anew.
+  await forgetSavedParameters(page, 'yaml-json');
+  await page.reload();
+  await input.waitFor({ timeout: 15_000 });
+
   // The page in the light and the dark theme (entered afresh), then the theme mode as it was.
   await page.goto(`${base}#/start`);
   await page.goto(`${base}#/tools/yaml-json`);
@@ -459,5 +486,7 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
   await themeMode(ctx, base, modeBefore.trim());
   await radio('YAML → JSON').click();
   await input.fill('');
+  // The options are saved parameters: the next module opens YAML and JSON with its defaults.
+  await forgetSavedParameters(page, 'yaml-json');
   await cdp.detach();
 };

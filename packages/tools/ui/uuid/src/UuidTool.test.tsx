@@ -1,5 +1,6 @@
 import { definition } from './definition';
 import { detect } from './detect';
+import { uuidSettings } from './settings';
 import UuidTool from './UuidTool';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { AUTO_COPY, AUTO_COPY_REFUSED, memoryHost } from '@workspace/tools-host';
@@ -441,5 +442,126 @@ describe('Copy automatically after generating (docs/tools/copying.md)', () => {
     type('Name', 'www.example.com');
     await waitFor(() => expect(result()).toBe('2ed6657d-e927-568b-95e1-2665a8aea6a2'));
     expect(writeText).not.toHaveBeenCalled();
+  });
+});
+
+describe('the UUID / ULID tool’s saved parameters (D21, docs/tools/settings.md)', () => {
+  const savedOf = (host: ToolHost) => host.settings!.forTool('uuid').saved();
+  const seed = async (host: ToolHost, values: Record<string, unknown>) => {
+    host.settings!.forTool('uuid').save(uuidSettings.schema, values as never);
+    await host.settings!.forTool('uuid').flush();
+  };
+  const shown = (label: string) => screen.getByLabelText(label).textContent;
+  const count = () => (screen.getByLabelText('How many') as HTMLInputElement).value;
+  const entries = async (host: ToolHost) =>
+    (await host.history.forOwner('uuid', definition.history!).list({ kinds: ['generate'] })).entries;
+  const NS = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+
+  it('saves the options the person chose — never a name; reopened, the first batch is made with them', async () => {
+    const host = memoryHost();
+    const first = render(<UuidTool host={host} />);
+    await choose('Type', 'UUID v7 (time-ordered)');
+    type('How many', '5');
+    await choose('Format', 'Braces');
+    fireEvent.click(screen.getByLabelText('Uppercase'));
+    type('How many', ''); // being typed: not saved
+    first.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { type: 'v7', count: 5, format: 'braces', uppercase: true } });
+
+    const second = render(<UuidTool host={host} />);
+    expect(shown('Type')).toBe('UUID v7 (time-ordered)');
+    expect(count()).toBe('5');
+    expect(lines()).toHaveLength(5);
+    for (const line of lines())
+      expect(line).toMatch(/^\{[0-9A-F]{8}-[0-9A-F]{4}-7[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}\}$/);
+    await choose('Type', 'UUID v5 (name, SHA-1)');
+    await choose('Namespace', 'Custom…');
+    type('Custom namespace', NS.slice(0, 20)); // half pasted: not saved
+    type('Custom namespace', NS);
+    type('Name', 'www.example.com');
+    second.unmount();
+    expect(savedOf(host)).toEqual({
+      schema: 1,
+      values: { type: 'v5', count: 5, format: 'braces', uppercase: true, namespace: 'custom', customNamespace: NS },
+    });
+    expect(JSON.stringify(savedOf(host))).not.toContain('www.example.com');
+    render(<UuidTool host={host} />);
+    expect(shown('Namespace')).toBe('Custom…');
+    expect((screen.getByLabelText('Custom namespace') as HTMLInputElement).value).toBe(NS);
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('');
+  });
+
+  it('a saved record it cannot show falls back field by field', async () => {
+    const host = memoryHost();
+    await seed(host, {
+      type: 'v6',
+      count: 5000,
+      format: 'urn',
+      uppercase: 'yes',
+      namespace: 'custom',
+      customNamespace: 'not-a-namespace',
+    });
+    render(<UuidTool host={host} />);
+    expect(shown('Type')).toBe('UUID v4 (random)');
+    expect(count()).toBe('1');
+    expect(lines()).toHaveLength(1);
+    expect(result()).toMatch(/^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-4/);
+    await choose('Type', 'UUID v5 (name, SHA-1)');
+    expect(shown('Namespace')).toBe('Custom…');
+    expect((screen.getByLabelText('Custom namespace') as HTMLInputElement).value).toBe('');
+  });
+
+  it('a paste goes to Inspect and an opened entry shows its own options — for the visit; what is saved stays', async () => {
+    const host = memoryHost();
+    await seed(host, { type: 'ulid', count: 3 });
+    const pasted = render(<UuidTool host={host} input="01ARZ3NDEKTSV4RRFFQ69G5FAV" />);
+    expect((screen.getByLabelText('Paste a UUID or ULID') as HTMLInputElement).value).toBe(
+      '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    );
+    expect(shown('Type')).toBe('ULID');
+    expect(lines()).toHaveLength(3);
+    for (const line of lines()) expect(line).toMatch(ULID);
+    pasted.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { type: 'ulid', count: 3 } });
+
+    const ids = ['0f0e0d0c-0b0a-4908-8706-050403020100', '00112233-4455-4677-8899-aabbccddeeff'];
+    await host.history
+      .forOwner('uuid', definition.history!)
+      .session()
+      .commit({
+        kind: 'generate',
+        payload: { type: 'v4', count: 2, format: 'standard', uppercase: false, ids },
+        label: 'UUID v4 · 2 identifiers',
+      });
+    const [entry] = await entries(host);
+    const opened = render(<UuidTool host={host} restore={{ id: entry!.id }} />);
+    expect(await screen.findByText('Opened from History: UUID v4 · 2 identifiers.')).toBeTruthy();
+    expect(shown('Type')).toBe('UUID v4 (random)');
+    expect(count()).toBe('2');
+    expect(lines()).toEqual(ids);
+    opened.unmount();
+    expect(savedOf(host)).toEqual({ schema: 1, values: { type: 'ulid', count: 3 } });
+    render(<UuidTool host={host} />);
+    expect(shown('Type')).toBe('ULID');
+    expect(count()).toBe('3');
+  });
+
+  it('reset puts the options back to the defaults, makes a new batch — not copied, not recorded — and keeps Inspect', async () => {
+    const host = memoryHost();
+    await seed(host, { type: 'v7', count: 3, uppercase: true });
+    render(<UuidTool host={host} />);
+    expect(lines()).toHaveLength(3);
+    type('Paste a UUID or ULID', '01ARZ3NDEKTSV4RRFFQ69G5FAV');
+    await act(async () => host.settings!.forTool('uuid').reset());
+    expect(shown('Type')).toBe('UUID v4 (random)');
+    expect(count()).toBe('1');
+    expect(result()).toMatch(V4);
+    expect((screen.getByLabelText('Paste a UUID or ULID') as HTMLInputElement).value).toBe(
+      '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    );
+    expect(savedOf(host)).toBeUndefined();
+    await act(async () => undefined);
+    expect(writeText).not.toHaveBeenCalled();
+    expect(await entries(host)).toHaveLength(0);
   });
 });

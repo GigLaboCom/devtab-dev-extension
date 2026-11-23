@@ -5,10 +5,15 @@
  * edit up to LIVE_INPUT characters, by Run up to MAX_INPUT, refused above (§12). It records into the tool history
  * through its host: an edit snapshot with its result (`change`) and a commit when the result is taken — Copy, Save,
  * Swap; an entry the host asks to open comes back as the input and the options. The page frame is the host's.
+ *
+ * The direction, the version and both indents are saved parameters (settings.ts; docs/tools/settings.md): the tool
+ * opens with what the person chose last. A handed-over text opens YAML → JSON, a file its own direction, an opened
+ * entry its own options — for the visit only. Swap is the person's change of direction, saved like any other.
  */
 import { createConversion } from './conversion';
 import { entryLabel, excerpt, isDirection, isLayout, isVersion, isYamlIndent, kindOf } from './entries';
 import { yamlJsonHistory } from './history';
+import { yamlJsonSettings } from './settings';
 import {
   LIVE_INPUT,
   MAX_INPUT,
@@ -18,7 +23,7 @@ import {
   decodeTextFile,
   describeNotes,
 } from '@workspace/tool-logic-yaml-json';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { InputField } from '@workspace/ui/input-field';
@@ -31,7 +36,7 @@ import { CircleAlertIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ConvertJob } from './conversion';
 import type { YamlJsonPayload } from './entries';
-import type { ConvertResult, Direction, Layout, YamlVersion } from '@workspace/tool-logic-yaml-json';
+import type { ConvertResult, Direction, Layout } from '@workspace/tool-logic-yaml-json';
 import type { HistoryDraft, ToolProps } from '@workspace/tools-host';
 import type { ReactElement } from 'react';
 
@@ -118,10 +123,10 @@ const save = (text: string, direction: Direction): void => {
 const YamlJsonTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
   // Text handed over from the start page was recognised as YAML (detectYaml): it is there to become JSON.
-  const [direction, setDirection] = useState<Direction>('yaml-to-json');
-  const [version, setVersion] = useState<YamlVersion>('1.2');
-  const [layout, setLayout] = useState<Layout>(2);
-  const [indent, setIndent] = useState<2 | 4>(2);
+  const saved = useSavedSettings(host, 'yaml-json', yamlJsonSettings, {
+    opening: initial ? { direction: 'yaml-to-json' } : undefined,
+  });
+  const { direction, version, jsonIndent: layout, yamlIndent: indent } = saved.values;
   const [done, setDone] = useState<Done | null>(null);
   const [working, setWorking] = useState<ConvertJob | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -240,7 +245,7 @@ const YamlJsonTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
     const next = output;
     edit(() => {
       setInput(next);
-      setDirection(direction === 'yaml-to-json' ? 'json-to-yaml' : 'yaml-to-json');
+      saved.set({ direction: direction === 'yaml-to-json' ? 'json-to-yaml' : 'yaml-to-json' });
       // Swap is an explicit action: a large result is converted back at once.
       runOnce.current = true;
     });
@@ -259,8 +264,9 @@ const YamlJsonTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
     const name = file.name.toLowerCase();
     edit(() => {
       setInput(decoded.text);
-      if (name.endsWith('.json')) setDirection('json-to-yaml');
-      else if (name.endsWith('.yaml') || name.endsWith('.yml')) setDirection('yaml-to-json');
+      // The file's direction for this visit; what is saved stays as it was.
+      if (name.endsWith('.json')) saved.visit({ direction: 'json-to-yaml' });
+      else if (name.endsWith('.yaml') || name.endsWith('.yml')) saved.visit({ direction: 'yaml-to-json' });
       // Opening a file is an explicit action: a large one is converted at once.
       runOnce.current = true;
     });
@@ -282,12 +288,17 @@ const YamlJsonTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
       edited.current = false;
       setMessage(null);
       setInput(text);
-      setDirection(
-        isDirection(p.direction) ? p.direction : opened.entry.kind === 'to-yaml' ? 'json-to-yaml' : 'yaml-to-json',
-      );
-      setVersion(isVersion(p.version) ? p.version : '1.2');
-      setLayout(isLayout(p.layout) ? p.layout : 2);
-      setIndent(isYamlIndent(p.indent) ? p.indent : 2);
+      // The entry's options for this visit; what is saved stays as it was.
+      saved.visit({
+        direction: isDirection(p.direction)
+          ? p.direction
+          : opened.entry.kind === 'to-yaml'
+            ? 'json-to-yaml'
+            : 'yaml-to-json',
+        version: isVersion(p.version) ? p.version : '1.2',
+        jsonIndent: isLayout(p.layout) ? p.layout : 2,
+        yamlIndent: isYamlIndent(p.indent) ? p.indent : 2,
+      });
       runOnce.current = true;
       setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
     });
@@ -342,7 +353,7 @@ const YamlJsonTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
           aria-label="Direction"
           value={direction}
           onValueChange={value => {
-            if (isDirection(value) && value !== direction) edit(() => setDirection(value));
+            if (isDirection(value) && value !== direction) edit(() => saved.set({ direction: value }));
           }}>
           <ToggleGroupItem value="yaml-to-json">YAML → JSON</ToggleGroupItem>
           <ToggleGroupItem value="json-to-yaml">JSON → YAML</ToggleGroupItem>
@@ -355,7 +366,7 @@ const YamlJsonTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
             <Select
               value={version}
               onValueChange={value => {
-                if (isVersion(value)) edit(() => setVersion(value));
+                if (isVersion(value)) edit(() => saved.set({ version: value }));
               }}>
               <SelectTrigger id="yaml-json-version" className="min-w-28">
                 <SelectValue />
@@ -374,8 +385,8 @@ const YamlJsonTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
           value={String(toJson ? layout : indent)}
           onValueChange={value => {
             const next = value === 'tab' || value === 'minify' ? value : Number(value);
-            if (toJson && isLayout(next)) edit(() => setLayout(next));
-            else if (!toJson && isYamlIndent(next)) edit(() => setIndent(next));
+            if (toJson && isLayout(next)) edit(() => saved.set({ jsonIndent: next }));
+            else if (!toJson && isYamlIndent(next)) edit(() => saved.set({ yamlIndent: next }));
           }}>
           <SelectTrigger id="yaml-json-indent" className="min-w-28">
             <SelectValue />

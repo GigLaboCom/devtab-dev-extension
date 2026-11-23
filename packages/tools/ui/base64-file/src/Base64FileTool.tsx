@@ -9,11 +9,16 @@
  * History (D17, entries.ts): choosing a file, Copy, Save and Save file are commits; a change of the output's options,
  * or a person's edit in Decode that gives bytes, is a snapshot. Private keys and files over 1 MiB are never kept, bytes
  * of an unknown type only encrypted; the page says which applies.
+ *
+ * The direction and Encode's output options are saved parameters (settings.ts; docs/tools/settings.md): the person's
+ * change is saved (`set`); text handed over opens Decode, a file or a text pasted on the page and an opened entry choose
+ * for the visit only (`visit`).
  */
 import { createCodec } from './codec';
 import { draftOf, keepingNote, keepingOf, readEntry } from './entries';
 import { base64FileHistory } from './history';
 import { Facts, Working, saveBlob } from './parts';
+import { base64FileSettings } from './settings';
 import {
   COPY_MAX_CHARS,
   FIELD_MAX_CHARS,
@@ -52,7 +57,7 @@ import {
   textFileTooLarge,
   textShownNote,
 } from '@workspace/tool-logic-base64-file';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -65,15 +70,8 @@ import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { ToolMessage, ToolOptions, ToolPane, ToolPanes } from '@workspace/ui/tool-page';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Decoded } from './codec.worker';
-import type { Action, Mode } from './entries';
-import type {
-  Base64Alphabet,
-  EncodeOptions,
-  InputError,
-  LineLength,
-  OutputForm,
-  Recognised,
-} from '@workspace/tool-logic-base64-file';
+import type { Action } from './entries';
+import type { EncodeOptions, InputError, LineLength, Recognised } from '@workspace/tool-logic-base64-file';
 import type { HistoryDraft, ToolProps } from '@workspace/tools-host';
 import type { ReactElement } from 'react';
 
@@ -129,18 +127,18 @@ const decodeOnPage = (text: string): DecodeOutcome => {
 
 const Base64FileTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   // Text handed over from the start page was recognised as this tool's input (detectBase64File): it is to be decoded.
+  // It opens Decode for this visit; what is saved stays.
   const handedLarge = (initial?.length ?? 0) > FIELD_MAX_CHARS;
-  const [mode, setMode] = useState<Mode>(initial ? 'decode' : 'encode');
+  const saved = useSavedSettings(host, 'base64-file', base64FileSettings, {
+    opening: initial ? { mode: 'decode' } : undefined,
+  });
+  const { mode, form, alphabet, padding, lineLength } = saved.values;
 
   // ---- Encode
   const [source, setSource] = useState<Source | null>(null);
   const [encodeError, setEncodeError] = useState<string | null>(null);
   const [several, setSeveral] = useState(false);
   const [recognised, setRecognised] = useState<{ of: Source; value: Recognised } | null>(null);
-  const [form, setForm] = useState<OutputForm>('base64');
-  const [alphabet, setAlphabet] = useState<Base64Alphabet>('standard');
-  const [padding, setPadding] = useState(true);
-  const [lineLength, setLineLength] = useState<LineLength>(0);
   /** The data URI's type as the person typed it; null: the recognised one. */
   const [typeText, setTypeText] = useState<string | null>(null);
   const [output, setOutput] = useState<{ key: string; text: string; whole: boolean } | null>(null);
@@ -185,7 +183,8 @@ const Base64FileTool = ({ input: initial, host, restore }: ToolProps): ReactElem
   // ---- Encode: the file, its type, the output
   const takeFile = (file: File | Blob, fileName: string | null, record: boolean): void => {
     setRestored(null);
-    setMode('encode');
+    // A file chose Encode for this visit: what is saved stays.
+    saved.visit({ mode: 'encode' });
     setSaving(null);
     saver.cancel();
     setOutput(null);
@@ -440,6 +439,7 @@ const Base64FileTool = ({ input: initial, host, restore }: ToolProps): ReactElem
   latestMode.current = mode;
   const latestHold = useRef(holdText);
   latestHold.current = holdText;
+  const visitSaved = saved.visit;
   useEffect(() => {
     const onPaste = (event: ClipboardEvent) => {
       const target = event.target as Node | null;
@@ -459,7 +459,8 @@ const Base64FileTool = ({ input: initial, host, restore }: ToolProps): ReactElem
       const pasted = event.clipboardData.getData('text/plain');
       if (!pasted.trim()) return;
       event.preventDefault();
-      setMode('decode');
+      // The pasted text chose Decode for this visit: what is saved stays.
+      visitSaved({ mode: 'decode' });
       if (pasted.length > FIELD_MAX_CHARS) latestHold.current(pasted);
       else {
         edited.current = true;
@@ -470,7 +471,7 @@ const Base64FileTool = ({ input: initial, host, restore }: ToolProps): ReactElem
     };
     document.addEventListener('paste', onPaste);
     return () => document.removeEventListener('paste', onPaste);
-  }, []);
+  }, [visitSaved]);
 
   // ---- Opening an entry of the history
   useRestore(history, restore, opened => {
@@ -488,13 +489,17 @@ const Base64FileTool = ({ input: initial, host, restore }: ToolProps): ReactElem
     if (!entry) return setRestored('This entry could not be opened.');
     edited.current = false;
     optionsEdited.current = false;
-    setForm(entry.form);
-    setAlphabet(entry.alphabet);
-    setPadding(entry.padding);
-    setLineLength(entry.lineLength);
     setSeveral(false);
     const label = `Opened from History: ${opened.label ?? 'an entry'}.`;
+    // The entry's direction, and an Encode entry's output options, for this visit; what is saved stays as it was. A
+    // Decode entry carries no output options: Encode's stay as saved.
     if (entry.mode === 'encode') {
+      saved.visit({
+        form: entry.form,
+        alphabet: entry.alphabet,
+        padding: entry.padding,
+        lineLength: entry.lineLength,
+      });
       takeFile(entry.file, null, false);
       setTypeText(entry.dataType);
       setRestored(label);
@@ -502,7 +507,7 @@ const Base64FileTool = ({ input: initial, host, restore }: ToolProps): ReactElem
     }
     void entry.file.arrayBuffer().then(buffer => {
       const restoredText = inputOf(new Uint8Array(buffer), entry.shape, entry.declaredMime, entry.pemLabel);
-      setMode('decode');
+      saved.visit({ mode: 'decode' });
       setDecodeError(null);
       if (restoredText.length > FIELD_MAX_CHARS) {
         setText('');
@@ -571,7 +576,7 @@ const Base64FileTool = ({ input: initial, host, restore }: ToolProps): ReactElem
             if ((value === 'encode' || value === 'decode') && value !== mode) {
               edited.current = true;
               setRestored(null);
-              setMode(value);
+              saved.set({ mode: value });
             }
           }}>
           <ToggleGroupItem value="encode">Encode</ToggleGroupItem>
@@ -585,7 +590,7 @@ const Base64FileTool = ({ input: initial, host, restore }: ToolProps): ReactElem
             <Select
               value={form}
               onValueChange={value => {
-                if (value === 'base64' || value === 'dataUri') editOption(() => setForm(value));
+                if (value === 'base64' || value === 'dataUri') editOption(() => saved.set({ form: value }));
               }}>
               <SelectTrigger id="base64-file-output" className="min-w-28">
                 <SelectValue />
@@ -604,10 +609,8 @@ const Base64FileTool = ({ input: initial, host, restore }: ToolProps): ReactElem
                   value={alphabet}
                   onValueChange={value => {
                     if (value !== 'standard' && value !== 'url') return;
-                    editOption(() => {
-                      setAlphabet(value);
-                      setPadding(defaultPadding(value));
-                    });
+                    // The alphabet's own padding comes with it: both are saved.
+                    editOption(() => saved.set({ alphabet: value, padding: defaultPadding(value) }));
                   }}>
                   <SelectTrigger id="base64-file-alphabet" className="min-w-28">
                     <SelectValue />
@@ -621,7 +624,7 @@ const Base64FileTool = ({ input: initial, host, restore }: ToolProps): ReactElem
                   <Checkbox
                     id="base64-file-padding"
                     checked={padding}
-                    onCheckedChange={checked => editOption(() => setPadding(checked === true))}
+                    onCheckedChange={checked => editOption(() => saved.set({ padding: checked === true }))}
                   />
                   <Label htmlFor="base64-file-padding" className="font-normal">
                     Padding
@@ -634,7 +637,7 @@ const Base64FileTool = ({ input: initial, host, restore }: ToolProps): ReactElem
                   value={String(lineLength)}
                   onValueChange={value => {
                     const next = Number(value);
-                    if (next === 0 || next === 64 || next === 76) editOption(() => setLineLength(next));
+                    if (next === 0 || next === 64 || next === 76) editOption(() => saved.set({ lineLength: next }));
                   }}>
                   <SelectTrigger id="base64-file-line-length" className="min-w-28">
                     <SelectValue />

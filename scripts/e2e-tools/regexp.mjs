@@ -4,10 +4,12 @@
 // keeps answering, which is measured here: the longest frame and a click's answer while it runs, when the worker is
 // stopped and the message shows. Also the engine's own features the specification checked only in Chrome (duplicate
 // group names, modifiers, v), 10,000 highlighted matches built without a long frame, and an entry of the tool history
-// opened back. The copy buttons' clipboard writes are caught in the page, so the run never touches a real clipboard.
+// opened back, and the flags and Replace kept as saved parameters (D21). The copy buttons' clipboard writes are caught
+// in the page, so the run never touches a real clipboard.
 
-/* global document, window, requestAnimationFrame, DataTransfer, ClipboardEvent, indexedDB -- page.evaluate callbacks run in the page */
+/* global document, window, requestAnimationFrame, DataTransfer, ClipboardEvent, indexedDB, chrome -- page.evaluate callbacks run in the page */
 
+import { forgetSavedParameters } from '../e2e-helpers.mjs';
 import { themeMode, withSettings } from '../e2e-theme.mjs';
 
 /** The tool's records in the extension's history, parsed. */
@@ -427,6 +429,33 @@ const run = async ({ ctx, page, base, check, shoot }) => {
   );
   await page.getByText('Recent entries').click();
 
+  // Saved parameters (D21): the flags and Replace the person chose are kept (written 400 ms after the change); the
+  // page opened again has them, without the pattern, the text or the replacement.
+  const stored = () =>
+    page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.regexp);
+  await flag('ignore case').click();
+  await page.getByLabel('Replace', { exact: true }).click();
+  for (let i = 0; i < 25; i++) {
+    const values = (await stored())?.values;
+    if (values?.flags === 'gi' && values?.replace === true) break;
+    await page.waitForTimeout(200);
+  }
+  await page.reload();
+  await pattern.waitFor({ timeout: 15_000 });
+  check(
+    'RegExp: flags g i and Replace chosen, the page opened again — still g i and Replace, the fields empty (saved parameters)',
+    (await page.locator('[data-flags]').innerText()) === 'global, ignore case' &&
+      (await page.getByLabel('Replace', { exact: true }).getAttribute('aria-checked')) === 'true' &&
+      (await pattern.inputValue()) === '' &&
+      (await text.inputValue()) === '' &&
+      (await page.getByLabel('Replace with', { exact: true }).inputValue()) === '',
+    JSON.stringify(await stored()),
+  );
+  // The dark screenshots below start from the defaults (Replace off): forgotten, and the page read anew.
+  await forgetSavedParameters(page, 'regexp');
+  await page.reload();
+  await pattern.waitFor({ timeout: 15_000 });
+
   // Dark: the matches with groups and replacement, and the stop message.
   const mode = await withSettings(ctx, base, async settings =>
     (
@@ -453,4 +482,6 @@ const run = async ({ ctx, page, base, check, shoot }) => {
   await themeMode(ctx, base, mode || 'Light');
   await page.locator('html[data-mode="light"]').waitFor();
   await page.goto(`${base}#/tools`);
+  // Replace was turned on for the dark screenshots: the next module opens RegExp with its defaults.
+  await forgetSavedParameters(page, 'regexp');
 };

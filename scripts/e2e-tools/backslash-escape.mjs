@@ -1,15 +1,21 @@
 // The String Escape tool in the built extension (docs/tools/specs/backslash-escape.md): its scenarios (§2) the way a
 // person does them — the page's real controls — then the notes (§8), the keyboard order, the limits timed in the browser
 // (§12: the page answers up to 1 Mi, the worker above it), pasting escaped text into the start page's field next to
-// other tools' inputs (§7), a copied result opened back from the tool's own history (D17), and the page in the light and
-// the dark theme. The clipboard is the page's own stand-in for the length of this module (scripts/e2e-helpers.mjs), put
+// other tools' inputs (§7), a copied result opened back from the tool's own history (D17), the choices kept as saved
+// parameters (D21), and the page in the light and the dark theme. The clipboard is the page's own stand-in for the length of this module (scripts/e2e-helpers.mjs), put
 // back at the end, also when a check throws. Navigation replaces the tab's current entry (Chrome keeps 50 per tab and the
 // modules share one), so this module adds at most the start page's own moves to the tool, which it goes back over.
 // Screenshots: tool-backslash-escape-NN-….png, light then dark.
 
-/* global document, location, HTMLTextAreaElement, requestAnimationFrame, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
+/* global chrome, document, location, HTMLTextAreaElement, requestAnimationFrame, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
 
-import { inDarkTheme, settledShot, stubClipboard, waitForHistoryRecord } from '../e2e-helpers.mjs';
+import {
+  forgetSavedParameters,
+  inDarkTheme,
+  settledShot,
+  stubClipboard,
+  waitForHistoryRecord,
+} from '../e2e-helpers.mjs';
 
 const T = 'String Escape';
 const MI = 1024 * 1024;
@@ -23,9 +29,12 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
   };
   // The page's clipboard stand-in; a reload drops it, so `fresh` puts it back.
   let clipboard = null;
-  /** The tool afresh: the page reloaded, so every choice is back to its default. */
+  /** The tool afresh: its saved parameters forgotten and the page reloaded, so every choice is back to its default. */
   const fresh = async () => {
     await go('#/tools/backslash-escape');
+    // A change of the last 400 ms is still to be written: let it land before it is forgotten.
+    await sleep(500);
+    await forgetSavedParameters(page, 'backslash-escape');
     await page.reload();
     await page.getByLabel('Input', { exact: true }).waitFor();
     clipboard = await stubClipboard(page);
@@ -359,6 +368,50 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
       JSON.stringify(back),
     );
 
+    // Saved parameters (D21): the choices the person made are written 400 ms after the change; the page opened again
+    // shows them, without the text. A paste from the start page opens Unescape without With quotes, in the saved dialect,
+    // for that visit only.
+    const stored = () =>
+      page.evaluate(
+        async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.['backslash-escape'],
+      );
+    await fresh();
+    await choose('Dialect', 'Python');
+    await checkbox('With quotes').click();
+    for (let i = 0; i < 25 && (await stored())?.values?.withQuotes !== true; i++) await sleep(200);
+    await page.reload();
+    await input.waitFor();
+    const kept = {
+      escape: await radio('Escape').getAttribute('aria-checked'),
+      dialect: (await page.getByRole('combobox', { name: 'Dialect', exact: true }).innerText()).trim(),
+      withQuotes: await checkbox('With quotes').getAttribute('aria-checked'),
+      input: await input.inputValue(),
+    };
+    const pastedHash = await paste('He said \\"hi\\"\\n');
+    await input.waitFor({ timeout: 5_000 }).catch(() => {});
+    const pastedInto = {
+      hash: pastedHash,
+      unescape: await radio('Unescape').getAttribute('aria-checked'),
+      dialect: (await page.getByRole('combobox', { name: 'Dialect', exact: true }).innerText()).trim(),
+      withQuotes: await checkbox('With quotes').getAttribute('aria-checked'),
+      result: await result.inputValue(),
+    };
+    if (pastedHash !== '#/start') await page.goBack();
+    check(
+      `${T}: Python and With quotes chosen, the page opened again — as left, the field empty; a paste opens Unescape in Python without With quotes (saved parameters)`,
+      kept.escape === 'true' &&
+        kept.dialect === 'Python' &&
+        kept.withQuotes === 'true' &&
+        kept.input === '' &&
+        pastedInto.hash === '#/tools/backslash-escape' &&
+        pastedInto.unescape === 'true' &&
+        pastedInto.dialect === 'Python' &&
+        pastedInto.withQuotes === 'false' &&
+        pastedInto.result === 'He said "hi"\n' &&
+        JSON.stringify((await stored())?.values) === JSON.stringify({ dialect: 'python', withQuotes: true }),
+      JSON.stringify({ kept, pastedInto, stored: await stored() }),
+    );
+
     // The dark theme (the default dark one), then back.
     await fresh();
     await inDarkTheme(ctx, base, page, async () => {
@@ -378,5 +431,8 @@ export default async ({ ctx, page, base, check, shoot, sleep }) => {
     await input.fill('');
   } finally {
     await clipboard?.restore().catch(() => undefined);
+    // The choices of this module are saved parameters: the next module opens the tool with its defaults.
+    await sleep(500);
+    await forgetSavedParameters(page, 'backslash-escape').catch(() => undefined);
   }
 };

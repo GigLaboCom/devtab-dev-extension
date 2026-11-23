@@ -8,16 +8,19 @@
  * History (D17): an edit is a snapshot once its result is there; choosing a file, Copy and Save are commits; an input
  * over 1 MiB is not kept (entries.ts). An entry opens back with its direction, options and input; the result is made
  * again.
+ *
+ * The direction, formats, input encodings, level, quality, Keep the file's name and time and the views are saved
+ * parameters (settings.ts; docs/tools/settings.md): the person's change is saved (`set`); text handed over, a file
+ * dropped or chosen, an opened entry and Decompress again choose for the visit only (`visit`).
  */
 import { draftOf, readEntry } from './entries';
 import { compressHistory } from './history';
 import { createRunner, familyOf } from './runner';
 import { canWriteFiles, downloadBytes, pickFile, writeBytes } from './save';
+import { compressSettings } from './settings';
 import {
   BOM_NOTE,
   BROTLI_QUALITIES,
-  DEFAULT_BROTLI_QUALITY,
-  DEFAULT_ZSTD_LEVEL,
   EDGE_SPACE,
   FORMAT_LABELS,
   LIVE_INPUT,
@@ -61,7 +64,7 @@ import {
   textHints,
   tooLargeToShow,
 } from '@workspace/tool-logic-compress';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import { CopyButton } from '@workspace/ui/copy-button';
@@ -78,7 +81,6 @@ import type {
   Collected,
   CompressInput,
   DecompressInput,
-  Direction,
   Format,
   FormatChoice,
   Job,
@@ -144,26 +146,25 @@ const useSettled = (text: string): string => {
 const percent = (read: number, total: number): string => `${total > 0 ? Math.floor((read / total) * 100) : 100}%`;
 
 const CompressTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
-  const [direction, setDirection] = useState<Direction>('decompress');
-  const [dFormat, setDFormat] = useState<FormatChoice>('auto');
-  const [cFormat, setCFormat] = useState<Format>('gzip');
-  const [zstdLevel, setZstdLevel] = useState(DEFAULT_ZSTD_LEVEL);
-  const [brotliQuality, setBrotliQuality] = useState(DEFAULT_BROTLI_QUALITY);
-  const [keepName, setKeepName] = useState(false);
-  // Text handed over from the start page was recognised as compressed data (detectCompress): Base64 or hex.
-  const [dKind, setDKind] = useState<DecompressInput>(initial && HEXISH.test(initial) ? 'hex' : 'base64');
-  const [cKind, setCKind] = useState<CompressInput>('text');
+  // Text handed over from the start page was recognised as compressed data (detectCompress): it opens Decompress, Auto,
+  // in Base64 or hex — for this visit; what is saved stays.
+  const saved = useSavedSettings(host, 'compress', compressSettings, {
+    opening: initial
+      ? { direction: 'decompress', dFormat: 'auto', dInput: HEXISH.test(initial) ? 'hex' : 'base64' }
+      : undefined,
+  });
+  const { direction, dFormat, cFormat, zstdLevel, brotliQuality, keepName } = saved.values;
+  const { dInput: dKind, cInput: cKind, encoding } = saved.values;
+  const view: ResultView | null = saved.values.view === 'auto' ? null : saved.values.view;
   const [dText, setDText] = useState(initial ?? '');
   const [cText, setCText] = useState('');
   const [dFile, setDFile] = useState<File | null>(null);
   const [cFile, setCFile] = useState<File | null>(null);
-  const [view, setView] = useState<ResultView | null>(null);
-  const [encoding, setEncoding] = useState<OutputEncoding>('base64');
   const [shown, setShown] = useState<Shown>({ kind: 'none' });
   const [working, setWorking] = useState<{ read: number; total: number; visible: boolean; saving: boolean } | null>(
     null,
   );
-  const [saved, setSaved] = useState<string | null>(null);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
   const [restored, setRestored] = useState<string | null>(null);
   const { history, recorder } = useToolHistory(host, 'compress', compressHistory);
   const runner = useMemo(() => createRunner(), []);
@@ -194,7 +195,7 @@ const CompressTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
 
   // ---- The work: whenever the input or an option changes.
   useEffect(() => {
-    setSaved(null);
+    setSaveNote(null);
     if (!prepared || !prepared.ok) {
       runner.cancel();
       setWorking(null);
@@ -363,13 +364,14 @@ const CompressTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
   // ---- Files: chosen, dropped, or pasted anywhere on the page
   const takeFile = (f: File | undefined): void => {
     if (!f) return;
+    // The file chose File for this visit: what is saved stays.
     edit(() => {
       chose.current = true;
       if (decompressing) {
-        setDKind('file');
+        saved.visit({ dInput: 'file' });
         setDFile(f);
       } else {
-        setCKind('file');
+        saved.visit({ cInput: 'file' });
         setCFile(f);
       }
     });
@@ -403,22 +405,34 @@ const CompressTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
     if (!entry) return setRestored('This entry could not be opened.');
     void (entry.input === 'file' ? Promise.resolve('') : entry.blob.text()).then(content => {
       edited.current = false;
-      setDirection(entry.direction);
+      // The entry's direction and the parameters it carries, for this visit; what is saved stays as it was. The other
+      // direction's parameters are not in the entry: they stay as saved.
       if (entry.direction === 'decompress') {
-        setDFormat(entry.format);
-        setDKind(entry.input as DecompressInput);
+        saved.visit({
+          direction: 'decompress',
+          dFormat: entry.format,
+          dInput: entry.input as DecompressInput,
+          view: VIEWS.some(([v]) => v === entry.view) ? (entry.view as ResultView) : 'auto',
+        });
         if (entry.input === 'file') setDFile(new File([entry.blob], 'input.bin'));
         else setDText(content);
-        setView(VIEWS.some(([v]) => v === entry.view) ? (entry.view as ResultView) : null);
       } else {
-        setCFormat(entry.format === 'auto' ? 'gzip' : entry.format);
-        if (entry.level !== undefined && entry.format === 'zstd') setZstdLevel(entry.level);
-        if (entry.level !== undefined && entry.format === 'brotli') setBrotliQuality(entry.level);
-        setKeepName(entry.keepName);
-        setCKind(entry.input as CompressInput);
+        const cFormat: Format = entry.format === 'auto' ? 'gzip' : entry.format;
+        saved.visit({
+          direction: 'compress',
+          cFormat,
+          ...(entry.level !== undefined && cFormat === 'zstd' && ZSTD_LEVELS.includes(entry.level)
+            ? { zstdLevel: entry.level }
+            : {}),
+          ...(entry.level !== undefined && cFormat === 'brotli' && BROTLI_QUALITIES.includes(entry.level)
+            ? { brotliQuality: entry.level }
+            : {}),
+          keepName: entry.keepName,
+          cInput: entry.input as CompressInput,
+          ...(ENCODINGS.some(([e]) => e === entry.view) ? { encoding: entry.view as OutputEncoding } : {}),
+        });
         if (entry.input === 'file') setCFile(new File([entry.blob], 'input.bin'));
         else setCText(content);
-        if (ENCODINGS.some(([e]) => e === entry.view)) setEncoding(entry.view as OutputEncoding);
       }
       setRestored(`Opened from History: ${opened.label ?? 'an entry'}.`);
     });
@@ -427,7 +441,7 @@ const CompressTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
   // ---- Save
   const save = async (): Promise<void> => {
     if (!collected || !done) return;
-    setSaved(null);
+    setSaveNote(null);
     try {
       if (canWriteFiles()) {
         const handle = await pickFile(saveName);
@@ -444,29 +458,27 @@ const CompressTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
           );
           setWorking(null);
           if (result.type !== 'done' || !result.outcome.ok)
-            return setSaved(result.type === 'done' && !result.outcome.ok ? result.outcome.message : NOT_SAVED);
+            return setSaveNote(result.type === 'done' && !result.outcome.ok ? result.outcome.message : NOT_SAVED);
         }
-        setSaved(`Saved as ${handle.name}.`);
+        setSaveNote(`Saved as ${handle.name}.`);
         commit('save');
       } else if (collected.bytes) {
         downloadBytes(collected.bytes, saveName);
         commit('save');
-      } else setSaved(SAVE_NEEDS_FILES);
+      } else setSaveNote(SAVE_NEEDS_FILES);
     } catch {
       setWorking(null);
-      setSaved(NOT_SAVED);
+      setSaveNote(NOT_SAVED);
     }
   };
 
   const decompressAgain = (): void => {
     if (!collected?.bytes) return;
     const bytes = collected.bytes;
+    // The result's own bytes choose the format, the input and the view: for this visit, like a file dropped on the page.
     edit(() => {
-      setDirection('decompress');
-      setDFormat('auto');
-      setDKind('file');
+      saved.visit({ direction: 'decompress', dFormat: 'auto', dInput: 'file', view: 'auto' });
       setDFile(new File([bytes as Uint8Array<ArrayBuffer>], saveName));
-      setView(null);
     });
   };
 
@@ -516,7 +528,7 @@ const CompressTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
           value={direction}
           onValueChange={value => {
             if ((value === 'decompress' || value === 'compress') && value !== direction)
-              edit(() => setDirection(value));
+              edit(() => saved.set({ direction: value }));
           }}>
           <ToggleGroupItem value="decompress">Decompress</ToggleGroupItem>
           <ToggleGroupItem value="compress">Compress</ToggleGroupItem>
@@ -528,7 +540,7 @@ const CompressTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
           value={format}
           onValueChange={value => {
             if (!formats.includes(value as Format)) return;
-            edit(() => (decompressing ? setDFormat(value as FormatChoice) : setCFormat(value as Format)));
+            edit(() => saved.set(decompressing ? { dFormat: value as FormatChoice } : { cFormat: value as Format }));
           }}>
           <SelectTrigger id="compress-format" className="min-w-36">
             <SelectValue />
@@ -549,7 +561,9 @@ const CompressTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
             <Select
               value={String(cFormat === 'zstd' ? zstdLevel : brotliQuality)}
               onValueChange={value =>
-                edit(() => (cFormat === 'zstd' ? setZstdLevel(Number(value)) : setBrotliQuality(Number(value))))
+                edit(() =>
+                  saved.set(cFormat === 'zstd' ? { zstdLevel: Number(value) } : { brotliQuality: Number(value) }),
+                )
               }>
               <SelectTrigger id="compress-level" className="min-w-16">
                 <SelectValue />
@@ -569,7 +583,7 @@ const CompressTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
             <Checkbox
               id="compress-keep-name"
               checked={keepName}
-              onCheckedChange={c => edit(() => setKeepName(c === true))}
+              onCheckedChange={c => edit(() => saved.set({ keepName: c === true }))}
             />
             <Label htmlFor="compress-keep-name">Keep the file’s name and time</Label>
           </div>
@@ -593,7 +607,9 @@ const CompressTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
               value={kind}
               onValueChange={value => {
                 if (!value || value === kind) return;
-                edit(() => (decompressing ? setDKind(value as DecompressInput) : setCKind(value as CompressInput)));
+                edit(() =>
+                  saved.set(decompressing ? { dInput: value as DecompressInput } : { cInput: value as CompressInput }),
+                );
               }}>
               {inputs.map(([value, label]) => (
                 <ToggleGroupItem key={value} value={value}>
@@ -667,8 +683,8 @@ const CompressTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
                 value={decompressing ? effectiveView : encoding}
                 onValueChange={value => {
                   if (!value) return;
-                  if (decompressing) setView(value as ResultView);
-                  else setEncoding(value as OutputEncoding);
+                  if (decompressing) saved.set({ view: value as ResultView });
+                  else saved.set({ encoding: value as OutputEncoding });
                 }}>
                 {(decompressing ? VIEWS : ENCODINGS).map(([value, label]) => (
                   <ToggleGroupItem
@@ -710,7 +726,7 @@ const CompressTool = ({ input: initial, host, restore }: ToolProps): ReactElemen
                 {note}
               </ToolMessage>
             ))}
-            {saved && <ToolMessage role={undefined}>{saved}</ToolMessage>}
+            {saveNote && <ToolMessage role={undefined}>{saveNote}</ToolMessage>}
           </div>
           {nested && collected?.bytes && (
             <div>

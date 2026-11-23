@@ -6,10 +6,14 @@
  * refused above (§12); a run past the time limit is stopped. It records into the tool history through its host: an
  * edit snapshot with its result (`change`), and a commit when the result is taken or asked for — Copy, Save, Run; an
  * entry the host asks to open comes back as the query and its options. The page frame is the host's.
+ *
+ * The four options are saved parameters (settings.ts; docs/tools/settings.md): the tool opens with what the person chose
+ * last; an opened entry shows its own options for the visit only. A paste and an opened file bring only the text.
  */
 import { entryLabel, excerpt, INDENT_LABELS, KEYWORD_CASE_LABELS, kindOf, LAYOUT_LABELS, payloadOf } from './entries';
 import { sqlFormatHistory } from './history';
 import { SqlRunner } from './runner';
+import { sqlFormatSettings } from './settings';
 import { startSqlWorker } from './workers';
 import {
   DEFAULT_OPTIONS,
@@ -28,7 +32,7 @@ import {
   isKeywordCase,
   isLayout,
 } from '@workspace/tool-logic-sql-format';
-import { useRestore, useToolHistory } from '@workspace/tools-host';
+import { useRestore, useSavedSettings, useToolHistory } from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { CopyButton } from '@workspace/ui/copy-button';
 import { Label } from '@workspace/ui/label';
@@ -113,7 +117,18 @@ const SqlFormatTool = ({
   startWorker = startSqlWorker,
 }: SqlFormatToolProps): ReactElement => {
   const [input, setInput] = useState(initial ?? '');
-  const [options, setOptions] = useState<SqlOptions>(DEFAULT_OPTIONS);
+  const saved = useSavedSettings(host, 'sql-format', sqlFormatSettings);
+  const { dialect, keywordCase, indent: chosenIndent, layout } = saved.values;
+  // §5 п. 3: Tabular aligns with spaces — a Tab kept with it (a record written elsewhere) is shown and used as 2 spaces.
+  const options = useMemo<SqlOptions>(
+    () => ({
+      dialect,
+      keywordCase,
+      indent: layout !== 'standard' && chosenIndent === 'tab' ? 2 : chosenIndent,
+      layout,
+    }),
+    [dialect, keywordCase, chosenIndent, layout],
+  );
   const [done, setDone] = useState<Done | null>(null);
   const [working, setWorking] = useState<Job | null>(null);
   const [loading, setLoading] = useState<SqlDialect | null>(null);
@@ -227,15 +242,14 @@ const SqlFormatTool = ({
     apply();
   };
 
+  // The option the person chose: shown and saved.
   const setOption = (patch: Partial<SqlOptions>): void =>
-    edit(() =>
-      setOptions(previous => {
-        const next = { ...previous, ...patch };
-        // §5 п. 3: Tabular aligns with spaces; Tab is not offered with it.
-        if (next.layout !== 'standard' && next.indent === 'tab') next.indent = 2;
-        return next;
-      }),
-    );
+    edit(() => {
+      const change = { ...patch };
+      // §5 п. 3: Tabular aligns with spaces; Tab is not offered with it. The Indent it resets is saved as well.
+      if ((change.layout ?? layout) !== 'standard' && (change.indent ?? chosenIndent) === 'tab') change.indent = 2;
+      saved.set(change);
+    });
 
   const take = (action: 'copy' | 'save'): void => {
     if (!current || !done) return;
@@ -284,7 +298,8 @@ const SqlFormatTool = ({
       setInput(text);
       const layout = isLayout(p.layout) ? p.layout : DEFAULT_OPTIONS.layout;
       const indent = isIndent(p.indent) ? p.indent : DEFAULT_OPTIONS.indent;
-      setOptions({
+      // The entry's options for this visit; what is saved stays as it was.
+      saved.visit({
         dialect: isDialect(p.dialect) ? p.dialect : DEFAULT_OPTIONS.dialect,
         keywordCase: isKeywordCase(p.keywordCase) ? p.keywordCase : DEFAULT_OPTIONS.keywordCase,
         indent: layout !== 'standard' && indent === 'tab' ? 2 : indent,

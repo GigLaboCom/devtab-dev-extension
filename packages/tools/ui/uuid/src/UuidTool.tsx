@@ -11,10 +11,15 @@
  * copies the whole batch, as Copy / Copy all would — never a change of Type or How many (which make a new batch too),
  * the opening of the tool or of an entry. Not recorded again: Generate committed the batch. A new batch is announced
  * politely ("5 new identifiers generated"), with what the automatic copy did in the same sentence.
+ *
+ * The options of Generate are saved parameters (settings.ts; docs/tools/settings.md): the tool opens with what the
+ * person chose last time where the host remembers it, and its first batch is made with them; an opened entry shows its
+ * own options for the visit only. How many and the custom namespace keep their text in the page; a valid one is saved.
  */
 import { excerpt, generateLabel, NAMESPACE_LABELS, readGeneratePayload, TYPE_LABELS } from './entries';
 import { uuidHistory } from './history';
 import { Inspect } from './Inspect';
+import { uuidSettings } from './settings';
 import {
   canonical,
   COUNT_ERROR,
@@ -32,9 +37,15 @@ import {
   NIL,
   parseCount,
   parseId,
-  v4,
 } from '@workspace/tool-logic-uuid';
-import { AUTO_COPY_REFUSED, announceGenerated, useAutoCopy, useRestore, useToolHistory } from '@workspace/tools-host';
+import {
+  AUTO_COPY_REFUSED,
+  announceGenerated,
+  useAutoCopy,
+  useRestore,
+  useSavedSettings,
+  useToolHistory,
+} from '@workspace/tools-host';
 import { Button } from '@workspace/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/card';
 import { Checkbox } from '@workspace/ui/checkbox';
@@ -91,15 +102,30 @@ const inspectDraft = (input: string): HistoryDraft | null => {
 
 const UuidTool = ({ input: initial, host, restore }: ToolProps): ReactElement => {
   const generator = useRef<TimeOrderedGenerator | null>(null);
-  const [type, setType] = useState<GenerateType>('v4');
-  const [countText, setCountText] = useState('1');
-  const [format, setFormat] = useState<UuidFormat>('standard');
-  const [uppercase, setUppercase] = useState(false);
-  const [namespace, setNamespace] = useState<Namespace>('dns');
-  const [custom, setCustom] = useState('');
+  const saved = useSavedSettings(host, 'uuid', uuidSettings, {
+    // The reset control put the options back: the fields' text follows and a new batch is made — not copied, not
+    // recorded.
+    onReset: defaults => {
+      setCountText(String(defaults.count));
+      setCustom(defaults.customNamespace);
+      generate(defaults.type, defaults.count);
+    },
+  });
+  const { type, format, uppercase, namespace } = saved.values;
+  const [countText, setCountText] = useState(() => String(saved.values.count));
+  const [custom, setCustom] = useState(saved.values.customNamespace);
   const [name, setName] = useState('');
-  // §2.1: the tool opens with one UUID v4 in Generate.
-  const [batch, setBatch] = useState<Batch | null>(() => ({ type: 'v4', bytes: [v4()] }));
+  // §2.1: the tool opens with a batch in Generate — one UUID v4 by default, otherwise what the saved options make.
+  const [batch, setBatch] = useState<Batch | null>(() => {
+    const first = saved.values.type;
+    if (!isRandom(first)) return null;
+    try {
+      generator.current ??= createTimeOrderedGenerator();
+      return { type: first, bytes: generateBatch(first, saved.values.count, generator.current, Date.now()) };
+    } catch {
+      return null;
+    }
+  });
   const [named, setNamed] = useState<{ key: string; bytes: Uint8Array } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [inspect, setInspect] = useState(initial ?? '');
@@ -179,7 +205,7 @@ const UuidTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
 
   const onType = (next: GenerateType): void => {
     edit();
-    setType(next);
+    saved.set({ type: next });
     setFailure(null);
     const bytes = generate(next, count);
     if (bytes) setAnnouncement(generatedText(bytes.length));
@@ -188,7 +214,9 @@ const UuidTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
   const onCount = (text: string): void => {
     edit();
     setCountText(text);
-    const bytes = generate(type, parseCount(text));
+    const n = parseCount(text);
+    if (n !== null) saved.set({ count: n });
+    const bytes = generate(type, n);
     if (bytes) setAnnouncement(generatedText(bytes.length));
   };
 
@@ -236,11 +264,16 @@ const UuidTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
       setInspect(typeof p.input === 'string' ? p.input : '');
     } else {
       const p = readGeneratePayload(opened.payload);
-      setType(p.type);
+      // The entry's options for this visit; what is saved stays as it was.
+      saved.visit({
+        type: p.type,
+        count: p.count ?? 1,
+        format: p.format,
+        uppercase: p.uppercase,
+        namespace: p.namespace ?? 'dns',
+        customNamespace: p.customNamespace ?? '',
+      });
       setCountText(String(p.count ?? 1));
-      setFormat(p.format);
-      setUppercase(p.uppercase);
-      setNamespace(p.namespace ?? 'dns');
       setCustom(p.customNamespace ?? '');
       setName(p.name ?? '');
       setFailure(null);
@@ -313,7 +346,7 @@ const UuidTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
               disabled={ulid}
               onValueChange={value => {
                 edit();
-                setFormat(value as UuidFormat);
+                saved.set({ format: value as UuidFormat });
               }}>
               <SelectTrigger id="uuid-format" className="min-w-32">
                 <SelectValue />
@@ -333,7 +366,7 @@ const UuidTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
                 disabled={ulid}
                 onCheckedChange={checked => {
                   edit();
-                  setUppercase(checked === true);
+                  saved.set({ uppercase: checked === true });
                 }}
               />
               <Label htmlFor="uuid-uppercase" className="font-normal">
@@ -357,7 +390,7 @@ const UuidTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
                   value={namespace}
                   onValueChange={value => {
                     edit();
-                    setNamespace(value as Namespace);
+                    saved.set({ namespace: value as Namespace });
                   }}>
                   <SelectTrigger id="uuid-namespace" className="min-w-28">
                     <SelectValue />
@@ -382,8 +415,11 @@ const UuidTool = ({ input: initial, host, restore }: ToolProps): ReactElement =>
                       autoComplete="off"
                       value={custom}
                       onChange={e => {
+                        const text = e.target.value;
                         edit();
-                        setCustom(e.target.value);
+                        setCustom(text);
+                        // Saved once it is a namespace (or emptied); one being typed is not.
+                        if (text === '' || namespaceBytes(text)) saved.set({ customNamespace: text });
                       }}
                       aria-invalid={nsError ? true : undefined}
                       aria-describedby={nsError ? 'uuid-namespace-error' : undefined}

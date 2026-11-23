@@ -9,14 +9,17 @@
 //   - the master password is turned off again (its encrypted entries go with it), so later steps start as before;
 //   - Sign (§16): a token signed with the secret decodes back verified, one signed with a private key (made here by
 //     node:crypto and thrown away) verifies with its public key, alg "none" is refused, and without a master password
-//     nothing of it — key, token or payload — is written.
+//     nothing of it — key, token or payload — is written;
+//   - saved parameters (D21): the secret format and Compact JSON are kept — never a token or a key — and the mode is
+//     not (the page opens in Decode).
 // Only published sample tokens and the specification's test keys are used. The master password is never written to
 // the report or the console. Copy is checked against a stand-in for navigator.clipboard.writeText in the page, so the
 // run does not touch the system clipboard. Run by scripts/e2e-tools.mjs.
 
-/* global document, indexedDB, window, location, DataTransfer, ClipboardEvent -- page.evaluate callbacks run in the page */
+/* global document, indexedDB, window, location, DataTransfer, ClipboardEvent, chrome -- page.evaluate callbacks run in the page */
 
 import { generateKeyPairSync } from 'node:crypto';
+import { forgetSavedParameters } from '../e2e-helpers.mjs';
 import { themeMode } from '../e2e-theme.mjs';
 
 const T = 'JWT';
@@ -500,6 +503,47 @@ export default async ({ ctx, page, base, check, shoot, sleep, report }) => {
   );
   await page.getByRole('radio', { name: 'Decode', exact: true }).click();
   await token(page).fill('');
+
+  // Saved parameters (D21): the secret format and Compact JSON are kept (written 400 ms after the change), never a
+  // token or a key; the page opened again is in Decode, with those options.
+  const stored = () =>
+    page.evaluate(async () => (await chrome.storage.local.get('toolSettings')).toolSettings?.params?.jwt);
+  await token(page).fill(T1);
+  await chooseFormat(page, 'Hex');
+  await page.getByLabel('Secret', { exact: true }).fill(SECRET);
+  await page.getByRole('radio', { name: 'Sign', exact: true }).click();
+  await page.getByLabel('Compact JSON', { exact: true }).click();
+  await page.getByLabel('Signing secret', { exact: true }).fill(SECRET);
+  for (let i = 0; i < 25 && (await stored())?.values?.compact !== false; i++) await sleep(200);
+  const kept = await stored();
+  await page.reload();
+  await token(page).waitFor({ timeout: 15_000 });
+  const reopened = {
+    decode: await page.getByRole('radio', { name: 'Decode', exact: true }).getAttribute('aria-checked'),
+  };
+  reopened.token = await token(page).inputValue();
+  await token(page).fill(T1);
+  reopened.format = await page.getByLabel('Secret format', { exact: true }).innerText();
+  reopened.secret = await page.getByLabel('Secret', { exact: true }).inputValue();
+  await page.getByRole('radio', { name: 'Sign', exact: true }).click();
+  reopened.compact = await page.getByLabel('Compact JSON', { exact: true }).getAttribute('aria-checked');
+  check(
+    `${T}: Hex and Compact JSON off chosen, the page opened again — in Decode, Hex, Compact JSON off, no token or key (saved parameters)`,
+    kept?.values?.secretFormat === 'hex' &&
+      kept?.values?.compact === false &&
+      Object.keys(kept?.values ?? {}).length === 2 &&
+      !JSON.stringify(kept).includes(SECRET) &&
+      reopened.decode === 'true' &&
+      reopened.token === '' &&
+      reopened.format === 'Hex' &&
+      reopened.secret === '' &&
+      reopened.compact === 'false',
+    JSON.stringify({ values: kept?.values, ...reopened, token: reopened.token.length }),
+  );
+  await page.getByRole('radio', { name: 'Decode', exact: true }).click();
+  await token(page).fill('');
+  // The secret format and Compact JSON are saved parameters: the next module opens JWT with its defaults.
+  await forgetSavedParameters(page, 'jwt');
 
   for (const p of opened) await p.close();
 };
