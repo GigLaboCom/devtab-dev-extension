@@ -45,7 +45,14 @@ pnpm check                    # lint, format, type-check, build, unit tests, bui
 pnpm e2e:setup                # once: Playwright and Chrome for Testing under .state/
 pnpm test:e2e                 # the built extension in Chrome for Testing without a window
 pnpm package                  # a checked zip in dist-zip/
+pnpm mock:backend             # development only: a mock licence and plans server on 127.0.0.1:8790
+pnpm test:mock-backend        # the mock's tests: the licence and plans contract, shape by shape
 ```
+
+`pnpm mock:backend` (`scripts/mock-backend/`) answers the way the licence and plans server is specified to, with
+scenarios switched at `/__mock/` or by options (`--help`, `--list`), so the extension's client can be built before
+the real server exists. It binds to loopback only, refuses to start when the environment says production, keeps its
+keys in `.state/mock-backend/`, and Check 17 of `scripts/validate-build.sh` fails a build that mentions it.
 
 `scripts/validate-build.sh` needs bash 4 or newer, `jq`, `node` and `unzip`. Load the extension from `dist/` in
 `chrome://extensions` (developer mode, "Load unpacked").

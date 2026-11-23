@@ -26,12 +26,14 @@
     "format:check": "prettier . --check --cache",
     "validate:build": "bash scripts/validate-build.sh dist",
     "validate:growth": "node scripts/start-route-growth.mjs",
+    "mock:backend": "node scripts/mock-backend/cli.mjs",
+    "test:mock-backend": "node --test scripts/mock-backend/test/*.test.mjs",
     "report:start-route": "node scripts/start-route-report.mjs",
     "e2e:setup": "bash scripts/e2e-setup.sh",
     "test:e2e": "node scripts/e2e-check.mjs",
     "package": "bash scripts/package.sh",
     "icons": "node scripts/generate-icons.mjs",
-    "check": "pnpm lint && pnpm format:check && pnpm type-check && pnpm build && pnpm test && pnpm validate:build && pnpm validate:growth"
+    "check": "pnpm lint && pnpm format:check && pnpm type-check && pnpm build && pnpm test && pnpm test:mock-backend && pnpm validate:build && pnpm validate:growth"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
