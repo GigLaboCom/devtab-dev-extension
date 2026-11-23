@@ -224,13 +224,15 @@ export default async ({ ctx, page, base, id, check, sleep, report }) => {
       JSON.stringify(off),
     );
   } finally {
-    for (const p of opened) await p.close();
     // What this module chose in the generators (How many, Length, Count, an algorithm) is saved by them (D21): forgotten
-    // here, after their pages are closed, so that each tool's own module opens it with its defaults.
+    // here — through one of this module's own pages, which is on the extension whatever ran before — after the delayed
+    // writes have gone, so that each tool's own module opens it with its defaults.
     await sleep(500);
-    await forgetSavedParameters(page, 'password', 'uuid', 'random-string', 'lorem-ipsum', 'keys').catch(
-      () => undefined,
-    );
+    if (opened[0])
+      await forgetSavedParameters(opened[0], 'password', 'uuid', 'random-string', 'lorem-ipsum', 'keys').catch(
+        () => undefined,
+      );
+    for (const p of opened) await p.close();
     await cdp.send('Browser.resetPermissions').catch(() => undefined);
     await cdp.detach().catch(() => undefined);
   }
