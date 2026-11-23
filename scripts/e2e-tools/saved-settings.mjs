@@ -497,6 +497,38 @@ export default async ({ ctx, base, check, sleep, report }) => {
       JSON.stringify({ quiet, filled, refused, afterRoom }),
     );
     await putStored(main, withoutParams(await stored(main), tools));
+
+    // ---- Leaving at once: a choice made a moment before the page goes is kept. The delayed write is sent as the page
+    // leaves, and the storage does not wait for a read whose answer the page would never hear. ----
+    const leaver = await open('#/tools/json');
+    await leaver.locator('#json-input').waitFor({ timeout: 15_000 });
+    await leaver.getByLabel('Sort keys', { exact: true }).waitFor();
+    await sleep(500);
+    await leaver.getByLabel('Sort keys', { exact: true }).click();
+    await leaver.reload();
+    await leaver.locator('#json-input').waitFor({ timeout: 15_000 });
+    const reloaded = {
+      stored: await storedFor(leaver, 'json', r => r?.values?.sortKeys === true, 1_500),
+      sortKeys: await checkedState(leaver, 'Sort keys'),
+    };
+    await choose(leaver, 'Indent', 'Tab');
+    await leaver.goto('about:blank');
+    const navigated = await storedFor(main, 'json', r => r?.values?.indent === 'tab', 1_500);
+    const closer = await open('#/tools/json');
+    await closer.locator('#json-input').waitFor({ timeout: 15_000 });
+    await sleep(500);
+    await closer.getByRole('radio', { name: 'Minify', exact: true }).click();
+    await closer.close();
+    const closed = await storedFor(main, 'json', r => r?.values?.mode === 'minify', 1_500);
+    check(
+      `${T}: JSON — a choice made right before a reload, before leaving for another address and before the tab is closed is saved`,
+      reloaded.stored?.values?.sortKeys === true &&
+        reloaded.sortKeys === 'checked' &&
+        same(navigated?.values, { sortKeys: true, indent: 'tab' }) &&
+        same(closed?.values, { sortKeys: true, indent: 'tab', mode: 'minify' }),
+      JSON.stringify({ reloaded, navigated, closed }),
+    );
+    await putStored(main, withoutParams(await stored(main), tools));
   } finally {
     await clipboard?.restore().catch(() => undefined);
     for (const p of opened.splice(0)) await p.close().catch(() => undefined);
