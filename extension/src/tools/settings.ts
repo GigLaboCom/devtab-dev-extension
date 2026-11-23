@@ -71,6 +71,18 @@ const entryOf = (params: Record<string, unknown>, toolId: string): ParameterEntr
     : undefined;
 
 /**
+ * Is this page going away? True from `pagehide` (until a `pageshow` brings the page back from the browser's cache) and
+ * while the page is hidden. Where there is no page (a worker), never.
+ */
+const pageLeaving = (): (() => boolean) => {
+  if (typeof document === 'undefined') return () => false;
+  let hiding = false;
+  addEventListener('pagehide', () => void (hiding = true));
+  addEventListener('pageshow', () => void (hiding = false));
+  return () => hiding || document.visibilityState === 'hidden';
+};
+
+/**
  * Seam `ParameterStorage`, local: the `params` part of the record above. A write reads the record, checks that the
  * tool's entry is still the one the write was computed from, and writes the record back with that one entry replaced —
  * one write at a time in this page. chrome.storage has no transaction: between two pages the check and the write are
@@ -78,10 +90,34 @@ const entryOf = (params: Record<string, unknown>, toolId: string): ParameterEntr
  * seam). A storage error (a quota, a closed extension context) is answered `failed`; this storage is never
  * `unavailable`. A change made by any page of the extension is reported from storage.onChanged, entry by entry — this
  * page's own writes too.
+ *
+ * A page that is going away (`leaving`) cannot wait for the read: its answer comes in a later task, which a page being
+ * reloaded or closed never runs, and then nothing would be written at all. Such a write is computed from the record as
+ * this page last saw it — read, written here or reported by storage.onChanged — and handed to the browser in the same
+ * turn, so a choice made a moment before leaving is kept.
  */
-export const localParameterStorage = ({ area, onChanged }: BrowserStorage): ParameterStorage => {
+export const localParameterStorage = (
+  { area, onChanged }: BrowserStorage,
+  leaving: () => boolean = pageLeaving(),
+): ParameterStorage => {
   let queue: Promise<unknown> = Promise.resolve();
-  const record = async (): Promise<unknown> => (await area.get(TOOL_SETTINGS_KEY))[TOOL_SETTINGS_KEY];
+  /** The record as this page last saw it. */
+  let seen: { raw: unknown } | undefined;
+  let following = false;
+  /** From the first read on, what any page writes is seen here too (making the storage touches nothing). */
+  const follow = () => {
+    if (following) return;
+    following = true;
+    onChanged.addListener((changes, areaName) => {
+      if (areaName === 'local' && TOOL_SETTINGS_KEY in changes) seen = { raw: changes[TOOL_SETTINGS_KEY]!.newValue };
+    });
+  };
+  const record = async (): Promise<unknown> => {
+    follow();
+    const raw = (await area.get(TOOL_SETTINGS_KEY))[TOOL_SETTINGS_KEY];
+    seen = { raw };
+    return raw;
+  };
   return {
     keeps: true,
     read: toolId =>
@@ -92,7 +128,7 @@ export const localParameterStorage = ({ area, onChanged }: BrowserStorage): Para
     write: (toolId, parameters, base) => {
       const answer = queue.then(async (): Promise<ParameterWrite> => {
         try {
-          const raw = await record();
+          const raw = seen && leaving() ? seen.raw : await record();
           const params = paramsOf(raw);
           const current = entryOf(params, toolId);
           if (current?.revision !== base) return { status: 'conflict', entry: current };
@@ -102,6 +138,7 @@ export const localParameterStorage = ({ area, onChanged }: BrowserStorage): Para
           const rest = Object.fromEntries(Object.entries(isObject(raw) ? raw : {}).filter(([key]) => key !== 'params'));
           const written = { v: 1, all: {}, tools: {}, ...rest, ...(Object.keys(next).length > 0 && { params: next }) };
           await area.set({ [TOOL_SETTINGS_KEY]: written });
+          seen = { raw: written };
           return { status: 'accepted', entry: parameters && { parameters, revision: revisionOf(parameters) } };
         } catch (error) {
           return { status: 'failed', reason: error instanceof Error ? error.message : String(error) };

@@ -87,6 +87,77 @@ describe('the extension’s per-tool settings', () => {
   });
 });
 
+describe('a page that is going away', () => {
+  /** A storage whose reads stop answering from the moment the page leaves, as a page being reloaded never hears them. */
+  const leavingPage = () => {
+    const storage = fakeStorage();
+    let gone = false;
+    const get = storage.area.get.bind(storage.area) as (key: string) => Promise<Record<string, unknown>>;
+    const area = {
+      get: (key: string) => (gone ? new Promise<Record<string, unknown>>(() => undefined) : get(key)),
+      set: storage.area.set.bind(storage.area),
+    } as unknown as typeof storage.area;
+    const parameters = localParameterStorage({ area, onChanged: storage.onChanged }, () => gone);
+    return {
+      storage,
+      page: extensionToolSettings(area, storage.onChanged, parameters),
+      leave: () => void (gone = true),
+    };
+  };
+  const turns = async () => {
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+  };
+
+  it('a choice made a moment before leaving is written without waiting for a read', async () => {
+    const { storage, page, leave } = leavingPage();
+    await page.readyFor('uuid');
+    const own = page.forTool('uuid');
+    own.save(1, { count: 3 });
+    leave();
+    void own.flush();
+    // No task of the page runs after it left: only what was already under way.
+    await turns();
+    expect(storage.rows.get(TOOL_SETTINGS_KEY)).toEqual({
+      v: 1,
+      all: {},
+      tools: {},
+      params: { uuid: { schema: 1, values: { count: 3 } } },
+    });
+  });
+
+  it('writes over what it last saw: another tool’s entry and the settings, saved by another page, are carried through', async () => {
+    const { storage, page, leave } = leavingPage();
+    await page.readyFor('uuid');
+    const other = extensionToolSettings(storage.area, storage.onChanged);
+    await other.readyFor('json');
+    other.forTool('json').save(1, { indent: 4 });
+    await other.forTool('json').flush();
+    await other.setForAll(['password'], { autoCopy: true });
+    const own = page.forTool('uuid');
+    own.save(1, { count: 3 });
+    leave();
+    void own.flush();
+    await turns();
+    expect(storage.rows.get(TOOL_SETTINGS_KEY)).toEqual({
+      v: 1,
+      all: { autoCopy: true },
+      tools: { password: { autoCopy: true } },
+      params: { json: { schema: 1, values: { indent: 4 } }, uuid: { schema: 1, values: { count: 3 } } },
+    });
+  });
+
+  it('with nothing seen yet it reads first, as a page that stays does', async () => {
+    const storage = fakeStorage();
+    const parameters = localParameterStorage(storage, () => true);
+    expect(await parameters.write('uuid', { schema: 1, values: { count: 3 } }, undefined)).toMatchObject({
+      status: 'accepted',
+    });
+    expect(storage.rows.get(TOOL_SETTINGS_KEY)).toMatchObject({
+      params: { uuid: { schema: 1, values: { count: 3 } } },
+    });
+  });
+});
+
 describe('what the build before the seam saved (docs/tools/settings-storage.md §5)', () => {
   // The record as that build wrote it after five tools were used and the automatic-copy switch was touched.
   const before = () => ({
