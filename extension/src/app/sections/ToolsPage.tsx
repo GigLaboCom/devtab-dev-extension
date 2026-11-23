@@ -10,7 +10,9 @@
  * The tool opens once its per-tool settings and its saved parameters are read (it starts from them, D21). Its frame
  * offers "Reset settings" while those parameters differ from the tool's defaults — in a build whose storage keeps them
  * (seam ParameterStorage, D23: the page asks the store, not the edition) — and says in one line when the storage
- * refused to keep the person's latest choice.
+ * refused to keep the person's latest choice. Whether the tool copies by itself after Generate and whether its work is
+ * recorded follow the host too (`automaticCopying` and the history's gate, both the edition's: D24, D25); the tool is
+ * not told which edition it runs in.
  */
 import { clearHandoff, peekHandoff } from '../handoff';
 import { clearRestore, peekRestore } from '../history/restoreHandoff';
@@ -27,14 +29,17 @@ import type { ToolDefinition } from '@src/tools/registry';
 import type { RestoreRequest, ToolHost } from '@workspace/tools-host';
 import type { ReactElement, ReactNode } from 'react';
 
-const Head = (): ReactElement => (
+/** The section's head; where the build has no history (D25), it does not point there. */
+const Head = ({ history }: { history: boolean }): ReactElement => (
   <header className="kit-section-head">
     <div>
       <h1 id="tools-title" className="kit-section-title">
         Tools
       </h1>
       <p className="kit-section-hint">
-        Work offline. Nothing you paste leaves this browser; what a tool keeps is in History.
+        {history
+          ? 'Work offline. Nothing you paste leaves this browser; what a tool keeps is in History.'
+          : 'Work offline. Nothing you paste leaves this browser.'}
       </p>
     </div>
   </header>
@@ -75,7 +80,12 @@ const ToolView = ({ tool, history }: { tool: ToolDefinition; history: HistoryHos
   const [input] = useState(() => peekHandoff(tool.id));
   useEffect(() => clearHandoff(), []);
   const host = useMemo<ToolHost>(
-    () => ({ history: history.factory, settings: history.toolSettings, navigation: pageNavigation(window) }),
+    () => ({
+      history: history.factory,
+      settings: history.toolSettings,
+      navigation: pageNavigation(window),
+      automaticCopying: history.automaticCopying,
+    }),
     [history],
   );
   // An entry to open: handed over by the History page (once), or picked in the tool's own history line.
@@ -109,7 +119,7 @@ export const ToolsPage = ({ toolId, history }: { toolId?: string; history: Histo
   const tool = toolById(toolId);
   return (
     <section className="kit-section" aria-labelledby="tools-title">
-      <Head />
+      <Head history={history.included} />
       {tool ? <ToolView key={tool.id} tool={tool} history={history} /> : <Overview unknown={toolId} />}
     </section>
   );

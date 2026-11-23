@@ -2,16 +2,19 @@
  * A tool's page over each storage of the saved parameters (seam `ParameterStorage`, D23): what the page's frame shows
  * follows the storage the host was built over — the reset control only where the storage keeps, and one line of words
  * while the storage refuses to keep the person's latest choice. The tool is the real JSON tool; it is not told any of
- * this.
+ * this. Then each edition (D24, D25): the real Password Generator copies by itself after Generate only where the host
+ * has automatic copying, and the tool page's history line says what the edition records.
  */
 import { ToolsPage } from './ToolsPage';
+import { free } from '@src/edition/free';
+import { pro } from '@src/edition/pro';
 import { memoryHistoryHost } from '@src/history/behaviors';
 import { chromePlace } from '@src/test/parameterPlace';
 import { TOOLS } from '@src/tools/registry';
 import { extensionToolSettings, localParameterStorage } from '@src/tools/settings';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { noParameterStorage } from '@workspace/tools-host';
-import { afterEach, describe, expect, it } from 'vitest';
+import { AUTO_COPY, noParameterStorage } from '@workspace/tools-host';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HistoryHost } from '@src/history/behaviors';
 import type { BrowserStorage } from '@src/tools/settings';
 import type { ParameterStorage } from '@workspace/tools-host';
@@ -68,5 +71,45 @@ describe('a tool’s page and the storage of its saved parameters', () => {
     expect(page.place.storage.rows.size).toBe(0);
     expect(page.reset()).toBeNull();
     expect(page.notice()).toBeNull();
+  }, 20_000);
+});
+
+describe.each([
+  ['pro', pro],
+  ['free', free],
+] as const)('a tool’s page in the %s edition', (id, variant) => {
+  const isPro = id === 'pro';
+
+  it(`Password Generator with "autoCopy: true" stored: Generate ${isPro ? 'copies the password' : 'copies nothing'}; Copy copies; the setting stays stored`, async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    try {
+      const host = memoryHistoryHost(TOOLS, variant);
+      await host.toolSettings.setForAll(['password'], { [AUTO_COPY]: true });
+      await act(async () => void render(<ToolsPage toolId="password" history={host} />));
+      await screen.findByLabelText('Generated password', {}, { timeout: 10_000 });
+      await act(async () => void fireEvent.click(screen.getByRole('button', { name: 'Generate' })));
+      const generated = screen.getByLabelText('Generated password').textContent;
+      expect(writeText.mock.calls).toEqual(isPro ? [[generated]] : []);
+      await act(async () => void fireEvent.click(screen.getByRole('button', { name: isPro ? 'Copied' : 'Copy' })));
+      expect(writeText.mock.calls.at(-1)).toEqual([generated]);
+      expect(host.toolSettings.forTool('password').get()[AUTO_COPY]).toBe(true);
+    } finally {
+      Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  }, 20_000);
+
+  it(`the history line: ${isPro ? 'History is on' : 'History is part of Pro'}`, async () => {
+    const host = memoryHistoryHost(TOOLS, variant);
+    await act(async () => void render(<ToolsPage toolId="json" history={host} />));
+    await screen.findByLabelText('Sort keys', {}, { timeout: 10_000 });
+    const line = document.querySelector('.kit-tool-history-line')?.textContent ?? '';
+    if (isPro) expect(line).toContain('History is on: this tool’s work is kept in this browser.');
+    else expect(line).toBe('History is part of Pro: nothing is kept.');
+    expect(screen.getByText(/^Work offline\./).textContent).toBe(
+      isPro
+        ? 'Work offline. Nothing you paste leaves this browser; what a tool keeps is in History.'
+        : 'Work offline. Nothing you paste leaves this browser.',
+    );
   }, 20_000);
 });

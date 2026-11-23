@@ -1,8 +1,10 @@
 /**
  * Settings → History (D17), mounted by one line in SettingsPage: the master switch, how long entries are kept, the size
  * budget, the storage used, what each tool keeps (from the definitions, with a switch per tool), the optional master
- * password, and "Delete everything".
+ * password, and "Delete everything". In a build without the history (`host.included` false, D25) the block keeps its
+ * title and has one sentence in place of all that; nothing of the history is read.
  */
+import { HISTORY_EXCLUDED } from './excluded';
 import { formatBytes, plural } from './format';
 import { MasterPassword } from './MasterPassword';
 import { useHistorySettings, useHistoryStats } from './useHistory';
@@ -24,7 +26,23 @@ const debug = createDebug('extension:history');
 const days = (n: number) => (n === 365 ? '1 year' : `${n} days`);
 const budget = (n: number) => (n >= 1024 ? `${n / 1024} GB` : `${n} MB`);
 
-export const HistorySettings = ({ host }: { host: HistoryHost }): ReactElement => {
+export const HistorySettings = ({ host }: { host: HistoryHost }): ReactElement =>
+  host.included ? (
+    <KeptHistorySettings host={host} />
+  ) : (
+    <section
+      className="kit-settings-group"
+      aria-labelledby="settings-history"
+      data-settings="history"
+      data-history-state="excluded">
+      <h2 id="settings-history" className="kit-settings-group-title">
+        History
+      </h2>
+      <p className="kit-settings-hint kit-settings-intro">{HISTORY_EXCLUDED.section}</p>
+    </section>
+  );
+
+const KeptHistorySettings = ({ host }: { host: HistoryHost }): ReactElement => {
   const settings = useHistorySettings(host);
   const stats = useHistoryStats(host);
   const [wipe, setWipe] = useState<Measure | null>(null);

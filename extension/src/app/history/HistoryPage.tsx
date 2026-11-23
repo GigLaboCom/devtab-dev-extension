@@ -1,9 +1,12 @@
 /**
  * «History» (D17): what the tools kept in this browser — the list with its filters, grouped by session; open an entry
  * back in its tool; delete what the filter shows (counted first, asked once); export what is shown or everything; and
- * restore from an export. The page names no tool: names, kinds and where an entry opens come from the sources.
+ * restore from an export. The page names no tool: names, kinds and where an entry opens come from the sources. In a build
+ * without the history (`host.included` false, D25) the section stays, with one sentence in place of all that, and nothing
+ * of the history is read.
  */
 import { download } from './download';
+import { HISTORY_EXCLUDED } from './excluded';
 import { formatBytes, plural } from './format';
 import { filterOf, HistoryFilters, INITIAL_FILTER } from './HistoryFilters';
 import { HistoryList } from './HistoryList';
@@ -27,7 +30,23 @@ const PAGE = 100;
 
 type Confirm = { filter: HistoryFilter; measure: Measure; what: string } | null;
 
-export const HistoryPage = ({ host }: { host: HistoryHost }): ReactElement => {
+export const HistoryPage = ({ host }: { host: HistoryHost }): ReactElement =>
+  host.included ? (
+    <KeptHistoryPage host={host} />
+  ) : (
+    <section className="kit-section" aria-labelledby="history-title" data-page="history" data-history-state="excluded">
+      <header className="kit-section-head">
+        <div>
+          <h1 id="history-title" className="kit-section-title">
+            History
+          </h1>
+          <p className="kit-section-hint">{HISTORY_EXCLUDED.section}</p>
+        </div>
+      </header>
+    </section>
+  );
+
+const KeptHistoryPage = ({ host }: { host: HistoryHost }): ReactElement => {
   useActivity(host);
   const version = useHistoryVersion(host);
   const vault = useVaultState(host);

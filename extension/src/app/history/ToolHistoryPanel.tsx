@@ -1,7 +1,10 @@
 /**
  * A tool's own history on its page: a line that says whether its work is being kept (always visible), and its latest
- * entries to open back in the tool. What the line says comes from the tool's declaration and the host's switches.
+ * entries to open back in the tool. What the line says comes from the tool's declaration and the host's switches — and,
+ * in a build without the history (`host.included` false, D25), only that the history is part of Pro: no links, no
+ * entries, nothing read.
  */
+import { HISTORY_EXCLUDED } from './excluded';
 import { formatBytes, formatClock, formatTime } from './format';
 import { useHistorySettings, useHistoryVersion, useVaultState } from './useHistory';
 import { kindTitle } from '@src/history/sources';
@@ -16,15 +19,25 @@ import type { ReactElement } from 'react';
 
 const RECENT = 8;
 
-export const ToolHistoryPanel = ({
-  host,
-  source,
-  onOpen,
-}: {
+interface PanelProps {
   host: HistoryHost;
   source: HistorySource;
   onOpen: (id: string) => void;
-}): ReactElement => {
+}
+
+export const ToolHistoryPanel = (props: PanelProps): ReactElement =>
+  props.host.included ? (
+    <KeptHistoryPanel {...props} />
+  ) : (
+    <aside className="kit-tool-history" aria-label={`${props.source.title} history`} data-history-state="excluded">
+      <p className="kit-tool-history-line" role="status">
+        <HistoryIcon aria-hidden="true" />
+        <span>{HISTORY_EXCLUDED.line}</span>
+      </p>
+    </aside>
+  );
+
+const KeptHistoryPanel = ({ host, source, onOpen }: PanelProps): ReactElement => {
   const settings = useHistorySettings(host);
   const vault = useVaultState(host);
   const version = useHistoryVersion(host);

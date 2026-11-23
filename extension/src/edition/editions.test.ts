@@ -3,18 +3,24 @@
  * root's choice. Each edition names an implementation of seam `ParameterStorage` (D23): Pro the local one, which keeps
  * the tools' saved parameters in the per-tool settings record, so the next page opens with them; free the switched-off
  * one, which writes nothing of them, so the next page opens with the defaults. The storage each names passes that
- * seam's own contract here, over the same chrome.storage. Both keep "Copy automatically after generating" as before
- * (D21 leaves it open: it is not moved).
+ * seam's own contract here, over the same chrome.storage. The per-tool settings record itself (where the "Copy
+ * automatically after generating" switch is stored) is written the same way by both; whether that copying exists is the
+ * edition's `automaticCopying` (D24). Each edition also says what stands behind the tool history (D25): Pro records in
+ * the extension's IndexedDB; free records nothing and never opens it.
  */
 import { edition } from './index';
 import { free } from './free';
 import { pro } from './pro';
+import { memoryHistoryHost } from '@src/history/behaviors';
+import { HISTORY_DB } from '@src/history/idbStore';
 import { fakeStorage } from '@src/test/fakes';
 import { chromePlace } from '@src/test/parameterPlace';
 import { TOOL_SETTINGS_KEY, extensionToolSettings } from '@src/tools/settings';
 import { parameterStorageContract } from '@workspace/tools-host/parameter-storage-contract';
+import { memoryStore } from '@workspace/tools-shared/history';
 import { describe, expect, it } from 'vitest';
 import type { Edition } from './edition';
+import type { HistoryDeclaration } from '@workspace/tools-shared/history';
 
 const IMPLEMENTATIONS: readonly Edition[] = [pro, free];
 
@@ -81,6 +87,66 @@ describe.each(IMPLEMENTATIONS.map(e => [e.id, e] as const))('Edition %s', (id, v
     expect(own.unsaved()).toBeUndefined();
   });
 });
+
+describe.each(IMPLEMENTATIONS.map(e => [e.id, e] as const))(
+  'Edition %s: the history and automatic copying',
+  (id, variant) => {
+    const isPro = id === 'pro';
+    const DECLARATION: HistoryDeclaration = {
+      kinds: [{ id: 'result', title: 'Result' }],
+      schema: 1,
+      records: '',
+      never: '',
+    };
+
+    it('records exactly in Pro; the free one never opens the database it is offered', async () => {
+      const opened: string[] = [];
+      // An IndexedDB that only notes what is opened: the free edition must not reach it at all.
+      const factory = {
+        open: (name: string) => {
+          opened.push(name);
+          throw new Error('not in this test');
+        },
+      } as unknown as IDBFactory;
+      const history = variant.history({ indexedDB: { factory, keyRange: {} as typeof IDBKeyRange } });
+      expect(history.recording).toBe(isPro);
+      await history.store.stats().catch(() => undefined);
+      expect(opened).toEqual(isPro ? [HISTORY_DB] : []);
+    });
+
+    it('a store the host gives instead of a database: Pro keeps the records there; the free one leaves it alone', () => {
+      const given = memoryStore();
+      expect(variant.history({ store: given }).store === given).toBe(isPro);
+    });
+
+    it('through the host: what a tool records, and what the host tells its places and the tools', async () => {
+      const host = memoryHistoryHost([{ id: 'json', title: 'JSON', history: DECLARATION }], variant);
+      expect([host.included, host.automaticCopying]).toEqual([isPro, isPro]);
+      const history = host.factory.forOwner('json', DECLARATION);
+      expect(history.status().gate).toBe(isPro ? 'on' : 'off');
+      expect((await history.session().commit({ kind: 'result', payload: 1 })).recorded).toBe(isPro);
+      expect((await host.store.stats()).records).toBe(isPro ? 1 : 0);
+    });
+
+    it('automatic copying exists exactly in Pro; a stored "on" is left in the record either way', async () => {
+      expect(variant.automaticCopying).toBe(isPro);
+      const storage = fakeStorage();
+      storage.rows.set(TOOL_SETTINGS_KEY, { v: 1, all: { autoCopy: true }, tools: { password: { autoCopy: true } } });
+      const page = extensionToolSettings(
+        storage.area,
+        storage.onChanged,
+        variant.parameters({ area: storage.area, onChanged: storage.onChanged }),
+      );
+      await page.readyFor('password');
+      page.forTool('password').save(1, { length: 24 });
+      await page.forTool('password').flush();
+      expect(page.forTool('password').get().autoCopy).toBe(true);
+      expect((storage.rows.get(TOOL_SETTINGS_KEY) as { tools: unknown }).tools).toEqual({
+        password: { autoCopy: true },
+      });
+    });
+  },
+);
 
 describe('the edition’s composition root', () => {
   it('selects one of the implementations — Pro for now (no payment check yet; docs/defaults.md §2)', () => {

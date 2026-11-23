@@ -1,8 +1,12 @@
-/** The history line on a tool's page says what is true: for a tool that keeps secrets only, never that its work is kept. */
+/**
+ * The history line on a tool's page says what is true: for a tool that keeps secrets only, never that its work is kept;
+ * in a build without the history (the free edition, D25), that the history is part of Pro — and nothing else.
+ */
 import { ToolHistoryPanel } from './ToolHistoryPanel';
+import { free } from '@src/edition/free';
 import { memoryHistoryHost } from '@src/history/behaviors';
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HistoryDeclaration } from '@workspace/tools-shared/history';
 
 afterEach(cleanup);
@@ -43,4 +47,23 @@ describe('the history line on a tool’s page', () => {
   it('secret kinds only, unlocked: kept, encrypted', async () => {
     expect(await line([true], true)).toContain('this tool’s work is kept in this browser, encrypted');
   }, 20_000);
+});
+
+describe('the history line in the free edition', () => {
+  it.each<[string, boolean[]]>([
+    ['open kinds', [false]],
+    ['secret kinds only', [true]],
+    ['no kinds at all', []],
+  ])('%s: one sentence, no links, no entries, nothing read', async (_name, secret) => {
+    const tools = [{ id: 'probe', title: 'Probe', history: declaration(secret) }];
+    const host = memoryHistoryHost(tools, free);
+    const page = vi.spyOn(host.store, 'page');
+    const source = host.sources.find(s => s.owner === 'probe')!;
+    render(<ToolHistoryPanel host={host} source={source} onOpen={() => undefined} />);
+    expect((await screen.findByRole('status')).textContent).toBe('History is part of Pro: nothing is kept.');
+    expect(screen.queryAllByRole('link')).toEqual([]);
+    expect(screen.queryByText('Recent entries')).toBeNull();
+    expect(document.querySelector('[data-history-state]')?.getAttribute('data-history-state')).toBe('excluded');
+    expect(page).not.toHaveBeenCalled();
+  });
 });

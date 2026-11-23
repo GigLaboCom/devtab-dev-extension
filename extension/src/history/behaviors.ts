@@ -2,27 +2,30 @@
  * The composition root of the tool history in the extension (D17) — the one place that chooses what stands behind each
  * seam (docs/replaceable-behaviors.md):
  *
- *   HistoryStore     idbStore (IndexedDB of the extension's origin); memoryStore in an incognito context
+ *   HistoryStore     the edition's (seam Edition, src/edition — Pro: idbStore, the IndexedDB of the extension's origin;
+ *                    free: an empty memoryStore nothing writes to); memoryStore in an incognito context
  *   HistoryCipher    passwordCipher — "none" until the user sets a master password (optional, off by default)
  *   KeyHolder        sessionKeyHolder (chrome.storage.session, memory only, shared by the tabs, idle lock)
  *   HistoryArchive   zipArchive (the tool-history archive, format 1)
  *   RetentionRule    ageAndBudget (the settings' retention period and size budget)
  *
- * and builds the factory every tool records through (ToolHost.history). It also carries the tools' per-tool settings
- * (ToolHost.settings, src/tools/settings.ts — chrome.storage.local), with the tools' saved parameters in the storage
- * the edition names (seam ParameterStorage; src/edition: the browser's storage — Pro — or none — free): this object is
- * what the shell already hands to Tools and Settings, so the second host member travels with the first. Incognito: an extension page in spanning mode
- * cannot run in an incognito window at all (probe), but if one ever does (`chrome.extension.inIncognitoContext` — a
- * split-mode manifest, a change of Chrome), nothing reaches the persistent database: the store is in memory and the gate
- * is closed.
+ * and builds the factory every tool records through (ToolHost.history). Whether the tools' work is recorded at all is
+ * the edition's to say (`recording`, D25): where it is not, the gate tells every tool its history is off, nothing opens
+ * the store or the key holder, and `included` tells the host's own places to say the history is not part of this
+ * version. It also carries the tools' per-tool settings (ToolHost.settings, src/tools/settings.ts —
+ * chrome.storage.local), with the tools' saved parameters in the storage the edition names (seam ParameterStorage: the
+ * browser's storage — Pro — or none — free), and whether automatic copying exists (the edition's `automaticCopying`,
+ * D24): this object is what the shell already hands to Tools and Settings, so these members travel with the first.
+ * Incognito: an extension page in spanning mode cannot run in an incognito window at all (probe), but if one ever does
+ * (`chrome.extension.inIncognitoContext` — a split-mode manifest, a change of Chrome), nothing reaches the persistent
+ * database: the store is in memory and the gate is closed.
  */
-import { idbStore } from './idbStore';
 import { sessionKeyHolder } from './sessionKeyHolder';
 import { historySettingsSource } from './settings';
 import { historySources } from './sources';
 import pkg from '../../package.json';
 import product from '../../product.json';
-import { edition } from '../edition';
+import { edition as builtEdition } from '../edition';
 import { extensionToolSettings } from '../tools/settings';
 import { createDebug } from '@extension/logger';
 import {
@@ -33,6 +36,8 @@ import {
   passwordCipher,
   zipArchive,
 } from '@workspace/tools-shared/history';
+import type { Edition } from '../edition/edition';
+import type { IndexedDbApi } from './idbStore';
 import type { SessionArea } from './sessionKeyHolder';
 import type { HistorySettingsSource, SettingsArea, SettingsChanged } from './settings';
 import type { HistorySource, Recordable } from './sources';
@@ -64,6 +69,11 @@ export interface HistoryHost {
   gate: HistoryGate;
   /** This page is in an incognito context: nothing is recorded or kept. */
   incognito: boolean;
+  /**
+   * The history is part of this build (the edition records, D25). `false`: nothing is recorded or read, and the tool
+   * page's line, History and Settings → History say so in one sentence instead of offering the history.
+   */
+  included: boolean;
   producer: Producer;
   prune(): Promise<Measure>;
   /** The user did something (the idle lock's clock). */
@@ -73,6 +83,11 @@ export interface HistoryHost {
   onChange(listener: () => void): () => void;
   /** The tools' per-tool settings (ToolHost.settings), in chrome.storage.local, followed live; parameters where the edition keeps them. */
   toolSettings: ToolSettingsStore;
+  /**
+   * "Copy automatically after generating" exists in this build (the edition's, D24): Settings → Tools offers it, and the
+   * tools are told to copy after Generate while it is on (ToolHost.automaticCopying). `false`: neither.
+   */
+  automaticCopying: boolean;
 }
 
 /** The parts of `chrome` the history uses. */
@@ -85,31 +100,37 @@ export interface HistoryChrome {
   extension?: { inIncognitoContext?: boolean };
 }
 
+/** Where the history may keep its records: IndexedDB of this origin, or a given store (in memory, for a host without storage). */
+export type HistoryPlace = { indexedDB: IndexedDbApi } | { store: HistoryStore };
+
 export interface HistoryEnvironment {
   chrome: HistoryChrome;
-  /** Where records go: IndexedDB of this origin, or a given store (an in-memory one, for a host without storage). */
-  storage: { indexedDB: { factory: IDBFactory; keyRange: typeof IDBKeyRange } } | { store: HistoryStore };
+  /** The place offered for the records; whether and how it is used is the edition's choice (Edition.history). */
+  storage: HistoryPlace;
   tools: readonly Recordable[];
   now?: () => number;
+  /** The edition to follow; absent: the build's (src/edition/index.ts). Tests pass one. */
+  edition?: Edition;
 }
 
 export const historyHost = (env: HistoryEnvironment): HistoryHost => {
   const now = env.now ?? Date.now;
+  const edition = env.edition ?? builtEdition;
   const incognito = env.chrome.extension?.inIncognitoContext === true;
   const settings = historySettingsSource(env.chrome.storage.local, env.chrome.storage.onChanged);
-  const store = incognito
-    ? memoryStore()
-    : 'store' in env.storage
-      ? env.storage.store
-      : idbStore(env.storage.indexedDB);
-  const holder = incognito
-    ? { ...memoryKeyHolder(), touch: () => {}, dispose: () => {} }
-    : sessionKeyHolder({
-        area: env.chrome.storage.session,
-        onChanged: env.chrome.storage.onChanged,
-        idleMinutes: () => settings.get().idleLockMinutes,
-        now,
-      });
+  const kept = edition.history(env.storage);
+  const included = kept.recording;
+  const store = incognito ? memoryStore() : kept.store;
+  // Where nothing is recorded there is nothing to unlock: chrome.storage.session is not touched either.
+  const holder =
+    incognito || !included
+      ? { ...memoryKeyHolder(), touch: () => {}, dispose: () => {} }
+      : sessionKeyHolder({
+          area: env.chrome.storage.session,
+          onChanged: env.chrome.storage.onChanged,
+          idleMinutes: () => settings.get().idleLockMinutes,
+          now,
+        });
   const vault = passwordCipher({ keyrings: store, holder, now });
   const sources = historySources(env.tools);
 
@@ -117,6 +138,7 @@ export const historyHost = (env: HistoryEnvironment): HistoryHost => {
   const listeners = new Set<() => void>();
   const gate: HistoryGate = {
     state(owner): GateState {
+      if (!included) return 'off';
       if (incognito) return 'incognito';
       if (unavailable) return 'unavailable';
       const s = settings.get();
@@ -152,7 +174,7 @@ export const historyHost = (env: HistoryEnvironment): HistoryHost => {
     onError: (what, error) => debug.warn(what, error),
   });
 
-  if (!incognito) {
+  if (!incognito && included) {
     // The database opens (or not) once per page: a browser that refuses IndexedDB leaves the history unavailable.
     store
       .stats()
@@ -175,6 +197,7 @@ export const historyHost = (env: HistoryEnvironment): HistoryHost => {
     sources,
     gate,
     incognito,
+    included,
     producer: { name: product.name, version: pkg.version },
     prune,
     touch: () => holder.touch(),
@@ -188,6 +211,7 @@ export const historyHost = (env: HistoryEnvironment): HistoryHost => {
       env.chrome.storage.onChanged,
       edition.parameters({ area: env.chrome.storage.local, onChanged: env.chrome.storage.onChanged }),
     ),
+    automaticCopying: edition.automaticCopying,
   };
 };
 
@@ -233,6 +257,6 @@ const memoryChrome = (): HistoryChrome => {
   };
 };
 
-/** A history host that keeps everything in this page's memory: the default when the app is given none. */
-export const memoryHistoryHost = (tools: readonly Recordable[]): HistoryHost =>
-  historyHost({ chrome: memoryChrome(), storage: { store: memoryStore() }, tools });
+/** A history host that keeps everything in this page's memory: the default when the app is given none. `edition` as in historyHost. */
+export const memoryHistoryHost = (tools: readonly Recordable[], edition?: Edition): HistoryHost =>
+  historyHost({ chrome: memoryChrome(), storage: { store: memoryStore() }, tools, edition });

@@ -3,7 +3,8 @@
  * now — "Copy automatically after generating" — listed with the tools it applies to, from their definitions
  * (`output.origin: 'generated'`). It is not one boolean in storage: flipping it upserts the value into the entry of every
  * tool it applies to (`setForAll`), and a tool that appears later reads the switch's state. A switch per tool can come
- * later over the same entries, without a migration.
+ * later over the same entries, without a migration. SettingsPage draws it only in a build that has automatic copying (the
+ * edition's, D24): in the free one there is no switch, and what is stored stays as it is.
  */
 import { createDebug } from '@extension/logger';
 import { TOOLS } from '@src/tools/registry';

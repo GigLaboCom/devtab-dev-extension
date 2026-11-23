@@ -5,12 +5,15 @@
  */
 import { App } from './App';
 import { THEME_STORAGE_KEY } from '@extension/theme';
+import { free } from '@src/edition/free';
+import { memoryHistoryHost } from '@src/history/behaviors';
 import { browserNewTab } from '@src/newTab/browserNewTab';
 import { ownNewTab } from '@src/newTab/ownNewTab';
 import { SHELL_CACHE_KEY, SHELL_KEY } from '@src/shell/settings';
 import { SHORTCUT_KEYS_KEY } from '@src/shortcuts/store';
 import { startBehaviors } from '@src/start/behaviors';
 import { RECENT_KEY, SETTINGS_KEY, SHORTCUTS_KEY, START_CACHE_KEY } from '@src/start/settings';
+import { settled } from '@src/start/tileSources';
 import { fakeChrome } from '@src/test/fakes';
 import { TOOLS } from '@src/tools/registry';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -24,6 +27,7 @@ const setup = (
   rows: Record<string, unknown> = {},
   held: string[] = [],
   newTab: NewTabOverride = ownNewTab,
+  history?: AppDeps['history'],
 ) => {
   window.history.replaceState(null, '', `/src/app/index.html${hash}`);
   const { storage, permissions, api } = fakeChrome();
@@ -44,6 +48,7 @@ const setup = (
     start: { area: storage.area, onChanged: storage.onChanged, win },
     permissions: permissions as unknown as PermissionsApi,
     behaviors,
+    ...(history && { history }),
   };
   const { unmount } = render(<App deps={deps} />);
   return { storage, permissions, search, history: api.history.search, unmount, media };
@@ -928,5 +933,66 @@ describe('default shortcuts', () => {
     const row = () => document.querySelector<HTMLElement>('[data-shortcut="open:compare"]')!;
     await waitFor(() => expect(row().dataset.origin).toBe('blocked'));
     expect(row().textContent).toContain('Default Ctrl+Shift+E is not given: “JSON” has it');
+  });
+});
+
+describe('what the edition decides, in Settings and History (D24, D25)', { timeout: 30_000 }, () => {
+  const HISTORY_IS_PRO = 'History is part of Pro. Nothing you do in the tools is kept in this version.';
+  /**
+   * The history host the page is handed, as a promise the shell reads at once (`settled`, the mark React's `use` reads
+   * without suspending) — the way the page's own loader reads on every render after the first. A promise the shell has
+   * to wait for was resumed by React only sometimes when the whole workspace was tested at once (the shell read it,
+   * it was answered within milliseconds, and nothing was drawn for the rest of the wait): a race of the test
+   * environment, seen in four runs of five. The wait itself — the page's first load — is what the first tests of this
+   * file and the end-to-end checks of both editions cover.
+   */
+  const freeHost = () => {
+    const loaded = settled(memoryHistoryHost(TOOLS, free));
+    return () => loaded;
+  };
+  const yourData = () => document.querySelector('[aria-labelledby="settings-data"]')?.textContent ?? '';
+  /** The element, once the page has drawn it (the shell's code and the history host load first). */
+  const found = (selector: string) =>
+    waitFor(
+      () => {
+        const element = document.querySelector<HTMLElement>(selector);
+        // What the page shows instead, when it never comes: the failure then says where the page was.
+        if (!element)
+          throw new Error(
+            `${selector} is not on the page at ${window.location.hash}: ${(document.body.textContent ?? '').slice(0, 300) || '(nothing drawn)'}`,
+          );
+        return element;
+      },
+      { timeout: 15_000 },
+    );
+
+  it('Pro (the build’s root): Settings → Tools with its switch, the History block, and Your data names the history', async () => {
+    setup('#/settings');
+    await screen.findByRole('heading', { name: 'Appearance' });
+    const tools = await found('[data-settings="tools"]');
+    expect(within(tools).getByRole('switch', { name: 'Copy automatically after generating' })).toBeTruthy();
+    expect(screen.getByRole('switch', { name: 'Keep a history of my tools' })).toBeTruthy();
+    expect(yourData()).toContain('While History is on, the tools keep what you type');
+  });
+
+  it('free: no Settings → Tools, one sentence in place of Settings → History, and Your data does not speak of a history', async () => {
+    setup('#/settings', {}, [], ownNewTab, freeHost());
+    const block = await found('[data-settings="history"]');
+    expect(block.querySelector('h2')?.textContent).toBe('History');
+    expect(block.querySelector('p')?.textContent).toBe(HISTORY_IS_PRO);
+    expect(block.querySelectorAll('button, [role="switch"], a, input')).toHaveLength(0);
+    expect(document.querySelector('[data-settings="tools"]')).toBeNull();
+    expect(screen.queryByRole('switch', { name: 'Copy automatically after generating' })).toBeNull();
+    expect(yourData()).not.toMatch(/History/);
+    expect(yourData()).toContain('“Last opened tool” and the search’s recent places). Never stored:');
+  });
+
+  it('free: the History section stays, with its one sentence and nothing else', async () => {
+    setup('#/history', {}, [], ownNewTab, freeHost());
+    const section = await found('[data-page="history"]');
+    expect(section.querySelector('h1')?.textContent).toBe('History');
+    expect(section.querySelector('.kit-section-hint')?.textContent).toBe(HISTORY_IS_PRO);
+    expect(section.textContent).toBe(`History${HISTORY_IS_PRO}`);
+    expect(section.querySelectorAll('button, a, input, [role="switch"]')).toHaveLength(0);
   });
 });

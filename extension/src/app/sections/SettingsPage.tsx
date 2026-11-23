@@ -11,11 +11,15 @@
  *               switching it off gives back what no other switched-on part needs. This page names no part.
  *   Appearance  the theme (the only place it is chosen; not set = System, which follows the system live)
  *   Shortcuts   the user's keyboard shortcuts for every action (ShortcutSettings.tsx)
- *   History     the tool history (D17): its own block, app/history/HistorySettings.tsx
+ *   Tools       "Copy automatically after generating" (app/tools/ToolSettings.tsx) — only in a build that has automatic
+ *               copying (`history.automaticCopying`, the edition's, D24); elsewhere the group is not drawn: it would be
+ *               empty
+ *   History     the tool history (D17): its own block, app/history/HistorySettings.tsx (one sentence in a build without
+ *               the history, D25)
  *   Your data   what is stored and what is not; each part that reads the browser adds its own line
  *
  * Everything here is a setting, kept in chrome.storage.local; nothing the user types into the start page is. What the
- * tools keep is the tool history, in this browser's IndexedDB (D17).
+ * tools keep is the tool history, in this browser's IndexedDB (D17) — in a build that has it.
  */
 import { ShortcutSettings } from './ShortcutSettings';
 import { HistorySettings } from '../history/HistorySettings';
@@ -293,7 +297,7 @@ export const SettingsPage = ({
 
         {shortcuts && <ShortcutSettings shortcuts={shortcuts} fixed={FIXED} mac={isMac()} />}
 
-        <ToolSettings host={history} />
+        {history.automaticCopying && <ToolSettings host={history} />}
 
         <HistorySettings host={history} />
 
@@ -305,12 +309,12 @@ export const SettingsPage = ({
             <p>
               Stored in this browser’s extension storage: these settings, your start page shortcuts, your keyboard
               shortcuts, which sidebar groups you opened or closed, and which tools and sections you opened last (for
-              the Tools tiles, “Last opened tool” and the search’s recent places). While History is on, the tools keep
-              what you type, paste or open in them, with their results, in this browser’s storage — not in incognito
-              windows, never secrets without a master password — until it is deleted (see History above). Never stored:
-              what you type or paste into the start page’s field or the search. Nothing is sent anywhere until you press
-              Enter on a web search, which goes to your browser’s search engine; an export goes only into the file you
-              save.
+              the Tools tiles, “Last opened tool” and the search’s recent places).
+              {history.included &&
+                ' While History is on, the tools keep what you type, paste or open in them, with their results, in this browser’s storage — not in incognito windows, never secrets without a master password — until it is deleted (see History above).'}{' '}
+              Never stored: what you type or paste into the start page’s field or the search. Nothing is sent anywhere
+              until you press Enter on a web search, which goes to your browser’s search engine; an export goes only
+              into the file you save.
             </p>
             {privacy.map(line => (
               <p key={line}>{line}</p>
