@@ -1,5 +1,6 @@
 /**
- * Seam `Edition`: the shared contract, run against both implementations over chrome.storage.local (a fake), and the
+ * Seam `Edition`: the shared contract, run against both implementations over chrome.storage.local (a fake); seam
+ * `EditionSource`: its contract on both fixed sources, how a source's state becomes an edition (editionFor), and the
  * root's choice. Each edition names an implementation of seam `ParameterStorage` (D23): Pro the local one, which keeps
  * the tools' saved parameters in the per-tool settings record, so the next page opens with them; free the switched-off
  * one, which writes nothing of them, so the next page opens with the defaults. The storage each names passes that
@@ -8,9 +9,14 @@
  * edition's `automaticCopying` (D24). Each edition also says what stands behind the tool history (D25): Pro records in
  * the extension's IndexedDB; free records nothing and never opens it.
  */
-import { edition } from './index';
+import { editionSource } from './index';
+import { fixedSource } from './fixed';
+import { fixedFree } from './fixedFree';
+import { fixedPro } from './fixedPro';
 import { free } from './free';
+import { editionFor } from './inForce';
 import { pro } from './pro';
+import { editionSourceContract } from './sourceContract';
 import { memoryHistoryHost } from '@src/history/behaviors';
 import { HISTORY_DB } from '@src/history/idbStore';
 import { fakeStorage } from '@src/test/fakes';
@@ -20,6 +26,7 @@ import { parameterStorageContract } from '@workspace/tools-host/parameter-storag
 import { memoryStore } from '@workspace/tools-shared/history';
 import { describe, expect, it } from 'vitest';
 import type { Edition } from './edition';
+import type { EditionSourceFactory, SourceState } from './source';
 import type { HistoryDeclaration } from '@workspace/tools-shared/history';
 
 const IMPLEMENTATIONS: readonly Edition[] = [pro, free];
@@ -120,7 +127,7 @@ describe.each(IMPLEMENTATIONS.map(e => [e.id, e] as const))(
     });
 
     it('through the host: what a tool records, and what the host tells its places and the tools', async () => {
-      const host = memoryHistoryHost([{ id: 'json', title: 'JSON', history: DECLARATION }], variant);
+      const host = memoryHistoryHost([{ id: 'json', title: 'JSON', history: DECLARATION }], fixedSource(variant.id));
       expect([host.included, host.automaticCopying]).toEqual([isPro, isPro]);
       const history = host.factory.forOwner('json', DECLARATION);
       expect(history.status().gate).toBe(isPro ? 'on' : 'off');
@@ -148,9 +155,71 @@ describe.each(IMPLEMENTATIONS.map(e => [e.id, e] as const))(
   },
 );
 
+/** A page's environment for a source; the fixed ones read none of it. */
+const SOURCE_ENV = {
+  chrome: {
+    storage: { local: fakeStorage().area, onChanged: fakeStorage().onChanged },
+    runtime: { sendMessage: () => Promise.reject(new Error('no worker in this test')) },
+  },
+} as unknown as Parameters<EditionSourceFactory>[0];
+
+const FIXED_SOURCES: readonly EditionSourceFactory[] = [fixedPro, fixedFree];
+
+for (const factory of FIXED_SOURCES)
+  editionSourceContract(factory.id, () => ({ open: () => factory(SOURCE_ENV), settle: () => Promise.resolve() }));
+
+describe('the fixed sources', () => {
+  it.each([
+    ['fixedPro', fixedPro, 'pro'],
+    ['fixedFree', fixedFree, 'free'],
+  ] as const)('%s says the edition fixed at build time, already known', async (_name, factory, id) => {
+    const source = factory(SOURCE_ENV);
+    expect(source.id).toBe(factory.id);
+    expect(source.current()).toEqual({ kind: 'fixed', edition: id });
+    expect(await source.ready).toEqual({ kind: 'fixed', edition: id });
+    expect(editionFor(source.current()).id).toBe(id);
+  });
+});
+
+describe('editionFor — from a source’s state to the edition in force', () => {
+  const facts = {
+    lid: 'lic_TEST0000000001',
+    checkedAt: 0,
+    checkAfter: 1,
+    warnFrom: 2,
+    validUntil: 3,
+    paidUntil: null,
+  };
+  const STATES: readonly (readonly [SourceState, Edition])[] = [
+    [{ kind: 'active', licence: facts, due: false }, pro],
+    [{ kind: 'grace', licence: facts }, pro],
+    [{ kind: 'fixed', edition: 'pro' }, pro],
+    [{ kind: 'fixed', edition: 'free' }, free],
+    [{ kind: 'unknown' }, free],
+    [{ kind: 'free' }, free],
+    [{ kind: 'expired', licence: facts }, free],
+    [{ kind: 'ended', licence: facts }, free],
+    [{ kind: 'revoked', licence: facts, reason: 'refund' }, free],
+    [{ kind: 'invalid', reason: 'signature' }, free],
+  ];
+
+  it.each(STATES.map(([state, edition]) => [state.kind, state, edition] as const))(
+    '%s → its edition',
+    (_kind, state, edition) => {
+      expect(editionFor(state)).toBe(edition);
+    },
+  );
+
+  it('takes the editions to choose between (a test, a later edition)', () => {
+    const other = { ...free, id: 'free' as const };
+    expect(editionFor({ kind: 'ended', licence: facts }, { pro, free: other })).toBe(other);
+  });
+});
+
 describe('the edition’s composition root', () => {
-  it('selects one of the implementations — Pro for now (no payment check yet; docs/defaults.md §2)', () => {
-    expect(IMPLEMENTATIONS).toContain(edition);
-    expect(edition).toBe(pro);
+  it('names a fixed source — Pro for now (no payment check yet; docs/defaults.md §2)', () => {
+    expect(FIXED_SOURCES).toContain(editionSource);
+    expect(editionSource.id).toBe('fixedPro');
+    expect(editionFor(editionSource(SOURCE_ENV).current())).toBe(pro);
   });
 });

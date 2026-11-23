@@ -3,12 +3,13 @@ import { historyHost } from './behaviors';
 import { HISTORY_DB } from './idbStore';
 import { SESSION_KEYS_KEY } from './sessionKeyHolder';
 import { HISTORY_SETTINGS_KEY } from './settings';
-import { free } from '../edition/free';
-import { pro } from '../edition/pro';
+import { fixedSource } from '../edition/fixed';
+import { FREE, PRO, switchableSource } from '../test/switchableSource';
+import { memoryStore } from '@workspace/tools-shared/history';
 import { IDBFactory, IDBKeyRange } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
 import type { HistoryChrome } from './behaviors';
-import type { HistoryDeclaration } from '@workspace/tools-shared/history';
+import type { HistoryDeclaration, HistoryStore } from '@workspace/tools-shared/history';
 
 type Listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => void;
 
@@ -74,6 +75,11 @@ const TOOLS = [
   { id: 'password', title: 'Password Generator' },
 ];
 const settle = () => new Promise(r => setTimeout(r, 20));
+/** Waits until `ready()` holds (an opening over IndexedDB takes longer on a busy machine), at most 5 s. */
+const until = async (ready: () => boolean) => {
+  for (const started = Date.now(); !ready(); await settle())
+    if (Date.now() - started > 5_000) throw new Error('waited 5 s in vain');
+};
 
 const countRecords = (factory: IDBFactory) =>
   new Promise<number>((resolve, reject) => {
@@ -228,7 +234,12 @@ describe('the history root follows the edition (D25)', () => {
   it('Pro records into IndexedDB and says the history is part of the build', async () => {
     const { api } = fakeChrome();
     const db = watchedIndexedDb(new IDBFactory());
-    const host = historyHost({ chrome: api, storage: { indexedDB: db.indexedDB }, tools: TOOLS, edition: pro });
+    const host = historyHost({
+      chrome: api,
+      storage: { indexedDB: db.indexedDB },
+      tools: TOOLS,
+      source: fixedSource('pro'),
+    });
     await settle();
     expect([host.included, host.automaticCopying]).toEqual([true, true]);
     const history = host.factory.forOwner('json', DECLARATION);
@@ -245,7 +256,12 @@ describe('the history root follows the edition (D25)', () => {
       (session as Record<string, unknown>)[method] = (...args: unknown[]) => (sessionCalls.push(method), real(...args));
     }
     const db = watchedIndexedDb(new IDBFactory());
-    const host = historyHost({ chrome: api, storage: { indexedDB: db.indexedDB }, tools: TOOLS, edition: free });
+    const host = historyHost({
+      chrome: api,
+      storage: { indexedDB: db.indexedDB },
+      tools: TOOLS,
+      source: fixedSource('free'),
+    });
     await settle();
     expect([host.included, host.automaticCopying]).toEqual([false, false]);
     const history = host.factory.forOwner('json', DECLARATION);
@@ -267,7 +283,7 @@ describe('the history root follows the edition (D25)', () => {
       chrome: fakeChrome().api,
       storage: { indexedDB: { factory, keyRange: IDBKeyRange } },
       tools: TOOLS,
-      edition: pro,
+      source: fixedSource('pro'),
     });
     await settle();
     await before.factory.forOwner('json', DECLARATION).session().commit({ kind: 'result', payload: 'kept' });
@@ -278,7 +294,7 @@ describe('the history root follows the edition (D25)', () => {
       chrome: fakeChrome().api,
       storage: { indexedDB: db.indexedDB },
       tools: TOOLS,
-      edition: free,
+      source: fixedSource('free'),
     });
     await settle();
     expect(await freePage.store.page({}, { limit: 10 })).toMatchObject({ rows: [] });
@@ -289,9 +305,204 @@ describe('the history root follows the edition (D25)', () => {
       chrome: fakeChrome().api,
       storage: { indexedDB: { factory, keyRange: IDBKeyRange } },
       tools: TOOLS,
-      edition: pro,
+      source: fixedSource('pro'),
     });
     await settle();
     expect((await after.store.stats()).records).toBe(1);
+  });
+});
+
+describe('the history root follows the source on an open page', () => {
+  /** A store in memory whose opening (its first `stats`) a test can hold back; `opened` counts the openings. */
+  const heldStore = () => {
+    const inner = memoryStore();
+    let release: () => void = () => undefined;
+    let held: Promise<void> = Promise.resolve();
+    const state = { opened: 0 };
+    const store: HistoryStore = {
+      ...inner,
+      stats: async () => {
+        state.opened += 1;
+        await held;
+        return inner.stats();
+      },
+    };
+    return {
+      store,
+      state,
+      hold: () => void (held = new Promise(resolve => (release = resolve))),
+      release: () => release(),
+    };
+  };
+  /** An IndexedDB that notes every database a page opens. */
+  const watchedIndexedDb = (factory: IDBFactory) => {
+    const opened: string[] = [];
+    const watched = new Proxy(factory, {
+      get: (target, key) =>
+        key === 'open'
+          ? (name: string, v?: number) => (opened.push(name), target.open(name, v))
+          : Reflect.get(target, key),
+    });
+    return { opened, indexedDB: { factory: watched, keyRange: IDBKeyRange } };
+  };
+
+  it('free → Pro: the database opens only now, the gate stays closed until it is open; automatic copying at once', async () => {
+    const { api, session } = fakeChrome();
+    const sessionCalls: string[] = [];
+    for (const method of ['get', 'set', 'remove'] as const) {
+      const real = session[method] as (...args: unknown[]) => Promise<unknown>;
+      (session as Record<string, unknown>)[method] = (...args: unknown[]) => (sessionCalls.push(method), real(...args));
+    }
+    const pro = heldStore();
+    const source = switchableSource(FREE);
+    const host = historyHost({ chrome: api, storage: { store: pro.store }, tools: TOOLS, source });
+    const told: Array<[boolean, boolean]> = [];
+    host.onEdition(() => told.push([host.included, host.automaticCopying]));
+    const history = host.factory.forOwner('json', DECLARATION);
+    await settle();
+    expect([host.included, host.automaticCopying, history.status().gate]).toEqual([false, false, 'off']);
+    expect(pro.state.opened).toBe(0);
+    expect(sessionCalls).toEqual([]);
+
+    pro.hold();
+    source.set(PRO);
+    expect(host.automaticCopying).toBe(true);
+    await settle();
+    expect(pro.state.opened).toBe(1);
+    // Opening: closed, and the places still say the history is not part of the edition.
+    expect([host.included, history.status().gate]).toEqual([false, 'off']);
+    expect(await history.session().commit({ kind: 'result', payload: 'too early' })).toEqual({
+      recorded: false,
+      reason: 'off',
+    });
+    pro.release();
+    await until(() => host.included);
+    expect([host.included, history.status().gate]).toEqual([true, 'on']);
+    expect(told.at(0)).toEqual([false, true]);
+    expect(told.at(-1)).toEqual([true, true]);
+    expect((await history.session().commit({ kind: 'result', payload: 1 })).recorded).toBe(true);
+    expect((await pro.store.page({}, { limit: 10 })).rows).toHaveLength(1);
+  });
+
+  it('free → Pro over IndexedDB: the database is opened only after the change', async () => {
+    const { api } = fakeChrome();
+    const db = watchedIndexedDb(new IDBFactory());
+    const source = switchableSource(FREE);
+    const host = historyHost({ chrome: api, storage: { indexedDB: db.indexedDB }, tools: TOOLS, source });
+    await settle();
+    expect(db.opened).toEqual([]);
+    source.set(PRO);
+    const history = host.factory.forOwner('json', DECLARATION);
+    await until(() => history.status().gate === 'on');
+    expect(new Set(db.opened)).toEqual(new Set([HISTORY_DB]));
+  });
+
+  it('Pro → free: the gate closes before the store changes; what was recorded stays in the database; session storage is left alone', async () => {
+    const { api, session } = fakeChrome();
+    const factory = new IDBFactory();
+    const source = switchableSource(PRO);
+    const host = historyHost({
+      chrome: api,
+      storage: { indexedDB: { factory, keyRange: IDBKeyRange } },
+      tools: TOOLS,
+      source,
+    });
+    await settle();
+    await host.vault.setPassword('a throwaway test passphrase');
+    await settle();
+    expect(session.rows.has(SESSION_KEYS_KEY)).toBe(true);
+    const history = host.factory.forOwner('json', DECLARATION);
+    expect(history.status().gate).toBe('on');
+
+    expect((await history.session().commit({ kind: 'result', payload: 'kept in Pro' })).recorded).toBe(true);
+    // What the gate says, and which store is in use, when the gate's listeners are told of the change.
+    const told: Array<Promise<[string, number]>> = [];
+    host.gate.subscribe(() =>
+      told.push(host.store.stats().then(stats => [history.status().gate, stats.records] as [string, number])),
+    );
+    source.set(FREE);
+    // The gate was closed while the Pro store (its one record) was still the one in use.
+    expect(await told[0]).toEqual(['off', 1]);
+    expect([host.included, host.automaticCopying]).toEqual([false, false]);
+    expect(await countRecords(factory)).toBe(1);
+    // In the free one the store is an empty one in memory, and nothing is recorded.
+    expect((await host.store.stats()).records).toBe(0);
+    expect(await history.session().commit({ kind: 'result', payload: 2 })).toEqual({ recorded: false, reason: 'off' });
+    expect(await countRecords(factory)).toBe(1);
+    expect(session.rows.has(SESSION_KEYS_KEY)).toBe(true);
+
+    // And back: the same database, its records and its keyring again.
+    source.set(PRO);
+    await until(() => host.included);
+    expect([host.included, history.status().gate]).toEqual([true, 'on']);
+    expect((await host.store.stats()).records).toBe(1);
+    expect(host.vault.hasPassword()).toBe(true);
+  });
+
+  it('back to free before the database finished opening: nothing switches to Pro', async () => {
+    const { api } = fakeChrome();
+    const pro = heldStore();
+    const source = switchableSource(FREE);
+    const host = historyHost({ chrome: api, storage: { store: pro.store }, tools: TOOLS, source });
+    await settle();
+    pro.hold();
+    source.set(PRO);
+    await settle();
+    source.set(FREE);
+    pro.release();
+    await settle();
+    expect([host.included, host.automaticCopying]).toEqual([false, false]);
+    expect(host.factory.forOwner('json', DECLARATION).status().gate).toBe('off');
+    await host.store.putKeyring('probe', 'line');
+    expect((await pro.store.keyrings()).size).toBe(0);
+  });
+
+  it('another state of the same edition changes nothing but tells the pages', async () => {
+    const { api } = fakeChrome();
+    const source = switchableSource(PRO);
+    const host = historyHost({
+      chrome: api,
+      storage: { indexedDB: { factory: new IDBFactory(), keyRange: IDBKeyRange } },
+      tools: TOOLS,
+      source,
+    });
+    await settle();
+    let told = 0;
+    host.onEdition(() => told++);
+    if (PRO.kind === 'active') source.set({ kind: 'grace', licence: PRO.licence });
+    expect(told).toBe(1);
+    expect([host.included, host.automaticCopying]).toEqual([true, true]);
+    expect(host.factory.forOwner('json', DECLARATION).status().gate).toBe('on');
+  });
+
+  it('the tools’ saved parameters follow the edition too (keeps)', async () => {
+    const { api } = fakeChrome();
+    const source = switchableSource(FREE);
+    const host = historyHost({
+      chrome: api,
+      storage: { indexedDB: { factory: new IDBFactory(), keyRange: IDBKeyRange } },
+      tools: TOOLS,
+      source,
+    });
+    await host.toolSettings.readyFor('json');
+    const json = host.toolSettings.forTool('json');
+    json.declare(saved => saved !== undefined);
+    json.save(1, { indent: 4 });
+    await json.flush();
+    expect(json.changed()).toBe(false);
+    source.set(PRO);
+    await settle();
+    expect(json.changed()).toBe(true);
+  });
+
+  it('in an incognito context the database is never opened, whatever the edition', async () => {
+    const { api } = fakeChrome(true);
+    const db = watchedIndexedDb(new IDBFactory());
+    const source = switchableSource(FREE);
+    const host = historyHost({ chrome: api, storage: { indexedDB: db.indexedDB }, tools: TOOLS, source });
+    source.set(PRO);
+    await settle();
+    expect(host.factory.forOwner('json', DECLARATION).status().gate).toBe('incognito');
+    expect(db.opened).toEqual([]);
   });
 });

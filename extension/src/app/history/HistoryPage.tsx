@@ -15,6 +15,7 @@ import { handOffRestore } from './restoreHandoff';
 import { RestorePanel } from './RestorePanel';
 import { useActivity, useHistoryVersion, useVaultState } from './useHistory';
 import { go } from '../route';
+import { useHostEdition } from '../useHostEdition';
 import { createDebug } from '@extension/logger';
 import { sourceOf } from '@src/history/sources';
 import { isEverything, summaryOf } from '@workspace/tools-shared/history';
@@ -31,7 +32,7 @@ const PAGE = 100;
 type Confirm = { filter: HistoryFilter; measure: Measure; what: string } | null;
 
 export const HistoryPage = ({ host }: { host: HistoryHost }): ReactElement =>
-  host.included ? (
+  useHostEdition(host).included ? (
     <KeptHistoryPage host={host} />
   ) : (
     <section className="kit-section" aria-labelledby="history-title" data-page="history" data-history-state="excluded">

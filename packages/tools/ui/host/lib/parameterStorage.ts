@@ -69,7 +69,9 @@ export type ParameterWatcher = (toolId: string, entry: ParameterEntry | undefine
 export interface ParameterStorage {
   /**
    * Does what it is given outlive this page? `false`: the parameters live in the page only, so the host offers no reset
-   * of them and has nothing to say about saving.
+   * of them and has nothing to say about saving. It may change on an open page only in an implementation that says so
+   * of itself (the extension's storage of the edition in force, `editionParameterStorage`); the logic reads it at each
+   * use.
    */
   readonly keeps: boolean;
   /** What it holds for the tool; `undefined`: nothing, or it cannot be reached now. Never rejects. */

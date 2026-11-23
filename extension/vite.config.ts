@@ -33,25 +33,34 @@ const crxWatchRebuildFix = (): Plugin => ({
 });
 
 /**
- * A build of another variant of a composition root without editing the root — what the e2e does to check the free
- * edition next to the default build (scripts/e2e-tools/saved-settings.mjs): `DEVTAB_VARIANT=<part>:<variant>`
- * (`edition:free`) reads src/<part>/index.ts with its first `export { … as <name> } from './…';` line naming that
- * variant instead — the same one-line change a person would make. Unset (every normal build): the roots as written.
+ * A build of other variants of composition roots without editing the roots — what the e2e does to check the free
+ * edition next to the default build (scripts/e2e-tools/saved-settings.mjs): `DEVTAB_VARIANT=<part>:<variant>[,…]`
+ * (`edition:fixedFree`) reads src/<part>/index.ts with its first `export { … as <name> } from './…';` line naming that
+ * variant instead — the same one-line change a person would make. Several pairs, comma-separated, switch several roots
+ * (each part at most once); a pair that is not two words of letters is an error. Unset (every normal build): the roots
+ * as written.
  */
 const variantOverride = (spec: string | undefined): Plugin | false => {
   if (!spec) return false;
-  const [part, variant] = spec.split(':');
-  if (!part || !variant || !/^[A-Za-z]+$/.test(part) || !/^[A-Za-z]+$/.test(variant))
-    throw new Error(`DEVTAB_VARIANT is <part>:<variant> (edition:free), not "${spec}"`);
-  const root = resolve(__dirname, 'src', part, 'index.ts');
+  const roots = new Map<string, string>();
+  for (const pair of spec.split(',')) {
+    const [part, variant, extra] = pair.split(':');
+    if (!part || !variant || extra !== undefined || !/^[A-Za-z]+$/.test(part) || !/^[A-Za-z]+$/.test(variant))
+      throw new Error(`DEVTAB_VARIANT is <part>:<variant>[,<part>:<variant>…] (edition:fixedFree), not "${spec}"`);
+    const root = resolve(__dirname, 'src', part, 'index.ts');
+    if (roots.has(root)) throw new Error(`DEVTAB_VARIANT names the part "${part}" twice: "${spec}"`);
+    if (!existsSync(root)) throw new Error(`DEVTAB_VARIANT: there is no composition root ${root}`);
+    roots.set(root, variant);
+  }
   const line = /^export \{ \w+ as (\w+) \} from '\.\/\w+';$/m;
   return {
     name: 'extension:variant-override',
     enforce: 'pre',
     load(id) {
-      if (id !== root) return null;
-      const source = readFileSync(root, 'utf-8');
-      if (!line.test(source)) throw new Error(`${root}: no "export { … as … } from './…';" line to switch`);
+      const variant = roots.get(id);
+      if (!variant) return null;
+      const source = readFileSync(id, 'utf-8');
+      if (!line.test(source)) throw new Error(`${id}: no "export { … as … } from './…';" line to switch`);
       return source.replace(line, (_all, name: string) => `export { ${variant} as ${name} } from './${variant}';`);
     },
   };

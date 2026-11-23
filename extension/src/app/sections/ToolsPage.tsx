@@ -18,6 +18,7 @@ import { clearHandoff, peekHandoff } from '../handoff';
 import { clearRestore, peekRestore } from '../history/restoreHandoff';
 import { ToolHistoryPanel } from '../history/ToolHistoryPanel';
 import { routeHash } from '../route';
+import { useHostEdition } from '../useHostEdition';
 import { sourceOf } from '@src/history/sources';
 import { pageNavigation } from '@src/tools/navigation';
 import { TOOLS, componentOf, toolById } from '@src/tools/registry';
@@ -79,14 +80,16 @@ const ToolView = ({ tool, history }: { tool: ToolDefinition; history: HistoryHos
   // Text pasted into the start page's field or the palette for this tool: taken once, from memory (app/handoff.ts).
   const [input] = useState(() => peekHandoff(tool.id));
   useEffect(() => clearHandoff(), []);
+  // Read on each render (the edition in force can change on an open page): the tool's host follows it.
+  const { automaticCopying } = useHostEdition(history);
   const host = useMemo<ToolHost>(
     () => ({
       history: history.factory,
       settings: history.toolSettings,
       navigation: pageNavigation(window),
-      automaticCopying: history.automaticCopying,
+      automaticCopying,
     }),
-    [history],
+    [history, automaticCopying],
   );
   // An entry to open: handed over by the History page (once), or picked in the tool's own history line.
   const [restore, setRestore] = useState<(RestoreRequest & { owner: string }) | undefined>(() => {
@@ -117,9 +120,10 @@ const ToolView = ({ tool, history }: { tool: ToolDefinition; history: HistoryHos
 
 export const ToolsPage = ({ toolId, history }: { toolId?: string; history: HistoryHost }): ReactElement => {
   const tool = toolById(toolId);
+  const { included } = useHostEdition(history);
   return (
     <section className="kit-section" aria-labelledby="tools-title">
-      <Head history={history.included} />
+      <Head history={included} />
       {tool ? <ToolView key={tool.id} tool={tool} history={history} /> : <Overview unknown={toolId} />}
     </section>
   );

@@ -96,7 +96,8 @@ const code = await load(
   import { TOOL_SETTINGS_KEY } from ${at('extension/src/tools/settings.ts')};
   import { AUTO_COPY } from ${at('packages/tools/ui/host/lib/autoCopy.ts')};
   import { SAVE_AFTER_MS, SAVED_PARAMETERS_MAX_CHARS, WRITE_ATTEMPTS } from ${at('packages/tools/ui/host/lib/settings.ts')};
-  import { edition } from ${at('extension/src/edition/index.ts')};
+  import { editionSource } from ${at('extension/src/edition/index.ts')};
+  import { editionFor } from ${at('extension/src/edition/inForce.ts')};
   import { MAX_BYTES as COMPARE_MAX_BYTES } from ${at('extension/src/compare/files.ts')};
   import { toolbarButton, pageOpener } from ${at('extension/src/toolbar/index.ts')};
   import { newTab } from ${at('extension/src/newTab/index.ts')};
@@ -116,10 +117,11 @@ const code = await load(
     history: { settings: DEFAULT_HISTORY_SETTINGS, key: HISTORY_SETTINGS_KEY, choices: { RETENTION_DAYS, BUDGET_MIB, IDLE_LOCK_MINUTES },
       factory: { DEFAULT_MAX_BLOB_BYTES, IDLE_MS, MIN_GAP_MS, SESSION_IDLE_MS, LABEL_MAX, TEXT_MAX } },
     toolSettings: { key: TOOL_SETTINGS_KEY, autoCopy: AUTO_COPY, saveAfterMs: SAVE_AFTER_MS, maxChars: SAVED_PARAMETERS_MAX_CHARS, writeAttempts: WRITE_ATTEMPTS,
-      // Does the storage the edition names keep the parameters between uses? (Nothing of the browser is touched to ask.)
-      keeps: edition.parameters({ area: {}, onChanged: {} }).keeps },
+      // Does the storage of the edition a fixed source names keep the parameters between uses? A licensed source has
+      // no edition until it has read the licence (null). (Nothing of the browser is touched to ask.)
+      keeps: editionSource.id === 'licensed' ? null : editionFor({ kind: 'fixed', edition: editionSource.id === 'fixedPro' ? 'pro' : 'free' }).parameters({ area: {}, onChanged: {} }).keeps },
     compare: { maxBytes: COMPARE_MAX_BYTES },
-    roots: { toolbarButton: toolbarButton.id, newTab: newTab.id, optionsPage: optionsPage.id, pageOpener: pageOpener.id ?? null, edition: edition.id },
+    roots: { toolbarButton: toolbarButton.id, newTab: newTab.id, optionsPage: optionsPage.id, pageOpener: pageOpener.id ?? null, editionSource: editionSource.id },
   };
 `,
   catalogue,
@@ -311,7 +313,7 @@ out.push(
       ],
       [
         'Сохранённые параметры инструментов (D21)',
-        `Pro — последний выбор человека, free — умолчания при каждом открытии (издание: \`${code.roots.edition}\`; хранилище параметров сохраняет: ${code.toolSettings.keeps ? 'да' : 'нет'}); запись — через ${code.toolSettings.saveAfterMs} мс после последней правки, не больше ${code.toolSettings.maxChars} знаков JSON на инструмент, при конфликте — до ${code.toolSettings.writeAttempts} попыток`,
+        `Pro — последний выбор человека, free — умолчания при каждом открытии (источник издания: \`${code.roots.editionSource}\`; хранилище параметров сохраняет: ${code.toolSettings.keeps === null ? 'по состоянию лицензии' : code.toolSettings.keeps ? 'да' : 'нет'}); запись — через ${code.toolSettings.saveAfterMs} мс после последней правки, не больше ${code.toolSettings.maxChars} знаков JSON на инструмент, при конфликте — до ${code.toolSettings.writeAttempts} попыток`,
         `Pro (шов \`ParameterStorage\`, локальная реализация): \`${code.toolSettings.key}\` (\`params.<id>\` = \`{ schema, values }\`); free (хранение выключено): нигде, выбор живёт в памяти страницы`,
       ],
     ],
@@ -325,7 +327,7 @@ out.push(
   ),
 );
 out.push(
-  `\nВыбрано: кнопка на панели — \`${code.roots.toolbarButton}\`, подмена новой вкладки — \`${code.roots.newTab}\`, страница настроек — \`${code.roots.optionsPage}\`, как кнопка открывает нашу страницу — \`${code.roots.pageOpener}\`, издание — \`${code.roots.edition}\`.`,
+  `\nВыбрано: кнопка на панели — \`${code.roots.toolbarButton}\`, подмена новой вкладки — \`${code.roots.newTab}\`, страница настроек — \`${code.roots.optionsPage}\`, как кнопка открывает нашу страницу — \`${code.roots.pageOpener}\`, источник издания — \`${code.roots.editionSource}\`.`,
 );
 h('Инструменты');
 out.push(

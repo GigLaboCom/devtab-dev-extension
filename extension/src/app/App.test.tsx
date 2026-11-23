@@ -5,7 +5,7 @@
  */
 import { App } from './App';
 import { THEME_STORAGE_KEY } from '@extension/theme';
-import { free } from '@src/edition/free';
+import { fixedSource } from '@src/edition/fixed';
 import { memoryHistoryHost } from '@src/history/behaviors';
 import { browserNewTab } from '@src/newTab/browserNewTab';
 import { ownNewTab } from '@src/newTab/ownNewTab';
@@ -15,6 +15,7 @@ import { startBehaviors } from '@src/start/behaviors';
 import { RECENT_KEY, SETTINGS_KEY, SHORTCUTS_KEY, START_CACHE_KEY } from '@src/start/settings';
 import { settled } from '@src/start/tileSources';
 import { fakeChrome } from '@src/test/fakes';
+import { FREE, PRO, switchableSource } from '@src/test/switchableSource';
 import { TOOLS } from '@src/tools/registry';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -947,7 +948,7 @@ describe('what the edition decides, in Settings and History (D24, D25)', { timeo
    * file and the end-to-end checks of both editions cover.
    */
   const freeHost = () => {
-    const loaded = settled(memoryHistoryHost(TOOLS, free));
+    const loaded = settled(memoryHistoryHost(TOOLS, fixedSource('free')));
     return () => loaded;
   };
   const yourData = () => document.querySelector('[aria-labelledby="settings-data"]')?.textContent ?? '';
@@ -985,6 +986,27 @@ describe('what the edition decides, in Settings and History (D24, D25)', { timeo
     expect(screen.queryByRole('switch', { name: 'Copy automatically after generating' })).toBeNull();
     expect(yourData()).not.toMatch(/History/);
     expect(yourData()).toContain('“Last opened tool” and the search’s recent places). Never stored:');
+  });
+
+  it('the edition changes on the open page: Settings → Tools, the History block and Your data follow without a reload', async () => {
+    const source = switchableSource(FREE);
+    const loaded = settled(memoryHistoryHost(TOOLS, source));
+    setup('#/settings', {}, [], ownNewTab, () => loaded);
+    const block = await found('[data-settings="history"]');
+    expect(block.querySelector('p')?.textContent).toBe(HISTORY_IS_PRO);
+    expect(document.querySelector('[data-settings="tools"]')).toBeNull();
+    const appearance = screen.getByRole('heading', { name: 'Appearance' });
+    await act(async () => source.set(PRO));
+    const tools = await found('[data-settings="tools"]');
+    expect(within(tools).getByRole('switch', { name: 'Copy automatically after generating' })).toBeTruthy();
+    await screen.findByRole('switch', { name: 'Keep a history of my tools' });
+    expect(yourData()).toContain('While History is on, the tools keep what you type');
+    // The same page, not drawn again from the start.
+    expect(document.contains(appearance)).toBe(true);
+    await act(async () => source.set(FREE));
+    await waitFor(() => expect(document.querySelector('[data-settings="tools"]')).toBeNull());
+    expect(document.querySelector('[data-settings="history"] p')?.textContent).toBe(HISTORY_IS_PRO);
+    expect(yourData()).not.toMatch(/History/);
   });
 
   it('free: the History section stays, with its one sentence and nothing else', async () => {

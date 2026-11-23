@@ -16,8 +16,10 @@
  *                     effect and is kept as it is. The Copy buttons work the same in both.
  *
  * The tools never see any of it: they get their settings, their history and whether to copy from their host either way
- * (D14). The composition root (index.ts) picks one edition. There is no payment or licence check: the root names the
- * variant, and the free build is that one line changed (docs/defaults.md §2).
+ * (D14). Which edition is in force is seam `EditionSource` (./source.ts): the composition root (index.ts) names a
+ * source, and the host turns its state into one of these (editionFor, ./inForce.ts). There is no payment or licence
+ * check yet: the root names a source fixed at build time, and the free build is that one line changed
+ * (docs/defaults.md §2).
  */
 import type { HistoryPlace } from '../history/behaviors';
 import type { BrowserStorage } from '../tools/settings';
@@ -42,8 +44,10 @@ export interface Edition {
   /** Seam `ParameterStorage`: what keeps the tools' saved parameters in this edition, given the browser's storage. */
   parameters(browser: BrowserStorage): ParameterStorage;
   /**
-   * What stands behind the tool history in this edition, given the place the host offers for it. Called once per page;
-   * an edition that does not record leaves the place alone (a database there is neither opened, read nor deleted).
+   * What stands behind the tool history in this edition, given the place the host offers for it. Called at most once
+   * per page for each edition (when the edition in force changes on an open page, the host asks the other one for its
+   * history); an edition that does not record leaves the place alone (a database there is neither opened, read nor
+   * deleted).
    */
   history(place: HistoryPlace): EditionHistory;
   /** Whether "Copy automatically after generating" exists in this edition (the setting and the copying it does). */

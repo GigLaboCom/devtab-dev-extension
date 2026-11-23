@@ -6,13 +6,13 @@
  * has automatic copying, and the tool page's history line says what the edition records.
  */
 import { ToolsPage } from './ToolsPage';
-import { free } from '@src/edition/free';
-import { pro } from '@src/edition/pro';
+import { fixedSource } from '@src/edition/fixed';
 import { memoryHistoryHost } from '@src/history/behaviors';
 import { chromePlace } from '@src/test/parameterPlace';
+import { FREE, PRO, switchableSource } from '@src/test/switchableSource';
 import { TOOLS } from '@src/tools/registry';
 import { extensionToolSettings, localParameterStorage } from '@src/tools/settings';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { AUTO_COPY, noParameterStorage } from '@workspace/tools-host';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HistoryHost } from '@src/history/behaviors';
@@ -74,11 +74,9 @@ describe('a tool’s page and the storage of its saved parameters', () => {
   }, 20_000);
 });
 
-describe.each([
-  ['pro', pro],
-  ['free', free],
-] as const)('a tool’s page in the %s edition', (id, variant) => {
+describe.each([['pro'], ['free']] as const)('a tool’s page in the %s edition', id => {
   const isPro = id === 'pro';
+  const variant = fixedSource(id);
 
   it(`Password Generator with "autoCopy: true" stored: Generate ${isPro ? 'copies the password' : 'copies nothing'}; Copy copies; the setting stays stored`, async () => {
     const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
@@ -111,5 +109,59 @@ describe.each([
         ? 'Work offline. Nothing you paste leaves this browser; what a tool keeps is in History.'
         : 'Work offline. Nothing you paste leaves this browser.',
     );
+  }, 20_000);
+});
+
+describe('the edition changes on an open tool page (a source a test switches)', () => {
+  const ON = 'History is on: this tool’s work is kept in this browser.';
+  const OFF = 'History is part of Pro: nothing is kept.';
+  const line = () => document.querySelector('.kit-tool-history-line')?.textContent ?? '';
+  const reset = () => screen.queryByRole('button', { name: 'Reset settings' });
+
+  it('the history line and the reset control follow at once; the tool is not mounted again and keeps its choice', async () => {
+    const source = switchableSource(FREE);
+    const host = memoryHistoryHost(TOOLS, source);
+    await act(async () => void render(<ToolsPage toolId="json" history={host} />));
+    const sortKeys = await screen.findByLabelText('Sort keys', {}, { timeout: 10_000 });
+    expect(line()).toBe(OFF);
+    fireEvent.click(sortKeys);
+    await act(async () => host.toolSettings.forTool('json').flush());
+    expect(reset()).toBeNull();
+
+    await act(async () => source.set(PRO));
+    await waitFor(() => expect(line()).toContain(ON));
+    // The choice made in the free edition is now kept, so the page offers its reset.
+    await waitFor(() => expect(reset()).not.toBeNull());
+    expect(document.contains(sortKeys)).toBe(true);
+    expect(sortKeys.getAttribute('data-state')).toBe('checked');
+
+    await act(async () => source.set(FREE));
+    expect(line()).toBe(OFF);
+    expect(reset()).toBeNull();
+    expect(document.contains(sortKeys)).toBe(true);
+    expect(sortKeys.getAttribute('data-state')).toBe('checked');
+  }, 20_000);
+
+  it('automatic copying follows at once: Generate copies by itself only while the edition in force has it', async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    try {
+      const source = switchableSource(FREE);
+      const host = memoryHistoryHost(TOOLS, source);
+      await host.toolSettings.setForAll(['password'], { [AUTO_COPY]: true });
+      await act(async () => void render(<ToolsPage toolId="password" history={host} />));
+      const output = await screen.findByLabelText('Generated password', {}, { timeout: 10_000 });
+      await act(async () => void fireEvent.click(screen.getByRole('button', { name: 'Generate' })));
+      expect(writeText).not.toHaveBeenCalled();
+      await act(async () => source.set(PRO));
+      await act(async () => void fireEvent.click(screen.getByRole('button', { name: 'Generate' })));
+      expect(writeText.mock.calls).toEqual([[screen.getByLabelText('Generated password').textContent]]);
+      expect(document.contains(output)).toBe(true);
+      await act(async () => source.set(FREE));
+      await act(async () => void fireEvent.click(screen.getByRole('button', { name: 'Generate' })));
+      expect(writeText).toHaveBeenCalledTimes(1);
+    } finally {
+      Reflect.deleteProperty(navigator, 'clipboard');
+    }
   }, 20_000);
 });

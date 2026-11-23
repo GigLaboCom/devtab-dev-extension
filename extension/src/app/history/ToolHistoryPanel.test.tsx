@@ -3,7 +3,7 @@
  * in a build without the history (the free edition, D25), that the history is part of Pro — and nothing else.
  */
 import { ToolHistoryPanel } from './ToolHistoryPanel';
-import { free } from '@src/edition/free';
+import { fixedSource } from '@src/edition/fixed';
 import { memoryHistoryHost } from '@src/history/behaviors';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -56,7 +56,7 @@ describe('the history line in the free edition', () => {
     ['no kinds at all', []],
   ])('%s: one sentence, no links, no entries, nothing read', async (_name, secret) => {
     const tools = [{ id: 'probe', title: 'Probe', history: declaration(secret) }];
-    const host = memoryHistoryHost(tools, free);
+    const host = memoryHistoryHost(tools, fixedSource('free'));
     const page = vi.spyOn(host.store, 'page');
     const source = host.sources.find(s => s.owner === 'probe')!;
     render(<ToolHistoryPanel host={host} source={source} onOpen={() => undefined} />);

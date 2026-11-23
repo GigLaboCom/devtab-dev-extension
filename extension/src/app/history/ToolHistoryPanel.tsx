@@ -7,6 +7,7 @@
 import { HISTORY_EXCLUDED } from './excluded';
 import { formatBytes, formatClock, formatTime } from './format';
 import { useHistorySettings, useHistoryVersion, useVaultState } from './useHistory';
+import { useHostEdition } from '../useHostEdition';
 import { kindTitle } from '@src/history/sources';
 import { summaryOf } from '@workspace/tools-shared/history';
 import { Button } from '@workspace/ui/button';
@@ -26,7 +27,7 @@ interface PanelProps {
 }
 
 export const ToolHistoryPanel = (props: PanelProps): ReactElement =>
-  props.host.included ? (
+  useHostEdition(props.host).included ? (
     <KeptHistoryPanel {...props} />
   ) : (
     <aside className="kit-tool-history" aria-label={`${props.source.title} history`} data-history-state="excluded">

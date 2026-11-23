@@ -9,13 +9,22 @@
  *   HistoryArchive   zipArchive (the tool-history archive, format 1)
  *   RetentionRule    ageAndBudget (the settings' retention period and size budget)
  *
- * and builds the factory every tool records through (ToolHost.history). Whether the tools' work is recorded at all is
- * the edition's to say (`recording`, D25): where it is not, the gate tells every tool its history is off, nothing opens
- * the store or the key holder, and `included` tells the host's own places to say the history is not part of this
- * version. It also carries the tools' per-tool settings (ToolHost.settings, src/tools/settings.ts —
- * chrome.storage.local), with the tools' saved parameters in the storage the edition names (seam ParameterStorage: the
- * browser's storage — Pro — or none — free), and whether automatic copying exists (the edition's `automaticCopying`,
- * D24): this object is what the shell already hands to Tools and Settings, so these members travel with the first.
+ * and builds the factory every tool records through (ToolHost.history). Which edition is in force is seam
+ * EditionSource's to say (src/edition/source.ts; the build's source is named by src/edition/index.ts), and the root
+ * follows it while the page is open: its state becomes an Edition (editionFor), and whether the tools' work is recorded
+ * at all is that edition's to say (`recording`, D25): where it is not, the gate tells every tool its history is off,
+ * nothing opens the store or the key holder, and `included` tells the host's own places to say the history is not part
+ * of this version. It also carries the tools' per-tool settings (ToolHost.settings, src/tools/settings.ts —
+ * chrome.storage.local), with the tools' saved parameters in the storage of the edition in force (seam
+ * ParameterStorage: the browser's storage — Pro — or none — free; src/edition/parameters.ts carries the page's choice
+ * over when it changes), and whether automatic copying exists (the edition's `automaticCopying`, D24): this object is
+ * what the shell already hands to Tools and Settings, so these members travel with the first.
+ *
+ * When the edition in force changes on an open page: the gate and automatic copying follow at once; free → Pro opens
+ * the Pro store first (the same steps as at the start, the gate closed meanwhile) and only then switches the store and
+ * the key holder (src/history/switching.ts) and opens the gate; Pro → free closes the gate first, then switches to an
+ * empty store in memory and a key holder in memory — a record begun before reaches the database, and the key in
+ * chrome.storage.session is left alone (another tab may still be in Pro). `onEdition` tells the pages.
  * Incognito: an extension page in spanning mode cannot run in an incognito window at all (probe), but if one ever does
  * (`chrome.extension.inIncognitoContext` — a split-mode manifest, a change of Chrome), nothing reaches the persistent
  * database: the store is in memory and the gate is closed.
@@ -23,9 +32,12 @@
 import { sessionKeyHolder } from './sessionKeyHolder';
 import { historySettingsSource } from './settings';
 import { historySources } from './sources';
+import { switchingHolder, switchingStore } from './switching';
 import pkg from '../../package.json';
 import product from '../../product.json';
-import { edition as builtEdition } from '../edition';
+import { fixedSource } from '../edition/fixed';
+import { editionFor } from '../edition/inForce';
+import { editionParameterStorage } from '../edition/parameters';
 import { extensionToolSettings } from '../tools/settings';
 import { createDebug } from '@extension/logger';
 import {
@@ -36,7 +48,8 @@ import {
   passwordCipher,
   zipArchive,
 } from '@workspace/tools-shared/history';
-import type { Edition } from '../edition/edition';
+import type { Edition, EditionHistory } from '../edition/edition';
+import type { EditionSource } from '../edition/source';
 import type { IndexedDbApi } from './idbStore';
 import type { SessionArea } from './sessionKeyHolder';
 import type { HistorySettingsSource, SettingsArea, SettingsChanged } from './settings';
@@ -48,6 +61,7 @@ import type {
   HistoryFactory,
   HistoryGate,
   HistoryStore,
+  KeyHolder,
   Measure,
   PasswordVault,
   Producer,
@@ -70,10 +84,11 @@ export interface HistoryHost {
   /** This page is in an incognito context: nothing is recorded or kept. */
   incognito: boolean;
   /**
-   * The history is part of this build (the edition records, D25). `false`: nothing is recorded or read, and the tool
-   * page's line, History and Settings → History say so in one sentence instead of offering the history.
+   * The history is part of the edition in force now (it records, D25). `false`: nothing is recorded or read, and the
+   * tool page's line, History and Settings → History say so in one sentence instead of offering the history. Read it
+   * on each render: it can change (`onEdition`).
    */
-  included: boolean;
+  readonly included: boolean;
   producer: Producer;
   prune(): Promise<Measure>;
   /** The user did something (the idle lock's clock). */
@@ -81,13 +96,16 @@ export interface HistoryHost {
   /** Something wrote to or deleted from the history in this page (lists refresh). */
   changed(): void;
   onChange(listener: () => void): () => void;
-  /** The tools' per-tool settings (ToolHost.settings), in chrome.storage.local, followed live; parameters where the edition keeps them. */
+  /** The tools' per-tool settings (ToolHost.settings), in chrome.storage.local, followed live; parameters where the edition in force keeps them. */
   toolSettings: ToolSettingsStore;
   /**
-   * "Copy automatically after generating" exists in this build (the edition's, D24): Settings → Tools offers it, and the
-   * tools are told to copy after Generate while it is on (ToolHost.automaticCopying). `false`: neither.
+   * "Copy automatically after generating" exists in the edition in force now (the edition's, D24): Settings → Tools
+   * offers it, and the tools are told to copy after Generate while it is on (ToolHost.automaticCopying). `false`:
+   * neither. Read it on each render: it can change (`onEdition`).
    */
-  automaticCopying: boolean;
+  readonly automaticCopying: boolean;
+  /** Called after `included` or `automaticCopying` changed; returns the undo. */
+  onEdition(listener: () => void): () => void;
 }
 
 /** The parts of `chrome` the history uses. */
@@ -109,47 +127,76 @@ export interface HistoryEnvironment {
   storage: HistoryPlace;
   tools: readonly Recordable[];
   now?: () => number;
-  /** The edition to follow; absent: the build's (src/edition/index.ts). Tests pass one. */
-  edition?: Edition;
+  /** Which edition is in force; absent: fixedSource('pro') — today's default build. Tests pass one. */
+  source?: EditionSource;
 }
+
+type Holder = KeyHolder & { touch(): void; dispose(): void };
+const memoryHolder = (): Holder => ({ ...memoryKeyHolder(), touch: () => {}, dispose: () => {} });
 
 export const historyHost = (env: HistoryEnvironment): HistoryHost => {
   const now = env.now ?? Date.now;
-  const edition = env.edition ?? builtEdition;
+  const source = env.source ?? fixedSource('pro');
   const incognito = env.chrome.extension?.inIncognitoContext === true;
   const settings = historySettingsSource(env.chrome.storage.local, env.chrome.storage.onChanged);
-  const kept = edition.history(env.storage);
-  const included = kept.recording;
-  const store = incognito ? memoryStore() : kept.store;
-  // Where nothing is recorded there is nothing to unlock: chrome.storage.session is not touched either.
-  const holder =
-    incognito || !included
-      ? { ...memoryKeyHolder(), touch: () => {}, dispose: () => {} }
-      : sessionKeyHolder({
+  // Built before the root follows the source, so its storage has switched when the pages hear of a change.
+  const toolSettings = extensionToolSettings(
+    env.chrome.storage.local,
+    env.chrome.storage.onChanged,
+    editionParameterStorage(source, { area: env.chrome.storage.local, onChanged: env.chrome.storage.onChanged }),
+  );
+
+  // What stands behind the history in each edition, asked of it once, when first needed.
+  const histories = new Map<Edition, EditionHistory>();
+  const historyOf = (edition: Edition): EditionHistory => {
+    let kept = histories.get(edition);
+    if (!kept) {
+      kept = edition.history(env.storage);
+      histories.set(edition, kept);
+    }
+    return kept;
+  };
+  // The master password's keys: chrome.storage.session where the edition records, memory elsewhere (each made once).
+  let sessionHolder: Holder | undefined;
+  let pageHolder: Holder | undefined;
+  const holderFor = (recording: boolean): Holder =>
+    incognito || !recording
+      ? (pageHolder ??= memoryHolder())
+      : (sessionHolder ??= sessionKeyHolder({
           area: env.chrome.storage.session,
           onChanged: env.chrome.storage.onChanged,
           idleMinutes: () => settings.get().idleLockMinutes,
           now,
-        });
-  const vault = passwordCipher({ keyrings: store, holder, now });
+        }));
+
+  /** The edition whose history is in use: the store and key holder below are its own, and the gate follows it. */
+  let using = editionFor(source.current());
+  const first = historyOf(using);
+  const stores = switchingStore(incognito ? memoryStore() : first.store);
+  const holders = switchingHolder(holderFor(first.recording));
+  const store = stores.store;
+  const vault = passwordCipher({ keyrings: store, holder: holders.holder, now });
   const sources = historySources(env.tools);
 
   let unavailable = false;
-  const listeners = new Set<() => void>();
+  const gateListeners = new Set<() => void>();
+  const tellGate = () => gateListeners.forEach(l => l());
+  const recordsNow = () => editionFor(source.current()) === using && historyOf(using).recording;
   const gate: HistoryGate = {
     state(owner): GateState {
-      if (!included) return 'off';
+      // The edition in force asked at each call: a gate never opens for an edition that is not (or not yet) in use.
+      if (!recordsNow()) return 'off';
       if (incognito) return 'incognito';
       if (unavailable) return 'unavailable';
       const s = settings.get();
       return s.on && !s.off.includes(owner) ? 'on' : 'off';
     },
     subscribe(listener) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
+      gateListeners.add(listener);
+      return () => gateListeners.delete(listener);
     },
   };
-  settings.subscribe(() => listeners.forEach(l => l()));
+  settings.subscribe(tellGate);
 
   const retention: RetentionRule = ageAndBudget(() => ({
     maxAgeDays: settings.get().retentionDays,
@@ -157,6 +204,15 @@ export const historyHost = (env: HistoryEnvironment): HistoryHost => {
   }));
   const changeListeners = new Set<() => void>();
   const changed = () => changeListeners.forEach(l => l());
+  const editionListeners = new Set<() => void>();
+  const tellEdition = () =>
+    editionListeners.forEach(l => {
+      try {
+        l();
+      } catch (error) {
+        debug.warn('edition listener', error);
+      }
+    });
   let lastPrune = 0;
   const prune = async (): Promise<Measure> => {
     lastPrune = now();
@@ -174,19 +230,81 @@ export const historyHost = (env: HistoryEnvironment): HistoryHost => {
     onError: (what, error) => debug.warn(what, error),
   });
 
-  if (!incognito && included) {
-    // The database opens (or not) once per page: a browser that refuses IndexedDB leaves the history unavailable.
-    store
-      .stats()
-      .then(() => vault.refresh())
-      .then(() => settings.ready)
-      .then(() => prune())
-      .catch(error => {
-        unavailable = true;
-        listeners.forEach(l => l());
-        debug.warn('open the history', error);
-      });
-  }
+  /**
+   * Opens a recording edition's store — the database is opened (or not) here, and a browser that refuses IndexedDB
+   * leaves the history unavailable — then puts it and its key holder in use. The gate stays closed until `using`
+   * names the edition, which is the last step.
+   */
+  const open = async (edition: Edition, isCurrent: () => boolean): Promise<void> => {
+    const kept = historyOf(edition);
+    let failed = false;
+    try {
+      await kept.store.stats();
+    } catch (error) {
+      failed = true;
+      debug.warn('open the history', error);
+    }
+    if (!isCurrent()) return;
+    stores.use(kept.store);
+    holders.use(holderFor(true));
+    try {
+      if (!failed) {
+        await vault.refresh();
+        await settings.ready;
+        await prune();
+      }
+    } catch (error) {
+      failed = true;
+      debug.warn('open the history', error);
+    }
+    if (!isCurrent()) return;
+    unavailable = failed;
+  };
+
+  /** Every change of the source starts a new generation; an opening that finishes in an older one changes nothing. */
+  let generation = 0;
+
+  // The first edition, as the page opens: its gate is open at once (records wait for the database), as before.
+  if (!incognito && first.recording) void open(using, () => generation === 0).then(tellGate);
+
+  source.subscribe(state => {
+    const mine = ++generation;
+    const next = editionFor(state);
+    if (next === using) {
+      // Another state of the same edition (active → grace), or back before an opening finished: its own store again.
+      if (!incognito) {
+        stores.use(historyOf(using).store);
+        holders.use(holderFor(historyOf(using).recording));
+      }
+      tellGate();
+      tellEdition();
+      return;
+    }
+    const nextHistory = historyOf(next);
+    if (incognito || !nextHistory.recording) {
+      // Pro → free: the gate closes first (`using` is what it reads), then the store and the key holder change.
+      using = next;
+      tellGate();
+      if (!incognito) {
+        stores.use(nextHistory.store);
+        holders.use(holderFor(false));
+      }
+      changed();
+      tellEdition();
+      return;
+    }
+    // Free → Pro: automatic copying follows at once; the history once its store is open, the gate closed meanwhile.
+    tellGate();
+    tellEdition();
+    const isCurrent = () => mine === generation;
+    void open(next, isCurrent).then(() => {
+      if (!isCurrent()) return;
+      using = next;
+      tellGate();
+      changed();
+      tellEdition();
+    });
+  });
 
   return {
     factory,
@@ -197,21 +315,25 @@ export const historyHost = (env: HistoryEnvironment): HistoryHost => {
     sources,
     gate,
     incognito,
-    included,
+    get included() {
+      return historyOf(using).recording;
+    },
     producer: { name: product.name, version: pkg.version },
     prune,
-    touch: () => holder.touch(),
+    touch: () => holders.holder.touch(),
     changed,
     onChange: listener => {
       changeListeners.add(listener);
       return () => changeListeners.delete(listener);
     },
-    toolSettings: extensionToolSettings(
-      env.chrome.storage.local,
-      env.chrome.storage.onChanged,
-      edition.parameters({ area: env.chrome.storage.local, onChanged: env.chrome.storage.onChanged }),
-    ),
-    automaticCopying: edition.automaticCopying,
+    toolSettings,
+    get automaticCopying() {
+      return editionFor(source.current()).automaticCopying;
+    },
+    onEdition: listener => {
+      editionListeners.add(listener);
+      return () => editionListeners.delete(listener);
+    },
   };
 };
 
@@ -257,6 +379,6 @@ const memoryChrome = (): HistoryChrome => {
   };
 };
 
-/** A history host that keeps everything in this page's memory: the default when the app is given none. `edition` as in historyHost. */
-export const memoryHistoryHost = (tools: readonly Recordable[], edition?: Edition): HistoryHost =>
-  historyHost({ chrome: memoryChrome(), storage: { store: memoryStore() }, tools, edition });
+/** A history host that keeps everything in this page's memory: the default when the app is given none. `source` as in historyHost. */
+export const memoryHistoryHost = (tools: readonly Recordable[], source?: EditionSource): HistoryHost =>
+  historyHost({ chrome: memoryChrome(), storage: { store: memoryStore() }, tools, source });

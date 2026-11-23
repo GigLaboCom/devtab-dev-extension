@@ -2,7 +2,7 @@
 // wired to it, so it is one module, not a part of each tool's own (run by scripts/e2e-tools.mjs like them;
 // `pnpm test:e2e -- --only=saved-settings` runs it alone).
 //
-// The build under test is the default one — the edition root (extension/src/edition/index.ts) selects Pro:
+// The build under test is the default one — the edition root (extension/src/edition/index.ts) names the fixed Pro source:
 //   - JSON, Base64, cURL to Code, Password Generator, Date Calculator: parameters changed, the tool left and opened
 //     again (in the same tab and in a new one), they are as left;
 //   - "Reset settings" in the tool page's head: absent while nothing differs from the defaults (a typed input is not a
@@ -16,7 +16,7 @@
 //     passwords it made), the stored bytes hold none of it, and each tool's record names only its declared fields;
 //   - a write the browser refuses (chrome.storage.local filled to its quota): the tool page says in one line that the
 //     settings could not be saved and keeps the choice; with room again the next change saves both and the line goes.
-// Then the free edition: built from the same sources with the root reading `free` (DEVTAB_VARIANT=edition:free, the
+// Then the free edition: built from the same sources with the root reading `fixedFree` (DEVTAB_VARIANT=edition:fixedFree, the
 // one line changed at build time — extension/vite.config.ts) into .state/e2e/dist-free, loaded in a browser of its
 // own: no tool parameter is ever written to storage, a tool opens with its defaults on every visit (a new tab, a
 // reload), and there is no reset control. The same free build is where the other things its edition decides are
@@ -549,16 +549,22 @@ export default async ({ ctx, base, check, sleep, report }) => {
     await restoring.close();
   }
 
-  // ---- The free edition: built with the root reading `free`, in a browser of its own. ----
+  // ---- The free edition: built with the root reading `fixedFree`, in a browser of its own. ----
   mkdirSync(join(ROOT, '.state/e2e'), { recursive: true });
   const built = spawnSync('pnpm', ['exec', 'vite', 'build'], {
     cwd: join(ROOT, 'extension'),
-    env: { ...process.env, CLI_CEB_DEV: 'false', DEVTAB_VARIANT: 'edition:free', DEVTAB_OUT_DIR: freeDist },
+    env: { ...process.env, CLI_CEB_DEV: 'false', DEVTAB_VARIANT: 'edition:fixedFree', DEVTAB_OUT_DIR: freeDist },
     encoding: 'utf8',
     timeout: 600_000,
   });
   writeFileSync(join(ROOT, '.state/e2e/free-build.log'), `${built.stdout ?? ''}\n${built.stderr ?? ''}`);
-  if (!check(`${T}: the free edition builds (DEVTAB_VARIANT=edition:free)`, built.status === 0, `exit ${built.status}`))
+  if (
+    !check(
+      `${T}: the free edition builds (DEVTAB_VARIANT=edition:fixedFree)`,
+      built.status === 0,
+      `exit ${built.status}`,
+    )
+  )
     return;
   let chromium;
   for (const dir of [process.env.PLAYWRIGHT_DIR, join(ROOT, '.state/e2e/node')].filter(Boolean)) {

@@ -9,6 +9,7 @@ import { formatBytes, plural } from './format';
 import { MasterPassword } from './MasterPassword';
 import { useHistorySettings, useHistoryStats } from './useHistory';
 import { isBare } from '../route';
+import { useHostEdition } from '../useHostEdition';
 import { createDebug } from '@extension/logger';
 import { BUDGET_MIB, RETENTION_DAYS } from '@src/history/settings';
 import { Button } from '@workspace/ui/button';
@@ -27,7 +28,7 @@ const days = (n: number) => (n === 365 ? '1 year' : `${n} days`);
 const budget = (n: number) => (n >= 1024 ? `${n / 1024} GB` : `${n} MB`);
 
 export const HistorySettings = ({ host }: { host: HistoryHost }): ReactElement =>
-  host.included ? (
+  useHostEdition(host).included ? (
     <KeptHistorySettings host={host} />
   ) : (
     <section
