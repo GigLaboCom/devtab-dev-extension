@@ -1,7 +1,15 @@
 // The licence endpoints in every licence scenario: status, body shape, the signed token's fields, CORS.
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
-import { ANSWER_HEADERS, DAY, answerProblems, claimsCheck, errorProblems, issueProblems } from '../contract.mjs';
+import {
+  ANSWER_HEADERS,
+  DAY,
+  answerProblems,
+  claimsCheck,
+  errorProblems,
+  issueClaims,
+  issueProblems,
+} from '../contract.mjs';
 import { verifyToken } from '../jws.mjs';
 import { publicEntries } from '../keys.mjs';
 import { LICENCE_SCENARIOS, licenceScenario } from '../scenarios.mjs';
@@ -31,8 +39,16 @@ function assertHeaders(answer) {
   for (const [name, value] of Object.entries(ANSWER_HEADERS)) assert.equal(answer.headers[name], value, name);
 }
 
-/** What each scenario's activation answers. */
-const activationError = s => s.error ?? s.activation ?? (s.seatsTaken || s.churnUsed ? 'seat-limit' : undefined);
+/** What each scenario's activation answers: its own error, a full licence, or licence-inactive by the server's rule. */
+function activationError(s) {
+  if (s.error ?? s.activation) return s.error ?? s.activation;
+  if (s.seatsTaken || s.churnUsed) return 'seat-limit';
+  const at = now();
+  const { grant } = s;
+  const licence = { ...grant, paid: grant.paidIn === null || grant.paidIn === undefined ? null : at + grant.paidIn };
+  const would = issueClaims({ lid: 'lic_probe_000', inst: newInst(), iat: at - (s.backdate ?? 0), licence });
+  return would.status === 'active' ? undefined : 'licence-inactive';
+}
 
 describe('activation and refresh, scenario by scenario', () => {
   for (const scenario of LICENCE_SCENARIOS) {
@@ -84,6 +100,38 @@ describe('activation and refresh, scenario by scenario', () => {
     assert.equal(cancelled.exp, cancelled.paid + 14 * DAY);
     const comp = (await tokenOf(await activate(m.url, licenceScenario('complimentary').key))).claims;
     assert.ok(comp.paid === null && !('term' in comp) && !('renews' in comp));
+    const retrying = (await tokenOf(await activate(m.url, licenceScenario('payment-retrying').key))).claims;
+    assert.equal(retrying.exp, retrying.paid + 14 * DAY, 'payment-retrying: exp is the end of the payment’s grace');
+    assert.deepEqual(
+      [retrying.chk, retrying.warn],
+      [retrying.exp, retrying.exp],
+      'fewer than 7 days: chk = warn = exp',
+    );
+    assert.ok(at < retrying.exp);
+  });
+
+  test('activation never answers a token that is not active: ended, refunded, grace over → licence-inactive', async () => {
+    for (const name of ['ended', 'revoked-refund', 'grace-over']) {
+      const answer = await activate(m.url, licenceScenario(name).key);
+      assert.equal(answer.status, 403, name);
+      assert.equal(answer.json.error, 'licence-inactive', name);
+    }
+  });
+
+  test('grace-over after activation: the next refresh signs ended with the overdue paid date', async () => {
+    const a = await activate(m.url, 'DTD-MOCK-ACTV-MNTH-0000-0000');
+    const { lid } = (await tokenOf(a)).claims;
+    await post(m.url, '/__mock/settings', { licence: 'grace-over' });
+    try {
+      const r = await post(m.url, '/v1/refresh', { lid, inst: a.inst, secret: a.json.secret });
+      const claims = (await tokenOf(r)).claims;
+      assert.deepEqual(
+        [claims.status, claims.term, claims.renews, claims.paid],
+        ['ended', 'month', false, now() - 20 * DAY],
+      );
+    } finally {
+      await post(m.url, '/__mock/settings', { licence: null });
+    }
   });
 });
 
@@ -170,18 +218,22 @@ describe('the rules around activation', () => {
     );
   });
 
-  test('deactivate answers 204 for anything well-formed; with deactivate: token, 200 with a signed revoked', async () => {
-    const body = { lid: 'lic_nobody_000000', inst: newInst(), secret: 'S'.repeat(43) };
-    const empty = await post(m.url, '/v1/deactivate', body);
-    assert.deepEqual(answerProblems('deactivate', empty.status, empty.text), []);
-    await post(m.url, '/__mock/settings', { deactivate: 'token' });
+  test('deactivate answers 204 without a body for anything well-formed: unknown, repeated, known (§5.4)', async () => {
+    const fresh = await mock();
     try {
-      const withToken = await post(m.url, '/v1/deactivate', body);
-      assert.deepEqual(answerProblems('deactivate', withToken.status, withToken.json), []);
-      assert.equal((await tokenOf(withToken)).claims.reason, 'deactivated');
+      const unknown = { lid: 'lic_nobody_000000', inst: newInst(), secret: 'S'.repeat(43) };
+      const a = await activate(fresh.url, 'DTD-MOCK-ACTV-MNTH-0000-0000');
+      const { lid } = (await verifyToken(a.json.token, publicEntries(fresh.keys))).claims;
+      const known = { lid, inst: a.inst, secret: a.json.secret };
+      for (const body of [unknown, unknown, known, known]) {
+        const answer = await post(fresh.url, '/v1/deactivate', body);
+        assert.deepEqual(answerProblems('deactivate', answer.status, answer.text), []);
+        assert.equal(answer.status, 204);
+      }
     } finally {
-      await post(m.url, '/__mock/settings', { deactivate: 'empty' });
+      await fresh.close();
     }
+    assert.notDeepEqual(answerProblems('deactivate', 200, { token: 'x' }), [], 'a 200 is not the contract');
   });
 });
 
@@ -227,7 +279,7 @@ describe('malformed requests', () => {
 });
 
 describe('CORS of the licence endpoints', () => {
-  test('preflight from an extension: the exact origin, GET, POST, Content-Type, a day, Vary, no credentials', async () => {
+  test('preflight from an extension: the exact origin, POST, Content-Type, a day, Vary, no credentials', async () => {
     const answer = await request(m.url, {
       method: 'OPTIONS',
       path: '/v1/activate',
@@ -239,7 +291,7 @@ describe('CORS of the licence endpoints', () => {
     });
     assert.equal(answer.status, 204);
     assert.equal(answer.headers['access-control-allow-origin'], EXTENSION);
-    assert.equal(answer.headers['access-control-allow-methods'], 'GET, POST');
+    assert.equal(answer.headers['access-control-allow-methods'], 'POST');
     assert.equal(answer.headers['access-control-allow-headers'], 'Content-Type');
     assert.equal(answer.headers['access-control-max-age'], '86400');
     assert.equal(answer.headers.vary, 'Origin');
@@ -270,7 +322,7 @@ describe('CORS of the licence endpoints', () => {
       m.url,
       '/v1/activate',
       { key, inst: newInst() },
-      { origin: 'https://site.example.invalid' },
+      { origin: 'https://web.example.invalid' },
     );
     assert.equal(answer.status, 200);
     assert.equal(answer.headers['access-control-allow-origin'], undefined);

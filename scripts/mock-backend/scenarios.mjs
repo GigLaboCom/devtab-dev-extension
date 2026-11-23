@@ -3,7 +3,8 @@
 // The mock's scenarios as data: each has a name, one line on what the server does and one on what the extension is
 // expected to do (from the state tables of pro-entitlement-implementation.md §4.4, §6.7 and pro-plans-and-payment.md
 // §5.4). Licence scenarios are chosen by the licence key (visibly fake keys in the server's key format, backend.md
-// §5.2) or for every request by an override; faults and plans scenarios apply to every request.
+// §5.2) or for every request by an override; faults and plans scenarios apply to every request. An activation whose
+// licence would be signed ended or revoked answers licence-inactive by the server's rule (§5.2), not by the scenario.
 import { DAY } from './contract.mjs';
 
 const subscription = (term, paidInDays, renews = true) => ({
@@ -19,7 +20,8 @@ const MONTHLY = subscription('month', 30);
  * - `key` (and `aliases`): the licence keys that open it;
  * - `grant`: the licence an activation signs; `check`: the licence a refresh signs (default: `grant`);
  *   `{ status, term?, renews?, paidIn: seconds from now | null, reason? }`;
- * - `activation`: an error code activation answers instead of a token;
+ * - `activation`: an error code activation answers instead of a token (besides licence-inactive, which the server
+ *   answers by itself for a licence that would not be signed active);
  * - `error`: an error code every licence endpoint answers;
  * - `backdate`: seconds the mock moves `iat` back (mock only: a token as a client holds it after that long offline);
  * - `seatsTaken`, `churnUsed`: the licence starts with its seats or its 30-day activations used up;
@@ -65,6 +67,20 @@ export const LICENCE_SCENARIOS = Object.freeze([
     grant: subscription('month', 10, false),
   },
   {
+    name: 'payment-retrying',
+    key: 'DTD-MOCK-RTRY-0000-0000-0000',
+    summary: 'Activates; the monthly payment is 10 days overdue and retried: 4 days of the payment’s grace are left.',
+    expect: 'active with chk = warn = exp = paid + 14 days (the table of cases, §5.1); at exp expired, then a check.',
+    grant: subscription('month', -10),
+  },
+  {
+    name: 'grace-over',
+    key: 'DTD-MOCK-GRCE-0VER-0000-0000',
+    summary: 'The monthly payment is 20 days overdue: the payment’s grace is over. Activation: 403 licence-inactive.',
+    expect: 'activation: the licence-inactive text; after Check now: "Your Pro subscription ended on {paidUntil}. …"',
+    grant: subscription('month', -20),
+  },
+  {
     name: 'complimentary',
     key: 'DTD-MOCK-CMPL-0000-0000-0000',
     summary: 'Signs active tokens of a licence without a subscription (paid: null, no term or renews).',
@@ -76,15 +92,13 @@ export const LICENCE_SCENARIOS = Object.freeze([
     key: 'DTD-MOCK-ENDD-0000-0000-0000',
     summary: 'Activation: 403 licence-inactive. Refresh: a signed ended token (paid yesterday, term month).',
     expect: 'activation: the licence-inactive text; after Check now: "Your Pro subscription ended on {paidUntil}. …"',
-    activation: 'licence-inactive',
     grant: { status: 'ended', term: 'month', paidIn: -1 * DAY },
   },
   {
     name: 'revoked-refund',
     key: 'DTD-MOCK-RVKD-RFND-0000-0000',
     summary: 'Activation: 403 licence-inactive. Refresh: a signed revoked token, reason refund.',
-    expect: 'after Check now: "This licence was refunded, so Pro is off in this browser."',
-    activation: 'licence-inactive',
+    expect: 'activation: the licence-inactive text; after Check now: "This licence was refunded, so Pro is off …"',
     grant: { status: 'revoked', reason: 'refund', paidIn: 10 * DAY },
   },
   {
@@ -155,7 +169,7 @@ export const LICENCE_SCENARIOS = Object.freeze([
     name: 'bad-request',
     key: 'DTD-MOCK-BADR-0000-0000-0000',
     summary: 'Answers 400 bad-request (as if the body broke the contract).',
-    expect: 'treated as "couldn’t reach": "Couldn’t reach the licence server. …"; nothing stored.',
+    expect: 'server (not a refusal): "Couldn’t reach the licence server. …"; nothing stored.',
     error: 'bad-request',
     grant: MONTHLY,
   },
@@ -194,8 +208,15 @@ export const FAULTS = Object.freeze([
   },
   {
     name: 'http-503',
-    summary: 'Answers 503 unavailable without Retry-After (the server’s processing timeout).',
-    expect: 'server: nothing changes.',
+    summary: 'Answers 503 unavailable without Retry-After: the server could not answer and does not know when it will.',
+    expect:
+      'server: nothing changes, the usual pause after a failure; Check now "Couldn’t reach the licence server, …"',
+  },
+  {
+    name: 'http-503-retry',
+    summary: 'Answers 503 unavailable with Retry-After in seconds (default 120): busy or in maintenance until then.',
+    expect:
+      'server-busy: nothing changes; no request before that time; "The licence server is busy. Try again after {time}."',
   },
   {
     name: 'portal',

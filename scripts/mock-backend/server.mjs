@@ -13,7 +13,9 @@ import {
   ERRORS,
   EXTENSION_ORIGIN,
   LIMITS,
+  PLANS_CACHE_CONTROL,
   PLANS_CORS_HEADERS,
+  PLANS_PREFLIGHT_HEADERS,
   canonicalKey,
   endpointAt,
   issueClaims,
@@ -44,8 +46,6 @@ export const DEFAULT_SETTINGS = Object.freeze({
   retryAfter: 120,
   /** The key that signs: p1, or the standby p2. */
   signingKey: 'p1',
-  /** Deactivation's answer: `empty` (204, backend.md А7) or `token` (200 with a revoked token, also in the contract). */
-  deactivate: 'empty',
   /** Replaces the plans' maxAge when a number. */
   maxAge: null,
   /** Origins the licence endpoints allow; empty: any chrome-extension:// origin. */
@@ -72,7 +72,6 @@ export function settingsProblems(partial) {
     else if (field === 'fault') oneOf(field, names(FAULTS));
     else if (field === 'plans') oneOf(field, names(PLANS_SCENARIOS));
     else if (field === 'signingKey') oneOf(field, ROLES);
-    else if (field === 'deactivate') oneOf(field, ['empty', 'token']);
     else if (field === 'delayMs') count(field, 0, 600_000);
     else if (field === 'clockOffset') count(field, -3650 * 86_400, 3650 * 86_400);
     else if (field === 'seats') count(field, 1, 100);
@@ -130,10 +129,11 @@ export async function startMockBackend({ keys, port = DEFAULT_PORT, settings = {
     return endpoint === 'plans' ? { ...PLANS_CORS_HEADERS } : licenceCorsHeaders(allowedOrigin(req.headers.origin));
   }
 
-  const errorAnswer = (code, extra = {}) => ({
+  /** An error answer; rate-limited always carries Retry-After, unavailable only when `retry` says so (§5.1). */
+  const errorAnswer = (code, extra = {}, { retry = code === 'rate-limited' } = {}) => ({
     status: ERRORS[code],
     body: { error: code, message: ERROR_MESSAGES[code] },
-    headers: code === 'rate-limited' ? { 'retry-after': String(current.retryAfter) } : {},
+    headers: retry ? { 'retry-after': String(current.retryAfter) } : {},
     ...extra,
   });
 
@@ -186,10 +186,19 @@ export async function startMockBackend({ keys, port = DEFAULT_PORT, settings = {
     const label = `licence=${current.licence ? 'override:' : ''}${scenario.name}`;
     if (scenario.error) return errorAnswer(scenario.error, { label });
     if (scenario.activation) return errorAnswer(scenario.activation, { label });
+    // An activation only ever answers an active token: a licence that would be signed ended or revoked — the
+    // subscription ended, the purchase refunded, the payment's grace over — is licence-inactive (§5.2).
+    const at = seconds();
+    const would = issueClaims({
+      lid: 'lic_mock_probe',
+      inst: body.inst,
+      iat: at - (scenario.backdate ?? 0),
+      licence: licenceFields(scenario.grant, at),
+    });
+    if (would.status !== 'active') return errorAnswer('licence-inactive', { label });
     const licence = licenceFor(scenario, keyId ?? `raw:${body.key}`);
     let installation = licence.installations.get(body.inst);
     if (installation?.status !== 'active') {
-      const at = seconds();
       const active = [...licence.installations.values()].filter(i => i.status === 'active').length;
       const recent = licence.activations.filter(t => t > at - CHURN_PERIOD).length;
       if (active + licence.phantomSeats >= current.seats || recent >= ACTIVATION_CHURN * current.seats)
@@ -213,10 +222,9 @@ export async function startMockBackend({ keys, port = DEFAULT_PORT, settings = {
     const known = installation && installation.secret === body.secret;
     const { lid, inst } = body;
     if (endpoint === 'deactivate') {
+      // Always 204, for an unknown installation and a repeat too (§5.4); the seat is freed when all matches.
       if (known) installation.status = 'deactivated';
-      if (current.deactivate === 'empty') return { status: 204, label };
-      const spec = { status: 'revoked', reason: 'deactivated', paidIn: null };
-      return { status: 200, body: { token: await tokenFor({ lid, inst, spec, scenario }) }, label };
+      return { status: 204, label };
     }
     if (!known) {
       const spec = { status: 'revoked', reason: 'unknown-installation', paidIn: null };
@@ -240,8 +248,7 @@ export async function startMockBackend({ keys, port = DEFAULT_PORT, settings = {
     if (current.maxAge !== null) body.maxAge = current.maxAge;
     const text = json(body);
     const etag = `"${createHash('sha256').update(text).digest('base64url').slice(0, 22)}"`;
-    const maxAge = Number.isInteger(body.maxAge) && body.maxAge > 0 ? body.maxAge : 0;
-    const headers = { etag, 'cache-control': `public, max-age=${maxAge}` };
+    const headers = { etag, 'cache-control': PLANS_CACHE_CONTROL };
     if (req.headers['if-none-match'] === etag) return { status: 304, headers, label };
     return { status: 200, text, headers, label };
   }
@@ -272,7 +279,9 @@ export async function startMockBackend({ keys, port = DEFAULT_PORT, settings = {
       case 'http-500':
         return { status: 500, body: { error: 'internal', message: 'Mock: a server error.' }, label };
       case 'http-503':
-        return { status: 503, body: { error: 'unavailable', message: ERROR_MESSAGES.unavailable }, label };
+        return errorAnswer('unavailable', { label });
+      case 'http-503-retry':
+        return errorAnswer('unavailable', { label }, { retry: true });
       case 'portal':
         return {
           status: 200,
@@ -326,10 +335,7 @@ export async function startMockBackend({ keys, port = DEFAULT_PORT, settings = {
   async function contract(endpoint, req) {
     const spec = ENDPOINTS[endpoint];
     if (req.method === 'OPTIONS') {
-      const cors =
-        endpoint === 'plans'
-          ? { ...PLANS_CORS_HEADERS, 'access-control-allow-methods': 'GET', 'access-control-max-age': '86400' }
-          : corsFor(endpoint, req);
+      const cors = endpoint === 'plans' ? { ...PLANS_PREFLIGHT_HEADERS } : corsFor(endpoint, req);
       return { status: 204, headers: cors, label: 'preflight' };
     }
     if (req.method !== spec.method)

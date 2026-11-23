@@ -1,7 +1,7 @@
 // The plans endpoint in every plans scenario, the faults, the clock, the keys, the control address and the guards.
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, test } from 'node:test';
-import { LIMITS, catalogCheck, errorProblems } from '../contract.mjs';
+import { LIMITS, catalogCheck, errorProblems, testCurrencies } from '../contract.mjs';
 import { decodeToken, verifyToken } from '../jws.mjs';
 import { publicEntries } from '../keys.mjs';
 import { FAULTS, PAY_HOSTS, PLANS_SCENARIOS } from '../scenarios.mjs';
@@ -35,14 +35,16 @@ describe('GET /v1/plans', () => {
       assert.equal(answer.status, 200);
       assert.deepEqual(answer.json, scenario.body(Math.floor(m.clock.ms / 1000)));
       assert.ok(Buffer.byteLength(answer.text) <= LIMITS.plansAnswerBytes);
-      assert.match(answer.headers['cache-control'], /^public, max-age=\d+$/);
+      assert.equal(answer.headers['cache-control'], 'no-cache');
       assert.ok(answer.headers.etag);
     });
 
-  test('three, read as the extension would: three plans, prices in XTS', async () => {
+  test('three, read as a test or mock build would: three plans, prices in XTS', async () => {
     const answer = await plans();
-    const read = catalogCheck(answer.json, { payHosts: PAY_HOSTS });
+    const read = catalogCheck(answer.json, { payHosts: PAY_HOSTS, currencies: testCurrencies() });
     assert.deepEqual(read.kept, ['free', 'pro-monthly', 'pro-annual']);
+    const asProduction = catalogCheck(answer.json, { payHosts: PAY_HOSTS });
+    assert.deepEqual(asProduction.kept, ['free'], 'a production configuration never shows the placeholder price');
     assert.deepEqual(
       answer.json.plans.slice(1).map(p => p.price),
       [
@@ -52,19 +54,20 @@ describe('GET /v1/plans', () => {
     );
   });
 
-  test('If-None-Match with the ETag: 304 without a body; maxAge can be replaced', async () => {
+  test('If-None-Match with the ETag: 304 without a body, Cache-Control no-cache; maxAge can be replaced', async () => {
     const first = await plans();
     const again = await plans({ 'if-none-match': first.headers.etag });
     assert.equal(again.status, 304);
     assert.equal(again.text, '');
+    assert.equal(again.headers['cache-control'], 'no-cache');
     await settings({ maxAge: 7200 });
     const changed = await plans();
     assert.equal(changed.json.maxAge, 7200);
-    assert.equal(changed.headers['cache-control'], 'public, max-age=7200');
+    assert.equal(changed.headers['cache-control'], 'no-cache');
     assert.notEqual(changed.headers.etag, first.headers.etag);
   });
 
-  test('a preflight (not needed for a simple GET) answers *', async () => {
+  test('a preflight (not needed for a simple GET) answers 204, *, GET, a day', async () => {
     const answer = await request(m.url, {
       method: 'OPTIONS',
       path: '/v1/plans',
@@ -72,6 +75,9 @@ describe('GET /v1/plans', () => {
     });
     assert.equal(answer.status, 204);
     assert.equal(answer.headers['access-control-allow-origin'], '*');
+    assert.equal(answer.headers['access-control-allow-methods'], 'GET');
+    assert.equal(answer.headers['access-control-max-age'], '86400');
+    assert.equal(answer.headers['access-control-allow-credentials'], undefined);
   });
 
   test('a POST is 405', async () => {
@@ -80,7 +86,14 @@ describe('GET /v1/plans', () => {
 });
 
 describe('faults, switched without a restart', () => {
-  const statuses = { 'http-500': 500, 'http-503': 503, portal: 200, redirect: 302, 'too-large': 200 };
+  const statuses = {
+    'http-500': 500,
+    'http-503': 503,
+    'http-503-retry': 503,
+    portal: 200,
+    redirect: 302,
+    'too-large': 200,
+  };
   for (const [name, status] of Object.entries(statuses))
     test(`${name}: on plans and on activation`, async () => {
       await settings({ fault: name });
@@ -88,7 +101,12 @@ describe('faults, switched without a restart', () => {
         assert.equal(answer.status, status);
         if (name === 'portal') assert.match(answer.headers['content-type'], /^text\/html/);
         if (name === 'redirect') assert.equal(answer.headers.location, 'https://portal.example.invalid/login');
-        if (name === 'http-503') assert.equal(answer.json.error, 'unavailable');
+        if (name.startsWith('http-503')) {
+          assert.equal(answer.json.error, 'unavailable');
+          assert.deepEqual(errorProblems('plans', 503, answer.json), []);
+          // Without Retry-After: the server does not know when; with it: not before that time (§5.1).
+          assert.equal(answer.headers['retry-after'], name === 'http-503-retry' ? '120' : undefined);
+        }
         if (name === 'too-large') assert.ok(answer.json.pad);
       }
       const big = await plans();
@@ -221,7 +239,7 @@ describe('the control address and the guards', () => {
   });
 
   test('the control address refuses browser requests (an Origin header)', async () => {
-    const answer = await post(m.url, '/__mock/settings', { fault: 'drop' }, { origin: 'https://site.example.invalid' });
+    const answer = await post(m.url, '/__mock/settings', { fault: 'drop' }, { origin: 'https://web.example.invalid' });
     assert.equal(answer.status, 403);
     assert.equal(m.settings().fault, 'none');
   });

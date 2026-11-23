@@ -42,7 +42,6 @@ A mock of the licence and plans server for development, on http://127.0.0.1 only
   --seats <n>              installations per licence (default ${DEFAULT_SETTINGS.seats})
   --retry-after <s>        Retry-After of rate-limited answers (default ${DEFAULT_SETTINGS.retryAfter})
   --signing-key <p1|p2>    the key that signs (default p1; p2 is the standby key)
-  --deactivate <empty|token>  204 (default) or 200 with a revoked token
   --max-age <s>            replace the plans' maxAge
   --extension-origin <o>   allow only this chrome-extension:// origin (repeatable; default any)
   --state-dir <dir>        where its keys live (default .state/mock-backend)
@@ -84,7 +83,6 @@ export function settingsFromArgs(values) {
   int('retry-after', 'retryAfter');
   int('max-age', 'maxAge');
   if (values['signing-key'] !== undefined) settings.signingKey = values['signing-key'];
-  if (values.deactivate !== undefined) settings.deactivate = values.deactivate;
   if (values['extension-origin'] !== undefined) settings.extensionOrigins = values['extension-origin'];
   const problems = settingsProblems(settings);
   if (problems.length) throw new Error(problems.join('\n'));
@@ -105,7 +103,6 @@ async function main(argv, env) {
       seats: { type: 'string' },
       'retry-after': { type: 'string' },
       'signing-key': { type: 'string' },
-      deactivate: { type: 'string' },
       'max-age': { type: 'string' },
       'extension-origin': { type: 'string', multiple: true },
       'state-dir': { type: 'string' },

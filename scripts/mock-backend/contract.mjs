@@ -5,17 +5,17 @@
 // and CORS. The mock server builds its answers with this module and its tests check them with it; the extension's
 // future client and the real backend can run their requests and answers through the same checks.
 //
-// Sources, in this order of authority (developer documents): backend.md §6 with its amendments, the amendments A1–A22
-// of pro-plans-and-payment.md §11, then pro-entitlement-implementation.md §3, §5 and pro-plans-and-payment.md §3, §4
-// as written. Where they disagree, the choice is listed in dev-mock-backend.md.
+// Source (developer documents, reconciled 2026-11-23): the token and the licence endpoints —
+// pro-entitlement-implementation.md §3 and §5; the plans endpoint and the catalog — pro-plans-and-payment.md §3 and
+// §4; what only the server knows — backend.md §6. dev-mock-backend.md §8 records where each rule was settled.
 
 /** One day in seconds: times on the wire are whole Unix seconds. */
 export const DAY = 86_400;
 
-/** The token's spans (issuing rules, backend.md §6.2.5; values: assumption 5 / Д4). */
+/** The token's spans (issuing rules, pro-entitlement-implementation.md §5.1; values: assumption 5 / Д4). */
 export const SPANS = Object.freeze({ check: 7 * DAY, window: 30 * DAY, warnBefore: 7 * DAY, dunning: 14 * DAY });
 
-/** New activations of one licence allowed in 30 days, per seat (backend.md Д5, amendment А6). */
+/** New activations of one licence allowed in 30 days, per seat (assumption Д5; §5.2). */
 export const ACTIVATION_CHURN = 3;
 export const CHURN_PERIOD = 30 * DAY;
 
@@ -51,7 +51,7 @@ export const ENDPOINTS = Object.freeze({
 /** The endpoint at `path`, or undefined. */
 export const endpointAt = path => Object.entries(ENDPOINTS).find(([, e]) => e.path === path)?.[0];
 
-/** Error codes and their HTTP status (§5.2; backend.md §6.1, §6.2.1, amendment А5). */
+/** Error codes and their HTTP status (the table of §5.1). */
 export const ERRORS = Object.freeze({
   'bad-request': 400,
   'key-blocked': 403,
@@ -63,7 +63,7 @@ export const ERRORS = Object.freeze({
   unavailable: 503,
 });
 
-/** Which codes each endpoint may answer besides its success. */
+/** Which codes each endpoint may answer besides its success (§5.1–§5.4; plans §4.3). */
 export const ENDPOINT_ERRORS = Object.freeze({
   activate: Object.freeze(Object.keys(ERRORS)),
   refresh: Object.freeze(['bad-request', 'payload-too-large', 'rate-limited', 'unavailable']),
@@ -71,7 +71,7 @@ export const ENDPOINT_ERRORS = Object.freeze({
   plans: Object.freeze(['rate-limited', 'unavailable']),
 });
 
-/** English texts for the `message` field of an error body (backend.md §6.1); the extension reads only `error`. */
+/** English texts for the `message` field of an error body (§5.1); the extension reads only `error`. */
 export const ERROR_MESSAGES = Object.freeze({
   'bad-request': 'The request does not follow the contract.',
   'key-blocked': 'This licence key is blocked.',
@@ -140,7 +140,7 @@ export function requestProblems(endpoint, body) {
 // ---------------------------------------------------------------------------------------------------------------------
 // Answers
 
-/** The headers every answer of /v1/* carries, besides CORS (§5.1; plans: backend.md §6.2.4). */
+/** The headers every answer of the licence endpoints carries, besides CORS (§5.1); the plans' are below. */
 export const ANSWER_HEADERS = Object.freeze({ 'content-type': 'application/json', 'cache-control': 'no-store' });
 
 /** An error body: `{ error, message? }` with a code this endpoint may answer at this status. */
@@ -148,9 +148,9 @@ export function errorProblems(endpoint, status, body) {
   if (!isObject(body)) return ['the error body is not a JSON object'];
   const problems = [];
   if (!ENDPOINT_ERRORS[endpoint]?.includes(body.error)) problems.push(`error ${body.error} is not one of ${endpoint}`);
-  const expected = body.error === 'rate-limited' ? [429, 503] : [ERRORS[body.error]];
-  if (!expected.includes(status))
-    problems.push(`error ${body.error} came with ${status}, not ${expected.join(' or ')}`);
+  // 429 is always rate-limited and 503 always unavailable (with or without Retry-After, §5.1).
+  if (status !== ERRORS[body.error])
+    problems.push(`error ${body.error} came with ${status}, not ${ERRORS[body.error]}`);
   if ('message' in body && typeof body.message !== 'string') problems.push('message is not a string');
   return problems;
 }
@@ -158,9 +158,11 @@ export function errorProblems(endpoint, status, body) {
 /** A successful answer's body (the token inside is checked separately with jws.verifyToken). */
 export function answerProblems(endpoint, status, body) {
   if (endpoint === 'deactivate') {
-    if (status === 204) return body === undefined || body === '' ? [] : ['204 with a body'];
-    if (status !== 200) return [`deactivate answered ${status}`];
-  } else if (status !== 200) return [`${endpoint} answered ${status}`];
+    // Always 204 without a body (§5.4); the extension does not read the answer at all.
+    if (status !== 204) return [`deactivate answered ${status}, not 204`];
+    return body === undefined || body === '' ? [] : ['204 with a body'];
+  }
+  if (status !== 200) return [`${endpoint} answered ${status}`];
   if (!isObject(body)) return ['the body is not a JSON object'];
   const problems = [];
   if (typeof body.token !== 'string' || body.token.length === 0) problems.push('token is missing');
@@ -171,7 +173,7 @@ export function answerProblems(endpoint, status, body) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// The token (§3; amendment A3 of the plans document; backend.md §6.2.5, Б6)
+// The token (§3; the issuing rules and their table of cases: §5.1)
 
 export const TOKEN_TYPE = 'devtab-licence';
 
@@ -191,8 +193,8 @@ const isSeconds = v => Number.isInteger(v) && v >= 0;
 
 /**
  * The token's fields as on the wire (seconds). `unsupported` when `v` is a number other than 1, `claims` for any other
- * break of §3.2. `term` and `renews` are optional; a wrong type is "not read" by the extension (plans §3.4) — reported
- * in `ignored` — and a problem only with `strict` (what the server must never send).
+ * break of §3.2. `term` and `renews` are optional; a wrong type is "not read" by the extension (§3.2) — reported in
+ * `ignored` — and a problem only with `strict` (what the server must never send).
  */
 export function claimsCheck(claims, { strict = false } = {}) {
   if (!isObject(claims)) return { reason: 'claims', problems: ['the payload is not an object'], ignored: [] };
@@ -223,18 +225,34 @@ export function claimsCheck(claims, { strict = false } = {}) {
   return { reason: problems.length ? 'claims' : undefined, problems, ignored };
 }
 
+/** The end of what was paid, with the payment's grace for a subscription (§5.1): seconds, or null without one. */
+export const paidEnd = licence =>
+  licence.paid === null || licence.paid === undefined ? null : licence.paid + (licence.term ? SPANS.dunning : 0);
+
 /**
- * What the server signs (backend.md §6.2.5): the spans from `iat` and the licence. `licence` is
- * `{ status, reason?, paid: seconds | null, term?: 'month' | 'year', renews?: boolean, until?: seconds }` where
- * `until` is the end of a free (complimentary) licence with an end date.
+ * What the server signs (§5.1, the issuing rules): the spans from `iat` and the licence. `licence` is
+ * `{ status, reason?, paid: seconds | null, term?: 'month' | 'year', renews?: boolean }`; a licence with `paid` and
+ * without `term` is a free (complimentary) licence with an end date. An `active` licence whose paid period and its
+ * grace are over at `iat` is signed `ended`: an `active` token always has iat < chk ≤ warn ≤ exp.
  */
 export function issueClaims({ lid, inst, iat, licence }) {
-  const base = { v: 1, lid, inst, plan: 'pro', status: licence.status };
+  const base = { v: 1, lid, inst, plan: 'pro' };
   if (licence.status === 'revoked')
-    return { ...base, reason: licence.reason, iat, chk: iat, warn: iat, exp: iat, paid: licence.paid ?? null };
-  if (licence.status === 'ended')
     return {
       ...base,
+      status: 'revoked',
+      reason: licence.reason,
+      iat,
+      chk: iat,
+      warn: iat,
+      exp: iat,
+      paid: licence.paid ?? null,
+    };
+  const end = paidEnd(licence);
+  if (licence.status === 'ended' || (end !== null && end <= iat))
+    return {
+      ...base,
+      status: 'ended',
       iat,
       chk: iat + SPANS.check,
       warn: iat,
@@ -243,26 +261,26 @@ export function issueClaims({ lid, inst, iat, licence }) {
       ...(licence.term ? { term: licence.term } : {}),
       renews: false,
     };
-  if (licence.paid === null || licence.paid === undefined) {
+  if (end === null) {
     const exp = iat + SPANS.window;
-    return { ...base, iat, chk: iat + SPANS.check, warn: exp - SPANS.warnBefore, exp, paid: null };
+    return { ...base, status: 'active', iat, chk: iat + SPANS.check, warn: exp - SPANS.warnBefore, exp, paid: null };
   }
-  const subscription = Boolean(licence.term);
-  const exp = Math.min(iat + SPANS.window, licence.paid + (subscription ? SPANS.dunning : 0));
+  const exp = Math.min(iat + SPANS.window, end);
   const chk = Math.min(iat + SPANS.check, exp);
   const warn = Math.max(exp - SPANS.warnBefore, chk);
   return {
     ...base,
+    status: 'active',
     iat,
     chk,
     warn,
     exp,
     paid: licence.paid,
-    ...(subscription ? { term: licence.term, renews: licence.renews !== false } : { renews: false }),
+    ...(licence.term ? { term: licence.term, renews: licence.renews !== false } : { renews: false }),
   };
 }
 
-/** Problems with the issuing rules of backend.md §6.2.5 (on top of claimsCheck): what a server must sign. */
+/** Problems with the issuing rules of §5.1 (on top of claimsCheck): what a server must sign. */
 export function issueProblems(claims) {
   const { iat, chk, warn, exp, paid, status } = claims;
   const problems = [];
@@ -277,6 +295,7 @@ export function issueProblems(claims) {
     if ('term' in claims || 'renews' in claims) problems.push('term or renews on a licence without paid');
   } else {
     const end = paid + ('term' in claims ? SPANS.dunning : 0);
+    if (end <= iat) problems.push('active after the paid period and its grace: must be ended');
     if (exp !== Math.min(iat + SPANS.window, end)) problems.push('active: exp is not min(iat + 30 d, paid + 14 d)');
     if (chk !== Math.min(iat + SPANS.check, exp)) problems.push('active: chk is not min(iat + 7 d, exp)');
     if (warn !== Math.max(exp - SPANS.warnBefore, chk)) problems.push('active: warn is not max(exp − 7 d, chk)');
@@ -285,18 +304,26 @@ export function issueProblems(claims) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// The plans catalog (pro-plans-and-payment.md §3.2, §3.6, §4.7; backend.md §6.2.4)
+// The plans catalog (pro-plans-and-payment.md §3.2, §3.5, §3.6, §4.7; backend.md §6.2.4)
 
-/** XTS, the code ISO 4217 reserves for tests, which the placeholders use; Intl does not list it (see the document). */
+/**
+ * XTS, the code ISO 4217 reserves for tests, which every placeholder price uses. Neither Node 22 nor Chrome lists it
+ * in Intl.supportedValuesOf('currency'), so a real price is held to that list alone and the test currency is allowed
+ * only where a build's licence configuration names it (`testCurrencies` of the `test` and `mock` configurations,
+ * pro-entitlement-implementation.md §6.2; plans §3.5).
+ */
 export const TEST_CURRENCY = 'XTS';
 
-/** The currencies a catalog may use: what Intl lists, plus the test currency. */
-export const defaultCurrencies = () => new Set([...Intl.supportedValuesOf('currency'), TEST_CURRENCY]);
+/** The currencies a real price may use: exactly what Intl lists (a production configuration). */
+export const realCurrencies = () => new Set(Intl.supportedValuesOf('currency'));
+
+/** The currencies of a development or test configuration: what Intl lists, plus the test currency. */
+export const testCurrencies = () => new Set([...Intl.supportedValuesOf('currency'), TEST_CURRENCY]);
 
 // eslint-disable-next-line no-control-regex
 const FORBIDDEN_TEXT = /[\u{0}-\u{1f}\u{7f}-\u{9f}\u{202a}-\u{202e}\u{2066}-\u{2069}]/u;
 
-/** A text field: undefined when fine, else the reason. Lengths count code points of the trimmed text. */
+/** A text field: undefined when fine, else the reason. Lengths count Unicode code points of the trimmed text. */
 function textProblem(value, { max, min = 1, nullable }) {
   if (value === null) return nullable ? undefined : 'null';
   if (typeof value !== 'string') return 'not a string';
@@ -307,10 +334,10 @@ function textProblem(value, { max, min = 1, nullable }) {
   return undefined;
 }
 
-/** An address a page may open: https, no credentials, no port, exactly one of `payHosts`, at most 300 characters. */
+/** An address a page may open: https, no credentials, no port, exactly one of `payHosts`, at most 300 code points. */
 export function payUrlProblem(value, payHosts) {
   if (typeof value !== 'string') return 'not a string';
-  if (value.length > 300) return 'longer than 300';
+  if ([...value].length > 300) return 'longer than 300';
   let url;
   try {
     url = new URL(value);
@@ -364,9 +391,10 @@ function planDrop(plan, payHosts, currencies) {
 /**
  * The catalog as the extension's parseCatalog would read it (plans §3.6): whether the answer is usable at all, which
  * plans show and which are dropped (with the reason), and what the server should not have sent (`problems`, the
- * server-side rules: every plan valid, maxAge within bounds, manageUrl valid).
+ * server-side rules: every plan valid, maxAge within bounds, manageUrl valid). `currencies` defaults to a production
+ * configuration's (realCurrencies); pass testCurrencies() to read as a `test` or `mock` build does.
  */
-export function catalogCheck(body, { payHosts, currencies = defaultCurrencies(), now } = {}) {
+export function catalogCheck(body, { payHosts, currencies = realCurrencies(), now } = {}) {
   if (!isObject(body)) return { ok: false, why: 'shape', problems: ['not an object'], kept: [], dropped: [] };
   if (typeof body.v === 'number' && body.v !== 1)
     return { ok: false, why: 'unsupported', problems: [`v is ${body.v}`], kept: [], dropped: [] };
@@ -376,6 +404,7 @@ export function catalogCheck(body, { payHosts, currencies = defaultCurrencies(),
     problems.push('catalog breaks its rule');
   if (typeof body.maxAge !== 'number' || !Number.isFinite(body.maxAge)) problems.push('maxAge is not a number');
   if (!Array.isArray(body.plans)) problems.push('plans is not an array');
+  // More plans than the cards show is a broken answer as a whole, not a list to cut (plans §3.6).
   else if (body.plans.length > 6) problems.push(`${body.plans.length} plans, more than 6`);
   if (problems.length) return { ok: false, why: 'shape', problems, kept: [], dropped: [] };
 
@@ -413,14 +442,14 @@ export function catalogCheck(body, { payHosts, currencies = defaultCurrencies(),
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// CORS (§5.1; amendment A13 of the plans document; backend.md §6.1, §6.2.4)
+// CORS and caching (§5.1; plans §4.3)
 
 /** The licence endpoints' CORS headers when the request's origin is allowed (`allowOrigin`), else only Vary. */
 export function licenceCorsHeaders(allowOrigin) {
   if (!allowOrigin) return { vary: 'Origin' };
   return {
     'access-control-allow-origin': allowOrigin,
-    'access-control-allow-methods': 'GET, POST',
+    'access-control-allow-methods': 'POST',
     'access-control-allow-headers': 'Content-Type',
     'access-control-max-age': '86400',
     vary: 'Origin',
@@ -429,6 +458,19 @@ export function licenceCorsHeaders(allowOrigin) {
 
 /** The plans list is public: any origin, never credentials. */
 export const PLANS_CORS_HEADERS = Object.freeze({ 'access-control-allow-origin': '*' });
+
+/** The answer to a preflight of /v1/plans, which a simple GET never sends but a server still answers (plans §4.3). */
+export const PLANS_PREFLIGHT_HEADERS = Object.freeze({
+  ...PLANS_CORS_HEADERS,
+  'access-control-allow-methods': 'GET',
+  'access-control-max-age': '86400',
+});
+
+/**
+ * The plans' Cache-Control: any HTTP cache revalidates with the ETag every time, so no cache adds its own age to the
+ * server's maxAge (plans §4.3, §4.6). The extension asks with cache: 'no-store' and never sees a 304.
+ */
+export const PLANS_CACHE_CONTROL = 'no-cache';
 
 /** An extension's origin as Chrome sends it: chrome-extension:// and a 32-letter id (a–p). */
 export const EXTENSION_ORIGIN = /^chrome-extension:\/\/[a-p]{32}$/;
