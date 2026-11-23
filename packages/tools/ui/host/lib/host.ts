@@ -27,6 +27,13 @@ export interface ToolHost {
    * should start with, in memory (navigation.ts). Absent: `noNavigation`, which goes nowhere and says so.
    */
   navigation?: ToolNavigation;
+  /**
+   * Whether this host has "Copy automatically after generating" (autoCopy.ts): a generator copies its result after the
+   * person's Generate while its `autoCopy` setting is on. `false`: the host has no automatic copying — no tool copies by
+   * itself whatever its setting says, and the setting is left as it is; the tool's Copy buttons work as always. Absent:
+   * the host has it (a host with no editions: tests, `memoryHost`).
+   */
+  automaticCopying?: boolean;
 }
 
 /** A host's request to open an entry of the tool's history in the tool (a new object each time it asks). */

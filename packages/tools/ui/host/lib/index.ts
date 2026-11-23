@@ -17,6 +17,9 @@
  *   const autoCopy = useAutoCopy(host, 'password');    // "Copy automatically after generating" (autoCopy.ts)
  *   autoCopy.afterGenerate(text);                      // only from the person's Generate
  *
+ * Whether the host has automatic copying at all is its own (`ToolHost.automaticCopying`; absent: it has): where it has
+ * not, `autoCopy.on` is false whatever the entry says, and the tool copies only from its Copy buttons.
+ *
  * The same entry gives the tool its saved parameters (D21, savedSettings.ts): what the person chose last time, declared
  * with defaults and a check per field. Where the host keeps them is a seam of its own, `ParameterStorage`
  * (parameterStorage.ts: `memoryParameterStorage`, `noParameterStorage` — switched off — and a host's own); the host's

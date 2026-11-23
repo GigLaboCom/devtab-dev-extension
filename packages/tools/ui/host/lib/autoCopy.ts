@@ -10,7 +10,12 @@
  * ("Document is not focused."); the tool then says so in one line and its copy buttons still work.
  *
  * Recording: the automatic copy records nothing — Generate already committed the same result to the history.
+ *
+ * A host may have no automatic copying at all (`ToolHost.automaticCopying: false` — the extension's free edition, D24):
+ * then `on` is false and `afterGenerate` writes nothing whatever the tool's stored setting says, and the setting itself
+ * is left as it is. The tool needs no branch for it: it already copies only while `on`.
  */
+import { defaultToolHost } from './host';
 import { useToolSettings } from './useToolSettings';
 import { useRef, useState } from 'react';
 import type { ToolDescription, ToolHost } from './host';
@@ -32,7 +37,7 @@ export const announceGenerated = (generated: string, outcome: AutoCopyOutcome | 
   outcome === null ? generated : outcome.ok ? `${generated} and copied` : `${generated}, not copied automatically`;
 
 export interface AutoCopy {
-  /** The setting, for this tool. */
+  /** Whether this tool copies after Generate: the host has automatic copying and the tool's setting is on. */
   readonly on: boolean;
   /**
    * Call only from the handler of the person's request for a generation, with what "Copy" / "Copy all" would copy.
@@ -45,13 +50,17 @@ export interface AutoCopy {
 
 const writeClipboard = (text: string): Promise<void> => navigator.clipboard.writeText(text);
 
-/** Reads the tool's setting and copies after a generation the person asked for. `write`: the clipboard (a test's). */
+/**
+ * Reads the tool's setting and copies after a generation the person asked for — where the host has automatic copying.
+ * `write`: the clipboard (a test's).
+ */
 export const useAutoCopy = (
   host: ToolHost | undefined,
   toolId: string,
   write: (text: string) => Promise<void> = writeClipboard,
 ): AutoCopy => {
-  const on = useToolSettings(host, toolId)[AUTO_COPY] === true;
+  const setting = useToolSettings(host, toolId)[AUTO_COPY] === true;
+  const on = setting && (host ?? defaultToolHost).automaticCopying !== false;
   const [outcome, setOutcome] = useState<AutoCopyOutcome | null>(null);
   const latest = useRef({ on, write });
   latest.current = { on, write };

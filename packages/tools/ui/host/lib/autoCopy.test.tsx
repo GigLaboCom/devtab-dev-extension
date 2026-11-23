@@ -41,6 +41,22 @@ describe('useAutoCopy', () => {
     expect(api!.on).toBe(true);
   });
 
+  it('a host without automatic copying: off whatever the entry says, writes nothing, and leaves the entry as it is', async () => {
+    const settings = memoryHost().settings;
+    await settings.setForAll(['password'], { [AUTO_COPY]: true });
+    const host: ToolHost = { ...memoryHost(), settings, automaticCopying: false };
+    const written: string[] = [];
+    const view = render(<Probe host={host} write={async t => void written.push(t)} />);
+    expect(view.container.textContent).toBe('off');
+    expect(await act(() => api!.afterGenerate('abc'))).toBeNull();
+    expect(written).toEqual([]);
+    expect(api!.outcome).toBeNull();
+    expect(settings.forTool('password').get()[AUTO_COPY]).toBe(true);
+    // The same entry under a host that has it: on, as stored.
+    view.rerender(<Probe host={{ ...host, automaticCopying: true }} write={async t => void written.push(t)} />);
+    expect(view.container.textContent).toBe('on');
+  });
+
   it('reports the browser’s refusal word for word and keeps nothing else', async () => {
     const host = memoryHost();
     await host.settings.setForAll(['password'], { [AUTO_COPY]: true });
