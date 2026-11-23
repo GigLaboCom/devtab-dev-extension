@@ -303,6 +303,15 @@ describe('ComparePage', () => {
     await waitFor(() => expect(screen.getAllByText('Example')).toHaveLength(2));
   });
 
+  it('says so when the example cannot be loaded (its file is gone), instead of doing nothing', async () => {
+    const behaviors = fakeBehaviors();
+    behaviors.examples.load = vi.fn(() => Promise.reject(new Error('Failed to fetch dynamically imported module')));
+    const { notice } = await setup(behaviors);
+    await waitFor(() =>
+      expect(notice().textContent).toBe('The example could not be loaded. Reload this page and try again.'),
+    );
+  });
+
   it('ignores messages from anywhere but its editor page, and says when the editor could not start', async () => {
     const { answer, counts, messages, notice } = await setup();
     await answer({ type: 'viewer/ready' }, window);

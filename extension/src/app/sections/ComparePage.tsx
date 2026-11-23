@@ -163,7 +163,16 @@ export const ComparePage = ({ behaviors, frameKeys }: ComparePageProps): ReactEl
   const showExample = useCallback(
     async (language: string) => {
       const ticket = ++generation.current;
-      const pair = await behaviors.examples.load(language);
+      let pair;
+      try {
+        pair = await behaviors.examples.load(language);
+      } catch {
+        // The examples are a file of their own, loaded on the first use: a page left open over a rebuilt or updated
+        // extension asks for a file that is no longer there. Said, not swallowed — the button would seem dead.
+        if (ticket === generation.current)
+          say('The example could not be loaded. Reload this page and try again.', 'error');
+        return;
+      }
       if (ticket !== generation.current) return;
       if (!pair) {
         dispatch({ type: 'language', language });
@@ -185,7 +194,7 @@ export const ComparePage = ({ behaviors, frameKeys }: ComparePageProps): ReactEl
         request: { path: pair.after.name, language, oldText: pair.before.text, newText: pair.after.text },
       }));
     },
-    [behaviors.examples, post, request],
+    [behaviors.examples, post, request, say],
   );
   // Texts another part of the page handed over (a tool sending the person here: TextSource.handed) come instead of the
   // example — two: the original and the changed text; one: the original. Taken once, so StrictMode's second run finds
