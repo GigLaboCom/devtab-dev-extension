@@ -72,6 +72,29 @@ describe('a signed token', () => {
       assert.equal((await verifyToken(broken, keys)).reason, 'malformed', broken.slice(0, 40));
   });
 
+  test('is malformed when the header or the payload is JSON but not an object (§3.1, step 1)', async () => {
+    const [h, p, s] = (await signToken(claims, key)).split('.');
+    for (const value of [[], ['ES256'], 'ES256', 1, null, true]) {
+      const json = encodeJson(value);
+      assert.equal((await verifyToken(`${json}.${p}.${s}`, keys)).reason, 'malformed', `header ${json}`);
+      assert.equal((await verifyToken(`${h}.${json}.${s}`, keys)).reason, 'malformed', `payload ${json}`);
+    }
+  });
+
+  test('is malformed when the header or the payload is not UTF-8 (§3.1, step 1)', async () => {
+    const [h, p, s] = (await signToken(claims, key)).split('.');
+    // A lone continuation byte inside a JSON string: decoded leniently it would be U+FFFD and the JSON would parse.
+    const notUtf8 = value => {
+      const text = JSON.stringify({ ...value, note: 'a' });
+      return base64url.encode(
+        Buffer.concat([Buffer.from(text.slice(0, -2), 'utf8'), Buffer.from([0x80]), Buffer.from('"}', 'utf8')]),
+      );
+    };
+    const header = notUtf8({ alg: 'ES256', kid: key.kid, typ: 'devtab-licence' });
+    assert.equal((await verifyToken(`${header}.${p}.${s}`, keys)).reason, 'malformed');
+    assert.equal((await verifyToken(`${h}.${notUtf8(claims)}.${s}`, keys)).reason, 'malformed');
+  });
+
   test('is unsupported with another alg or typ or an extra header field', async () => {
     for (const header of [{ alg: 'ES384' }, { typ: 'JWT' }, { extra: 1 }])
       assert.equal((await verifyToken(await signToken(claims, key, header), keys)).reason, 'unsupported');

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdtemp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { after, describe, test } from 'node:test';
 import { parseDuration, productionVariable, settingsFromArgs } from '../cli.mjs';
 import { LICENCE_SCENARIOS } from '../scenarios.mjs';
@@ -135,7 +135,17 @@ describe('nothing of the mock reaches the extension or a build', () => {
     assert.equal(cli.status, 0, cli.stdout);
   });
 
-  test('no source file of the extension or a package mentions the mock backend', async () => {
+  test('no source file of the extension or a package mentions the mock backend, but the development variant’s own', async () => {
+    // The build variant that points the extension at the mock (DEVTAB_VARIANT=…,licence:mock): its configuration and
+    // its test, its address, the type of its keys module and the plugin that reads the keys. Nothing else; a store
+    // build imports none of them (Check 17 holds what ships).
+    const variant = [
+      'extension/src/licence/config.test.ts',
+      'extension/src/licence/mock.ts',
+      'extension/src/licence/mockOrigin.ts',
+      'extension/src/licence/virtual.d.ts',
+      'extension/vite.config.ts',
+    ];
     const hits = [];
     async function walk(dir) {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -150,6 +160,9 @@ describe('nothing of the mock reaches the extension or a build', () => {
     }
     await walk(join(ROOT, 'extension'));
     await walk(join(ROOT, 'packages'));
-    assert.deepEqual(hits, []);
+    assert.deepEqual(
+      hits.filter(path => !variant.includes(path.split(sep).join('/'))),
+      [],
+    );
   });
 });

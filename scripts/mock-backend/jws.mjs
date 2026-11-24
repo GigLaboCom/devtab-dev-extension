@@ -67,9 +67,14 @@ export function breakSignature(compact) {
   return `${parts[0]}.${parts[1]}.${base64url.encode(bytes)}`;
 }
 
+/**
+ * A JSON object from strict UTF-8 bytes; undefined for bytes that are not UTF-8, JSON that does not parse and a JSON
+ * value that is not an object (an array, a string, a number, null) — each of them `malformed` (§3.1, step 1).
+ */
 const parseJson = bytes => {
   try {
-    return JSON.parse(Buffer.from(bytes).toString('utf8'));
+    const value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    return typeof value === 'object' && value !== null && !Array.isArray(value) ? value : undefined;
   } catch {
     return undefined;
   }
@@ -89,7 +94,7 @@ export async function verifyToken(compact, keys) {
   if (decoded.some(d => d === undefined)) return fail('malformed', ['not strict base64url']);
   const header = parseJson(decoded[0]);
   const claims = parseJson(decoded[1]);
-  if (header === undefined || claims === undefined) return fail('malformed', ['JSON does not parse']);
+  if (header === undefined || claims === undefined) return fail('malformed', ['not UTF-8 JSON objects']);
   // The header before the signature's size: `alg: none` without a signature and HS256 with a 32-byte one are
   // `unsupported` (§8.2); a 64-byte rule breaker with a good header is `malformed` (§3.1).
   const headerWrong = headerProblems(header);
