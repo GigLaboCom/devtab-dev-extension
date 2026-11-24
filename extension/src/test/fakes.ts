@@ -11,7 +11,8 @@ export const fakeStorage = () => {
   const rows = new Map<string, unknown>();
   const listeners = new Set<Listener>();
   const area = {
-    get: (key: string) => Promise.resolve(rows.has(key) ? { [key]: rows.get(key) } : {}),
+    get: (keys: string | string[]) =>
+      Promise.resolve(Object.fromEntries([keys].flat().flatMap(k => (rows.has(k) ? [[k, rows.get(k)]] : [])))),
     set: (items: Record<string, unknown>) => {
       const changes: Changes = {};
       for (const [k, v] of Object.entries(items)) {
@@ -22,7 +23,17 @@ export const fakeStorage = () => {
       for (const l of listeners) l(changes, 'local');
       return Promise.resolve();
     },
-  } as unknown as Pick<chrome.storage.StorageArea, 'get' | 'set'>;
+    remove: (keys: string | string[]) => {
+      const changes: Changes = {};
+      for (const k of [keys].flat()) {
+        if (!rows.has(k)) continue;
+        changes[k] = { oldValue: rows.get(k) };
+        rows.delete(k);
+      }
+      if (Object.keys(changes).length > 0) for (const l of listeners) l(changes, 'local');
+      return Promise.resolve();
+    },
+  } as unknown as Pick<chrome.storage.StorageArea, 'get' | 'set' | 'remove'>;
   const onChanged = {
     addListener: (l: Listener) => void listeners.add(l),
     removeListener: (l: Listener) => void listeners.delete(l),

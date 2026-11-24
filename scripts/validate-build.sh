@@ -198,9 +198,14 @@ else
 fi
 
 # Check 3: no @extension/hmr reload-client injections (dev-only watchRebuildPlugin output — a prod dist must never
-# open ws://localhost:<port> or carry __HMR_ID / __HMR_URL markers), and no dev CSP
+# open ws://localhost:<port> or carry __HMR_ID / __HMR_URL markers), and no dev CSP — the reload client's socket, or a
+# loopback address in connect-src (a development build against the mock licence server, DEVTAB_VARIANT=…,licence:mock)
 echo "Check 3: HMR reload-client injections..."
 HMR_REFS=$(grep -rlE '__HMR_ID|__HMR_URL|ws://localhost' "$INSPECT_DIR" --include='*.js' --include='*.mjs' --include='*.json' 2>/dev/null || true)
+if jq -r '.content_security_policy.extension_pages // empty' "$MANIFEST" | grep -qE "connect-src[^;]*(127\.0\.0\.1|localhost|\[::1\])"; then
+    HMR_REFS="${HMR_REFS:+$HMR_REFS
+}manifest.json (a loopback address in connect-src)"
+fi
 if [ -n "$HMR_REFS" ]; then
     fail "files carry the dev reload client or the dev CSP (built with pnpm dev, not pnpm build):"
     echo "$HMR_REFS" | sed 's/^/  /'

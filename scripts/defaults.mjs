@@ -33,9 +33,12 @@ const load = async (entry, catalogue = []) => {
       {
         name: 'workspace',
         setup(build) {
-          build.onResolve({ filter: /^@src\// }, args => ({
-            path: join(ROOT, 'extension/src', args.path.slice(5)).replace(/(\.tsx?)?$/, m => m || '.ts'),
-          }));
+          build.onResolve({ filter: /^@src\// }, args => {
+            const path = join(ROOT, 'extension/src', args.path.slice(5));
+            // A folder is its index.ts (`@src/licence`, a composition root).
+            if (existsSync(join(path, 'index.ts'))) return { path: join(path, 'index.ts') };
+            return { path: path.replace(/(\.tsx?)?$/, m => m || '.ts') };
+          });
           build.onResolve({ filter: /^virtual:tool-catalogue$/ }, () => ({ path: 'catalogue', namespace: 'virtual' }));
           build.onLoad({ filter: /.*/, namespace: 'virtual' }, () => ({
             contents: `export const CATALOGUE = ${JSON.stringify(catalogue)};`,
@@ -102,6 +105,8 @@ const code = await load(
   import { toolbarButton, pageOpener } from ${at('extension/src/toolbar/index.ts')};
   import { newTab } from ${at('extension/src/newTab/index.ts')};
   import { optionsPage } from ${at('extension/src/options/index.ts')};
+  import { planSource } from ${at('extension/src/plans/index.ts')};
+  import { licence } from ${at('extension/src/licence/index.ts')};
   const actions = shortcutActions(DESTINATIONS, suggestedKeys(TOOL_CATALOGUE));
   const resolved = mac => {
     const r = resolveBindings(actions, DEFAULT_SHORTCUTS, mac);
@@ -121,7 +126,7 @@ const code = await load(
       // no edition until it has read the licence (null). (Nothing of the browser is touched to ask.)
       keeps: editionSource.id === 'licensed' ? null : editionFor({ kind: 'fixed', edition: editionSource.id === 'fixedPro' ? 'pro' : 'free' }).parameters({ area: {}, onChanged: {} }).keeps },
     compare: { maxBytes: COMPARE_MAX_BYTES },
-    roots: { toolbarButton: toolbarButton.id, newTab: newTab.id, optionsPage: optionsPage.id, pageOpener: pageOpener.id ?? null, editionSource: editionSource.id },
+    roots: { toolbarButton: toolbarButton.id, newTab: newTab.id, optionsPage: optionsPage.id, pageOpener: pageOpener.id ?? null, editionSource: editionSource.id, planSource: planSource.id, licence: licence.id },
   };
 `,
   catalogue,
@@ -133,6 +138,8 @@ const ROOT_FILES = [
   'extension/src/newTab/index.ts',
   'extension/src/options/index.ts',
   'extension/src/edition/index.ts',
+  'extension/src/licence/index.ts',
+  'extension/src/plans/index.ts',
   'extension/src/start/behaviors.ts',
   'extension/src/start/parts/index.ts',
   'extension/src/shell/behaviors.ts',
@@ -327,7 +334,7 @@ out.push(
   ),
 );
 out.push(
-  `\nВыбрано: кнопка на панели — \`${code.roots.toolbarButton}\`, подмена новой вкладки — \`${code.roots.newTab}\`, страница настроек — \`${code.roots.optionsPage}\`, как кнопка открывает нашу страницу — \`${code.roots.pageOpener}\`, источник издания — \`${code.roots.editionSource}\`.`,
+  `\nВыбрано: кнопка на панели — \`${code.roots.toolbarButton}\`, подмена новой вкладки — \`${code.roots.newTab}\`, страница настроек — \`${code.roots.optionsPage}\`, как кнопка открывает нашу страницу — \`${code.roots.pageOpener}\`, источник издания — \`${code.roots.editionSource}\`, конфигурация лицензии — \`${code.roots.licence}\`, источник планов — \`${code.roots.planSource}\`.`,
 );
 h('Инструменты');
 out.push(

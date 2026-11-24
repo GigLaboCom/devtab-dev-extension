@@ -4,8 +4,11 @@
  * Settings; the shell's three parts are reachable; the theme switch writes the choice to chrome.storage.local.
  */
 import { App } from './App';
+import { whenEditionKnown } from './editionWait';
+import { claimsAt, makeTestKey, signToken } from '@extension/licence/testing';
 import { THEME_STORAGE_KEY } from '@extension/theme';
 import { fixedSource } from '@src/edition/fixed';
+import { licensedSource } from '@src/edition/licensed';
 import { memoryHistoryHost } from '@src/history/behaviors';
 import { browserNewTab } from '@src/newTab/browserNewTab';
 import { ownNewTab } from '@src/newTab/ownNewTab';
@@ -14,7 +17,7 @@ import { SHORTCUT_KEYS_KEY } from '@src/shortcuts/store';
 import { startBehaviors } from '@src/start/behaviors';
 import { RECENT_KEY, SETTINGS_KEY, SHORTCUTS_KEY, START_CACHE_KEY } from '@src/start/settings';
 import { settled } from '@src/start/tileSources';
-import { fakeChrome } from '@src/test/fakes';
+import { fakeChrome, fakeStorage } from '@src/test/fakes';
 import { FREE, PRO, switchableSource } from '@src/test/switchableSource';
 import { TOOLS } from '@src/tools/registry';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -1016,5 +1019,65 @@ describe('what the edition decides, in Settings and History (D24, D25)', { timeo
     expect(section.querySelector('.kit-section-hint')?.textContent).toBe(HISTORY_IS_PRO);
     expect(section.textContent).toBe(`History${HISTORY_IS_PRO}`);
     expect(section.querySelectorAll('button, a, input, [role="switch"]')).toHaveLength(0);
+  });
+
+  describe('a build that follows a licence (source `licensed`)', () => {
+    const INST = 'q3V2mZ0bTEST0000000000';
+    /** A licensed source over a fake storage whose record holds an active token signed with a key made now. */
+    const licensedOver = async (read: 'answers' | 'never') => {
+      const key = await makeTestKey();
+      const storage = fakeStorage();
+      storage.rows.set('entitlement', {
+        v: 1,
+        inst: INST,
+        token: await signToken(claimsAt(Date.now(), { inst: INST }), {
+          kid: key.publicKey.kid,
+          privateKey: key.privateKey,
+        }),
+        seen: 0,
+      });
+      const local = read === 'answers' ? storage.area : { get: () => new Promise<never>(() => undefined) };
+      return licensedSource({
+        chrome: { storage: { local, onChanged: storage.onChanged }, runtime: { sendMessage: vi.fn() } as never },
+        keys: [key.publicKey],
+        host: 'licence.example.invalid',
+      });
+    };
+
+    it('the host is built once the licence is read: an active licence is Pro on the first drawing', async () => {
+      const source = await licensedOver('answers');
+      const host = await whenEditionKnown(source, s => memoryHistoryHost(TOOLS, s));
+      expect(source.current().kind).toBe('active');
+      expect(host.licence?.state().kind).toBe('active');
+      expect(host.licence?.host).toBe('licence.example.invalid');
+      const loaded = settled(host);
+      setup('#/settings', {}, [], ownNewTab, () => loaded);
+      const tools = await found('[data-settings="tools"]');
+      expect(within(tools).getByRole('switch', { name: 'Copy automatically after generating' })).toBeTruthy();
+      source.dispose();
+    });
+
+    it('a storage that never answers: after 2 s the host is built without the licence — as the free edition', async () => {
+      const source = await licensedOver('never');
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      let host: ReturnType<typeof memoryHistoryHost> | undefined;
+      try {
+        const building = whenEditionKnown(source, s => memoryHistoryHost(TOOLS, s)).then(h => (host = h));
+        await vi.advanceTimersByTimeAsync(1_999);
+        expect(host).toBeUndefined();
+        await vi.advanceTimersByTimeAsync(1);
+        await building;
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(source.current().kind).toBe('unknown');
+      expect([host!.included, host!.automaticCopying]).toEqual([false, false]);
+      const loaded = settled(host!);
+      setup('#/settings', {}, [], ownNewTab, () => loaded);
+      const block = await found('[data-settings="history"]');
+      expect(block.querySelector('p')?.textContent).toBe(HISTORY_IS_PRO);
+      expect(document.querySelector('[data-settings="tools"]')).toBeNull();
+      source.dispose();
+    });
   });
 });

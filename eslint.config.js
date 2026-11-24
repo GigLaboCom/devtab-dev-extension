@@ -28,6 +28,16 @@ const toolIds = layer => {
 const NOT_THE_EXTENSION = { group: ['@extension/*', '@src/*'], message: 'Tools never import the extension (D14).' };
 /** Globals of a page that tool logic does without (D14: no DOM unless the specification says so; then a parameter). */
 const DOM_GLOBALS = ['window', 'document', 'navigator', 'location', 'localStorage', 'sessionStorage', 'indexedDB'];
+/** The licence package's test material: tests and scripts only. */
+const LICENCE_TESTING = {
+  group: ['@extension/licence/testing'],
+  message: 'Test keys and tokens never reach the extension’s sources: tests and scripts only.',
+};
+/** The worker's licence module (the record `licence`, the installation's secret): the service worker's alone. */
+const WORKER_RECORDS = {
+  group: ['@src/background/licence', '@src/background/licence/*', '**/background/licence', '**/background/licence/*'],
+  message: 'The record `licence` and the installation’s secret are the service worker’s alone (src/background).',
+};
 
 export default config(
   {
@@ -98,9 +108,13 @@ export default config(
         ecmaFeatures: { jsx: true },
         // The extension's build configs live in tsconfig.node.json, outside the app's tsconfig.json — except
         // manifest.config.ts, which a test of the app imports (src/start/parts/manifest.test.ts), so the app's project
-        // already has it.
+        // already has it, and with it the build modules it imports (build/licenceOrigin.ts, build/variants.ts).
         projectService: {
-          allowDefaultProject: ['extension/vite.config.ts', 'extension/vitest.config.ts', 'extension/build/*.ts'],
+          allowDefaultProject: [
+            'extension/vite.config.ts',
+            'extension/vitest.config.ts',
+            'extension/build/toolCatalogue.ts',
+          ],
         },
         tsconfigRootDir: import.meta.dirname,
       },
@@ -200,17 +214,42 @@ export default config(
   },
   {
     // The licence package's test material (key pairs made in memory, signed tokens) is for tests only: never in what
-    // ships. (The tools' blocks below set their own import rules for extension/src/tools/**.)
+    // ships. The record `licence` with the installation's secret is the service worker's alone: nothing outside
+    // src/background imports its module — but the e2e build's configuration, whose transport is the worker's scripted
+    // fake server (src/licence/test.ts). (The tools' blocks below set their own import rules for
+    // extension/src/tools/**.)
     files: ['extension/src/**/*.{ts,tsx}'],
-    ignores: ['extension/src/**/*.test.{ts,tsx}', 'extension/src/test/**'],
+    ignores: [
+      'extension/src/**/*.test.{ts,tsx}',
+      'extension/src/test/**',
+      'extension/src/background/**',
+      'extension/src/licence/test.ts',
+    ],
+    rules: { 'no-restricted-imports': ['error', { patterns: [LICENCE_TESTING, WORKER_RECORDS] }] },
+  },
+  {
+    files: ['extension/src/**/*.test.{ts,tsx}', 'extension/src/test/**/*.{ts,tsx}'],
+    ignores: ['extension/src/background/**'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [WORKER_RECORDS] }] },
+  },
+  {
+    files: ['extension/src/background/**/*.{ts,tsx}', 'extension/src/licence/test.ts'],
+    ignores: ['extension/src/**/*.test.{ts,tsx}'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [LICENCE_TESTING] }] },
+  },
+  {
+    // "A page opened" sits in the start route's first chunk: neither the licence package nor the edition's root.
+    files: ['extension/src/edition/opened.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
         {
           patterns: [
+            LICENCE_TESTING,
+            WORKER_RECORDS,
             {
-              group: ['@extension/licence/testing'],
-              message: 'Test keys and tokens never reach the extension’s sources: tests and scripts only.',
+              group: ['@extension/licence', '@extension/licence/*', './index', '@src/edition', '@src/edition/index'],
+              message: 'opened.ts is in the start page’s first chunk: no licence package, no edition root.',
             },
           ],
         },

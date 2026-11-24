@@ -49,7 +49,8 @@ import {
   zipArchive,
 } from '@workspace/tools-shared/history';
 import type { Edition, EditionHistory } from '../edition/edition';
-import type { EditionSource } from '../edition/source';
+import type { LicenceControls } from '../edition/licenceClient';
+import type { EditionSource, SourceState } from '../edition/source';
 import type { IndexedDbApi } from './idbStore';
 import type { SessionArea } from './sessionKeyHolder';
 import type { HistorySettingsSource, SettingsArea, SettingsChanged } from './settings';
@@ -104,8 +105,15 @@ export interface HistoryHost {
    * neither. Read it on each render: it can change (`onEdition`).
    */
   readonly automaticCopying: boolean;
-  /** Called after `included` or `automaticCopying` changed; returns the undo. */
+  /** Called after `included` or `automaticCopying` (or the licence state) changed; returns the undo. */
   onEdition(listener: () => void): () => void;
+  /** Settings → Pro: the licence's state and controls — only where the build follows a licence (source `licensed`). */
+  readonly licence?: LicenceView;
+}
+
+/** What Settings → Pro reads of a licence: its controls (src/edition/licenceClient.ts) and the source's state now. */
+export interface LicenceView extends LicenceControls {
+  state(): SourceState;
 }
 
 /** The parts of `chrome` the history uses. */
@@ -334,6 +342,7 @@ export const historyHost = (env: HistoryEnvironment): HistoryHost => {
       editionListeners.add(listener);
       return () => editionListeners.delete(listener);
     },
+    ...(source.licence && { licence: { ...source.licence, state: () => source.current() } }),
   };
 };
 

@@ -1,4 +1,5 @@
 import { toolCatalogue } from './build/toolCatalogue';
+import { parseVariants, ROOT_LINE } from './build/variants';
 import manifest from './manifest.config';
 import product from './product.json';
 import { toolbarButton } from './src/toolbar';
@@ -11,7 +12,10 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
+import type { PublicKeyEntry } from '@extension/licence';
 import type { Plugin } from 'vite';
+
+const SRC = resolve(__dirname, 'src');
 
 // Build output lives at the WORKSPACE root (../dist), as in both sibling extensions — `chrome://extensions` keeps
 // loading <repo>/dist. DEVTAB_OUT_DIR puts a build of another variant elsewhere (see variantOverride).
@@ -37,22 +41,14 @@ const crxWatchRebuildFix = (): Plugin => ({
  * edition next to the default build (scripts/e2e-tools/saved-settings.mjs): `DEVTAB_VARIANT=<part>:<variant>[,…]`
  * (`edition:fixedFree`) reads src/<part>/index.ts with its first `export { … as <name> } from './…';` line naming that
  * variant instead — the same one-line change a person would make. Several pairs, comma-separated, switch several roots
- * (each part at most once); a pair that is not two words of letters is an error. Unset (every normal build): the roots
- * as written.
+ * (each part at most once); a pair that is not two words of letters is an error (build/variants.ts reads them; the
+ * manifest reads the licence pair the same way, build/licenceOrigin.ts). Unset (every normal build): the roots as
+ * written.
  */
 const variantOverride = (spec: string | undefined): Plugin | false => {
-  if (!spec) return false;
-  const roots = new Map<string, string>();
-  for (const pair of spec.split(',')) {
-    const [part, variant, extra] = pair.split(':');
-    if (!part || !variant || extra !== undefined || !/^[A-Za-z]+$/.test(part) || !/^[A-Za-z]+$/.test(variant))
-      throw new Error(`DEVTAB_VARIANT is <part>:<variant>[,<part>:<variant>…] (edition:fixedFree), not "${spec}"`);
-    const root = resolve(__dirname, 'src', part, 'index.ts');
-    if (roots.has(root)) throw new Error(`DEVTAB_VARIANT names the part "${part}" twice: "${spec}"`);
-    if (!existsSync(root)) throw new Error(`DEVTAB_VARIANT: there is no composition root ${root}`);
-    roots.set(root, variant);
-  }
-  const line = /^export \{ \w+ as (\w+) \} from '\.\/\w+';$/m;
+  const variants = parseVariants(spec, SRC);
+  if (variants.size === 0) return false;
+  const roots = new Map([...variants].map(([part, variant]) => [resolve(SRC, part, 'index.ts'), variant]));
   return {
     name: 'extension:variant-override',
     enforce: 'pre',
@@ -60,11 +56,89 @@ const variantOverride = (spec: string | undefined): Plugin | false => {
       const variant = roots.get(id);
       if (!variant) return null;
       const source = readFileSync(id, 'utf-8');
-      if (!line.test(source)) throw new Error(`${id}: no "export { … as … } from './…';" line to switch`);
-      return source.replace(line, (_all, name: string) => `export { ${variant} as ${name} } from './${variant}';`);
+      if (!ROOT_LINE.test(source)) throw new Error(`${id}: no "export { … as … } from './…';" line to switch`);
+      return source.replace(
+        ROOT_LINE,
+        (_all, _was: string, name: string) => `export { ${variant} as ${name} } from './${variant}';`,
+      );
     },
   };
 };
+
+/** What a licence variant's keys module holds: public keys only, whatever else the file carries. */
+const publicEntry = (value: unknown, prefix: string): PublicKeyEntry | undefined => {
+  const entry = value as { kid?: unknown; jwk?: { kty?: unknown; crv?: unknown; x?: unknown; y?: unknown } } | null;
+  const { kid, jwk } = entry ?? {};
+  if (typeof kid !== 'string' || !kid.startsWith(prefix) || !jwk || jwk.kty !== 'EC' || jwk.crv !== 'P-256')
+    return undefined;
+  if (typeof jwk.x !== 'string' || typeof jwk.y !== 'string') return undefined;
+  return { kid, jwk: { kty: 'EC', crv: 'P-256', x: jwk.x, y: jwk.y } };
+};
+
+/**
+ * A module only one licence configuration has (`licence:<variant>` in DEVTAB_VARIANT): `id` is `export default` of the
+ * public keys in `file` (under .state/, never committed), checked and stripped to their public fields. Without the
+ * pair the module does not resolve at all; with it and no file, the build stops and says what makes the file.
+ */
+const licenceKeysModule = (
+  spec: string | undefined,
+  options: {
+    readonly variant: string;
+    readonly id: string;
+    readonly file: string;
+    readonly hint: string;
+    readonly read: (value: unknown) => unknown;
+  },
+): Plugin | false => {
+  if (parseVariants(spec, SRC).get('licence') !== options.variant) return false;
+  const resolved = `\0${options.id}`;
+  const keys = (): unknown => {
+    if (!existsSync(options.file)) throw new Error(`${options.id}: ${options.file} is missing — ${options.hint}`);
+    const read = options.read(JSON.parse(readFileSync(options.file, 'utf-8')));
+    if (read === undefined)
+      throw new Error(`${options.id}: ${options.file} holds no public key of this variant — ${options.hint}`);
+    return read;
+  };
+  return {
+    name: `extension:${options.id.replace('virtual:', '')}`,
+    buildStart() {
+      keys();
+      this.addWatchFile(options.file);
+    },
+    resolveId: source => (source === options.id ? resolved : null),
+    load: id => (id === resolved ? `export default ${JSON.stringify(keys())};` : null),
+  };
+};
+
+/**
+ * The e2e build's test key (DEVTAB_VARIANT=…,licence:test, src/licence/test.ts): `virtual:licence-test-key` is the
+ * public key scripts/licence-test-key.mjs made in .state/licence-test/public.json (`kid` test-…).
+ */
+const licenceTestKey = (spec: string | undefined): Plugin | false =>
+  licenceKeysModule(spec, {
+    variant: 'test',
+    id: 'virtual:licence-test-key',
+    file: resolve(__dirname, '../.state/licence-test/public.json'),
+    hint: 'run `node scripts/licence-test-key.mjs` first',
+    read: value => publicEntry(value, 'test-'),
+  });
+
+/**
+ * Development against the mock licence server (DEVTAB_VARIANT=edition:licensed,licence:mock, src/licence/mock.ts):
+ * `virtual:licence-mock-keys` is the two public keys `pnpm mock:backend` generated in .state/mock-backend/public.json
+ * (`kid` mock-…-p1, mock-…-p2).
+ */
+const licenceMockKeys = (spec: string | undefined): Plugin | false =>
+  licenceKeysModule(spec, {
+    variant: 'mock',
+    id: 'virtual:licence-mock-keys',
+    file: resolve(__dirname, '../.state/mock-backend/public.json'),
+    hint: 'start `pnpm mock:backend` once: it generates its keys there',
+    read: value => {
+      const entries = Array.isArray(value) ? value.map(entry => publicEntry(entry, 'mock-')) : [];
+      return entries.length > 0 && entries.every(Boolean) ? entries : undefined;
+    },
+  });
 
 /** `%PRODUCT_NAME%` in the pages' <title> → the product's name from product.json (the one place it lives). */
 const productName = (): Plugin => ({
@@ -130,6 +204,9 @@ export default defineConfig({
   publicDir,
   plugins: [
     variantOverride(process.env.DEVTAB_VARIANT),
+    // The licence variants' keys: modules that exist only in `licence:test` (e2e) and `licence:mock` (development).
+    licenceTestKey(process.env.DEVTAB_VARIANT),
+    licenceMockKeys(process.env.DEVTAB_VARIANT),
     // Tailwind v4 over @workspace/dna (src/app/app.css): a plain CSS file in dist/, no runtime and no inline style.
     tailwindcss(),
     react(),

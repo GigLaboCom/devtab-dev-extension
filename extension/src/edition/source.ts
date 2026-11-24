@@ -1,10 +1,11 @@
 /**
  * Seam `EditionSource` — which edition is in force now (docs/replaceable-behaviors.md). Next to seam `Edition` (what
  * stands behind each thing of Pro, ./edition.ts), a source says which of the two applies at this moment: the edition
- * chosen at build time (`fixedPro`, `fixedFree`), or — later — the state of a licence. The pages never ask it "is this
- * Pro?": the host turns its state into an `Edition` (editionFor, ./inForce.ts) and the places follow the host. The
- * composition root (./index.ts) names one source.
+ * chosen at build time (`fixedPro`, `fixedFree`), or the state of a signed licence in storage (`licensed`). The pages
+ * never ask it "is this Pro?": the host turns its state into an `Edition` (editionFor, ./inForce.ts) and the places
+ * follow the host. The composition root (./index.ts) names one source.
  */
+import type { LicenceControls } from './licenceClient';
 import type { EditionState } from '@extension/licence';
 
 /** What a source says: a licence state, not read yet, or the edition fixed at build time. */
@@ -21,6 +22,8 @@ export interface EditionSource {
   readonly ready: Promise<SourceState>;
   /** Called after each change of `current()` (not for an equal state); returns the undo. */
   subscribe(listener: (state: SourceState) => void): () => void;
+  /** The controls of Settings → Pro; only a source that follows a licence has them. */
+  readonly licence?: LicenceControls;
   /** Stops listening to storage and timers. */
   dispose(): void;
 }

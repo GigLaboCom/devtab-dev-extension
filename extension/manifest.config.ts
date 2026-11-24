@@ -1,3 +1,4 @@
+import { licenceOrigin } from './build/licenceOrigin';
 import pkg from './package.json';
 import product from './product.json';
 import { newTab } from './src/newTab';
@@ -32,7 +33,11 @@ import { IS_DEV } from '@extension/env';
  * - `style-src 'self'` — stylesheets are files; pages have no inline <style>;
  * - `style-src-attr` + four hashes — gpui-pre-web 0.3.12 styles four invisible safe-area probes through the `style`
  *   attribute (viewport.rs:117); without them the console shows four errors per load;
- * - `img-src` / `font-src` / `connect-src 'self'` — own files only (the network stays closed);
+ * - `img-src` / `font-src` / `connect-src 'self'` — own files only; `connect-src` adds the licence server's origin
+ *   when the build's licence configuration has one its service worker reaches (src/licence; only that worker contacts
+ *   it: with a licence, and for the plans list when the person asks — src/background/licence, src/background/plans).
+ *   The store build has none until the server exists, so its network stays closed; a `licence:mock` development build
+ *   names the mock's loopback address, and the e2e's `licence:test` none (its server is a script in storage);
  * - `object-src`, `base-uri`, `form-action 'none'`.
  * Two additions the spike named for the iframe it did not run (D3: the editor page inside the main page):
  * `frame-src 'self'` (the main page may frame its own pages, `default-src 'none'` would forbid it) and
@@ -47,6 +52,10 @@ const SAFE_AREA_PROBE_HASHES = [
   "'sha256-KVR0sJO9NDObqCUVDwC9L9fIyWNaULEbUQPAXIyMyx4='",
 ];
 
+/** `connect-src`: own files, the dev server's socket in a dev build, and the licence server's origin when the build has one. */
+const connectSrc = (origin: string | undefined, dev: boolean): string =>
+  ["connect-src 'self'", ...(dev ? ['ws://localhost:*'] : []), ...(origin ? [origin] : [])].join(' ');
+
 export const EXTENSION_PAGES_CSP = [
   "default-src 'none'",
   "script-src 'self' 'wasm-unsafe-eval'",
@@ -54,7 +63,7 @@ export const EXTENSION_PAGES_CSP = [
   `style-src-attr 'unsafe-hashes' ${SAFE_AREA_PROBE_HASHES.join(' ')}`,
   "img-src 'self'",
   "font-src 'self'",
-  IS_DEV ? "connect-src 'self' ws://localhost:*" : "connect-src 'self'",
+  connectSrc(licenceOrigin(), IS_DEV),
   "frame-src 'self'",
   "object-src 'none'",
   "base-uri 'none'",

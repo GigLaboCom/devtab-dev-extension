@@ -15,8 +15,11 @@ const esbuild = createRequire(fromExtension.resolve('vite'))('esbuild');
 /** A module path under the workspace, as a string literal for an entry's `import`. */
 export const at = path => JSON.stringify(join(ROOT, path));
 
+/** The app's own import alias (extension/vite.config.ts), for an entry whose modules use it. */
+export const APP_ALIAS = { '@src': join(ROOT, 'extension/src') };
+
 /** Bundles `entry` (TypeScript source whose default export is plain data) and returns that export. */
-export const readDefinitions = async (entry, { external = [] } = {}) => {
+export const readDefinitions = async (entry, { external = [], alias = {} } = {}) => {
   const { outputFiles } = await esbuild.build({
     stdin: { contents: entry, resolveDir: ROOT, loader: 'ts' },
     bundle: true,
@@ -24,6 +27,7 @@ export const readDefinitions = async (entry, { external = [] } = {}) => {
     format: 'esm',
     platform: 'neutral',
     external,
+    alias,
     logLevel: 'silent',
   });
   const dir = mkdtempSync(join(tmpdir(), 'definitions-'));
