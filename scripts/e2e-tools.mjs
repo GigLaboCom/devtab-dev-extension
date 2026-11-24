@@ -11,6 +11,8 @@
 //   ctx     the browser context (a second page, a file chooser), report the run's JSON report
 // It must leave the page where any page may go next (no dialog open, no route it changed for good).
 
+/* global chrome -- page.evaluate callbacks run in the pages */
+
 import { readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -22,9 +24,30 @@ export const toolCheckModules = () =>
     .filter(name => name.endsWith('.mjs'))
     .sort();
 
-/** Runs every tool's module, or only those named in `args.only` (tool ids: `pnpm test:e2e --only=<id>`). */
+/** What Chrome has recorded for the extension so far (chrome://extensions → Errors). */
+const recordedErrors = async ({ ctx, id }) => {
+  const tab = await ctx.newPage();
+  try {
+    await tab.goto('chrome://extensions/');
+    return await tab.evaluate(async extId => {
+      const all = await chrome.developerPrivate.getExtensionsInfo({ includeDisabled: true });
+      return (all.find(x => x.id === extId)?.runtimeErrors ?? []).map(e => e.message);
+    }, id);
+  } catch {
+    return undefined; // the question itself must never fail a run
+  } finally {
+    await tab.close();
+  }
+};
+
+/**
+ * Runs every tool's module, or only those named in `args.only` (tool ids: `pnpm test:e2e --only=<id>`). After each
+ * module it asks what Chrome recorded for the extension, so that an error found at the end of a long run is named with
+ * the module it appeared in (`report.runtimeErrorsByModule`, and a line in the output).
+ */
 export const runToolChecks = async args => {
   const ran = [];
+  let known = (await recordedErrors(args))?.length ?? 0;
   for (const name of toolCheckModules().filter(n => !args.only || args.only.includes(n.replace(/\.mjs$/, '')))) {
     const module = await import(pathToFileURL(join(DIR, name)).href);
     if (typeof module.default !== 'function') {
@@ -37,6 +60,15 @@ export const runToolChecks = async args => {
     }
     await module.default(args);
     ran.push(name.replace(/\.mjs$/, ''));
+    const now = await recordedErrors(args);
+    if (now && now.length > known) {
+      const added = now.slice(known);
+      (args.report.runtimeErrorsByModule ??= {})[ran.at(-1)] = added;
+      console.log(
+        `  (Chrome recorded ${added.length} error(s) during ${ran.at(-1)}: ${added.join(' | ').slice(0, 300)})`,
+      );
+    }
+    known = now?.length ?? known;
   }
   args.report.toolChecks = ran;
   return ran;

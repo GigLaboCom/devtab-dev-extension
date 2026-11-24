@@ -29,9 +29,11 @@
 #       page imports lazily (the shell, the parts, the tools, the editor's theme files)
 #   16  the toolbar popup, when the chosen button has one, stays light: everything it loads within a byte budget, none
 #       of the main page's or the editor page's own scripts, no React, no wasm
-#   17  no development licence server: for now the mock backend (scripts/mock-backend/scan-build.mjs — its marker,
-#       its control path, a loopback address, a `mock-` key id, the coordinates of the keys it generated); the licence
-#       check's own parts join it with the licence configuration
+#   17  no development licence server — the mock backend (scripts/mock-backend/scan-build.mjs — its marker,
+#       its control path, a loopback address, a `mock-` key id, the coordinates of the keys it generated) — and no test
+#       build of the licence: no DEVTAB_LICENCE_TEST, test key id or fake address; the keys as pinned; no licensed
+#       edition without a server; pay hosts apart from the licence server; the plans from the server's record, their
+#       path in the service worker only; no currency for trials (scripts/licence-config.mjs reads the configuration)
 #
 # Widening the extension (a new permission, a new page, content scripts) is intentional work: update manifest.config.ts
 # AND the allowlists below in the same change. The start page's permissions and the toolbar button are not lists here:
@@ -89,6 +91,20 @@ ENTRY_JSON="$(node "$ROOT/scripts/entry-pages.mjs")" || { echo -e "${RED}ERROR: 
 NEWTAB_ID="$(jq -r '.newTab.id' <<<"$ENTRY_JSON")"
 EXPECTED_OVERRIDES="$(jq -c 'if .newTab.newtab then { newtab: .newTab.newtab } else null end' <<<"$ENTRY_JSON")"
 EXPECTED_OPTIONS="$(jq -c '{ page: .options.page, open_in_tab: .options.openInTab }' <<<"$ENTRY_JSON")"
+# The licence configuration, the edition's source and the plans' source the roots choose (extension/src/licence,
+# extension/src/edition, extension/src/plans — as written; scripts/licence-config.mjs). Checks 11 and 17.
+LICENCE_JSON="$(node "$ROOT/scripts/licence-config.mjs")" || { echo -e "${RED}ERROR: scripts/licence-config.mjs failed${NC}"; exit 1; }
+LICENCE_ORIGIN="$(jq -r '.licence.origin // empty' <<<"$LICENCE_JSON")"
+LICENCE_HOST="$(jq -r '.licence.origin // empty | sub("^https?://"; "") | sub("[:/].*$"; "")' <<<"$LICENCE_JSON")"
+LICENCE_KEYS="$(jq -c '.licence.keys' <<<"$LICENCE_JSON")"
+PAY_HOSTS="$(jq -r '.licence.payHosts | join(" ")' <<<"$LICENCE_JSON")"
+SITE_URL="$(jq -r '.licence.siteUrl // empty' <<<"$LICENCE_JSON")"
+TEST_CURRENCIES="$(jq -r '.licence.testCurrencies | join(" ")' <<<"$LICENCE_JSON")"
+EDITION_SOURCE="$(jq -r '.editionSource' <<<"$LICENCE_JSON")"
+PLAN_SOURCE="$(jq -r '.planSource' <<<"$LICENCE_JSON")"
+# The keys the store build trusts, pinned (Check 17, part 2): a change of the keys changes this line too. Until the
+# licence server exists the list is empty — this is the sha256 of `[]`.
+LICENCE_KEYS_SHA256='4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945'  # gitleaks:allow — the sha256 of a public list of public keys, not a key
 # What a new tab loads before its first paint (Check 15), in bytes: JS + CSS + the boot scripts, fonts aside. Measured
 # 466 353 at the start (docs/decisions.md D16: 20 opens, first paint 52 ms median in Chrome for Testing); the budget is
 # that plus about 10 %. Growing past it is a decision: raise it here with the reason.
@@ -544,8 +560,14 @@ fi
 
 # Check 11: no unexpected remote hosts embedded in the built JS or HTML (no remotely hosted code)
 echo "Check 11: Remote endpoints in built JS / HTML..."
+# Hosts the pages link to (checkout, manage, the site's plans page) — never fetched: the licence configuration's pay
+# hosts, when it has any (none until the licence server exists).
+JS_HOSTS="$ALLOWED_JS_HOSTS"
+if [ -n "$PAY_HOSTS" ]; then
+    JS_HOSTS="^($(printf '%s\n' $PAY_HOSTS | sed 's/[.]/\\./g' | paste -sd '|' -))\$|$ALLOWED_JS_HOSTS"
+fi
 UNEXPECTED_HOSTS=$(grep -rhoE 'https?://[a-zA-Z0-9.-]+' "$INSPECT_DIR" --include='*.js' --include='*.mjs' 2>/dev/null \
-    | sed -E 's#https?://##' | sort -u | grep -vE "$ALLOWED_JS_HOSTS" || true)
+    | sed -E 's#https?://##' | sort -u | grep -vE "$JS_HOSTS" || true)
 REMOTE_IN_HTML=$(grep -rlE '(src|href)="(https?:)?//' "$INSPECT_DIR" --include='*.html' 2>/dev/null || true)
 if [ -n "$UNEXPECTED_HOSTS" ] || [ -n "$REMOTE_IN_HTML" ]; then
     fail "unexpected remote references (allowed in JS: the hosts listed at ALLOWED_JS_HOSTS, as text only):"
@@ -761,6 +783,61 @@ if MOCK_SCAN="$(node "$ROOT/scripts/mock-backend/scan-build.mjs" "$INSPECT_DIR" 
 else
     fail "the build mentions the development mock backend (scripts/mock-backend):"
     echo "$MOCK_SCAN" | sed 's/^/  /'
+fi
+# The licence check's parts (pro-entitlement §7.3; pro-plans-and-payment §7.2): the e2e build's traces, the pinned
+# keys, a build that follows a licence it cannot activate, the hosts of the plans, the plans' root and where the plans'
+# path lives. Parts 3–5 (the keys' coordinates, the origin's form, the origin only in the service worker) join when the
+# licence server exists; 8 and 9 have nothing to compare while the configuration has no pay hosts.
+echo "Check 17: The licence and the plans (the test build's traces, the pinned keys, the configuration)..."
+LICENCE_ERRORS=()
+# Part 1: the e2e build (src/licence/test.ts, the fake server, the plans' placeholder variant) and fake addresses.
+TEST_TRACES=$(grep -rIlE 'DEVTAB_LICENCE_TEST|"?kid"?[[:space:]]*:[[:space:]]*["'"'"'`]test-|https?://(([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.(invalid|test|local|localhost)|localhost|127\.0\.0\.1|\[::1\])([^a-zA-Z0-9.-]|$)' \
+    "$INSPECT_DIR" 2>/dev/null | sed "s#^$INSPECT_DIR/##" || true)
+[ -z "$TEST_TRACES" ] || LICENCE_ERRORS+=("part 1: the test build's mark DEVTAB_LICENCE_TEST, a test key id or a fake address in: $(echo "$TEST_TRACES" | tr '\n' ' ')")
+# Part 2: the keys as pinned here.
+ACTUAL_KEYS_SHA256="$(printf '%s' "$LICENCE_KEYS" | { if command -v sha256sum &> /dev/null; then sha256sum; else shasum -a 256; fi; } | cut -d' ' -f1)"
+[ "$ACTUAL_KEYS_SHA256" = "$LICENCE_KEYS_SHA256" ] \
+    || LICENCE_ERRORS+=("part 2: the licence keys $LICENCE_KEYS (sha256 $ACTUAL_KEYS_SHA256) are not the pinned ones ($LICENCE_KEYS_SHA256)")
+# Part 6: a build that follows a licence has a server to activate it with.
+[ "$EDITION_SOURCE" = "licensed" ] && [ -z "$LICENCE_ORIGIN" ] \
+    && LICENCE_ERRORS+=("part 6: the edition's source is 'licensed' but the licence configuration has no origin — Pro could never be activated")
+# Part 7 (a warning): a server address that no page follows.
+if [ -n "$LICENCE_ORIGIN" ] && [ "$EDITION_SOURCE" != "licensed" ]; then
+    warn "Check 17, part 7: the licence configuration has an origin ($LICENCE_ORIGIN) but the edition's source is '$EDITION_SOURCE': the build contacts the server and no page follows the licence"
+fi
+# Part 8: the pay hosts are not the licence server's host (nor one inside the other).
+for pay in $PAY_HOSTS; do
+    [ -n "$LICENCE_HOST" ] || break
+    case "$pay" in
+        "$LICENCE_HOST" | *".$LICENCE_HOST") LICENCE_ERRORS+=("part 8: the pay host $pay is the licence server's host $LICENCE_HOST or inside it") ;;
+    esac
+    case "$LICENCE_HOST" in
+        *".$pay") LICENCE_ERRORS+=("part 8: the licence server's host $LICENCE_HOST is inside the pay host $pay") ;;
+    esac
+done
+# Part 9: the site's plans page is an https address on a pay host.
+if [ -n "$SITE_URL" ]; then
+    SITE_HOST="$(sed -E 's#^https://([^/:?#]+).*$#\1#' <<<"$SITE_URL")"
+    if [[ "$SITE_URL" != https://* ]] || ! printf '%s\n' $PAY_HOSTS | grep -qxF "$SITE_HOST"; then
+        LICENCE_ERRORS+=("part 9: siteUrl $SITE_URL is not an https address on one of the pay hosts {${PAY_HOSTS:-none}}")
+    fi
+fi
+# Part 10: the plans come from the server's record only (the placeholder variant is for screenshots).
+[ "$PLAN_SOURCE" = "remotePlans" ] || LICENCE_ERRORS+=("part 10: the plans' root (extension/src/plans/index.ts) is '$PLAN_SOURCE', not remotePlans")
+# Part 11: the plans' path lives in the service worker's chunks only — the pages never fetch.
+SW_REACHED="$( [ -n "$SW" ] && [ -f "$INSPECT_DIR/$SW" ] && walk_chunks "$(norm "$INSPECT_DIR/$SW")" | sort -u )"
+while IFS= read -r -d '' js; do
+    grep -qF '/v1/plans' "$js" || continue
+    printf '%s\n' "$SW_REACHED" | grep -qxF "$(norm "$js")" \
+        || LICENCE_ERRORS+=("part 11: '/v1/plans' in a chunk the service worker does not load: ${js#"$INSPECT_DIR"/}")
+done < <(find "$INSPECT_DIR" \( -name '*.js' -o -name '*.mjs' \) -not -path "$INSPECT_DIR/licenses/*" -print0)
+# Part 12: no currency for trials (XTS) in a store build.
+[ -z "$TEST_CURRENCIES" ] || LICENCE_ERRORS+=("part 12: the licence configuration accepts currencies for trials: $TEST_CURRENCIES")
+if [ ${#LICENCE_ERRORS[@]} -gt 0 ]; then
+    fail "Check 17: the licence or the plans are not a store build's:"
+    printf '  - %s\n' "${LICENCE_ERRORS[@]}"
+else
+    pass "Check 17: no test build's traces; licence keys as pinned (${LICENCE_KEYS}); edition source '$EDITION_SOURCE', origin '${LICENCE_ORIGIN:-none}'; plans from '$PLAN_SOURCE', their path in the service worker only; no currency for trials"
 fi
 
 # Summary
