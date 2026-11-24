@@ -1021,6 +1021,90 @@ describe('what the edition decides, in Settings and History (D24, D25)', { timeo
     expect(section.querySelectorAll('button, a, input, [role="switch"]')).toHaveLength(0);
   });
 
+  describe('Settings → Pro, the line over History and Your data (pro-entitlement §6.7)', () => {
+    const TODAY =
+      'Never stored: what you type or paste into the start page’s field or the search. Nothing is sent anywhere until you press Enter on a web search, which goes to your browser’s search engine; an export goes only into the file you save.';
+    const controls = {
+      host: 'licence-fake.invalid',
+      activate: vi.fn(async () => ({ ok: true }) as const),
+      check: vi.fn(async () => ({ ok: true }) as const),
+      deactivate: vi.fn(async () => ({ ok: true }) as const),
+      remove: vi.fn(async () => ({ ok: true }) as const),
+    };
+    /** A source that follows a licence: the state the test sets, and the licence's controls. */
+    const licensedHost = (initial = FREE) => {
+      const source = { ...switchableSource(initial), licence: controls };
+      const loaded = settled(memoryHistoryHost(TOOLS, source));
+      return { source, history: () => loaded };
+    };
+    const licenceOf = (state: typeof PRO) => (state as Extract<typeof PRO, { kind: 'active' }>).licence;
+
+    it('a fixed build — Pro (the root) or free — has no Pro block, and Your data says what it says today', async () => {
+      setup('#/settings');
+      await found('[data-settings="history"]');
+      expect(document.querySelector('[data-settings="pro"]')).toBeNull();
+      expect(screen.queryByRole('heading', { name: 'Pro' })).toBeNull();
+      expect(yourData()).toContain(TODAY);
+      expect(yourData()).not.toMatch(/licence|Pro plans/i);
+      cleanup();
+      setup('#/settings', {}, [], ownNewTab, freeHost());
+      await found('[data-settings="history"]');
+      expect(document.querySelector('[data-settings="pro"]')).toBeNull();
+      expect(yourData()).toContain(TODAY);
+    });
+
+    it('a licensed build: the block between Shortcuts and Tools; Your data by the state, followed on the open page', async () => {
+      const { source, history } = licensedHost(FREE);
+      setup('#/settings', {}, [], ownNewTab, history);
+      const block = await found('[data-settings="pro"]');
+      expect(block.querySelector('h2')?.textContent).toBe('Pro');
+      expect(within(block).getByRole('textbox', { name: 'Licence key' })).toBeTruthy();
+      const order = [...document.querySelectorAll('.kit-settings > section h2')].map(h => h.textContent);
+      expect(order.indexOf('Pro')).toBe(order.indexOf('Shortcuts') + 1);
+      expect(yourData()).toContain(
+        'Nothing is sent anywhere until you press Enter on a web search or ask to see the Pro plans, which goes',
+      );
+      expect(yourData()).toContain(
+        'Pro plans: when you press See plans in Settings → Pro, the extension downloads the list of plans from licence-fake.invalid. The request carries nothing about you, and the list is kept in this browser to show it again.',
+      );
+      expect(yourData()).not.toContain('Licence: about once a week');
+      await act(async () => source.set(PRO));
+      await found('[data-settings="tools"]');
+      expect(order.indexOf('Pro')).toBeLessThan(
+        [...document.querySelectorAll('.kit-settings > section h2')].map(h => h.textContent).indexOf('Tools'),
+      );
+      expect(within(block).getByText('Pro is active in this browser.')).toBeTruthy();
+      expect(yourData()).toContain(
+        'Apart from the licence check below, nothing is sent anywhere until you press Enter on a web search, which goes',
+      );
+      expect(yourData()).toContain(
+        'Licence: about once a week while you use the extension, it sends this licence’s number, this installation’s random number and a secret issued for it to licence-fake.invalid to keep Pro active, and downloads the plans list when you open Settings and it is older than a day. Nothing you type, paste or open in the tools, no settings and no history are ever sent.',
+      );
+    });
+
+    it('History: the state’s line and Open Settings over the history in grace, over the sentence of D25 when Pro is off', async () => {
+      const { source, history } = licensedHost({ kind: 'grace', licence: licenceOf(PRO) });
+      setup('#/history', {}, [], ownNewTab, history);
+      const notice = await found('[data-licence-notice]');
+      expect(notice.getAttribute('data-licence-notice')).toBe('grace');
+      expect(notice.textContent).toMatch(/^Couldn’t check your licence since .+\. Pro stays until .+\.Open Settings$/);
+      expect(within(notice).getByRole('link', { name: 'Open Settings' }).getAttribute('href')).toBe('#/settings');
+      // Over the content: the history still records.
+      expect(document.querySelector('[data-page="history"] .kit-history')?.firstElementChild).toBe(notice);
+      await act(async () => source.set({ kind: 'expired', licence: licenceOf(PRO) }));
+      const section = await found('[data-history-state="excluded"]');
+      await waitFor(() =>
+        expect(section.querySelector('[data-licence-notice]')?.getAttribute('data-licence-notice')).toBe('expired'),
+      );
+      expect(section.querySelector('.kit-section-hint')?.textContent).toBe(HISTORY_IS_PRO);
+      await act(async () => source.set(FREE));
+      await waitFor(() => expect(document.querySelector('[data-licence-notice]')).toBeNull());
+      await act(async () => source.set(PRO));
+      await found('[data-page="history"] .kit-history');
+      expect(document.querySelector('[data-licence-notice]')).toBeNull();
+    });
+  });
+
   describe('a build that follows a licence (source `licensed`)', () => {
     const INST = 'q3V2mZ0bTEST0000000000';
     /** A licensed source over a fake storage whose record holds an active token signed with a key made now. */

@@ -3,7 +3,7 @@
  * back in its tool; delete what the filter shows (counted first, asked once); export what is shown or everything; and
  * restore from an export. The page names no tool: names, kinds and where an entry opens come from the sources. In a build
  * without the history (`host.included` false, D25) the section stays, with one sentence in place of all that, and nothing
- * of the history is read.
+ * of the history is read. Where the build follows a licence, a line over it says when the licence is why (LicenceNotice).
  */
 import { download } from './download';
 import { HISTORY_EXCLUDED } from './excluded';
@@ -11,6 +11,7 @@ import { formatBytes, plural } from './format';
 import { filterOf, HistoryFilters, INITIAL_FILTER } from './HistoryFilters';
 import { HistoryList } from './HistoryList';
 import { HistoryStatus } from './HistoryStatus';
+import { LicenceNotice } from './LicenceNotice';
 import { handOffRestore } from './restoreHandoff';
 import { RestorePanel } from './RestorePanel';
 import { useActivity, useHistoryVersion, useVaultState } from './useHistory';
@@ -44,6 +45,7 @@ export const HistoryPage = ({ host }: { host: HistoryHost }): ReactElement =>
           <p className="kit-section-hint">{HISTORY_EXCLUDED.section}</p>
         </div>
       </header>
+      <LicenceNotice host={host} />
     </section>
   );
 
@@ -145,6 +147,7 @@ const KeptHistoryPage = ({ host }: { host: HistoryHost }): ReactElement => {
         </div>
       </header>
       <div className="kit-history">
+        <LicenceNotice host={host} />
         <HistoryStatus host={host} />
         <HistoryFilters state={state} sources={host.sources} onChange={change} now={now} />
         <div className="kit-history-bar">

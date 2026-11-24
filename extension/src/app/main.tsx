@@ -9,6 +9,7 @@ import { initialState } from '@src/start/store';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { AppDeps } from './App';
+import type { PlansChoice } from './settings/PlansPart';
 import type { PermissionsApi } from './useStart';
 import type { HistoryHost } from '@src/history/behaviors';
 
@@ -31,6 +32,17 @@ const loadHistory = (): Promise<HistoryHost> =>
       }),
     ),
   ));
+
+// The Pro plans (seam `PlanSource`, src/plans/index.ts) with the site's plans page and host (src/licence): built next
+// to the edition's source, but only when Settings → Pro draws them — a build that follows no licence has no such block
+// and never reads the record. Reading it does not hold up the history host: the cards are not Pro.
+let plans: Promise<PlansChoice> | undefined;
+const loadPlans = (): Promise<PlansChoice> =>
+  (plans ??= Promise.all([import('@src/plans'), import('@src/licence')]).then(([p, l]) => ({
+    source: p.planSource({ chrome }),
+    siteUrl: l.licence.siteUrl,
+    siteHost: l.licence.payHosts[0],
+  })));
 
 // Every opening of the main page, on any route, tells the service worker — when this profile has a licence record —
 // so it can see whether the licence is due for a check (src/edition/opened.ts: one read, at most one message).
@@ -58,6 +70,7 @@ const deps: AppDeps = {
   permissions: chrome.permissions as unknown as PermissionsApi,
   behaviors,
   history: loadHistory,
+  plans: loadPlans,
 };
 
 createRoot(document.getElementById('root')!).render(

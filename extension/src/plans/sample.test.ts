@@ -1,6 +1,7 @@
 /** `samplePlans`, the showcase variant: the seam's contract (the parts it can run), and its placeholder list. */
 import { planSourceContract } from './contract';
 import { samplePlans } from './sample';
+import { samplePlans as byVariantName } from './samplePlans';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlanSourceEnvironment } from './source';
 
@@ -24,6 +25,10 @@ describe('with the clock and timers of the test', () => {
 });
 
 describe('samplePlans', () => {
+  it('has the module its variant names (DEVTAB_VARIANT=…,plans:samplePlans rewrites the root to ./samplePlans)', () => {
+    expect(byVariantName).toBe(samplePlans);
+  });
+
   it('shows the placeholder list at once — three plans in XTS on `.invalid` hosts, marked as test material', async () => {
     const source = samplePlans({ ...ENV, now: () => T0 });
     expect(source.id).toBe('samplePlans');

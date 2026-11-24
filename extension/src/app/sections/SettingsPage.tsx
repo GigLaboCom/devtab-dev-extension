@@ -11,21 +11,26 @@
  *               switching it off gives back what no other switched-on part needs. This page names no part.
  *   Appearance  the theme (the only place it is chosen; not set = System, which follows the system live)
  *   Shortcuts   the user's keyboard shortcuts for every action (ShortcutSettings.tsx)
+ *   Pro         the licence and the Pro plans (app/settings/ProSettings.tsx) — only where the build follows a licence
+ *               (`history.licence`, source `licensed`); a build whose edition is fixed has no such group
  *   Tools       "Copy automatically after generating" (app/tools/ToolSettings.tsx) — only while the edition in force
  *               has automatic copying (`automaticCopying`, D24, followed live through useHostEdition); elsewhere the
  *               group is not drawn: it would be empty
  *   History     the tool history (D17): its own block, app/history/HistorySettings.tsx (one sentence in a build without
  *               the history, D25)
- *   Your data   what is stored and what is not; each part that reads the browser adds its own line
+ *   Your data   what is stored and what is not; each part that reads the browser adds its own line; a build that
+ *               follows a licence says what it sends and when (app/settings/proTexts.ts, `yourDataTexts`)
  *
  * Everything here is a setting, kept in chrome.storage.local; nothing the user types into the start page is. What the
  * tools keep is the tool history, in this browser's IndexedDB (D17) — in a build that has it.
  */
 import { ShortcutSettings } from './ShortcutSettings';
 import { HistorySettings } from '../history/HistorySettings';
+import { ProSettings } from '../settings/ProSettings';
+import { yourDataTexts } from '../settings/proTexts';
 import { ThemePicker } from '../ThemePicker';
 import { ToolSettings } from '../tools/ToolSettings';
-import { useHostEdition } from '../useHostEdition';
+import { useHostEdition, useLicenceState } from '../useHostEdition';
 import { createDebug } from '@extension/logger';
 import { compareActions } from '@src/compare/actions';
 import { isNewTabPage } from '@src/newTab/override';
@@ -38,6 +43,7 @@ import { Switch } from '@workspace/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { ArrowDownIcon, ArrowUpIcon } from 'lucide-react';
 import { useState } from 'react';
+import type { PlansChoice } from '../settings/PlansPart';
 import type { Shortcuts } from '../shell/useShortcuts';
 import type { PermissionsApi } from '../useStart';
 import type { ThemePref } from '@extension/theme';
@@ -61,6 +67,8 @@ export interface SettingsProps {
   /** The build's New Tab override: whether a new tab is ours, so "A new tab opens" means something. */
   newTab: NewTabOverride;
   history: HistoryHost;
+  /** The Pro plans (src/plans), loaded when Settings → Pro draws them; the same promise on every call. */
+  plans?: () => Promise<PlansChoice>;
   /** The user's shortcuts (the shell's); absent where the page is drawn without them. */
   shortcuts?: Shortcuts;
   /** The shell's own choices (the breadcrumb); absent where the page is drawn without the shell. */
@@ -99,12 +107,22 @@ export const SettingsPage = ({
   theme,
   newTab,
   history,
+  plans,
   shortcuts,
   shell,
 }: SettingsProps): ReactElement => {
   const [asking, setAsking] = useState<Asking>(null);
   // What the edition in force offers, followed while the page is open.
   const { included, automaticCopying } = useHostEdition(history);
+  const licence = useLicenceState(history);
+  const licenceHost = history.licence?.host;
+  // What Your data says is sent: as today in a fixed build; with a licence, by its state (§6.7.5).
+  const nothingSent =
+    licence === undefined
+      ? yourDataTexts.nothingSent
+      : licence.kind === 'free'
+        ? yourDataTexts.nothingSentFree
+        : yourDataTexts.nothingSentLicence;
   const settings = state.settings;
   const save = (next: StartSettings): void => {
     saveSettings(store.area, next).catch(e => debug.warn('save the settings', e));
@@ -300,6 +318,8 @@ export const SettingsPage = ({
 
         {shortcuts && <ShortcutSettings shortcuts={shortcuts} fixed={FIXED} mac={isMac()} />}
 
+        <ProSettings host={history} {...(plans && { plans })} />
+
         {automaticCopying && <ToolSettings host={history} />}
 
         <HistorySettings host={history} />
@@ -315,10 +335,13 @@ export const SettingsPage = ({
               the Tools tiles, “Last opened tool” and the search’s recent places).
               {included &&
                 ' While History is on, the tools keep what you type, paste or open in them, with their results, in this browser’s storage — not in incognito windows, never secrets without a master password — until it is deleted (see History above).'}{' '}
-              Never stored: what you type or paste into the start page’s field or the search. Nothing is sent anywhere
-              until you press Enter on a web search, which goes to your browser’s search engine; an export goes only
-              into the file you save.
+              Never stored: what you type or paste into the start page’s field or the search. {nothingSent}, which goes
+              to your browser’s search engine; an export goes only into the file you save.
             </p>
+            {licence !== undefined && licenceHost !== undefined && <p>{yourDataTexts.plans(licenceHost)}</p>}
+            {licence !== undefined && licence.kind !== 'free' && licenceHost !== undefined && (
+              <p>{yourDataTexts.licence(licenceHost)}</p>
+            )}
             {privacy.map(line => (
               <p key={line}>{line}</p>
             ))}

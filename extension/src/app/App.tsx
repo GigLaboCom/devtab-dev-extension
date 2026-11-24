@@ -16,6 +16,7 @@ import { optionalPermissionNames } from '@src/start/part';
 import { catalogueEntry } from '@src/tools/catalogue';
 import { lazy, Suspense, useLayoutEffect } from 'react';
 import type { Route } from './route';
+import type { PlansChoice } from './settings/PlansPart';
 import type { PermissionsApi } from './useStart';
 import type { ThemeDeps } from './useTheme';
 import type { HistoryHost } from '@src/history/behaviors';
@@ -40,6 +41,8 @@ export interface AppDeps {
   behaviors: StartBehaviors;
   /** The tool history (src/history/behaviors.ts), loaded with the shell; absent: an in-memory one. */
   history?: () => Promise<HistoryHost>;
+  /** The Pro plans for Settings → Pro (src/plans), loaded only when that block draws them; absent: no plans part. */
+  plans?: () => Promise<PlansChoice>;
 }
 
 /**
@@ -100,6 +103,7 @@ export const App = ({ deps }: { deps: AppDeps }): ReactElement => {
           store: deps.start,
           permissions: deps.permissions,
           newTab: deps.behaviors.newTab,
+          ...(deps.plans && { plans: deps.plans }),
         }}
       />
     </Suspense>
