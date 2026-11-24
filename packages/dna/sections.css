@@ -13,7 +13,7 @@
  *                              .kit-settings-text (.kit-settings-label, .kit-settings-hint, .kit-settings-note) on the
  *                              left, .kit-settings-controls on the right (move buttons, the switch);
  *                              .kit-settings-intro, .kit-settings-subtitle, .kit-settings-actions, .kit-settings-prose,
- *                              .kit-settings-theme
+ *                              .kit-settings-theme, .kit-settings-buttons (buttons under a row's words)
  *         .kit-compare         «Compare code»: .kit-compare-bar (.kit-compare-title, .kit-compare-notice[data-tone],
  *                              .kit-compare-tools, .kit-compare-counts with .kit-compare-added / -removed);
  *                              .kit-compare-sides > .kit-compare-side (.kit-compare-side-role, .kit-compare-side-name
@@ -33,6 +33,16 @@
  *       .kit-history-entries > .kit-history-entry (-time, -kind, -label, -size, -actions); .kit-history-more
  *     .kit-history-vault       the master password in settings (-form, -warning), .kit-history-check
  *   .kit-tool-history          on a tool's page: .kit-tool-history-line (always shown), .kit-tool-history-recent
+ *
+ * Plans (@workspace/ui/plan-card — the cards of a subscription's plans; the extension shows them in a settings group):
+ *   .kit-plans[data-count]     the container the width is measured on; .kit-plans-list — the grid: one row of all the
+ *                              cards from 40rem (and 13rem a card), one column below — never two with a third alone
+ *     .kit-plan-card-item      one <li> (aria-current on the current plan) > .kit-plan-card[data-current] (a Card):
+ *                              .kit-plan-card-head (.kit-plan-card-name with its badge, .kit-plan-card-mark),
+ *                              .kit-plan-card-body (.kit-plan-card-price[data-missing] > .kit-plan-card-period,
+ *                              .kit-plan-card-note, .kit-plan-card-summary, .kit-plan-card-includes), and at the foot
+ *                              .kit-plan-card-foot (.kit-plan-card-state, .kit-plan-card-action) — pressed to the bottom
+ *                              so the buttons of a row line up
  */
 @layer components {
   .kit-bare {
@@ -157,6 +167,15 @@
     gap: calc(var(--spacing) * 2);
     padding-block: calc(var(--spacing) * 3);
     border-block-start: 1px solid var(--border);
+  }
+
+  /* Buttons inside a row's text column, under the words they act on (the Pro block's lines, the plans' Try again). */
+  .kit-settings-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    padding-block: calc(var(--spacing) * 1);
   }
 
   /* A smaller heading inside a group, and the line that introduces a group. */
@@ -712,5 +731,167 @@
     color: var(--muted-foreground);
     font-size: var(--text-xs);
     cursor: pointer;
+  }
+
+  /* Plan cards: equal height in a row, the buttons pressed to the bottom. The columns come from the number of cards
+     (data-count, 1–6) and the container's width: a container query cannot read a custom property, so each count has
+     the width at which its row fits (n × 13rem and the gaps; 40rem for up to three). */
+  .kit-plans {
+    container-type: inline-size;
+  }
+
+  .kit-plans-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: calc(var(--spacing) * 3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  @container (width >= 40rem) {
+    .kit-plans[data-count='2'] > .kit-plans-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .kit-plans[data-count='3'] > .kit-plans-list {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @container (width >= 54.25rem) {
+    .kit-plans[data-count='4'] > .kit-plans-list {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  @container (width >= 68rem) {
+    .kit-plans[data-count='5'] > .kit-plans-list {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+  }
+
+  @container (width >= 81.75rem) {
+    .kit-plans[data-count='6'] > .kit-plans-list {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+  }
+
+  .kit-plan-card-item {
+    display: flex;
+    min-width: 0;
+  }
+
+  .kit-plan-card {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .kit-plan-card[data-current] {
+    border-color: var(--primary);
+  }
+
+  .kit-plan-card-head,
+  .kit-plan-card-body,
+  .kit-plan-card-foot {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 2);
+    padding-inline: calc(var(--spacing) * 4);
+  }
+
+  .kit-plan-card-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .kit-plan-card-mark {
+    width: fit-content;
+    color: var(--primary);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--text-xs--line-height);
+  }
+
+  .kit-plan-card-body {
+    flex: 1;
+  }
+
+  .kit-plan-card-body p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .kit-plan-card-price {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-semibold);
+    line-height: var(--text-lg--line-height);
+  }
+
+  .kit-plan-card-price[data-missing],
+  .kit-plan-card-price.kit-plan-card-summary {
+    color: var(--muted-foreground);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-normal);
+    line-height: var(--text-sm--line-height);
+  }
+
+  .kit-plan-card-period {
+    color: var(--muted-foreground);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-normal);
+  }
+
+  .kit-plan-card-note,
+  .kit-plan-card-state {
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+  }
+
+  .kit-plan-card-summary {
+    color: var(--muted-foreground);
+    font-size: var(--text-sm);
+  }
+
+  .kit-plan-card-includes {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--text-sm);
+  }
+
+  .kit-plan-card-includes > li {
+    display: flex;
+    align-items: flex-start;
+    gap: calc(var(--spacing) * 2);
+    overflow-wrap: anywhere;
+  }
+
+  .kit-plan-card-includes svg {
+    flex: none;
+    width: calc(var(--spacing) * 4);
+    height: calc(var(--spacing) * 4);
+    margin-block-start: calc(var(--spacing) * 0.5);
+    color: var(--primary);
+  }
+
+  .kit-plan-card-state {
+    margin: 0;
+  }
+
+  .kit-plan-card-action {
+    display: flex;
+  }
+
+  .kit-plan-card-action > * {
+    flex: 1;
   }
 }

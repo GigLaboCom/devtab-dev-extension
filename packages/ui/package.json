@@ -1,7 +1,7 @@
 {
   "name": "@workspace/ui",
   "version": "0.1.0",
-  "description": "The UI kit (D14): shadcn/ui components on the Radix base, styled at run time by @workspace/dna/style-gpui.css (the `cn-*` and `kit-*` classes), plus the parts the tools share — the tool page frame, the copy button, the result row, the file drop zone, the table, the result field that shows the start of a huge result and the input field that holds a huge input. Reusable outside the extension: no `@extension/*`, no `chrome`.",
+  "description": "The UI kit (D14): shadcn/ui components on the Radix base, styled at run time by @workspace/dna/style-gpui.css (the `cn-*` and `kit-*` classes), plus the parts the tools share — the tool page frame, the copy button, the result row, the file drop zone, the table, the result field that shows the start of a huge result and the input field that holds a huge input; and the badge and the plan card with its list (the cards of a subscription's plans). Reusable outside the extension: no `@extension/*`, no `chrome`.",
   "private": true,
   "type": "module",
   "exports": {

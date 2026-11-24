@@ -70,7 +70,7 @@
           ><a class="kit-nav-item" href="#start-page">Start page and settings</a
           ><a class="kit-nav-item" href="#toolbar-menu">Toolbar menu</a
           ><a class="kit-nav-item" href="#compare">Compare code</a
-          ><a class="kit-nav-item" href="#tool-history">Tool history</a
+          ><a class="kit-nav-item" href="#tool-history">Tool history</a><a class="kit-nav-item" href="#plans">Plans</a
           ><a class="kit-nav-item" href="#tool-page">Tool page and Table</a
           ><a class="kit-nav-item" href="#shell">Shell: sidebar, toolbar, palette</a></nav
         >
@@ -2991,6 +2991,904 @@ fn main() {
                 <button class="cn-button cn-button-variant-outline cn-button-size-sm" type="button"
                   >Show older entries</button
                 >
+              </div>
+            </div>
+          </section>
+          <section class="show-group" id="plans">
+            <h2>Plans</h2>
+            <p class="show-note">
+              @workspace/ui/plan-card in the settings’ width (kit-plans, kit-plan-card*), with the placeholder plans of
+              the extension’s samplePlans (XTS, .invalid): no licence — Free is current; Pro cancelled but paid; a stale
+              list without prices; the narrow column (the options dialog, 600 px) and a card with every text at its
+              limit.
+            </p>
+            <h3 class="show-note">No licence</h3>
+            <div class="kit-settings">
+              <div class="kit-plans" data-count="3">
+                <ul role="list" aria-label="Pro plans" class="kit-plans-list">
+                  <li class="kit-plan-card-item" aria-current="true">
+                    <article
+                      data-slot="card"
+                      data-current=""
+                      aria-labelledby="show-plan-1-name"
+                      class="cn-card group/card flex flex-col kit-plan-card">
+                      <div class="kit-plan-card-head">
+                        <h3 id="show-plan-1-name" class="cn-card-title kit-plan-card-name">Free</h3>
+                        <span class="kit-plan-card-mark">Current plan</span>
+                      </div>
+                      <div class="kit-plan-card-body">
+                        <p class="kit-plan-card-price kit-plan-card-summary">Every tool, in full, offline.</p>
+                        <ul class="kit-plan-card-includes">
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>All 44 tools</span></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Nothing you paste leaves this browser</span></li
+                          >
+                        </ul>
+                      </div>
+                    </article>
+                  </li>
+                  <li class="kit-plan-card-item">
+                    <article
+                      data-slot="card"
+                      aria-labelledby="show-plan-2-name"
+                      class="cn-card group/card flex flex-col kit-plan-card">
+                      <div class="kit-plan-card-head">
+                        <h3 id="show-plan-2-name" class="cn-card-title kit-plan-card-name">Monthly</h3>
+                      </div>
+                      <div class="kit-plan-card-body">
+                        <p class="kit-plan-card-price">XTS 11.11 <span class="kit-plan-card-period">per month</span></p>
+                        <p class="kit-plan-card-note">Tax calculated at checkout.</p>
+                        <p class="kit-plan-card-summary">Pro, billed every month.</p>
+                        <ul class="kit-plan-card-includes">
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Tool history and its archive</span></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Tools remember your options</span></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Copy automatically after generating</span></li
+                          >
+                        </ul>
+                      </div>
+                      <div class="kit-plan-card-foot">
+                        <div class="kit-plan-card-action"
+                          ><a
+                            class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none no-underline cn-button-variant-default cn-button-size-default"
+                            href="#plans"
+                            >Choose Monthly<span class="sr-only"> (opens web.example.invalid in a new tab)</span></a
+                          ></div
+                        >
+                      </div>
+                    </article>
+                  </li>
+                  <li class="kit-plan-card-item">
+                    <article
+                      data-slot="card"
+                      aria-labelledby="show-plan-3-name"
+                      class="cn-card group/card flex flex-col kit-plan-card">
+                      <div class="kit-plan-card-head">
+                        <h3 id="show-plan-3-name" class="cn-card-title kit-plan-card-name"
+                          >Annually<span class="sr-only">, </span
+                          ><span
+                            data-slot="badge"
+                            data-variant="secondary"
+                            class="cn-badge group/badge inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap cn-badge-variant-secondary"
+                            >Save with a year</span
+                          ></h3
+                        >
+                      </div>
+                      <div class="kit-plan-card-body">
+                        <p class="kit-plan-card-price">XTS 111.10 <span class="kit-plan-card-period">per year</span></p>
+                        <p class="kit-plan-card-note">Tax calculated at checkout.</p>
+                        <p class="kit-plan-card-summary">Pro, billed once a year.</p>
+                        <ul class="kit-plan-card-includes">
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Everything in Monthly</span></li
+                          >
+                        </ul>
+                      </div>
+                      <div class="kit-plan-card-foot">
+                        <div class="kit-plan-card-action"
+                          ><a
+                            class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none no-underline cn-button-variant-default cn-button-size-default"
+                            href="#plans"
+                            >Choose Annually<span class="sr-only"> (opens web.example.invalid in a new tab)</span></a
+                          ></div
+                        >
+                      </div>
+                    </article>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <h3 class="show-note">Pro, cancelled, paid until a date</h3>
+            <div class="kit-settings">
+              <div class="kit-plans" data-count="3">
+                <ul role="list" aria-label="Pro plans" class="kit-plans-list">
+                  <li class="kit-plan-card-item">
+                    <article
+                      data-slot="card"
+                      aria-labelledby="show-plan-4-name"
+                      class="cn-card group/card flex flex-col kit-plan-card">
+                      <div class="kit-plan-card-head">
+                        <h3 id="show-plan-4-name" class="cn-card-title kit-plan-card-name">Free</h3>
+                      </div>
+                      <div class="kit-plan-card-body">
+                        <p class="kit-plan-card-price kit-plan-card-summary">Every tool, in full, offline.</p>
+                        <ul class="kit-plan-card-includes">
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>All 44 tools</span></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Nothing you paste leaves this browser</span></li
+                          >
+                        </ul>
+                      </div>
+                    </article>
+                  </li>
+                  <li class="kit-plan-card-item" aria-current="true">
+                    <article
+                      data-slot="card"
+                      data-current=""
+                      aria-labelledby="show-plan-5-name"
+                      aria-describedby="show-plan-5-state"
+                      class="cn-card group/card flex flex-col kit-plan-card">
+                      <div class="kit-plan-card-head">
+                        <h3 id="show-plan-5-name" class="cn-card-title kit-plan-card-name">Monthly</h3>
+                        <span class="kit-plan-card-mark">Current plan</span>
+                      </div>
+                      <div class="kit-plan-card-body">
+                        <p class="kit-plan-card-price">XTS 11.11 <span class="kit-plan-card-period">per month</span></p>
+                        <p class="kit-plan-card-note">Tax calculated at checkout.</p>
+                        <p class="kit-plan-card-summary">Pro, billed every month.</p>
+                        <ul class="kit-plan-card-includes">
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Tool history and its archive</span></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Tools remember your options</span></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Copy automatically after generating</span></li
+                          >
+                        </ul>
+                      </div>
+                      <div class="kit-plan-card-foot">
+                        <p id="show-plan-5-state" class="kit-plan-card-state"
+                          >Cancelled. Pro stays until Nov 23, 2026.</p
+                        >
+                        <div class="kit-plan-card-action"
+                          ><a
+                            class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none no-underline cn-button-variant-outline cn-button-size-default"
+                            href="#plans"
+                            >Manage subscription<span class="sr-only">
+                              (opens web.example.invalid in a new tab)</span
+                            ></a
+                          ></div
+                        >
+                      </div>
+                    </article>
+                  </li>
+                  <li class="kit-plan-card-item">
+                    <article
+                      data-slot="card"
+                      aria-labelledby="show-plan-6-name"
+                      class="cn-card group/card flex flex-col kit-plan-card">
+                      <div class="kit-plan-card-head">
+                        <h3 id="show-plan-6-name" class="cn-card-title kit-plan-card-name"
+                          >Annually<span class="sr-only">, </span
+                          ><span
+                            data-slot="badge"
+                            data-variant="secondary"
+                            class="cn-badge group/badge inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap cn-badge-variant-secondary"
+                            >Save with a year</span
+                          ></h3
+                        >
+                      </div>
+                      <div class="kit-plan-card-body">
+                        <p class="kit-plan-card-price">XTS 111.10 <span class="kit-plan-card-period">per year</span></p>
+                        <p class="kit-plan-card-note">Tax calculated at checkout.</p>
+                        <p class="kit-plan-card-summary">Pro, billed once a year.</p>
+                        <ul class="kit-plan-card-includes">
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Everything in Monthly</span></li
+                          >
+                        </ul>
+                      </div>
+                      <div class="kit-plan-card-foot">
+                        <div class="kit-plan-card-action"
+                          ><a
+                            class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none no-underline cn-button-variant-outline cn-button-size-default"
+                            href="#plans"
+                            >Switch to Annually<span class="sr-only"> (opens web.example.invalid in a new tab)</span></a
+                          ></div
+                        >
+                      </div>
+                    </article>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <h3 class="show-note">A stale list: no prices</h3>
+            <div class="kit-settings">
+              <div class="kit-plans" data-count="3">
+                <ul role="list" aria-label="Pro plans" class="kit-plans-list">
+                  <li class="kit-plan-card-item" aria-current="true">
+                    <article
+                      data-slot="card"
+                      data-current=""
+                      aria-labelledby="show-plan-7-name"
+                      class="cn-card group/card flex flex-col kit-plan-card">
+                      <div class="kit-plan-card-head">
+                        <h3 id="show-plan-7-name" class="cn-card-title kit-plan-card-name">Free</h3>
+                        <span class="kit-plan-card-mark">Current plan</span>
+                      </div>
+                      <div class="kit-plan-card-body">
+                        <p class="kit-plan-card-price kit-plan-card-summary">Every tool, in full, offline.</p>
+                        <ul class="kit-plan-card-includes">
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>All 44 tools</span></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Nothing you paste leaves this browser</span></li
+                          >
+                        </ul>
+                      </div>
+                    </article>
+                  </li>
+                  <li class="kit-plan-card-item">
+                    <article
+                      data-slot="card"
+                      aria-labelledby="show-plan-8-name"
+                      class="cn-card group/card flex flex-col kit-plan-card">
+                      <div class="kit-plan-card-head">
+                        <h3 id="show-plan-8-name" class="cn-card-title kit-plan-card-name">Monthly</h3>
+                      </div>
+                      <div class="kit-plan-card-body">
+                        <p class="kit-plan-card-price" data-missing="">Price not shown</p>
+                        <p class="kit-plan-card-summary">Pro, billed every month.</p>
+                        <ul class="kit-plan-card-includes">
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Tool history and its archive</span></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Tools remember your options</span></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Copy automatically after generating</span></li
+                          >
+                        </ul>
+                      </div>
+                      <div class="kit-plan-card-foot">
+                        <div class="kit-plan-card-action"
+                          ><a
+                            class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none no-underline cn-button-variant-default cn-button-size-default"
+                            href="#plans"
+                            >Choose Monthly<span class="sr-only"> (opens web.example.invalid in a new tab)</span></a
+                          ></div
+                        >
+                      </div>
+                    </article>
+                  </li>
+                  <li class="kit-plan-card-item">
+                    <article
+                      data-slot="card"
+                      aria-labelledby="show-plan-9-name"
+                      class="cn-card group/card flex flex-col kit-plan-card">
+                      <div class="kit-plan-card-head">
+                        <h3 id="show-plan-9-name" class="cn-card-title kit-plan-card-name"
+                          >Annually<span class="sr-only">, </span
+                          ><span
+                            data-slot="badge"
+                            data-variant="secondary"
+                            class="cn-badge group/badge inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap cn-badge-variant-secondary"
+                            >Save with a year</span
+                          ></h3
+                        >
+                      </div>
+                      <div class="kit-plan-card-body">
+                        <p class="kit-plan-card-price" data-missing="">Price not shown</p>
+                        <p class="kit-plan-card-summary">Pro, billed once a year.</p>
+                        <ul class="kit-plan-card-includes">
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Everything in Monthly</span></li
+                          >
+                        </ul>
+                      </div>
+                      <div class="kit-plan-card-foot">
+                        <div class="kit-plan-card-action"
+                          ><a
+                            class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none no-underline cn-button-variant-default cn-button-size-default"
+                            href="#plans"
+                            >Choose Annually<span class="sr-only"> (opens web.example.invalid in a new tab)</span></a
+                          ></div
+                        >
+                      </div>
+                    </article>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <h3 class="show-note">The narrow column, and texts at their limits</h3>
+            <div class="show-narrow">
+              <div class="kit-plans" data-count="4">
+                <ul role="list" aria-label="Pro plans" class="kit-plans-list">
+                  <li class="kit-plan-card-item" aria-current="true">
+                    <article
+                      data-slot="card"
+                      data-current=""
+                      aria-labelledby="show-plan-10-name"
+                      class="cn-card group/card flex flex-col kit-plan-card">
+                      <div class="kit-plan-card-head">
+                        <h3 id="show-plan-10-name" class="cn-card-title kit-plan-card-name">Free</h3>
+                        <span class="kit-plan-card-mark">Current plan</span>
+                      </div>
+                      <div class="kit-plan-card-body">
+                        <p class="kit-plan-card-price kit-plan-card-summary">Every tool, in full, offline.</p>
+                        <ul class="kit-plan-card-includes">
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>All 44 tools</span></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Nothing you paste leaves this browser</span></li
+                          >
+                        </ul>
+                      </div>
+                    </article>
+                  </li>
+                  <li class="kit-plan-card-item">
+                    <article
+                      data-slot="card"
+                      aria-labelledby="show-plan-11-name"
+                      class="cn-card group/card flex flex-col kit-plan-card">
+                      <div class="kit-plan-card-head">
+                        <h3 id="show-plan-11-name" class="cn-card-title kit-plan-card-name">Monthly</h3>
+                      </div>
+                      <div class="kit-plan-card-body">
+                        <p class="kit-plan-card-price">XTS 11.11 <span class="kit-plan-card-period">per month</span></p>
+                        <p class="kit-plan-card-note">Tax calculated at checkout.</p>
+                        <p class="kit-plan-card-summary">Pro, billed every month.</p>
+                        <ul class="kit-plan-card-includes">
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Tool history and its archive</span></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Tools remember your options</span></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Copy automatically after generating</span></li
+                          >
+                        </ul>
+                      </div>
+                      <div class="kit-plan-card-foot">
+                        <div class="kit-plan-card-action"
+                          ><a
+                            class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none no-underline cn-button-variant-default cn-button-size-default"
+                            href="#plans"
+                            >Choose Monthly<span class="sr-only"> (opens web.example.invalid in a new tab)</span></a
+                          ></div
+                        >
+                      </div>
+                    </article>
+                  </li>
+                  <li class="kit-plan-card-item">
+                    <article
+                      data-slot="card"
+                      aria-labelledby="show-plan-12-name"
+                      class="cn-card group/card flex flex-col kit-plan-card">
+                      <div class="kit-plan-card-head">
+                        <h3 id="show-plan-12-name" class="cn-card-title kit-plan-card-name"
+                          >Annually<span class="sr-only">, </span
+                          ><span
+                            data-slot="badge"
+                            data-variant="secondary"
+                            class="cn-badge group/badge inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap cn-badge-variant-secondary"
+                            >Save with a year</span
+                          ></h3
+                        >
+                      </div>
+                      <div class="kit-plan-card-body">
+                        <p class="kit-plan-card-price">XTS 111.10 <span class="kit-plan-card-period">per year</span></p>
+                        <p class="kit-plan-card-note">Tax calculated at checkout.</p>
+                        <p class="kit-plan-card-summary">Pro, billed once a year.</p>
+                        <ul class="kit-plan-card-includes">
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span>Everything in Monthly</span></li
+                          >
+                        </ul>
+                      </div>
+                      <div class="kit-plan-card-foot">
+                        <div class="kit-plan-card-action"
+                          ><a
+                            class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none no-underline cn-button-variant-default cn-button-size-default"
+                            href="#plans"
+                            >Choose Annually<span class="sr-only"> (opens web.example.invalid in a new tab)</span></a
+                          ></div
+                        >
+                      </div>
+                    </article>
+                  </li>
+                  <li class="kit-plan-card-item" aria-current="true">
+                    <article
+                      data-slot="card"
+                      data-current=""
+                      aria-labelledby="show-plan-13-name"
+                      aria-describedby="show-plan-13-state"
+                      class="cn-card group/card flex flex-col kit-plan-card">
+                      <div class="kit-plan-card-head">
+                        <h3 id="show-plan-13-name" class="cn-card-title kit-plan-card-name"
+                          >Placeholder Placeholder Placehol<span class="sr-only">, </span
+                          ><span
+                            data-slot="badge"
+                            data-variant="secondary"
+                            class="cn-badge group/badge inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap cn-badge-variant-secondary"
+                            >Badge Badge Badge Badge.</span
+                          ></h3
+                        >
+                        <span class="kit-plan-card-mark">Current plan</span>
+                      </div>
+                      <div class="kit-plan-card-body">
+                        <p class="kit-plan-card-price"
+                          >XTS 1,000,000.00 <span class="kit-plan-card-period">per year</span></p
+                        >
+                        <p class="kit-plan-card-note">Note words Note words Note words Note words Note words Note.</p>
+                        <p class="kit-plan-card-summary"
+                          >Summary words Summary words Summary words Summary words Summary words Summary words Summary
+                          words Summary words Summary words Summary words.</p
+                        >
+                        <ul class="kit-plan-card-includes">
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span
+                              >Line 1 words Line 1 words Line 1 words Line 1 words Line 1 words Line 1 words Line 1
+                              words Line 1 wo</span
+                            ></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span
+                              >Line 2 words Line 2 words Line 2 words Line 2 words Line 2 words Line 2 words Line 2
+                              words Line 2 wo</span
+                            ></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span
+                              >Line 3 words Line 3 words Line 3 words Line 3 words Line 3 words Line 3 words Line 3
+                              words Line 3 wo</span
+                            ></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span
+                              >Line 4 words Line 4 words Line 4 words Line 4 words Line 4 words Line 4 words Line 4
+                              words Line 4 wo</span
+                            ></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span
+                              >Line 5 words Line 5 words Line 5 words Line 5 words Line 5 words Line 5 words Line 5
+                              words Line 5 wo</span
+                            ></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span
+                              >Line 6 words Line 6 words Line 6 words Line 6 words Line 6 words Line 6 words Line 6
+                              words Line 6 wo</span
+                            ></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span
+                              >Line 7 words Line 7 words Line 7 words Line 7 words Line 7 words Line 7 words Line 7
+                              words Line 7 wo</span
+                            ></li
+                          >
+                          <li
+                            ><svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true">
+                              <path d="M20 6 9 17l-5-5" /></svg
+                            ><span
+                              >Line 8 words Line 8 words Line 8 words Line 8 words Line 8 words Line 8 words Line 8
+                              words Line 8 wo</span
+                            ></li
+                          >
+                        </ul>
+                      </div>
+                      <div class="kit-plan-card-foot">
+                        <p id="show-plan-13-state" class="kit-plan-card-state">Renews on Nov 23, 2026.</p>
+                        <div class="kit-plan-card-action"
+                          ><a
+                            class="cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none select-none no-underline cn-button-variant-outline cn-button-size-default"
+                            href="#plans"
+                            >Manage subscription<span class="sr-only">
+                              (opens web.example.invalid in a new tab)</span
+                            ></a
+                          ></div
+                        >
+                      </div>
+                    </article>
+                  </li>
+                </ul>
               </div>
             </div>
           </section>

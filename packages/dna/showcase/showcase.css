@@ -102,6 +102,11 @@ body {
   border-radius: var(--radius-lg);
 }
 
+/* The narrow column of the plans: the width of Chrome's options dialog (600 px) — the cards stand one under another. */
+.show-narrow {
+  max-width: calc(var(--spacing) * 150);
+}
+
 .show-dialogs {
   align-items: flex-start;
 }
