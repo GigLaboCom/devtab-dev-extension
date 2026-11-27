@@ -326,8 +326,9 @@ describe('the JWT tool’s history (D17)', () => {
 
     type('Secret', SECRET);
     await verdict('Signature verified');
+    // The change is recorded in an effect after the verdict is drawn: wait for it rather than read it at once.
+    await waitFor(() => expect(changes.at(-1)).toMatchObject({ kind: 'checked', label: 'HS256 · signature verified' }));
     const last = changes.at(-1)!;
-    expect(last).toMatchObject({ kind: 'checked', label: 'HS256 · signature verified' });
     expect(payloadOf(last).key).toEqual({ field: 'secret', format: 'text', text: SECRET });
     expect(changes.every(c => payloadOf(c).signature !== ('checking' as never))).toBe(true);
 
