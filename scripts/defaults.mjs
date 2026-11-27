@@ -107,6 +107,8 @@ const code = await load(
   import { optionsPage } from ${at('extension/src/options/index.ts')};
   import { planSource } from ${at('extension/src/plans/index.ts')};
   import { licence } from ${at('extension/src/licence/index.ts')};
+  import * as PANELS from ${at('extension/src/projects/layout.ts')};
+  import { LAYOUT_KEY, LAYOUT_CACHE_KEY } from ${at('extension/src/projects/layoutMemory.ts')};
   const actions = shortcutActions(DESTINATIONS, suggestedKeys(TOOL_CATALOGUE));
   const resolved = mac => {
     const r = resolveBindings(actions, DEFAULT_SHORTCUTS, mac);
@@ -126,6 +128,9 @@ const code = await load(
       // no edition until it has read the licence (null). (Nothing of the browser is touched to ask.)
       keeps: editionSource.id === 'licensed' ? null : editionFor({ kind: 'fixed', edition: editionSource.id === 'fixedPro' ? 'pro' : 'free' }).parameters({ area: {}, onChanged: {} }).keeps },
     compare: { maxBytes: COMPARE_MAX_BYTES },
+    panels: { layout: PANELS.DEFAULT_LAYOUT, key: LAYOUT_KEY, cache: LAYOUT_CACHE_KEY, SIDE_MIN: PANELS.SIDE_MIN, SIDE_MAX: PANELS.SIDE_MAX,
+      BOTTOM_MIN: PANELS.BOTTOM_MIN, BOTTOM_MAX: PANELS.BOTTOM_MAX, EDITOR_MIN_WIDTH: PANELS.EDITOR_MIN_WIDTH, EDITOR_MIN_HEIGHT: PANELS.EDITOR_MIN_HEIGHT,
+      NARROW_BELOW: PANELS.NARROW_BELOW, RESIZE_STEP: PANELS.RESIZE_STEP, RESIZE_STEP_LARGE: PANELS.RESIZE_STEP_LARGE },
     roots: { toolbarButton: toolbarButton.id, newTab: newTab.id, optionsPage: optionsPage.id, pageOpener: pageOpener.id ?? null, editionSource: editionSource.id, planSource: planSource.id, licence: licence.id },
   };
 `,
@@ -268,6 +273,49 @@ out.push(
       ['Хлебные крошки', yes(code.shell.settings.breadcrumb), `\`${code.shell.key}.breadcrumb\``],
     ],
   ),
+);
+h('Projects: панели вокруг редактора (D35)');
+const pl = code.panels;
+const viewName = { files: 'Files', commit: 'Commit', history: 'History', find: 'Find in files' };
+out.push(
+  table(
+    ['Что', 'По умолчанию', 'Пределы', 'Хранится'],
+    [
+      [
+        'Боковая панель',
+        `${pl.layout.side.open ? 'открыта' : 'свёрнута'}, вид ${viewName[pl.layout.side.view]}`,
+        `уже ${pl.NARROW_BELOW} px места при входе — свёрнута на этот вход`,
+        `\`${pl.key}.side.open\`, \`.view\``,
+      ],
+      [
+        'Ширина боковой панели',
+        `${pl.layout.side.width} px`,
+        `${pl.SIDE_MIN}–${pl.SIDE_MAX} px; редактору — не меньше ${pl.EDITOR_MIN_WIDTH} px`,
+        `\`${pl.key}.side.width\``,
+      ],
+      [
+        'Нижняя панель',
+        `${pl.layout.bottom.open ? 'открыта' : 'свёрнута'}, вид ${viewName[pl.layout.bottom.view]}`,
+        '—',
+        `\`${pl.key}.bottom.open\`, \`.view\``,
+      ],
+      [
+        'Высота нижней панели',
+        `${pl.layout.bottom.height} px`,
+        `${pl.BOTTOM_MIN}–${pl.BOTTOM_MAX} px; редактору — не меньше ${pl.EDITOR_MIN_HEIGHT} px`,
+        `\`${pl.key}.bottom.height\``,
+      ],
+      [
+        'Шаг границы с клавиатуры',
+        `${pl.RESIZE_STEP} px, с Shift — ${pl.RESIZE_STEP_LARGE} px`,
+        'Home / End — до предела',
+        '—',
+      ],
+    ],
+  ),
+);
+out.push(
+  `\nХранится в \`chrome.storage.local\` (\`${pl.key}\`), одна запись на расширение, не на проект; копия для первой отрисовки — \`localStorage\` (\`${pl.cache}\`).`,
 );
 h('Сочетания клавиш (сочетания приложения, по умолчанию)');
 out.push(

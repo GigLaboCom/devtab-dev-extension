@@ -119,6 +119,12 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
         },
       );
     const statesOf = page => page.evaluate(() => window.__states);
+    /** A panel's switch (D35): a toggle button of the panels' groups. */
+    const switchOf = (page, name) =>
+      page
+        .locator('.kit-projects-switches')
+        .getByRole('button', { name, exact: typeof name === 'string' })
+        .and(page.locator('[aria-pressed]'));
     const bar = page => page.getByRole('group', { name: 'Companion' });
     const starts = () => logOf().filter(r => r.event === 'start').length;
 
@@ -277,7 +283,9 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
     await shoot(page, 'projects-companion-diff.png');
 
     // ---- the changes --------------------------------------------------------------------------------------------------
+    await switchOf(page, /^Commit/).click();
     const commit = page.getByRole('region', { name: 'Commit' });
+    await commit.locator('.kit-projects-change').first().waitFor({ timeout: 10_000 });
     const groups = await commit.locator('.kit-projects-change-group-title').allInnerTexts();
     const files = await commit.locator('.kit-projects-change .kit-projects-row-name').allInnerTexts();
     check(
@@ -287,25 +295,40 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
     );
     await commit.getByRole('button', { name: /^src\/app\.txt/ }).click();
     await commit.getByRole('group', { name: 'Chunks of src/app.txt' }).waitFor({ timeout: 10_000 });
-    const chunks = await commit.getByRole('group', { name: 'Chunks of src/app.txt' }).getByRole('checkbox').count();
+    const chunks = await commit
+      .getByRole('group', { name: 'Chunks of src/app.txt' })
+      .locator('.kit-projects-chunk')
+      .count();
     check('projects: a changed file’s hunks (git.hunks) listed', chunks === 3, `${chunks} chunks`);
+    await shoot(page, 'projects-companion-commit-readonly.png');
 
     // ---- the writes this companion does not offer ---------------------------------------------------------------------------
+    // A read-only project's Commit view (D35): the changes, one line of why, and nothing that looks clickable and fails.
     const inactive = {
-      commit: await commit.getByRole('button', { name: 'Commit', exact: true }).isDisabled(),
-      explained: await commit.getByText('This companion cannot do this yet.').isVisible(),
+      line: await commit.locator('[data-read-only]').innerText(),
+      commit: await commit.getByRole('button', { name: /^Commit/ }).count(),
+      checkboxes: await commit.getByRole('checkbox').count(),
+      message: await commit.getByRole('textbox').count(),
+      rollback: await commit.getByRole('button', { name: 'Rollback…' }).count(),
       makeMine: await page.getByRole('button', { name: 'Make writable…' }).isDisabled(),
       makeMineWhy: await page.getByRole('button', { name: 'Make writable…' }).getAttribute('title'),
-      rollback: await commit.getByRole('button', { name: 'Rollback…' }).isDisabled(),
     };
     check(
-      'projects: every write the companion does not offer is inactive, with why',
-      inactive.commit && inactive.explained && inactive.makeMine && inactive.rollback && !!inactive.makeMineWhy,
+      'projects: every write the companion does not offer is inactive with why, or not there (the Commit view: one line)',
+      inactive.line.includes('read only') &&
+        inactive.commit === 0 &&
+        inactive.checkboxes === 0 &&
+        inactive.message === 0 &&
+        inactive.rollback === 0 &&
+        inactive.makeMine &&
+        !!inactive.makeMineWhy,
       JSON.stringify(inactive),
     );
+    await switchOf(page, 'Files').click();
+    await tree.locator('[data-path="src"]').waitFor({ timeout: 10_000 });
 
     // ---- find in files, and its cancel ---------------------------------------------------------------------------------
-    await page.getByRole('radio', { name: 'Find in files', exact: true }).click();
+    await page.getByRole('button', { name: 'Find in files…', exact: true }).click();
     const field = page.getByRole('textbox', { name: 'Find in files' });
     await field.fill('line 0');
     await page.getByRole('button', { name: 'Find', exact: true }).click();
@@ -325,7 +348,7 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
     // ---- history ---------------------------------------------------------------------------------------------------------
     await tree.locator('[data-path="docs"]').click();
     await tree.locator('[data-path="docs/readme.md"]').click();
-    await page.getByRole('radio', { name: 'History', exact: true }).click();
+    await page.getByRole('button', { name: 'Show history', exact: true }).click();
     const history = page.getByRole('region', { name: 'History' });
     await history.getByRole('listitem').first().waitFor({ timeout: 10_000 });
     const labels = await history.locator('.kit-projects-point-label').allInnerTexts();
@@ -426,13 +449,13 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
     );
     const hostileTree = await tree.innerText();
     const branch = await page.locator('.kit-projects-bar-branch').innerText();
-    await page.getByRole('radio', { name: 'Find in files', exact: true }).click();
+    await page.getByRole('button', { name: 'Find in files…', exact: true }).click();
     await page.getByRole('textbox', { name: 'Find in files' }).fill('hostile');
     await page.getByRole('button', { name: 'Find', exact: true }).click();
     await page.locator('.kit-projects-result-line').first().waitFor({ timeout: 10_000 });
     const line = await page.locator('.kit-projects-result-text').first().innerText();
     await tree.locator('[data-path="notes.txt"]').click();
-    await page.getByRole('radio', { name: 'History', exact: true }).click();
+    await page.getByRole('button', { name: 'Show history', exact: true }).click();
     const label = await page.locator('.kit-projects-point-label').first().innerText({ timeout: 10_000 });
     const injected = await page.evaluate(() => ({
       pwned: window.__pwned ?? null,
