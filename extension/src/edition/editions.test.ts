@@ -135,6 +135,11 @@ describe.each(IMPLEMENTATIONS.map(e => [e.id, e] as const))(
       expect((await host.store.stats()).records).toBe(isPro ? 1 : 0);
     });
 
+    it('scratch files (D34): in both editions until the owner decides; the host says so to the pages', () => {
+      expect(variant.scratches).toBe(true);
+      expect(memoryHistoryHost([], fixedSource(variant.id)).scratches).toBe(true);
+    });
+
     it('automatic copying exists exactly in Pro; a stored "on" is left in the record either way', async () => {
       expect(variant.automaticCopying).toBe(isPro);
       const storage = fakeStorage();

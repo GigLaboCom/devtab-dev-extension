@@ -3,6 +3,8 @@
  * not in the specification yet (it leaves the wording to the owner, §8.5). Each is minimal and factual; the ones the
  * specification gives (in Russian) are its meaning in English, marked `spec`.
  */
+import type { ScratchRefusal } from '@src/projects/scratch/store';
+
 export const TEXT = {
   title: 'Projects',
   hint: 'Your local repositories: files, changes, commits and history.',
@@ -219,9 +221,55 @@ export const TEXT = {
   restored: 'Restored. The version it replaced is in the history.',
   undoRestore: 'Undo restore',
 
+  // Scratch files (D34). Working placeholders: the owner writes these texts.
+  scratchesTitle: 'Scratches',
+  scratchesHint: 'Files of no project, kept in this browser. No companion needed.',
+  scratchesNotKept: 'This page has no storage: scratches last only while it is open.',
+  noScratches: 'No scratches yet.',
+  newScratch: 'New scratch',
+  newScratchLanguage: 'Language of the new scratch',
+  scratchMark: 'Scratch',
+  scratchEdited: (when: string) => `Edited ${when}`,
+  scratchLanguage: 'Language',
+  renameScratch: 'Rename…',
+  scratchName: 'Scratch name',
+  downloadScratch: 'Download',
+  deleteScratch: 'Delete…',
+  deleteScratchOf: (name: string) => `Delete ${name}`,
+  deleteScratchTitle: (name: string) => `Delete ${name}?`,
+  deleteScratchBody: 'Its text is removed from this browser. To keep a copy, download it first.',
+  deleteScratchRun: 'Delete',
+  scratchMissing: 'This scratch no longer exists.',
+  downloaded: (name: string, how: 'file' | 'download') =>
+    how === 'file' ? `Saved as ${name}.` : `Downloaded ${name}.`,
+  notDownloaded: (message: string) => `Not downloaded: ${message}`,
+  tooManyScratches: (max: number) => `${max} scratches are kept at most. Delete one to make another.`,
+  scratchTooLarge: (max: number) =>
+    `Not saved: longer than ${max.toLocaleString('en-US')} characters. Shorten it, or download it to keep it.`,
+  scratchStorageFull:
+    'Not saved: the extension’s storage in this browser is full. Delete a scratch, or download this one.',
+  scratchDeletedElsewhere: 'Not saved: this scratch was deleted in another tab. Download it to keep it.',
+  scratchNotSaved: (message: string) => `Not saved: ${message}`,
+
   // Errors any call may meet.
   failed: (message: string) => `Failed: ${message}`,
 } as const;
+
+/** What a scratch store's refusal says (D34): what was not kept, and what the person can do. */
+export const scratchRefusal = (refusal: ScratchRefusal): string => {
+  switch (refusal.kind) {
+    case 'too-many':
+      return TEXT.tooManyScratches(refusal.max);
+    case 'too-large':
+      return TEXT.scratchTooLarge(refusal.max);
+    case 'full':
+      return TEXT.scratchStorageFull;
+    case 'missing':
+      return TEXT.scratchDeletedElsewhere;
+    case 'failed':
+      return TEXT.scratchNotSaved(refusal.message);
+  }
+};
 
 /**
  * A string from the repository (a name, a branch, a label, a line) as text to show: control characters — a terminal's

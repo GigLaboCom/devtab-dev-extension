@@ -19,4 +19,6 @@ export const free: Edition = {
   parameters: noParameterStorage,
   history: () => ({ store: memoryStore(), recording: false }),
   automaticCopying: false,
+  // D34: Free or Pro is the owner's decision, not made yet; on in both editions until then.
+  scratches: true,
 };

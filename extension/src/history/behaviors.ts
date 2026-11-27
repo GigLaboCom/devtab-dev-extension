@@ -105,7 +105,12 @@ export interface HistoryHost {
    * neither. Read it on each render: it can change (`onEdition`).
    */
   readonly automaticCopying: boolean;
-  /** Called after `included` or `automaticCopying` (or the licence state) changed; returns the undo. */
+  /**
+   * The Projects section has scratch files in the edition in force now (the edition's `scratches`, D34). Read it on
+   * each render: it can change (`onEdition`).
+   */
+  readonly scratches: boolean;
+  /** Called after `included`, `automaticCopying` or `scratches` (or the licence state) changed; returns the undo. */
   onEdition(listener: () => void): () => void;
   /** Settings → Pro: the licence's state and controls — only where the build follows a licence (source `licensed`). */
   readonly licence?: LicenceView;
@@ -337,6 +342,9 @@ export const historyHost = (env: HistoryEnvironment): HistoryHost => {
     toolSettings,
     get automaticCopying() {
       return editionFor(source.current()).automaticCopying;
+    },
+    get scratches() {
+      return editionFor(source.current()).scratches;
     },
     onEdition: listener => {
       editionListeners.add(listener);

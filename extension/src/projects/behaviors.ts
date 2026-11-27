@@ -11,6 +11,10 @@
  *                    panel with Files and Commit, the editor, History and Find in files below (`SidePanels`)
  *   LayoutMemory     where that arrangement remembers its panels (./layoutMemory.ts): chrome.storage.local with a
  *                    localStorage copy for the first render
+ *   ScratchStore     where the scratch files are kept (./scratch/store.ts, D34): chrome.storage.local (./scratch/
+ *                    storage.ts), the page's memory where the page has no extension storage; no companion either way
+ *   SideSaver        how a scratch is downloaded: «Compare code»'s seam (../compare/sideSaver.ts) — Save as through the
+ *                    browser's file picker, a download where it has none
  */
 import { AUTOSAVE_DELAY_MS } from './autosave';
 import { companionBackend } from './companion/backend';
@@ -19,11 +23,15 @@ import { createConnection } from './connection';
 import { demoBackend } from './demo/backend';
 import { chromeLayoutMemory } from './layoutMemory';
 import { chromePermission } from './permission';
+import { chromeScratches } from './scratch/storage';
 import { SidePanels } from '../app/projects/SidePanels';
+import { chooseSaver } from '../compare/sideSaver';
 import type { WorkspaceLayout } from '../app/projects/workspaceLayout';
+import type { SideSaver } from '../compare/sideSaver';
 import type { ConnectionState, ProjectBackend, ProjectBackendFactory } from './backend';
 import type { CompanionConnection } from './connection';
 import type { LayoutMemory } from './layoutMemory';
+import type { ScratchStore } from './scratch/store';
 
 export interface ProjectsBehaviors {
   backend: ProjectBackendFactory;
@@ -33,6 +41,10 @@ export interface ProjectsBehaviors {
   layout: WorkspaceLayout;
   /** Where the arrangement remembers its panels. */
   layoutMemory: LayoutMemory;
+  /** Where the scratch files are kept (D34). */
+  scratchStore: ScratchStore;
+  /** How a scratch is downloaded. */
+  scratchSaver: SideSaver;
 }
 
 /** The states in which the page shows the companion's projects; in every other one the demo's. */
@@ -97,4 +109,6 @@ export const projectsBehaviors = (): ProjectsBehaviors => ({
   autosaveDelayMs: AUTOSAVE_DELAY_MS,
   layout: SidePanels,
   layoutMemory: chromeLayoutMemory(),
+  scratchStore: chromeScratches(),
+  scratchSaver: chooseSaver(window),
 });

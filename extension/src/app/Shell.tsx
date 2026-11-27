@@ -19,6 +19,7 @@ import { Toolbar } from './shell/Toolbar';
 import { useFind } from './shell/useFind';
 import { useShellSettings } from './shell/useShellSettings';
 import { useShortcuts } from './shell/useShortcuts';
+import { useHostEdition } from './useHostEdition';
 import product from '../../product.json';
 import { compareBehaviors } from '@src/compare/behaviors';
 import { DESTINATIONS, SECTION_DESTINATIONS, SETTINGS_DESTINATION } from '@src/shared/destinations';
@@ -131,6 +132,8 @@ const Part = ({
   shell,
 }: ShellProps & { frameKeys?: FrameKeys; shortcuts?: Shortcuts; shell?: ShellChoices }): ReactElement => {
   const host = use(history());
+  // Whether the edition in force has scratch files (D34), followed while the page is open.
+  const { scratches } = useHostEdition(host);
   // «Compare code»'s composition root (compare/behaviors.ts): in this lazy chunk, so a new tab never loads it.
   const compare = useMemo(() => compareBehaviors(window), []);
   return (
@@ -139,7 +142,7 @@ const Part = ({
       {route.section === 'tools' && <ToolsPage toolId={route.tool} history={host} />}
       {route.section === 'projects' && (
         <Suspense fallback={null}>
-          <ProjectsSection route={route} frameKeys={frameKeys} />
+          <ProjectsSection route={route} frameKeys={frameKeys} scratches={scratches} />
         </Suspense>
       )}
       {route.section === 'settings' && (

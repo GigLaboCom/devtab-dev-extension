@@ -54,9 +54,12 @@
  *                              (.kit-projects-part-title, .kit-projects-part-hint), .kit-projects-group
  *                              (.kit-projects-group-title, .kit-projects-group-path), .kit-projects-list >
  *                              .kit-projects-item / .kit-projects-folder (-name, -path, -meta), .kit-projects-empty,
- *                              .kit-projects-command (a command to type)
- *   .kit-projects-bar          a project's bar: -back, -title, -path, -branch, .kit-projects-class[data-class]
- *                              (.kit-projects-class-via), -actions
+ *                              .kit-projects-command (a command to type); the scratch files' group (D34):
+ *                              .kit-projects-scratch-new (the language, .kit-projects-scratch-language, and «New
+ *                              scratch»), .kit-projects-scratch (a list item: the link and its delete button)
+ *   .kit-projects-bar          a project's or a scratch's bar: -back, -title (a scratch's in place of it while renamed:
+ *                              .kit-projects-bar-name), -path, -branch, .kit-projects-class[data-class], -actions;
+ *                              a scratch's editor is the only part of its .kit-projects-workspace
  *   .kit-projects-workspace    the side panel, the editor and the bottom panel:
  *     .kit-projects-side[data-open]   the side panel (its width inline): .kit-projects-side-head (.kit-projects-switches
  *                              of .kit-projects-switch[data-view] — -label, .kit-projects-badge —, .kit-projects-panel-hide),
@@ -1122,6 +1125,30 @@
     margin: 0;
   }
 
+  /* The scratch files' group (D34): the language and «New scratch» on one line; each scratch's link takes the row,
+     its delete button stays at its end. */
+  .kit-projects-scratch-new {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+  }
+
+  .kit-projects-scratch-language {
+    min-width: calc(var(--spacing) * 36);
+  }
+
+  .kit-projects-scratch {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 1);
+  }
+
+  .kit-projects-scratch > .kit-projects-item {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
   /* A project's bar. */
   .kit-projects-bar {
     display: flex;
@@ -1140,6 +1167,11 @@
     font-size: var(--text-sm);
     font-weight: var(--font-weight-semibold);
     line-height: var(--text-sm--line-height);
+  }
+
+  /* A basis, not a width: the field's own full width (the kit's input) gives way to it in the bar's row. */
+  .kit-projects-bar-name {
+    flex: 0 1 calc(var(--spacing) * 64);
   }
 
   .kit-projects-bar-path,
@@ -1344,6 +1376,10 @@
     min-height: 0;
   }
 
+  .kit-projects-workspace > .kit-projects-editor {
+    flex: 1 1 0;
+  }
+
   .kit-projects-column > .kit-projects-editor {
     flex: 1 1 0;
     min-height: calc(var(--spacing) * 40);
@@ -1532,6 +1568,11 @@
   .kit-projects-save[data-state='offline'],
   .kit-projects-save[data-state='refused'] {
     color: var(--destructive);
+  }
+
+  /* A refusal is a sentence (a scratch over its limit, D34): it wraps instead of running out of a narrow bar. */
+  .kit-projects-save[data-state='refused'] {
+    white-space: normal;
   }
 
   .kit-projects-conflict {

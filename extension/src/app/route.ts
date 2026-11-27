@@ -5,8 +5,10 @@
  * the address bar stays empty however the hash changes (a same-document navigation keeps Chrome's New Tab address).
  *
  * The Projects section has three depths (the companion's specification §8.4): `#/projects` — the projects;
- * `#/projects/<id>` — one project; `#/projects/<id>/<path, URL-encoded>` — a file open in it. The address only shows:
- * nothing is written, committed or asked for from an address. `#/review` (the section's former stub) opens Projects.
+ * `#/projects/<id>` — one project; `#/projects/<id>/<path, URL-encoded>` — a file open in it. A scratch file (D34) is
+ * `#/projects/scratches/<id>` (a project's id is `p_` and ten base32 characters, so `scratches` is never one). The
+ * address only shows: nothing is written, committed or asked for from an address. `#/review` (the section's former
+ * stub) opens Projects.
  */
 import { BARE_FLAG, OPTIONS_FLAG, hasFlag } from '@src/shared/pages';
 import { useSyncExternalStore } from 'react';
@@ -21,7 +23,12 @@ export interface Route {
   project?: string;
   /** The file open in that project: a path inside it. */
   path?: string;
+  /** The scratch file open in the Projects section (D34): its id. */
+  scratch?: string;
 }
+
+/** The second part of a scratch's address: `#/projects/scratches/<id>`. */
+const SCRATCHES = 'scratches';
 
 export const DEFAULT_ROUTE: Route = { section: 'start' };
 
@@ -40,6 +47,10 @@ export const parseRoute = (hash: string): Route => {
   if (section === 'tools') return tool ? { section, tool } : { section };
   if (section === 'review') return { section: 'projects' };
   if (section === 'projects') {
+    if (tool === SCRATCHES) {
+      const scratch = rest[0] ? decoded(rest[0]) : undefined;
+      return scratch ? { section, scratch } : { section };
+    }
     const project = tool ? decoded(tool) : undefined;
     const path = project && rest.length ? decoded(rest.join('/')) : undefined;
     return { section, ...(project && { project }), ...(path && { path }) };
@@ -50,6 +61,8 @@ export const parseRoute = (hash: string): Route => {
 
 export const routeHash = (route: Route): string => {
   if (route.section === 'tools' && route.tool) return `#/tools/${route.tool}`;
+  if (route.section === 'projects' && route.scratch)
+    return `#/projects/${SCRATCHES}/${encodeURIComponent(route.scratch)}`;
   if (route.section === 'projects' && route.project) {
     const project = `#/projects/${encodeURIComponent(route.project)}`;
     return route.path ? `${project}/${encodeURIComponent(route.path)}` : project;

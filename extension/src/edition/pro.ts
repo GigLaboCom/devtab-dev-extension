@@ -15,4 +15,6 @@ export const pro: Edition = {
   parameters: localParameterStorage,
   history: place => ({ store: 'store' in place ? place.store : idbStore(place.indexedDB), recording: true }),
   automaticCopying: true,
+  // D34: Free or Pro is the owner's decision, not made yet; on in both editions until then.
+  scratches: true,
 };

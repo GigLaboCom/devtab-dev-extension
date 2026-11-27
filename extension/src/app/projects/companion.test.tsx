@@ -11,6 +11,8 @@ import { fakeCompanion } from '@src/projects/companion/fakeLink';
 import { createConnection } from '@src/projects/connection';
 import { demoBackend } from '@src/projects/demo/backend';
 import { memoryLayout } from '@src/projects/layoutMemory';
+import { recordingSaver } from '@src/projects/scratch/fakeSaver';
+import { memoryScratches } from '@src/projects/scratch/storage';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Route } from '../route';
@@ -48,6 +50,8 @@ const page = (route: Route) => {
     autosaveDelayMs: 20,
     layout: SidePanels,
     layoutMemory: memoryLayout(),
+    scratchStore: memoryScratches(),
+    scratchSaver: recordingSaver(),
   };
   return render(<ProjectsPage route={route} behaviors={behaviors} />);
 };

@@ -30,8 +30,22 @@ describe('route', () => {
     );
     expect(routeHash(parseRoute('#/projects/p_x/src%2Fa%20b.ts'))).toBe('#/projects/p_x/src%2Fa%20b.ts');
   });
+  it('reads a scratch file (D34): its own address, never taken for a project', () => {
+    expect(parseRoute('#/projects/scratches/s_abcdefghij')).toEqual({ section: 'projects', scratch: 's_abcdefghij' });
+    expect(parseRoute('#/projects/scratches')).toEqual({ section: 'projects' });
+    expect(parseRoute('#/projects/scratches/%E0%A4%A')).toEqual({ section: 'projects' });
+    expect(routeHash({ section: 'projects', scratch: 's_abcdefghij' })).toBe('#/projects/scratches/s_abcdefghij');
+  });
   it('writes what it reads', () => {
-    for (const hash of ['#/start', '#/settings', '#/compare', '#/projects', '#/tools', '#/tools/json'])
+    for (const hash of [
+      '#/start',
+      '#/settings',
+      '#/compare',
+      '#/projects',
+      '#/projects/scratches/s_abcdefghij',
+      '#/tools',
+      '#/tools/json',
+    ])
       expect(routeHash(parseRoute(hash))).toBe(hash);
   });
 });

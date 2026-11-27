@@ -8,6 +8,8 @@ import { SidePanels } from './SidePanels';
 import { ProjectsPage } from '../sections/ProjectsPage';
 import { demoBackend } from '@src/projects/demo/backend';
 import { memoryLayout } from '@src/projects/layoutMemory';
+import { recordingSaver } from '@src/projects/scratch/fakeSaver';
+import { memoryScratches } from '@src/projects/scratch/storage';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Route } from '../route';
@@ -83,6 +85,8 @@ const behaviors = (autosaveDelayMs = 20): ProjectsBehaviors => ({
   autosaveDelayMs,
   layout: SidePanels,
   layoutMemory: memoryLayout(),
+  scratchStore: memoryScratches(),
+  scratchSaver: recordingSaver(),
 });
 
 const show = (route: Route, delay?: number) => render(<ProjectsPage route={route} behaviors={behaviors(delay)} />);

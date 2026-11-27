@@ -17,6 +17,8 @@ import {
   SIDE_WIDTH,
 } from '@src/projects/layout';
 import { memoryLayout } from '@src/projects/layoutMemory';
+import { recordingSaver } from '@src/projects/scratch/fakeSaver';
+import { memoryScratches } from '@src/projects/scratch/storage';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Route } from '../route';
@@ -42,6 +44,8 @@ const show = (memory: LayoutMemory = memoryLayout(), route: Route = { section: '
         autosaveDelayMs: 20,
         layout: SidePanels,
         layoutMemory: memory,
+        scratchStore: memoryScratches(),
+        scratchSaver: recordingSaver(),
       }}
     />,
   );

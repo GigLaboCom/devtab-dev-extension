@@ -7,8 +7,14 @@
  *
  * This file only puts the parts together (src/app/projects/); how an open project's parts are arranged is the seam
  * `WorkspaceLayout` the composition root names (D35: an IDE's side panel with Files and Commit, the editor in the
- * centre, History and Find in files below — src/app/projects/SidePanels.tsx). `#/projects` is the list of projects and
- * the trusted folders.
+ * centre, History and Find in files below — src/app/projects/SidePanels.tsx). `#/projects` is the list of projects,
+ * the scratch files and the trusted folders.
+ *
+ * Scratch files (D34; `#/projects/scratches/<id>` opens one) belong to no project: they come from the root's
+ * `ScratchStore`, not from the backend, so they are there in every state of the connection — with no permission, no
+ * companion, the demo shown, or while it connects — and an open scratch shows neither the demo's notice nor the
+ * connection. Whether the section has them is the edition's (`scratches`, src/edition): without them neither the
+ * group nor a scratch's address is shown, and what was kept is left as it is.
  */
 import { CommitPanel } from '../projects/CommitPanel';
 import { ConnectionBar } from '../projects/ConnectionBar';
@@ -19,12 +25,15 @@ import { ProjectBar } from '../projects/ProjectBar';
 import { ProjectList } from '../projects/ProjectList';
 import { ProjectTree } from '../projects/ProjectTree';
 import { QuickOpen } from '../projects/QuickOpen';
+import { ScratchGroup } from '../projects/ScratchGroup';
+import { ScratchView } from '../projects/ScratchView';
 import { SearchPanel } from '../projects/SearchPanel';
 import { TEXT } from '../projects/text';
 import { TrustedFolders } from '../projects/TrustedFolders';
 import { useWorkspace } from '../projects/useWorkspace';
+import { go, routeHash } from '../route';
 import { projectsBehaviors } from '@src/projects/behaviors';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Route } from '../route';
 import type { ConnectionStatus, ProjectBackend } from '@src/projects/backend';
 import type { ProjectsBehaviors } from '@src/projects/behaviors';
@@ -40,6 +49,8 @@ export interface ProjectsPageProps {
   route: Route;
   behaviors: ProjectsBehaviors;
   frameKeys?: FrameKeys;
+  /** Whether the edition in force has scratch files (D34); they are where this is not said. */
+  scratches?: boolean;
 }
 
 interface Lists {
@@ -118,7 +129,12 @@ const Workspace = ({
   );
 };
 
-export const ProjectsPage = ({ route, behaviors, frameKeys }: ProjectsPageProps): ReactElement | null => {
+export const ProjectsPage = ({
+  route,
+  behaviors,
+  frameKeys,
+  scratches = true,
+}: ProjectsPageProps): ReactElement | null => {
   // One backend for the page's life in the section, holding the one port; let go when the section closes (§8.2).
   // Made in an effect, not during render: what the effect's cleanup disposed is never used again.
   const [backend, setBackend] = useState<ProjectBackend | null>(null);
@@ -127,13 +143,16 @@ export const ProjectsPage = ({ route, behaviors, frameKeys }: ProjectsPageProps)
     setBackend(made);
     return () => made.dispose();
   }, [behaviors]);
-  return backend ? <Projects route={route} behaviors={behaviors} frameKeys={frameKeys} backend={backend} /> : null;
+  return backend ? (
+    <Projects route={route} behaviors={behaviors} frameKeys={frameKeys} scratches={scratches} backend={backend} />
+  ) : null;
 };
 
 const Projects = ({
   route,
   behaviors,
   frameKeys,
+  scratches,
   backend,
 }: ProjectsPageProps & { backend: ProjectBackend }): ReactElement => {
   const [status, setStatus] = useState<ConnectionStatus>(() => backend.status());
@@ -175,22 +194,35 @@ const Projects = ({
   }, [reload, demo, generation, status.connecting]);
 
   const project = route.project ? lists?.projects.find(p => p.id === route.project) : undefined;
+  const scratch = scratches ? route.scratch : undefined;
+  // The scratch just made: it opens with the keyboard in the editor.
+  const made = useRef<string | null>(null);
 
   return (
     <section
       className="kit-projects"
-      aria-labelledby={project ? undefined : 'projects-title'}
-      aria-label={project ? project.name : undefined}
+      aria-labelledby={project || scratch ? undefined : 'projects-title'}
+      aria-label={project ? project.name : scratch ? TEXT.scratchesTitle : undefined}
       data-connection={status.connecting && status.state !== 'reconnecting' ? 'connecting' : status.state}
       data-backend={demo ? 'demo' : 'companion'}>
-      <DemoNotice demo={demo} state={status.state} />
-      <ConnectionBar backend={backend} status={status} />
-      {failed && (
+      {!scratch && <DemoNotice demo={demo} state={status.state} />}
+      {!scratch && <ConnectionBar backend={backend} status={status} />}
+      {failed && !scratch && (
         <p className="kit-projects-note" data-tone="error" role="status">
           {TEXT.failed(failed)}
         </p>
       )}
-      {project ? (
+      {scratch ? (
+        <ScratchView
+          key={scratch}
+          id={scratch}
+          store={behaviors.scratchStore}
+          saver={behaviors.scratchSaver}
+          frameKeys={frameKeys}
+          autosaveDelayMs={behaviors.autosaveDelayMs}
+          focus={made.current === scratch}
+        />
+      ) : project ? (
         <Workspace
           key={`${demo ? 'demo' : 'companion'}:${project.id}`}
           backend={backend}
@@ -212,10 +244,19 @@ const Projects = ({
               <p className="kit-section-hint">{TEXT.hint}</p>
             </div>
           </header>
-          {lists && (
+          {(lists || scratches) && (
             <div className="kit-projects-home">
-              <ProjectList projects={lists.projects} locations={lists.locations} />
-              <TrustedFolders locations={lists.locations} offered={lists.folders} />
+              {lists && <ProjectList projects={lists.projects} locations={lists.locations} />}
+              {scratches && (
+                <ScratchGroup
+                  store={behaviors.scratchStore}
+                  onCreated={created => {
+                    made.current = created.id;
+                    go(routeHash({ section: 'projects', scratch: created.id }));
+                  }}
+                />
+              )}
+              {lists && <TrustedFolders locations={lists.locations} offered={lists.folders} />}
             </div>
           )}
         </>
@@ -225,9 +266,17 @@ const Projects = ({
 };
 
 /** The section as the shell loads it: the composition root's behaviors, made once. */
-const ProjectsSection = ({ route, frameKeys }: { route: Route; frameKeys?: FrameKeys }): ReactElement => {
+const ProjectsSection = ({
+  route,
+  frameKeys,
+  scratches,
+}: {
+  route: Route;
+  frameKeys?: FrameKeys;
+  scratches?: boolean;
+}): ReactElement => {
   const behaviors = useMemo(() => projectsBehaviors(), []);
-  return <ProjectsPage route={route} behaviors={behaviors} frameKeys={frameKeys} />;
+  return <ProjectsPage route={route} behaviors={behaviors} frameKeys={frameKeys} scratches={scratches} />;
 };
 
 export default ProjectsSection;

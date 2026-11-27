@@ -14,6 +14,10 @@
  *   automaticCopying  whether "Copy automatically after generating" exists (D24; docs/tools/copying.md). Pro: it does;
  *                     free: Settings has no switch for it and no generator copies by itself — a stored "on" has no
  *                     effect and is kept as it is. The Copy buttons work the same in both.
+ *   scratches         whether the Projects section has scratch files (D34: files of no project, made, edited and
+ *                     downloaded on the page). Whether they are Pro is the owner's decision and is not made: on in both
+ *                     editions, so the answer is one line of ./pro.ts or ./free.ts. Off: the section shows no
+ *                     «Scratches» group and opens no scratch; the ones kept are neither read nor deleted.
  *
  * The tools never see any of it: they get their settings, their history and whether to copy from their host either way
  * (D14). Which edition is in force is seam `EditionSource` (./source.ts): the composition root (index.ts) names a
@@ -52,4 +56,6 @@ export interface Edition {
   history(place: HistoryPlace): EditionHistory;
   /** Whether "Copy automatically after generating" exists in this edition (the setting and the copying it does). */
   readonly automaticCopying: boolean;
+  /** Whether the Projects section has scratch files in this edition (D34; Free or Pro is not decided yet). */
+  readonly scratches: boolean;
 }
