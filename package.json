@@ -28,6 +28,8 @@
     "validate:build": "bash scripts/validate-build.sh dist",
     "validate:build:tree-sitter": "DEVTAB_VARIANT=highlighter:treeSitter bash scripts/validate-build.sh dist-tree-sitter",
     "validate:growth": "node scripts/start-route-growth.mjs",
+    "check:changed": "node scripts/check-changed.mjs",
+    "test:check-changed": "node --test scripts/check-changed.test.mjs",
     "validate:licences": "node scripts/licences-check.mjs && cargo deny --offline --manifest-path crates/Cargo.toml check licenses bans sources",
     "mock:backend": "node scripts/mock-backend/cli.mjs",
     "test:mock-backend": "node --test scripts/mock-backend/test/*.test.mjs",
@@ -36,7 +38,7 @@
     "test:e2e": "node scripts/e2e-check.mjs",
     "package": "bash scripts/package.sh",
     "icons": "node scripts/generate-icons.mjs",
-    "check": "pnpm lint && pnpm format:check && pnpm type-check && pnpm build && pnpm test && pnpm test:mock-backend && pnpm validate:build && pnpm validate:growth && pnpm validate:licences"
+    "check": "pnpm lint && pnpm format:check && pnpm type-check && pnpm build && pnpm test && pnpm test:mock-backend && pnpm test:check-changed && pnpm validate:build && pnpm validate:growth && pnpm validate:licences"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

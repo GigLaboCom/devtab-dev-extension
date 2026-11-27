@@ -152,6 +152,23 @@ the build, the tests or the scripts reads or writes `docs/` or `spikes/` by defa
 `--shots=<dir>` says, and a check that compares with an experiment's output runs only when that output is there. A
 `docs/…` or `spikes/…` path in a comment names a document you may not have.
 
+## Checks: What a Change Needs, Not Everything Every Time
+
+`pnpm check` and the whole `pnpm test:e2e` are the gate before anything is published. They are not what every change
+runs: the tests of a hundred packages and every end-to-end step prove nothing about a change to one section.
+
+- `pnpm check:changed` prints the checks the changed files need (`--base=<ref>` for commits, `--run` to run them):
+  lint and format of the changed files, type-check, the unit tests of the changed packages and of what depends on them,
+  the build and its validation when something that ships changed, and only the end-to-end steps of the sections
+  touched. Documents need nothing. Dependencies, the lockfile, build configuration, the manifest, the editor's Rust
+  code and any path the script has no rule for run everything: unknown means everything
+  (`scripts/check-changed.mjs`; a new section or script gets a rule there, with a line in its test).
+- While iterating, run single test files; run the plan once, when the change is done.
+- A change verified in a working copy and merged into a tree that has not moved since is not verified again: the files
+  are the same. When the tree did move, run the plan for both sets of files together.
+- Say in the report which checks ran and which were left out by this rule, so that "passed" never means more than
+  what ran.
+
 ## Commits
 
 Adopted from the owner's grid project. The hooks are plain git hooks in `.githooks/`, no hooks manager:
