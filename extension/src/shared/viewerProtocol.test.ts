@@ -37,9 +37,26 @@ describe('viewer protocol', () => {
     expect(isToViewer({ type: 'viewer/read', id: 7, side: 'new' })).toBe(true);
     expect(isToViewer({ type: 'viewer/keys', keys: [{ key: 's', mod: true, shift: false }] })).toBe(true);
     expect(isToViewer({ type: 'viewer/keys', keys: [{ key: 's' }] })).toBe(false);
-    // The former message with ready hunks is not part of the protocol.
+    // Ready hunks come only as a request, with its id.
     expect(isToViewer({ type: 'viewer/show-diff', payload: { ...texts, hunks: [] } })).toBe(false);
     expect(isToViewer(null)).toBe(false);
+  });
+
+  it('the Projects section shows ready hunks, one file, the file or its diff, and brings a line or a hunk into view', () => {
+    expect(isToViewer({ type: 'viewer/show-diff', id: 8, payload: { ...texts, hunks: [] } })).toBe(true);
+    expect(isToViewer({ type: 'viewer/show-diff', id: 8, payload: texts })).toBe(false);
+    const file = { path: 'src/main.rs', language: 'rust', text: 'fn main() {}\n', readOnly: false };
+    expect(isToViewer({ type: 'viewer/show-file', id: 9, request: file })).toBe(true);
+    expect(isToViewer({ type: 'viewer/show-file', id: 9, request: { ...file, readOnly: 'no' } })).toBe(false);
+    expect(isToViewer({ type: 'viewer/show-file', request: file })).toBe(false);
+    expect(isToViewer({ type: 'viewer/set-mode', id: 10, mode: 'file' })).toBe(true);
+    expect(isToViewer({ type: 'viewer/set-mode', id: 10, mode: 'split' })).toBe(false);
+    expect(isToViewer({ type: 'viewer/reveal-line', line: 4 })).toBe(true);
+    expect(isToViewer({ type: 'viewer/reveal-line', line: 4, column: 2 })).toBe(true);
+    expect(isToViewer({ type: 'viewer/reveal-line', line: -1 })).toBe(false);
+    expect(isToViewer({ type: 'viewer/reveal-line', line: 1.5 })).toBe(false);
+    expect(isToViewer({ type: 'viewer/reveal-hunk', index: 0 })).toBe(true);
+    expect(isToViewer({ type: 'viewer/reveal-hunk', index: '0' })).toBe(false);
   });
 
   it('the main page takes ready, results (of a request, or of an edit without an id), texts, errors and the canvas’s events', () => {

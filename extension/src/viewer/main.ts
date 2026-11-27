@@ -1,6 +1,7 @@
 /**
  * The editor page (in the main page's iframe): runs the wasm editor, hands it what the main page sends (two texts, one
- * side, the language, a swap, which side the user may edit) and reads a side back when asked; the module compares —
+ * side, the language, a swap, which side the user may edit; for the Projects section, two texts with their hunks, one
+ * file alone, the file or its diff, a line or a hunk to bring into view) and reads a side back when asked; the module compares —
  * on a request, and by itself after the user's edits. It follows the theme through chrome.storage itself. Only
  * messages from the extension's own parent page are taken; every answer to a request carries the request's id.
  *
@@ -89,6 +90,22 @@ const main = async (): Promise<void> => {
         return;
       case 'viewer/keys':
         shortcuts = message.keys;
+        return;
+      case 'viewer/show-diff':
+        latestRequest = message.id;
+        return c.showDiff(message.payload);
+      case 'viewer/show-file':
+        latestRequest = message.id;
+        editable.old = false;
+        editable.new = !message.request.readOnly;
+        return c.showFile(message.request);
+      case 'viewer/set-mode':
+        latestRequest = message.id;
+        return c.setMode(message.mode);
+      case 'viewer/reveal-line':
+        return c.revealLine(message.line, message.column);
+      case 'viewer/reveal-hunk':
+        return c.revealHunk(message.index);
     }
   };
 

@@ -2,11 +2,13 @@ import type {
   CompareRequest,
   DiffPayload,
   DiffShown,
+  FileRequest,
   ReviewEvent,
   ReviewModule,
   Side,
   SideRequest,
   SideShown,
+  ViewMode,
 } from './types';
 
 export interface ThemeArgs {
@@ -21,8 +23,16 @@ export interface ReviewController {
    * the request waits (the editor refuses texts until its window is open).
    */
   compare: (request: CompareRequest) => void;
-  /** Hunks computed elsewhere (the server, in live review), shown as given; waits the same way. */
+  /** Hunks computed elsewhere (the companion, in the Projects section), shown as given; waits the same way. */
   showDiff: (payload: DiffPayload) => void;
+  /** One file alone (the new side), editable unless `readOnly`; a full replacement, waits the same way. */
+  showFile: (request: FileRequest) => void;
+  /** The file alone or the diff of its edits; the texts stay. */
+  setMode: (mode: ViewMode) => void;
+  /** Bring a 0-based line of the new side into view: the caret at the column, or the line selected without one. */
+  revealLine: (line: number, column?: number) => void;
+  /** Bring a hunk of what is shown into view, its lines selected; an index past the hunks is refused (`onError`). */
+  revealHunk: (index: number) => void;
   /** One side's new text, compared with the other side as it is now; waits after a waiting `compare`. */
   setSide: (request: SideRequest) => void;
   /** Highlight both sides as another language. */
@@ -81,6 +91,7 @@ const parseShown = (detail: string): DiffShown | null => {
       updateMs: value.updateMs ?? null,
       cause: value.cause === 'edit' ? 'edit' : 'request',
       sides: { old: sideOf(sides.old), new: sideOf(sides.new) },
+      mode: value.mode === 'file' ? 'file' : 'diff',
     };
   } catch {
     return null;
@@ -92,8 +103,8 @@ const sideOrNull = (name: string | undefined): Side | null => (name === 'old' ||
 /**
  * The editor's lifecycle without the wasm (testable): `run()` opens a window and draws an empty view; only after the
  * first frame does the module take texts (spikes/extension-e2e, finding 11). Until then the calls wait in order — a
- * full `compare` or `showDiff` drops whatever waited before it, as it would only be painted over — and a theme change
- * goes straight through (`set_theme` is safe at any time after `run()`).
+ * full `compare`, `showDiff` or `showFile` drops whatever waited before it, as it would only be painted over — and a
+ * theme change goes straight through (`set_theme` is safe at any time after `run()`).
  */
 export const createReviewController = (module: ReviewModule, hooks: ControllerHooks = {}): ReviewController => {
   let ready = false;
@@ -129,6 +140,18 @@ export const createReviewController = (module: ReviewModule, hooks: ControllerHo
     },
     showDiff(payload) {
       whenReady(() => module.show_diff(JSON.stringify(payload)), true);
+    },
+    showFile(request) {
+      whenReady(() => module.show_file(JSON.stringify(request)), true);
+    },
+    setMode(mode) {
+      whenReady(() => module.set_mode(mode));
+    },
+    revealLine(line, column) {
+      whenReady(() => module.reveal_line(line, column ?? null));
+    },
+    revealHunk(index) {
+      whenReady(() => module.reveal_hunk(index));
     },
     setSide(request) {
       whenReady(() => module.set_side(JSON.stringify(request)));

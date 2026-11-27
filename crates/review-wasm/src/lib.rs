@@ -19,15 +19,20 @@
 //! - `side_text(side)` — a side's text as it is now, edits included;
 //! - `mark_saved(side, text)` — the host saved `text` for the side: no longer modified;
 //! - `focused_side()` / `focus_side(side)` — which side has the keyboard; give it to one;
+//! - `show_file(request_json)` — `{path, language, text, readOnly}`: one file alone (the new side; editable unless
+//!   `readOnly`), its old side the same text — edits then show in the diff layout;
+//! - `set_mode(mode)` — `file` (the new side alone) or `diff` (both sides compared): the texts and edits stay;
+//! - `reveal_line(line, column?)` — bring a 0-based line of the new side into view: the caret at the UTF-16 column, or
+//!   the line selected without one; `reveal_hunk(index)` — the `index`-th hunk of what is shown, selected;
 //! - with the feature `grammar-files` (the mixed highlighter build), `grammar_abi()`, `register_grammar(entry_json,
 //!   language)` and `function_table()`: grammars that arrive as files while the page runs (src/grammars.rs).
 //!
 //! A call the module refuses (bad JSON, an unknown option, variant or side, no window yet) throws a string. Outbound:
 //! `globalThis.__reviewEvent(name, detail)` for `first-frame` (detail empty), `shown` (detail: JSON
-//! `{path, changes, added, removed, lineDiffer, compareMs, updateMs, cause, sides}` — `lineDiffer`, `compareMs` and
-//! `updateMs` `null` for `show_diff`; `cause` `request` for a call above, `edit` when the user's edit was compared once
-//! the typing paused; `sides.old` / `sides.new` = `{editable, modified, empty}`) and `error` (a theme file that does
-//! not parse).
+//! `{path, changes, added, removed, lineDiffer, compareMs, updateMs, cause, sides, mode}` — `lineDiffer`, `compareMs`
+//! and `updateMs` `null` for `show_diff` and `set_mode`; `cause` `request` for a call above, `edit` when the user's edit
+//! was compared once the typing paused; `sides.old` / `sides.new` = `{editable, modified, empty}`; `mode` `file` or
+//! `diff`) and `error` (a theme file that does not parse).
 #![cfg(target_family = "wasm")]
 
 use std::{
@@ -43,7 +48,9 @@ use gpui_component::{
     highlighter::{Diagnostic, DiagnosticSeverity},
     theme::{Theme, ThemeMode, ThemeRegistry, ThemeSet},
 };
-use review_view::{CompareOptions, DiffDocument, DiffSide, LineHunk, ReviewEvent, ReviewView, Shown, Texts};
+use review_view::{
+    CompareOptions, DiffDocument, DiffSide, FileDocument, Layout, LineHunk, ReviewEvent, ReviewView, Shown, Texts,
+};
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 
@@ -155,6 +162,29 @@ struct SidePayload {
     path: Option<String>,
 }
 
+/// `show_file`: one file alone.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct FilePayload {
+    path: String,
+    #[serde(default)]
+    language: String,
+    text: String,
+    #[serde(default)]
+    read_only: bool,
+}
+
+impl From<FilePayload> for FileDocument {
+    fn from(p: FilePayload) -> Self {
+        FileDocument {
+            path: p.path,
+            language: p.language,
+            text: p.text,
+            read_only: p.read_only,
+        }
+    }
+}
+
 fn side_named(export: &str, name: &str) -> Result<DiffSide, JsValue> {
     DiffSide::from_name(name)
         .ok_or_else(|| JsValue::from_str(&format!("{export}: unknown side \"{name}\"; the sides are old, new")))
@@ -175,6 +205,7 @@ fn shown_detail(shown: &Shown) -> String {
         "updateMs": shown.update_time.map(|t| t.as_secs_f64() * 1000.0),
         "cause": shown.cause.name(),
         "sides": { "old": side(DiffSide::Old), "new": side(DiffSide::New) },
+        "mode": shown.layout.name(),
     })
     .to_string()
 }
@@ -380,6 +411,39 @@ pub fn focus_side(side: String) -> Result<(), JsValue> {
         view.focus(side, window, cx);
         Ok(())
     })
+}
+
+#[wasm_bindgen]
+pub fn show_file(request_json: String) -> Result<(), JsValue> {
+    let request: FilePayload =
+        serde_json::from_str(&request_json).map_err(|err| JsValue::from_str(&format!("show_file: {err}")))?;
+    let shown = with_view("show_file", |view, window, cx| {
+        Ok(view.show_file(request.into(), window, cx))
+    })?;
+    notify_host("shown", &shown_detail(&shown));
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub fn set_mode(mode: String) -> Result<(), JsValue> {
+    let layout = Layout::from_name(&mode)
+        .ok_or_else(|| JsValue::from_str(&format!("set_mode: unknown mode \"{mode}\"; the modes are file, diff")))?;
+    let shown = with_view("set_mode", |view, _, cx| Ok(view.set_layout(layout, cx)))?;
+    notify_host("shown", &shown_detail(&shown));
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub fn reveal_line(line: u32, column: Option<u32>) -> Result<(), JsValue> {
+    with_view("reveal_line", |view, _, cx| {
+        view.reveal_line(line, column, cx);
+        Ok(())
+    })
+}
+
+#[wasm_bindgen]
+pub fn reveal_hunk(index: u32) -> Result<(), JsValue> {
+    with_view("reveal_hunk", |view, _, cx| view.reveal_hunk(index as usize, cx))
 }
 
 #[wasm_bindgen]

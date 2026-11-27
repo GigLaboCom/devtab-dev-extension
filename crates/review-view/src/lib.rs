@@ -11,8 +11,8 @@
 //! - [`compare`]: the implementations one comparison runs with, and options naming built-ins as data;
 //! - [`alignment`]: the blank rows that keep both sides level;
 //! - [`sides`]: which side the user may edit and whether its text moved away from what was loaded or saved;
-//! - `view` (feature `view`, gpui): the view itself — read-only by default, a side editable on request, the comparison
-//!   following the edits;
+//! - `view` (feature `view`, gpui): the view itself — two sides compared or one file alone, read-only by default, a
+//!   side editable on request, the comparison following the edits, a line or a hunk brought into view;
 //! - [`grammars`] (feature `grammar-files`): tree-sitter grammars that arrive as files while the page runs, checked,
 //!   registered with gpui-kit's highlighter and repainted into the open text.
 //!
@@ -42,4 +42,7 @@ pub use hunks::{DiffStats, HunkKind, LineHunk};
 pub use line_differ::{HistogramLineDiffer, LineDiffer, MyersLineDiffer};
 pub use sides::{SideState, Sides};
 #[cfg(feature = "view")]
-pub use view::{DiffDocument, RECOMPARE_DELAY, ReviewEvent, ReviewView, ReviewViewBuilder, Shown, ShownCause, Texts};
+pub use view::{
+    DiffDocument, FileDocument, Layout, RECOMPARE_DELAY, ReviewEvent, ReviewView, ReviewViewBuilder, Shown, ShownCause,
+    Texts,
+};

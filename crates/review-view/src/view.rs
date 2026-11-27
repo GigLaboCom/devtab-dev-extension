@@ -8,15 +8,21 @@
 //! then follows the user's edits: a burst of typing is compared once it pauses for [`RECOMPARE_DELAY`], with the same
 //! comparison the last request used, and reported as [`ReviewEvent::Recompared`]. No text crosses to the host on an
 //! edit; it reads a side when it needs one ([`ReviewView::text`]).
+//!
+//! The view lays its texts out in one of two ways ([`Layout`]): both sides compared (the default), or one file — the
+//! new side alone, read-only or editable ([`ReviewView::show_file`]). Switching keeps the texts and the edits
+//! ([`ReviewView::set_layout`]); a file's old side holds the text as it was shown, so the diff layout then shows the
+//! edits made since. The host may bring a line or a hunk of the new side into view ([`ReviewView::reveal_line`],
+//! [`ReviewView::reveal_hunk`]); the editor scrolls once it has laid the text out.
 
-use std::{rc::Rc, sync::Arc, time::Duration};
+use std::{ops::Range, rc::Rc, sync::Arc, time::Duration};
 
 use gpui::{
     AppContext as _, Context, Entity, EventEmitter, Focusable as _, IntoElement, ParentElement as _, Pixels, Render,
     SharedString, Styled as _, Subscription, Task, Window, div, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Side, h_flex,
+    ActiveTheme as _, Rope, RopeExt as _, Side, h_flex,
     highlighter::Diagnostic,
     input::{Editor, EditorState, InputEvent, LineDecorationCollection},
     scroll::ScrollbarPlacement,
@@ -67,6 +73,53 @@ pub struct Texts {
     pub new_text: String,
 }
 
+/// One file for the view to show alone.
+#[derive(Clone, Debug, Default)]
+pub struct FileDocument {
+    /// What the status line names.
+    pub path: String,
+    /// A highlighter name; empty = plain text.
+    pub language: String,
+    pub text: String,
+    /// The user may not edit it.
+    pub read_only: bool,
+}
+
+/// How the view lays out its texts.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Layout {
+    /// One pane: the new side alone, as a file.
+    File,
+    /// Both sides side by side, changed lines marked.
+    #[default]
+    Diff,
+}
+
+impl Layout {
+    /// The name at the host boundary: `file` or `diff`.
+    pub fn name(self) -> &'static str {
+        match self {
+            Layout::File => "file",
+            Layout::Diff => "diff",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Layout> {
+        [Layout::File, Layout::Diff]
+            .into_iter()
+            .find(|layout| layout.name() == name)
+    }
+}
+
+/// What to bring into view on the new side once the editor has laid its text out.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Reveal {
+    /// A 0-based line; with a column (UTF-16) the caret goes there, without one the line is selected.
+    Line { line: u32, column: Option<u32> },
+    /// The new-side lines of a hunk, selected; the caret at their start.
+    Hunk { start: u32, lines: u32 },
+}
+
 /// Two texts and the hunks between them, computed elsewhere (the server's `vcs_line_hunks` in live review).
 #[derive(Clone, Debug, Default)]
 pub struct DiffDocument {
@@ -108,6 +161,8 @@ pub struct Shown {
     pub cause: ShownCause,
     /// Each side, old first.
     pub sides: [SideState; 2],
+    /// How the texts are laid out.
+    pub layout: Layout,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -133,6 +188,11 @@ pub struct ReviewView {
     first_frame_reported: bool,
     /// The comparison waiting for the typing to pause; replacing it cancels the one before.
     pending_recompare: Option<Task<()>>,
+    layout: Layout,
+    /// The hunks of the last comparison, whatever the layout draws (the file layout draws none).
+    hunks: Vec<LineHunk>,
+    /// What to bring into view after the next frame.
+    pending_reveal: Option<Reveal>,
     _collections: [LineDecorationCollection; 2],
     _subscriptions: Vec<Subscription>,
 }
@@ -214,6 +274,9 @@ impl ReviewView {
             scroll_y: [px(0.); 2],
             first_frame_reported: false,
             pending_recompare: None,
+            layout: Layout::default(),
+            hunks: Vec::new(),
+            pending_reveal: None,
             _collections: [old_collection, new_collection],
             _subscriptions: subscriptions,
         }
@@ -234,6 +297,7 @@ impl ReviewView {
         cx: &mut Context<Self>,
     ) -> Result<Shown, UnknownVariant> {
         self.active = self.comparison.with_options(options)?;
+        self.layout = Layout::Diff;
         let Texts {
             path,
             language,
@@ -348,7 +412,9 @@ impl ReviewView {
             diagnostics,
         } = document;
         self.set_language_of_editors(language, cx);
+        self.layout = Layout::Diff;
         let stats = DiffStats::of(&hunks);
+        self.hunks = hunks.clone();
         self.model.set(hunks, &old_text, &new_text);
         // Both texts become the baselines: nothing is modified yet.
         let empty = [old_text.is_empty(), new_text.is_empty()];
@@ -363,7 +429,7 @@ impl ReviewView {
         });
         self.load(DiffSide::Old, old_text, window, cx);
         self.refresh_sides(cx);
-        self.summary = summary(&self.language, &stats).into();
+        self.summary = summary(&self.language, &stats, self.layout).into();
         self.path = path.clone().into();
         cx.notify();
         let sides = DiffSide::BOTH.map(|side| SideState {
@@ -379,7 +445,108 @@ impl ReviewView {
             update_time: None,
             cause: ShownCause::Request,
             sides,
+            layout: self.layout,
         }
+    }
+
+    /// Shows one file alone: the new side holds its text, editable unless `read_only`; the old side holds the same
+    /// text, so the diff layout ([`Self::set_layout`]) shows the edits made since. Nothing is modified yet.
+    pub fn show_file(&mut self, document: FileDocument, window: &mut Window, cx: &mut Context<Self>) -> Shown {
+        let FileDocument {
+            path,
+            language,
+            text,
+            read_only,
+        } = document;
+        self.layout = Layout::File;
+        self.active = self.comparison.clone();
+        self.path = path.into();
+        self.set_language_of_editors(language, cx);
+        self.load(DiffSide::Old, text.clone(), window, cx);
+        self.load(DiffSide::New, text, window, cx);
+        self.set_editable(DiffSide::Old, false, false, window, cx);
+        self.set_editable(DiffSide::New, !read_only, false, window, cx);
+        self.recompare(ShownCause::Request, cx)
+    }
+
+    /// Lays the texts out as one file or as both sides compared. The texts, the edits and the hunks stay; switching to
+    /// the diff layout puts the old side level with the new one.
+    pub fn set_layout(&mut self, layout: Layout, cx: &mut Context<Self>) -> Shown {
+        if layout == Layout::Diff && self.layout == Layout::File {
+            let y = self.editor(DiffSide::New).read(cx).scroll_offset().y;
+            self.editor(DiffSide::Old).update(cx, |state, cx| {
+                let mut offset = state.scroll_offset();
+                offset.y = y;
+                state.set_scroll_offset(offset, cx);
+            });
+        }
+        self.layout = layout;
+        let [old_text, new_text] = DiffSide::BOTH.map(|side| self.text(side, cx));
+        self.model.set(self.drawn_hunks(), &old_text, &new_text);
+        self.refresh_sides(cx);
+        let stats = DiffStats::of(&self.hunks);
+        self.summary = summary(&self.language, &stats, self.layout).into();
+        cx.notify();
+        Shown {
+            path: self.path.to_string(),
+            stats,
+            line_differ: None,
+            compare_time: None,
+            update_time: None,
+            cause: ShownCause::Request,
+            sides: [
+                self.sides.state(DiffSide::Old, &old_text),
+                self.sides.state(DiffSide::New, &new_text),
+            ],
+            layout,
+        }
+    }
+
+    /// How the texts are laid out now.
+    pub fn layout(&self) -> Layout {
+        self.layout
+    }
+
+    /// Brings a 0-based line of the new side into view once the editor has laid it out: with a column (UTF-16) the
+    /// caret goes there, without one the line is selected. A line past the end is the last line.
+    pub fn reveal_line(&mut self, line: u32, column: Option<u32>, cx: &mut Context<Self>) {
+        self.pending_reveal = Some(Reveal::Line { line, column });
+        cx.notify();
+    }
+
+    /// Brings the `index`-th hunk of the last comparison into view, its new-side lines selected. An index past the
+    /// hunks is refused.
+    pub fn reveal_hunk(&mut self, index: usize, cx: &mut Context<Self>) -> Result<(), String> {
+        let hunk = self.hunks.get(index).ok_or_else(|| match self.hunks.len() {
+            0 => format!("no hunk {index}: the view shows no changes"),
+            n => format!("no hunk {index}: the view shows {n} (0 to {})", n - 1),
+        })?;
+        self.pending_reveal = Some(Reveal::Hunk {
+            start: hunk.start,
+            lines: hunk.lines,
+        });
+        cx.notify();
+        Ok(())
+    }
+
+    /// The hunks of the last comparison.
+    pub fn hunks(&self) -> &[LineHunk] {
+        &self.hunks
+    }
+
+    /// The hunks the layout draws: all of them side by side, none in a file.
+    fn drawn_hunks(&self) -> Vec<LineHunk> {
+        match self.layout {
+            Layout::Diff => self.hunks.clone(),
+            Layout::File => Vec::new(),
+        }
+    }
+
+    fn apply_reveal(&mut self, reveal: Reveal, cx: &mut Context<Self>) {
+        self.editor(DiffSide::New).update(cx, |state, cx| {
+            let (range, reversed) = reveal_range(state.text(), reveal);
+            state.set_selected_range_with_direction(range, reversed, cx);
+        });
     }
 
     /// A grammar arrived at run time (feature `grammar-files`, [`crate::grammars`]): both sides are highlighted again
@@ -446,13 +613,14 @@ impl ReviewView {
         let hunks = self.active.line_hunks(&old_text, &new_text);
         let compare_time = differ_started.elapsed();
         let stats = DiffStats::of(&hunks);
-        self.model.set(hunks, &old_text, &new_text);
+        self.hunks = hunks;
+        self.model.set(self.drawn_hunks(), &old_text, &new_text);
         self.refresh_sides(cx);
         let sides = [
             self.sides.state(DiffSide::Old, &old_text),
             self.sides.state(DiffSide::New, &new_text),
         ];
-        self.summary = summary(&self.language, &stats).into();
+        self.summary = summary(&self.language, &stats, self.layout).into();
         cx.notify();
         Shown {
             path: self.path.to_string(),
@@ -462,6 +630,7 @@ impl ReviewView {
             update_time: Some(started.elapsed()),
             cause,
             sides,
+            layout: self.layout,
         }
     }
 
@@ -477,6 +646,11 @@ impl ReviewView {
     /// the last frame leads.
     fn synchronize_scroll(&mut self, cx: &mut Context<Self>) {
         let current = DiffSide::BOTH.map(|side| self.editor(side).read(cx).scroll_offset().y);
+        // A file: the old side is not drawn, so it never moves and must not lead.
+        if self.layout == Layout::File {
+            self.scroll_y = current;
+            return;
+        }
         let source = if current[0] != self.scroll_y[0] {
             0
         } else if current[1] != self.scroll_y[1] {
@@ -496,7 +670,37 @@ impl ReviewView {
     }
 }
 
-fn summary(language: &str, stats: &DiffStats) -> String {
+/// The new-side byte range a reveal selects, and whether the caret is at its start.
+fn reveal_range(text: &Rope, reveal: Reveal) -> (Range<usize>, bool) {
+    let last = text.lines_len().saturating_sub(1);
+    let row = |line: u32| (line as usize).min(last);
+    match reveal {
+        Reveal::Line {
+            line,
+            column: Some(column),
+        } => {
+            let at = text.position_to_offset(&lsp_types::Position::new(row(line) as u32, column));
+            (at..at, false)
+        }
+        Reveal::Line { line, column: None } => {
+            let row = row(line);
+            (text.line_start_offset(row)..text.line_end_offset(row), true)
+        }
+        Reveal::Hunk { start, lines: 0 } => {
+            let at = text.line_start_offset(row(start));
+            (at..at, false)
+        }
+        Reveal::Hunk { start, lines } => (
+            text.line_start_offset(row(start))..text.line_end_offset(row(start + lines - 1)),
+            true,
+        ),
+    }
+}
+
+fn summary(language: &str, stats: &DiffStats, layout: Layout) -> String {
+    if layout == Layout::File {
+        return language.to_owned();
+    }
     let changes = match stats.changes {
         0 => "no differences".to_owned(),
         1 => format!("1 change · +{} −{}", stats.added, stats.removed),
@@ -522,25 +726,37 @@ impl Render for ReviewView {
                 let _ = view.update(cx, |_, cx| cx.emit(ReviewEvent::FirstFrame));
             });
         }
+        if let Some(reveal) = self.pending_reveal.take() {
+            // After the frame that lays the text out: the editor scrolls only within a layout it has.
+            let view = cx.entity().downgrade();
+            window.on_next_frame(move |_, cx| {
+                let _ = view.update(cx, |view, cx| view.apply_reveal(reveal, cx));
+            });
+        }
         self.synchronize_scroll(cx);
+        let panes = match self.layout {
+            Layout::File => h_flex().flex_1().min_h_0().child(editor_pane(
+                self.editor(DiffSide::New),
+                self.sides.editable(DiffSide::New),
+            )),
+            Layout::Diff => h_flex()
+                .flex_1()
+                .min_h_0()
+                .child(editor_pane(
+                    self.editor(DiffSide::Old),
+                    self.sides.editable(DiffSide::Old),
+                ))
+                .child(div().w_px().h_full().bg(cx.theme().border))
+                .child(editor_pane(
+                    self.editor(DiffSide::New),
+                    self.sides.editable(DiffSide::New),
+                )),
+        };
         v_flex()
             .size_full()
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
-            .child(
-                h_flex()
-                    .flex_1()
-                    .min_h_0()
-                    .child(editor_pane(
-                        self.editor(DiffSide::Old),
-                        self.sides.editable(DiffSide::Old),
-                    ))
-                    .child(div().w_px().h_full().bg(cx.theme().border))
-                    .child(editor_pane(
-                        self.editor(DiffSide::New),
-                        self.sides.editable(DiffSide::New),
-                    )),
-            )
+            .child(panes)
             .child(
                 h_flex()
                     .px_3()
@@ -567,9 +783,43 @@ mod tests {
             added,
             removed,
         };
-        assert_eq!(summary("rust", &stats(4, 17, 6)), "rust · 4 changes · +17 −6");
-        assert_eq!(summary("text", &stats(1, 0, 2)), "text · 1 change · +0 −2");
-        assert_eq!(summary("python", &stats(0, 0, 0)), "python · no differences");
+        assert_eq!(
+            summary("rust", &stats(4, 17, 6), Layout::Diff),
+            "rust · 4 changes · +17 −6"
+        );
+        assert_eq!(
+            summary("text", &stats(1, 0, 2), Layout::Diff),
+            "text · 1 change · +0 −2"
+        );
+        assert_eq!(
+            summary("python", &stats(0, 0, 0), Layout::Diff),
+            "python · no differences"
+        );
+        assert_eq!(summary("rust", &stats(4, 17, 6), Layout::File), "rust");
+    }
+
+    #[test]
+    fn layouts_have_names_at_the_host_boundary() {
+        for layout in [Layout::File, Layout::Diff] {
+            assert_eq!(Layout::from_name(layout.name()), Some(layout));
+        }
+        assert_eq!(Layout::default(), Layout::Diff);
+        assert_eq!(Layout::from_name("split"), None);
+    }
+
+    #[test]
+    fn a_reveal_selects_the_line_or_the_hunk_on_the_new_side() {
+        let text = Rope::from("zero\none\ntwo\nthree\n");
+        let line = |line, column| reveal_range(&text, Reveal::Line { line, column });
+        let hunk = |start, lines| reveal_range(&text, Reveal::Hunk { start, lines });
+        // A line: selected, the caret at its start; with a column, the caret there.
+        assert_eq!(line(1, None), (5..8, true));
+        assert_eq!(line(2, Some(1)), (10..10, false));
+        // Past the end: the last line (the empty one after the final newline).
+        assert_eq!(line(99, None), (19..19, true));
+        // A hunk of two lines, and a deletion (no new lines): the caret where the lines were.
+        assert_eq!(hunk(1, 2), (5..12, true));
+        assert_eq!(hunk(3, 0), (13..13, false));
     }
 }
 
@@ -753,6 +1003,79 @@ mod editing_tests {
             view.mark_saved(DiffSide::Old, "!right\n".into(), cx)
         });
         assert!(!saved.sides[0].modified);
+    }
+
+    fn show_file(o: &mut Opened<'_>, text: &str, read_only: bool) -> Shown {
+        let document = FileDocument {
+            path: "a.txt".into(),
+            language: "text".into(),
+            text: text.into(),
+            read_only,
+        };
+        let shown = o
+            .view
+            .update_in(o.cx, |view, window, cx| view.show_file(document, window, cx));
+        o.draw();
+        shown
+    }
+
+    #[gpui::test]
+    fn a_file_is_shown_alone_and_the_diff_layout_shows_its_edits(cx: &mut TestAppContext) {
+        let mut o = open(cx);
+        let shown = show_file(&mut o, "a\nb\n", false);
+        assert_eq!((shown.layout, shown.stats.changes), (Layout::File, 0));
+        assert!(shown.sides[1].editable && !shown.sides[0].editable);
+        o.focus(DiffSide::New);
+        o.cx.simulate_input("x");
+        o.pause(RECOMPARE_DELAY);
+        let edited = o.recompared.borrow().last().cloned().unwrap();
+        assert_eq!(
+            (edited.layout, edited.stats.changes, edited.sides[1].modified),
+            (Layout::File, 1, true)
+        );
+        // The diff layout: the text as shown on the left, the edit on the right; and back.
+        let diff = o.view.update(o.cx, |view, cx| view.set_layout(Layout::Diff, cx));
+        assert_eq!((diff.layout, diff.stats.changes), (Layout::Diff, 1));
+        assert_eq!([o.text(DiffSide::Old), o.text(DiffSide::New)], ["a\nb\n", "xa\nb\n"]);
+        let file = o.view.update(o.cx, |view, cx| view.set_layout(Layout::File, cx));
+        assert_eq!((file.layout, file.sides[1].modified), (Layout::File, true));
+        // A read-only file refuses typing.
+        let shown = show_file(&mut o, "c\n", true);
+        assert!(!shown.sides[1].editable && !shown.sides[1].modified);
+        o.focus(DiffSide::New);
+        o.cx.simulate_input("q");
+        o.pause(RECOMPARE_DELAY);
+        assert_eq!(o.text(DiffSide::New), "c\n");
+        // Two texts compared: the diff layout again.
+        assert_eq!(o.compare("a\n", "b\n").layout, Layout::Diff);
+    }
+
+    #[gpui::test]
+    fn a_hunk_or_a_line_is_revealed_once_the_text_is_laid_out(cx: &mut TestAppContext) {
+        let mut o = open(cx);
+        o.compare("a\nb\nc\n", "a\nB\nc\nd\n");
+        let refused = o.view.update(o.cx, |view, cx| view.reveal_hunk(2, cx));
+        assert_eq!(refused, Err("no hunk 2: the view shows 2 (0 to 1)".to_owned()));
+        // The reveal waits for the frame after the next draw (gpui's test window runs no frame callbacks); then it
+        // selects on the new side.
+        let reveal = |o: &mut Opened<'_>, ask: &dyn Fn(&mut ReviewView, &mut Context<ReviewView>)| {
+            o.view.update(o.cx, |view, cx| {
+                ask(view, cx);
+                let reveal = view.pending_reveal.take();
+                if let Some(reveal) = reveal {
+                    view.apply_reveal(reveal, cx);
+                }
+                (reveal, view.editors[1].read(cx).selected_range())
+            })
+        };
+        assert_eq!(
+            reveal(&mut o, &|view, cx| view.reveal_hunk(1, cx).unwrap()),
+            (Some(Reveal::Hunk { start: 3, lines: 1 }), 6..7)
+        );
+        assert_eq!(
+            reveal(&mut o, &|view, cx| view.reveal_line(1, None, cx)),
+            (Some(Reveal::Line { line: 1, column: None }), 2..3)
+        );
     }
 
     /// A grammar that arrives after its text is shown (feature `grammar-files`): the view highlights again when the

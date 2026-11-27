@@ -1,6 +1,6 @@
 import { createReviewController } from './controller';
 import { describe, expect, it, vi } from 'vitest';
-import type { CompareRequest, DiffPayload, ReviewEvent, ReviewModule, SideRequest } from './types';
+import type { CompareRequest, DiffPayload, FileRequest, ReviewEvent, ReviewModule, SideRequest } from './types';
 
 const request = (path: string, options?: CompareRequest['options']): CompareRequest => ({
   path,
@@ -35,6 +35,13 @@ const fakeModule = () => {
     mark_saved: side => void calls.push(`saved ${side}`),
     focused_side: () => focused,
     focus_side: side => void (focused = side),
+    show_file: json => {
+      const { path, readOnly } = JSON.parse(json) as FileRequest;
+      calls.push(`file ${path}${readOnly ? ' read-only' : ''}`);
+    },
+    set_mode: mode => void calls.push(`mode ${mode}`),
+    reveal_line: (line, column) => void calls.push(`line ${line}${column === null ? '' : `:${column}`}`),
+    reveal_hunk: index => void calls.push(`hunk ${index}`),
   };
   return { module, calls };
 };
@@ -92,6 +99,24 @@ describe('createReviewController', () => {
     expect(c.focusedSide()).toBe('old');
   });
 
+  it('shows one file as a full replacement, and keeps a mode switch and reveals after it in order', () => {
+    const { module, calls } = fakeModule();
+    const c = createReviewController(module);
+    c.compare(request('dropped'));
+    c.showFile({ path: 'src/main.rs', language: 'rust', text: 'fn main() {}\n', readOnly: true });
+    c.setMode('diff');
+    c.revealHunk(0);
+    c.revealLine(3);
+    c.revealLine(4, 2);
+    expect(calls).toEqual([]);
+    c.onModuleEvent('first-frame', '');
+    expect(calls).toEqual(['file src/main.rs read-only', 'mode diff', 'hunk 0', 'line 3', 'line 4:2']);
+    const events: ReviewEvent[] = [];
+    const d = createReviewController(fakeModule().module, { onEvent: e => events.push(e) });
+    d.onModuleEvent('shown', JSON.stringify({ path: 'a', changes: 0, added: 0, removed: 0, mode: 'file' }));
+    expect(events[0]?.name === 'shown' && events[0].shown.mode).toBe('file');
+  });
+
   it('lets a request made while the first frame is reported win over the one that waited', () => {
     const { module, calls } = fakeModule();
     const c: ReturnType<typeof createReviewController> = createReviewController(module, {
@@ -142,6 +167,7 @@ describe('createReviewController', () => {
           updateMs: 1.2,
           cause: 'edit',
           sides: { old: unmodified, new: { editable: true, modified: true, empty: false } },
+          mode: 'diff',
         },
       },
       {
@@ -156,6 +182,7 @@ describe('createReviewController', () => {
           updateMs: null,
           cause: 'request',
           sides: { old: unmodified, new: unmodified },
+          mode: 'diff',
         },
       },
     ]);

@@ -29,7 +29,7 @@ set -euo pipefail
 
 here="$(cd "$(dirname "$0")/.." && pwd -P)"
 repo="$(cd "$here/../.." && pwd -P)"
-exports="run set_theme compare_texts show_diff set_side set_language swap_sides set_editable side_text mark_saved focused_side focus_side"
+exports="run set_theme compare_texts show_diff set_side set_language swap_sides set_editable side_text mark_saved focused_side focus_side show_file set_mode reveal_line reveal_hunk"
 mode="${1:-}"
 if [ -z "$mode" ] && grep -qE "^export \{ treeSitter as highlighter \}" "$repo/extension/src/highlighter/index.ts"; then
   mode=tree-sitter

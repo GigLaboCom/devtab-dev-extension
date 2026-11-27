@@ -15,6 +15,10 @@ declare module '*/pkg/review_wasm.js' {
   export const mark_saved: (side: string, text: string) => void;
   export const focused_side: () => string | undefined;
   export const focus_side: (side: string) => void;
+  export const show_file: (requestJson: string) => void;
+  export const set_mode: (mode: string) => void;
+  export const reveal_line: (line: number, column?: number | null) => void;
+  export const reveal_hunk: (index: number) => void;
 }
 
 // The mixed highlighter build's module (pkg-tree-sitter/, feature `grammar-files`): the same exports and those of
@@ -34,6 +38,10 @@ declare module '*/pkg-tree-sitter/review_wasm.js' {
   export const mark_saved: (side: string, text: string) => void;
   export const focused_side: () => string | undefined;
   export const focus_side: (side: string) => void;
+  export const show_file: (requestJson: string) => void;
+  export const set_mode: (mode: string) => void;
+  export const reveal_line: (line: number, column?: number | null) => void;
+  export const reveal_hunk: (index: number) => void;
   export const grammar_abi: () => string;
   export const register_grammar: (entryJson: string, language: number) => boolean;
   export const function_table: () => unknown;

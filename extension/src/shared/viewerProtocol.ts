@@ -1,7 +1,9 @@
 /**
  * Messages between the main page and the editor page in its iframe (same origin: the extension's). The editor owns
  * the two texts once they are in it: the main page sends texts (both, or one side), asks it to swap, to change the
- * language, to let the user edit a side, and reads a side back when it needs the text (copy, save). The editor
+ * language, to let the user edit a side, and reads a side back when it needs the text (copy, save). The Projects
+ * section also sends two texts with their hunks (the companion's), one file alone (read-only or editable), switches
+ * between the file and the diff of its edits, and asks for a line or a hunk to be brought into view. The editor
  * compares — on a request, and by itself after the user's edits — and answers with what it showed. Every request that
  * changes what is shown carries an id that comes back with its result, so the main page takes only the answer to its
  * latest request; a result of the user's edit carries none (`cause: 'edit'`). The theme does not travel here — both
@@ -12,7 +14,15 @@
  * keyboard shortcuts, and Tab leaving the editor.
  */
 import type { KeyChord } from './keys';
-import type { CompareRequest, DiffShown, Side, SideRequest } from '@extension/review-wasm';
+import type {
+  CompareRequest,
+  DiffPayload,
+  DiffShown,
+  FileRequest,
+  Side,
+  SideRequest,
+  ViewMode,
+} from '@extension/review-wasm';
 
 export type { KeyChord };
 export { chordOf, isMac, sameChord } from './keys';
@@ -39,7 +49,12 @@ export type ToViewer =
   | { type: 'viewer/set-editable'; side: Side; editable: boolean; focus: boolean }
   | { type: 'viewer/focus'; side: Side }
   | { type: 'viewer/read'; id: number; side: Side }
-  | { type: 'viewer/keys'; keys: KeyChord[] };
+  | { type: 'viewer/keys'; keys: KeyChord[] }
+  | { type: 'viewer/show-diff'; id: number; payload: DiffPayload }
+  | { type: 'viewer/show-file'; id: number; request: FileRequest }
+  | { type: 'viewer/set-mode'; id: number; mode: ViewMode }
+  | { type: 'viewer/reveal-line'; line: number; column?: number }
+  | { type: 'viewer/reveal-hunk'; index: number };
 
 /** Editor page → main page. `id` is the request's; an error without one is the editor's own (it could not start). */
 export type FromViewer =
@@ -65,6 +80,7 @@ export type GrammarNote =
 const isObject = (data: unknown): data is Record<string, unknown> => typeof data === 'object' && data !== null;
 const isSide = (value: unknown): value is Side => value === 'old' || value === 'new';
 const isId = (value: unknown): value is number => typeof value === 'number';
+const isIndex = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 0;
 const isChord = (value: unknown): value is KeyChord =>
   isObject(value) &&
   typeof value.key === 'string' &&
@@ -99,6 +115,28 @@ export const isToViewer = (data: unknown): data is ToViewer => {
       return isId(data.id) && isSide(data.side);
     case 'viewer/keys':
       return Array.isArray(data.keys) && data.keys.every(isChord);
+    case 'viewer/show-diff':
+      return (
+        isId(data.id) &&
+        isObject(data.payload) &&
+        typeof data.payload.oldText === 'string' &&
+        typeof data.payload.newText === 'string' &&
+        Array.isArray(data.payload.hunks)
+      );
+    case 'viewer/show-file':
+      return (
+        isId(data.id) &&
+        isObject(data.request) &&
+        typeof data.request.path === 'string' &&
+        typeof data.request.text === 'string' &&
+        typeof data.request.readOnly === 'boolean'
+      );
+    case 'viewer/set-mode':
+      return isId(data.id) && (data.mode === 'file' || data.mode === 'diff');
+    case 'viewer/reveal-line':
+      return isIndex(data.line) && (data.column === undefined || isIndex(data.column));
+    case 'viewer/reveal-hunk':
+      return isIndex(data.index);
     default:
       return false;
   }

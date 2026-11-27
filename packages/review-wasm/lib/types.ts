@@ -1,7 +1,8 @@
 /**
- * The editor module's data contract (crates/review-wasm/src/lib.rs over crates/review-view). Two routes into the
+ * The editor module's data contract (crates/review-wasm/src/lib.rs over crates/review-view). Three routes into the
  * view: `compare_texts` takes two texts and the module compares them (the comparison lives in Rust, D13);
- * `show_diff` takes hunks computed elsewhere — openidea-server's `vcs_line_hunks` in live review (D8).
+ * `show_diff` takes hunks computed elsewhere — the companion's in the Projects section (D8, D29); `show_file` shows one
+ * file alone, read-only or editable (`set_mode` switches between it and the diff of its edits).
  */
 
 export type HunkKind = 'added' | 'modified' | 'deleted';
@@ -60,6 +61,19 @@ export interface DiffPayload extends Texts {
   diagnostics?: DiagnosticPayload[];
 }
 
+/** `show_file(request_json)`: one file alone — the new side, editable unless `readOnly`. */
+export interface FileRequest {
+  /** What the editor's status line names. */
+  path: string;
+  /** A highlighter name; empty or `text` = no highlighting. */
+  language: string;
+  text: string;
+  readOnly: boolean;
+}
+
+/** How the view lays its texts out: `file` — the new side alone; `diff` — both sides compared. */
+export type ViewMode = 'file' | 'diff';
+
 /** A side of the view: `old` — the original, on the left; `new` — the changed text, on the right. */
 export type Side = 'old' | 'new';
 
@@ -98,6 +112,8 @@ export interface DiffShown {
   /** `request`: a call of the page; `edit`: the user's edit, compared once the typing paused. */
   cause: 'request' | 'edit';
   sides: Record<Side, SideShown>;
+  /** How the texts are laid out now. */
+  mode: ViewMode;
 }
 
 /** `run(options_json)`. */
@@ -134,6 +150,10 @@ export interface ReviewModule {
   mark_saved: (side: Side, text: string) => void;
   focused_side: () => string | undefined;
   focus_side: (side: Side) => void;
+  show_file: (requestJson: string) => void;
+  set_mode: (mode: ViewMode) => void;
+  reveal_line: (line: number, column?: number | null) => void;
+  reveal_hunk: (index: number) => void;
 }
 
 /**
