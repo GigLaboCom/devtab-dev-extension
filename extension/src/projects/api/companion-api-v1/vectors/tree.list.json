@@ -1,0 +1,322 @@
+[
+  {
+    "request": {
+      "id": 7,
+      "method": "tree.list",
+      "params": {
+        "path": "",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 7,
+      "result": {
+        "entries": [
+          {
+            "hidden": false,
+            "ignored": true,
+            "kind": "dir",
+            "link": null,
+            "mtimeMs": 0,
+            "name": "build",
+            "path": "build",
+            "protected": false,
+            "secret": false,
+            "size": 0
+          },
+          {
+            "hidden": false,
+            "ignored": false,
+            "kind": "dir",
+            "link": null,
+            "mtimeMs": 0,
+            "name": "docs",
+            "path": "docs",
+            "protected": false,
+            "secret": false,
+            "size": 0
+          },
+          {
+            "hidden": false,
+            "ignored": false,
+            "kind": "dir",
+            "link": null,
+            "mtimeMs": 0,
+            "name": "keys",
+            "path": "keys",
+            "protected": false,
+            "secret": false,
+            "size": 0
+          },
+          {
+            "hidden": false,
+            "ignored": false,
+            "kind": "dir",
+            "link": null,
+            "mtimeMs": 0,
+            "name": "src",
+            "path": "src",
+            "protected": false,
+            "secret": false,
+            "size": 0
+          },
+          {
+            "hidden": true,
+            "ignored": true,
+            "kind": "file",
+            "link": null,
+            "mtimeMs": 0,
+            "name": ".env",
+            "path": ".env",
+            "protected": false,
+            "secret": true,
+            "size": 32
+          },
+          {
+            "hidden": true,
+            "ignored": false,
+            "kind": "file",
+            "link": null,
+            "mtimeMs": 0,
+            "name": ".gitignore",
+            "path": ".gitignore",
+            "protected": false,
+            "secret": false,
+            "size": 12
+          },
+          {
+            "hidden": false,
+            "ignored": false,
+            "kind": "file",
+            "link": null,
+            "mtimeMs": 0,
+            "name": "big.txt",
+            "path": "big.txt",
+            "protected": false,
+            "secret": false,
+            "size": 6291456
+          },
+          {
+            "hidden": false,
+            "ignored": false,
+            "kind": "file",
+            "link": null,
+            "mtimeMs": 0,
+            "name": "bom.txt",
+            "path": "bom.txt",
+            "protected": false,
+            "secret": false,
+            "size": 26
+          },
+          {
+            "hidden": false,
+            "ignored": false,
+            "kind": "file",
+            "link": null,
+            "mtimeMs": 0,
+            "name": "crlf.txt",
+            "path": "crlf.txt",
+            "protected": false,
+            "secret": false,
+            "size": 22
+          },
+          {
+            "hidden": false,
+            "ignored": false,
+            "kind": "file",
+            "link": null,
+            "mtimeMs": 0,
+            "name": "image.bin",
+            "path": "image.bin",
+            "protected": false,
+            "secret": false,
+            "size": 15
+          },
+          {
+            "hidden": false,
+            "ignored": false,
+            "kind": "file",
+            "link": null,
+            "mtimeMs": 0,
+            "name": "latin1.txt",
+            "path": "latin1.txt",
+            "protected": false,
+            "secret": false,
+            "size": 13
+          },
+          {
+            "hidden": false,
+            "ignored": false,
+            "kind": "symlink",
+            "link": "outside",
+            "mtimeMs": 0,
+            "name": "link-git",
+            "path": "link-git",
+            "protected": false,
+            "secret": false,
+            "size": 137
+          },
+          {
+            "hidden": false,
+            "ignored": false,
+            "kind": "symlink",
+            "link": "inside",
+            "mtimeMs": 0,
+            "name": "link-in",
+            "path": "link-in",
+            "protected": false,
+            "secret": false,
+            "size": 611
+          },
+          {
+            "hidden": false,
+            "ignored": false,
+            "kind": "symlink",
+            "link": "outside",
+            "mtimeMs": 0,
+            "name": "link-out",
+            "path": "link-out",
+            "protected": false,
+            "secret": false,
+            "size": 33
+          }
+        ],
+        "skippedNames": 0,
+        "truncated": false
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 8,
+      "method": "tree.list",
+      "params": {
+        "path": "docs",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 8,
+      "result": {
+        "entries": [
+          {
+            "hidden": false,
+            "ignored": false,
+            "kind": "file",
+            "link": null,
+            "mtimeMs": 0,
+            "name": "readme.md",
+            "path": "docs/readme.md",
+            "protected": false,
+            "secret": false,
+            "size": 26
+          }
+        ],
+        "skippedNames": 0,
+        "truncated": false
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 9,
+      "method": "tree.list",
+      "params": {
+        "path": "../outside",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "invalid-path",
+        "message": "the path has an empty, . or .. segment"
+      },
+      "id": 9,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 10,
+      "method": "tree.list",
+      "params": {
+        "path": ".GIT",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "protected-path",
+        "data": {
+          "rule": "git-dir"
+        },
+        "message": "the .git folder is never read or listed"
+      },
+      "id": 10,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 11,
+      "method": "tree.list",
+      "params": {
+        "path": "link-out",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "outside-project",
+        "message": "the path leads out of the project"
+      },
+      "id": 11,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 12,
+      "method": "tree.list",
+      "params": {
+        "path": "no/such/folder",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "not-found",
+        "message": "no such file or folder in the project"
+      },
+      "id": 12,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 13,
+      "method": "tree.list",
+      "params": {
+        "path": "",
+        "project": "p_zzzzzzzzzz"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "not-found",
+        "message": "no such project"
+      },
+      "id": 13,
+      "type": "error"
+    }
+  }
+]

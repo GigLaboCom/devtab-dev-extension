@@ -1,0 +1,138 @@
+{
+  "method": "history.project",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`history.project` parameters.",
+    "properties": {
+      "cursor": {
+        "default": null,
+        "description": "`next` of the previous page.",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "limit": {
+        "default": null,
+        "description": "At most 500; 500 when absent.",
+        "format": "uint32",
+        "minimum": 0,
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "project": {
+        "type": "string"
+      },
+      "since": {
+        "default": null,
+        "description": "Only points at or after this time (ms since the epoch).",
+        "format": "uint64",
+        "minimum": 0,
+        "type": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "project"
+    ],
+    "title": "HistoryProjectParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "PointSource": {
+        "oneOf": [
+          {
+            "const": "server",
+            "description": "The server's local history.",
+            "type": "string"
+          },
+          {
+            "const": "companion",
+            "description": "The companion's own snapshots (from a later stage).",
+            "type": "string"
+          },
+          {
+            "const": "commit",
+            "description": "A commit that changed the file.",
+            "type": "string"
+          }
+        ]
+      },
+      "ProjectPoint": {
+        "additionalProperties": false,
+        "description": "One point of `history.project`.",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "point": {
+            "type": "string"
+          },
+          "size": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/$defs/PointSource"
+          },
+          "timeMs": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "point",
+          "path",
+          "label",
+          "source",
+          "size",
+          "timeMs"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`history.project`.",
+    "properties": {
+      "deleted": {
+        "description": "Files with history that no longer exist (empty until the companion keeps its own record of them).",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "next": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "points": {
+        "items": {
+          "$ref": "#/$defs/ProjectPoint"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "points",
+      "deleted"
+    ],
+    "title": "HistoryProject",
+    "type": "object"
+  },
+  "scope": "project",
+  "summary": "The history points of the whole project, page by page."
+}

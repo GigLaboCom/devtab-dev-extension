@@ -1,0 +1,40 @@
+[
+  {
+    "request": {
+      "api": [
+        1
+      ],
+      "extension": "1.4.0",
+      "type": "hello"
+    },
+    "response": {
+      "api": 1,
+      "companion": "0.1.0",
+      "limits": {
+        "maxRequestBytes": 8388608,
+        "maxTextBytes": 5242880
+      },
+      "methods": [
+        "companion.state",
+        "projects.list",
+        "project.state",
+        "events.subscribe",
+        "events.unsubscribe",
+        "tree.list",
+        "file.read",
+        "files.find",
+        "search.start",
+        "git.status",
+        "git.identity",
+        "diff.sides",
+        "git.hunks",
+        "history.file",
+        "history.project",
+        "history.content"
+      ],
+      "platform": "macos",
+      "server": "0.1.44",
+      "type": "welcome"
+    }
+  }
+]

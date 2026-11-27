@@ -1,0 +1,109 @@
+{
+  "method": "git.hunks",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Parameters naming a path in a project.",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "path"
+    ],
+    "title": "PathParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "IndexedHunk": {
+        "additionalProperties": false,
+        "description": "One hunk of `git.hunks`, HEAD → disk.",
+        "properties": {
+          "index": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "lines": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "oldLines": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "oldStart": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "index",
+          "oldStart",
+          "oldLines",
+          "start",
+          "lines"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`git.hunks`.",
+    "properties": {
+      "chunkable": {
+        "description": "Whether hunks can be selected one by one.",
+        "type": "boolean"
+      },
+      "diskHash": {
+        "description": "SHA-256 (hex) of the text on disk; null when the file is gone.",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "headHash": {
+        "description": "SHA-256 (hex) of HEAD's text; null when the file is not in HEAD.",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "hunks": {
+        "items": {
+          "$ref": "#/$defs/IndexedHunk"
+        },
+        "type": "array"
+      },
+      "reason": {
+        "description": "Why not, when `chunkable` is false: `binary`, `not-utf8`, `conflicted`, `renamed`, `deleted`.",
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "hunks",
+      "chunkable"
+    ],
+    "title": "GitHunks",
+    "type": "object"
+  },
+  "scope": "project",
+  "summary": "The hunks of a file, HEAD against the disk."
+}

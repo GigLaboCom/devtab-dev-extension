@@ -1,0 +1,25 @@
+[
+  {
+    "request": {
+      "id": 35,
+      "method": "file.save",
+      "params": {
+        "path": "x.txt",
+        "project": "p_abcdefgh23",
+        "text": "y"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "unknown-method",
+        "data": {
+          "method": "file.save"
+        },
+        "message": "this companion does not offer that method"
+      },
+      "id": 35,
+      "type": "error"
+    }
+  }
+]

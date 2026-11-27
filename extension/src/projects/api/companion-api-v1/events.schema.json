@@ -1,0 +1,113 @@
+{
+  "files.changed": {
+    "data": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "`files.changed`: files created, changed or removed on disk.",
+      "properties": {
+        "more": {
+          "description": "More paths changed than listed.",
+          "type": "boolean"
+        },
+        "paths": {
+          "description": "At most 500 paths.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "paths",
+        "more"
+      ],
+      "title": "FilesChanged",
+      "type": "object"
+    },
+    "summary": "Files created, changed or removed on disk (a batch; paths relative to the root)."
+  },
+  "git.changed": {
+    "data": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "`git.changed`: something under `.git` changed (branch, index, commits). No data.",
+      "title": "GitChanged",
+      "type": "object"
+    },
+    "summary": "Something under .git changed: branch, index, commits."
+  },
+  "project.changed": {
+    "data": {
+      "$defs": {
+        "ProjectClass": {
+          "oneOf": [
+            {
+              "const": "view",
+              "description": "Read-only.",
+              "type": "string"
+            },
+            {
+              "const": "mine",
+              "description": "Writable (from a later stage of the companion).",
+              "type": "string"
+            }
+          ]
+        },
+        "ProjectRunState": {
+          "oneOf": [
+            {
+              "enum": [
+                "open",
+                "error"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "missing",
+              "description": "The folder is gone or moved.",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "`project.changed`: the project's class or state changed.",
+      "properties": {
+        "class": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProjectClass"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProjectRunState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "title": "ProjectChanged",
+      "type": "object"
+    },
+    "summary": "The project's class or state changed (for example, its folder went missing)."
+  },
+  "server.restarted": {
+    "data": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "`server.restarted`: a new server process is ready; read again what is shown. No data.",
+      "title": "ServerRestarted",
+      "type": "object"
+    },
+    "summary": "A new server process is ready (sent to every connection); read again what is shown."
+  }
+}

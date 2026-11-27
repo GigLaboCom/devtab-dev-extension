@@ -1,0 +1,43 @@
+{
+  "method": "history.content",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`history.content` parameters.",
+    "properties": {
+      "point": {
+        "type": "string"
+      },
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "point"
+    ],
+    "title": "PointParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`history.content`.",
+    "properties": {
+      "secret": {
+        "type": "boolean"
+      },
+      "text": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "text",
+      "secret"
+    ],
+    "title": "HistoryContent",
+    "type": "object"
+  },
+  "scope": "project",
+  "summary": "The text of one history point."
+}

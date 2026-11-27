@@ -1,0 +1,86 @@
+[
+  {
+    "request": {
+      "id": 24,
+      "method": "git.status",
+      "params": {
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 24,
+      "result": {
+        "branch": "main",
+        "files": [
+          {
+            "change": "untracked",
+            "diskHash": null,
+            "group": "unversioned",
+            "path": "big.txt",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "modified",
+            "diskHash": "97386c425988e923536e35bdcf9b929f2a25d41ace71dc81391b49d5906d9150",
+            "group": "changes",
+            "path": "docs/readme.md",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "deleted",
+            "diskHash": null,
+            "group": "changes",
+            "path": "gone.txt",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "untracked",
+            "diskHash": null,
+            "group": "unversioned",
+            "path": "link-git",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "untracked",
+            "diskHash": null,
+            "group": "unversioned",
+            "path": "link-in",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "untracked",
+            "diskHash": null,
+            "group": "unversioned",
+            "path": "link-out",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "modified",
+            "diskHash": "36a8c5242c933bf17bfe0e6367ba66cb5a1a0348a23b12d89abdacb0e99ef69e",
+            "group": "changes",
+            "path": "src/app.txt",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "untracked",
+            "diskHash": "0103cc5bcf1407cdb47ea1261afdca6c9bafa635c35605310930e595e5958335",
+            "group": "unversioned",
+            "path": "src/new.txt",
+            "renamedFrom": null,
+            "stagedOutside": false
+          }
+        ],
+        "headSha": "a5c8a8f38f555426b8634a56dac2a7423e9f3902"
+      },
+      "type": "result"
+    }
+  }
+]

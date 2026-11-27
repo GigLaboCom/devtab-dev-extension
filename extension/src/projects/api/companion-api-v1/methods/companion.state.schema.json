@@ -1,0 +1,113 @@
+{
+  "method": "companion.state",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "No parameters.",
+    "title": "NoParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "EnvState": {
+        "additionalProperties": false,
+        "description": "The captured environment for git hooks (captured from stage 4 on; empty here).",
+        "properties": {
+          "capturedAt": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "path": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "ServerRunState": {
+        "oneOf": [
+          {
+            "enum": [
+              "running",
+              "restarting"
+            ],
+            "type": "string"
+          },
+          {
+            "const": "refused",
+            "description": "The server binary does not match its pin or broke an invariant; it is not run.",
+            "type": "string"
+          }
+        ]
+      },
+      "ServerState": {
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "$ref": "#/$defs/ServerRunState"
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`companion.state`.",
+    "properties": {
+      "companion": {
+        "type": "string"
+      },
+      "deletePolicy": {
+        "description": "How deletions from the browser happen; the only value is `trash`.",
+        "type": "string"
+      },
+      "env": {
+        "$ref": "#/$defs/EnvState"
+      },
+      "paused": {
+        "description": "Whether writing is paused (always false: this companion does not write).",
+        "type": "boolean"
+      },
+      "problems": {
+        "description": "Problems the person should know about, as short English sentences; `devtab doctor` explains each.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "server": {
+        "$ref": "#/$defs/ServerState"
+      }
+    },
+    "required": [
+      "companion",
+      "server",
+      "env",
+      "paused",
+      "problems",
+      "deletePolicy"
+    ],
+    "title": "CompanionState",
+    "type": "object"
+  },
+  "scope": "companion",
+  "summary": "The companion's state: versions, server state, problems."
+}

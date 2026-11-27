@@ -1,0 +1,31 @@
+[
+  {
+    "request": {
+      "id": 34,
+      "method": "history.project",
+      "params": {
+        "limit": 10,
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 34,
+      "result": {
+        "deleted": [],
+        "next": null,
+        "points": [
+          {
+            "label": "External change",
+            "path": "docs/readme.md",
+            "point": "s:<ID>@0:646f63732f726561646d652e6d64",
+            "size": 26,
+            "source": "server",
+            "timeMs": 0
+          }
+        ]
+      },
+      "type": "result"
+    }
+  }
+]

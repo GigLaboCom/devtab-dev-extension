@@ -1,0 +1,27 @@
+[
+  {
+    "request": {
+      "id": 3,
+      "method": "projects.list",
+      "params": {},
+      "type": "call"
+    },
+    "response": {
+      "id": 3,
+      "result": [
+        {
+          "branch": "main",
+          "class": "view",
+          "displayPath": "~/fx/repo",
+          "id": "p_abcdefgh23",
+          "location": null,
+          "locationName": null,
+          "name": "repo",
+          "state": "open",
+          "via": "terminal"
+        }
+      ],
+      "type": "result"
+    }
+  }
+]

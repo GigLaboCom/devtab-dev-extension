@@ -1,0 +1,62 @@
+[
+  {
+    "request": {
+      "id": 32,
+      "method": "history.file",
+      "params": {
+        "path": "docs/readme.md",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 32,
+      "result": {
+        "gaps": [],
+        "points": [
+          {
+            "label": "External change",
+            "point": "s:<ID>@0:646f63732f726561646d652e6d64",
+            "size": 26,
+            "source": "server",
+            "timeMs": 0
+          },
+          {
+            "label": "Second commit",
+            "point": "g:a5c8a8f38f555426b8634a56dac2a7423e9f3902@1767312000000:646f63732f726561646d652e6d64",
+            "size": 0,
+            "source": "commit",
+            "timeMs": 1767312000000
+          },
+          {
+            "label": "First commit",
+            "point": "g:0c7a861fca255928ca618426f5393578e9d2d984@1767225600000:646f63732f726561646d652e6d64",
+            "size": 0,
+            "source": "commit",
+            "timeMs": 1767225600000
+          }
+        ]
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 33,
+      "method": "history.file",
+      "params": {
+        "path": "link-in",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "not-found",
+        "message": "no such file or folder in the project"
+      },
+      "id": 33,
+      "type": "error"
+    }
+  }
+]

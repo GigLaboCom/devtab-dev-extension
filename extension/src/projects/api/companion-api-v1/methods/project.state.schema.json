@@ -1,0 +1,139 @@
+{
+  "method": "project.state",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Parameters naming a project.",
+    "properties": {
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project"
+    ],
+    "title": "ProjectParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "Gap": {
+        "additionalProperties": false,
+        "description": "A stretch of time without history.",
+        "properties": {
+          "from": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "to": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
+      "ProjectClass": {
+        "oneOf": [
+          {
+            "const": "view",
+            "description": "Read-only.",
+            "type": "string"
+          },
+          {
+            "const": "mine",
+            "description": "Writable (from a later stage of the companion).",
+            "type": "string"
+          }
+        ]
+      },
+      "Via": {
+        "description": "How the project got its class.",
+        "enum": [
+          "terminal",
+          "dialog",
+          "location"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`project.state`.",
+    "properties": {
+      "ahead": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "behind": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "branch": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "class": {
+        "$ref": "#/$defs/ProjectClass"
+      },
+      "detached": {
+        "type": "boolean"
+      },
+      "historyGaps": {
+        "items": {
+          "$ref": "#/$defs/Gap"
+        },
+        "type": "array"
+      },
+      "hooks": {
+        "description": "Hooks present in the repository's hook folder (`pre-commit`, `commit-msg`, …).",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "hooksPath": {
+        "description": "Whether the repository sets `core.hooksPath`.",
+        "type": "boolean"
+      },
+      "location": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "upstream": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "via": {
+        "$ref": "#/$defs/Via"
+      }
+    },
+    "required": [
+      "class",
+      "via",
+      "ahead",
+      "behind",
+      "detached",
+      "hooks",
+      "hooksPath",
+      "historyGaps"
+    ],
+    "title": "ProjectStateResult",
+    "type": "object"
+  },
+  "scope": "project",
+  "summary": "One project: class, branch, upstream, hooks."
+}

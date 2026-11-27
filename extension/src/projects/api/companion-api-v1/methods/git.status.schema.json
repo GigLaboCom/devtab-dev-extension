@@ -1,0 +1,109 @@
+{
+  "method": "git.status",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Parameters naming a project.",
+    "properties": {
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project"
+    ],
+    "title": "ProjectParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "Change": {
+        "enum": [
+          "modified",
+          "added",
+          "deleted",
+          "renamed",
+          "conflicted",
+          "untracked"
+        ],
+        "type": "string"
+      },
+      "StatusFile": {
+        "additionalProperties": false,
+        "description": "One changed file of `git.status`.",
+        "properties": {
+          "change": {
+            "$ref": "#/$defs/Change"
+          },
+          "diskHash": {
+            "description": "SHA-256 (hex) of the file's bytes on disk; null when deleted, not a regular file or above the text limit.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "group": {
+            "$ref": "#/$defs/StatusGroup"
+          },
+          "path": {
+            "type": "string"
+          },
+          "renamedFrom": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stagedOutside": {
+            "description": "The index holds a version of this file other than HEAD's (staged from a terminal).",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "group",
+          "change",
+          "stagedOutside"
+        ],
+        "type": "object"
+      },
+      "StatusGroup": {
+        "enum": [
+          "changes",
+          "unversioned"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`git.status`.",
+    "properties": {
+      "branch": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "files": {
+        "items": {
+          "$ref": "#/$defs/StatusFile"
+        },
+        "type": "array"
+      },
+      "headSha": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "files"
+    ],
+    "title": "GitStatus",
+    "type": "object"
+  },
+  "scope": "project",
+  "summary": "Changed and unversioned files, grouped as in a commit window."
+}

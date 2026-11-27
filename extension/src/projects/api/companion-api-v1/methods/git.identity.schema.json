@@ -1,0 +1,67 @@
+{
+  "method": "git.identity",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Parameters naming a project.",
+    "properties": {
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project"
+    ],
+    "title": "ProjectParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "Signing": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "format": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`git.identity`: only `user.name`, `user.email`, `commit.gpgsign` and `gpg.format` are read.",
+    "properties": {
+      "email": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "name": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "signing": {
+        "$ref": "#/$defs/Signing"
+      }
+    },
+    "required": [
+      "signing"
+    ],
+    "title": "GitIdentity",
+    "type": "object"
+  },
+  "scope": "project",
+  "summary": "git's user name and email and whether commits are signed."
+}

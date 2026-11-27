@@ -25,3 +25,5 @@ packages/theme/gpui-themes
 packages/dna/showcase/dist
 # the official JSON-Schema-Test-Suite as published (the JSON Schema tool's tests read its literals as written)
 packages/tools/logic/json-schema/test-suite
+# the companion's contract, copied byte for byte (scripts/contract-sync.mjs; SOURCES.sha256 holds its checksums)
+extension/src/projects/api/companion-api-v1

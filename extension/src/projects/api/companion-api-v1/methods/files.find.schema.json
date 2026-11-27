@@ -1,0 +1,76 @@
+{
+  "method": "files.find",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`files.find` parameters.",
+    "properties": {
+      "limit": {
+        "default": null,
+        "description": "At most 100; 100 when absent.",
+        "format": "uint32",
+        "minimum": 0,
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "project": {
+        "type": "string"
+      },
+      "query": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "query"
+    ],
+    "title": "FindParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "FoundFile": {
+        "additionalProperties": false,
+        "description": "One result of `files.find`.",
+        "properties": {
+          "ignored": {
+            "type": "boolean"
+          },
+          "indices": {
+            "description": "Matched character indices in `path`.",
+            "items": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "path": {
+            "type": "string"
+          },
+          "score": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "path",
+          "score",
+          "indices",
+          "ignored"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "items": {
+      "$ref": "#/$defs/FoundFile"
+    },
+    "title": "Array_of_FoundFile",
+    "type": "array"
+  },
+  "scope": "project",
+  "summary": "Files whose path matches a fuzzy query."
+}

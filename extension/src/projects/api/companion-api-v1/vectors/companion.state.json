@@ -1,0 +1,28 @@
+[
+  {
+    "request": {
+      "id": 2,
+      "method": "companion.state",
+      "params": {},
+      "type": "call"
+    },
+    "response": {
+      "id": 2,
+      "result": {
+        "companion": "0.1.0",
+        "deletePolicy": "trash",
+        "env": {
+          "capturedAt": null,
+          "path": []
+        },
+        "paused": false,
+        "problems": [],
+        "server": {
+          "state": "running",
+          "version": "0.1.44"
+        }
+      },
+      "type": "result"
+    }
+  }
+]

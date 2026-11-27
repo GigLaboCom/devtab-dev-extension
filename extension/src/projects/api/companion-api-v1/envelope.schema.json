@@ -1,0 +1,552 @@
+{
+  "client": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "A frame from the extension.",
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "description": "The first frame of every connection: the extension's version and the API versions it speaks.",
+        "properties": {
+          "api": {
+            "items": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "extension": {
+            "type": "string"
+          },
+          "type": {
+            "const": "hello",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "extension",
+          "api"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "A method call; `id` is chosen by the extension and echoed in the answer.",
+        "properties": {
+          "id": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "method": {
+            "type": "string"
+          },
+          "params": {
+            "default": null
+          },
+          "type": {
+            "const": "call",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "method"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "Cancels a running call (`search.start`); the call ends with `error {code: \"cancelled\"}`.",
+        "properties": {
+          "id": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": {
+            "const": "cancel",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "ClientFrame"
+  },
+  "server": {
+    "$defs": {
+      "AnnouncedLimits": {
+        "additionalProperties": false,
+        "description": "The limits `welcome` reports.",
+        "properties": {
+          "maxRequestBytes": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxTextBytes": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "maxRequestBytes",
+          "maxTextBytes"
+        ],
+        "type": "object"
+      },
+      "ErrorBody": {
+        "additionalProperties": false,
+        "description": "The body of an `error` frame.",
+        "properties": {
+          "code": {
+            "$ref": "#/$defs/ErrorCode"
+          },
+          "data": true,
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
+      "ErrorCode": {
+        "description": "Every error code of API version 1.",
+        "oneOf": [
+          {
+            "const": "invalid-params",
+            "description": "The request does not match the method's schema: an unknown field, a wrong type, a frame above the limit.",
+            "type": "string"
+          },
+          {
+            "const": "unknown-method",
+            "description": "The method is not one this companion knows or offers; `welcome.methods` lists those it offers.",
+            "type": "string"
+          },
+          {
+            "const": "invalid-path",
+            "description": "The path breaks the path rules: absolute, `.`/`..`/empty segments, `\\`, NUL or control characters, too long.",
+            "type": "string"
+          },
+          {
+            "const": "not-found",
+            "description": "No such project, file or history point.",
+            "type": "string"
+          },
+          {
+            "const": "outside-project",
+            "description": "After canonicalisation the path lies outside the project root (a symlink leading out).",
+            "type": "string"
+          },
+          {
+            "const": "protected-path",
+            "description": "The path is in a protected place: any segment that folds to `.git` is never read, shown or written.",
+            "type": "string"
+          },
+          {
+            "const": "secret-file",
+            "description": "A write to a secret file (secrets are readable, never written from the browser).",
+            "type": "string"
+          },
+          {
+            "const": "not-mine",
+            "description": "A method that needs a writable (\"mine\") project, called in a view project.",
+            "type": "string"
+          },
+          {
+            "const": "paused",
+            "description": "A write while writing is paused.",
+            "type": "string"
+          },
+          {
+            "const": "binary",
+            "description": "The file is binary: not read, not edited.",
+            "type": "string"
+          },
+          {
+            "const": "too-large",
+            "description": "The text is above `limits.maxTextBytes`.",
+            "type": "string"
+          },
+          {
+            "const": "too-many-files",
+            "description": "A folder with too many files for the operation.",
+            "type": "string"
+          },
+          {
+            "const": "conflict",
+            "description": "The file changed since `baseHash`.",
+            "type": "string"
+          },
+          {
+            "const": "exists",
+            "description": "Create or rename over an existing file.",
+            "type": "string"
+          },
+          {
+            "const": "stale-selection",
+            "description": "HEAD or files on disk changed since they were shown.",
+            "type": "string"
+          },
+          {
+            "const": "hunks-unsupported",
+            "description": "Hunks of a binary, non-UTF-8 or conflicted file or a submodule.",
+            "type": "string"
+          },
+          {
+            "const": "nothing-selected",
+            "description": "A commit with nothing selected.",
+            "type": "string"
+          },
+          {
+            "const": "identity-missing",
+            "description": "git has no `user.name` / `user.email`.",
+            "type": "string"
+          },
+          {
+            "const": "hook-failed",
+            "description": "A hook exited with a non-zero code.",
+            "type": "string"
+          },
+          {
+            "const": "hook-tool-missing",
+            "description": "A hook could not find a tool (code 127, \"command not found\").",
+            "type": "string"
+          },
+          {
+            "const": "hook-timeout",
+            "description": "A hook ran out of time and was stopped.",
+            "type": "string"
+          },
+          {
+            "const": "index-locked",
+            "description": "Someone else holds `.git/index.lock`.",
+            "type": "string"
+          },
+          {
+            "const": "signing-failed",
+            "description": "Signing the commit failed.",
+            "type": "string"
+          },
+          {
+            "const": "undo-unavailable",
+            "description": "The last commit cannot be undone.",
+            "type": "string"
+          },
+          {
+            "const": "push-rejected",
+            "description": "The remote branch has new commits (not a fast-forward).",
+            "type": "string"
+          },
+          {
+            "const": "push-remote-rejected",
+            "description": "The remote refused the push.",
+            "type": "string"
+          },
+          {
+            "const": "push-auth-failed",
+            "description": "No credentials for the remote.",
+            "type": "string"
+          },
+          {
+            "const": "push-needs-input",
+            "description": "git or ssh wanted to ask something in a terminal.",
+            "type": "string"
+          },
+          {
+            "const": "push-remote-ambiguous",
+            "description": "No remote can be chosen.",
+            "type": "string"
+          },
+          {
+            "const": "push-detached",
+            "description": "HEAD is detached.",
+            "type": "string"
+          },
+          {
+            "const": "push-timeout",
+            "description": "The push ran out of time.",
+            "type": "string"
+          },
+          {
+            "const": "push-network",
+            "description": "The network is unreachable.",
+            "type": "string"
+          },
+          {
+            "const": "confirmation-declined",
+            "description": "The person declined in the companion's window.",
+            "type": "string"
+          },
+          {
+            "const": "confirmation-unavailable",
+            "description": "No graphical session to show the companion's window.",
+            "type": "string"
+          },
+          {
+            "const": "confirmation-busy",
+            "description": "Another confirmation is already waiting.",
+            "type": "string"
+          },
+          {
+            "const": "rate-limited",
+            "description": "Too many calls; retry after the given time.",
+            "type": "string"
+          },
+          {
+            "const": "server-restarting",
+            "description": "The server is restarting; retry after the given time.",
+            "type": "string"
+          },
+          {
+            "const": "unsupported-version",
+            "description": "No API version in common (`hello`).",
+            "type": "string"
+          },
+          {
+            "const": "cancelled",
+            "description": "The call was cancelled by a `cancel` frame.",
+            "type": "string"
+          },
+          {
+            "const": "trash-unavailable",
+            "description": "The Trash is unavailable; nothing was deleted.",
+            "type": "string"
+          },
+          {
+            "const": "confirmation-required",
+            "description": "A commit or push waits for the companion's window.",
+            "type": "string"
+          },
+          {
+            "const": "disk-low",
+            "description": "Free disk space is below the floor; writes and snapshots are refused.",
+            "type": "string"
+          },
+          {
+            "const": "not-running",
+            "description": "The relay could not reach the supervisor; sent by the relay just before it exits.",
+            "type": "string"
+          },
+          {
+            "const": "peer-not-allowed",
+            "description": "The connection's peer is not allowed: a wrong origin at the relay, a process other than the relay on the browser socket, a sandboxed process, another user. Sent just before the connection closes.",
+            "type": "string"
+          },
+          {
+            "const": "too-many-connections",
+            "description": "The supervisor already has as many browser connections as it allows.",
+            "type": "string"
+          },
+          {
+            "const": "internal",
+            "description": "Anything else; details go to the supervisor's debug log only.",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "A frame from the supervisor (or, for `error` with code `not-running` / `peer-not-allowed`, from the relay).",
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "description": "The answer to `hello`.",
+        "properties": {
+          "api": {
+            "description": "The API version chosen: the highest both sides speak.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "companion": {
+            "description": "The companion's version.",
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/$defs/AnnouncedLimits"
+          },
+          "methods": {
+            "description": "The methods this companion offers; the extension hides what is missing.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "platform": {
+            "description": "Always `macos`.",
+            "type": "string"
+          },
+          "server": {
+            "description": "The version of the pinned server the companion runs.",
+            "type": "string"
+          },
+          "type": {
+            "const": "welcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "companion",
+          "api",
+          "server",
+          "platform",
+          "methods",
+          "limits"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "The result of a call.",
+        "properties": {
+          "id": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "result": true,
+          "type": {
+            "const": "result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "result"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "A failed call; `id` is null when the error is not about a call (handshake, connection).",
+        "properties": {
+          "error": {
+            "$ref": "#/$defs/ErrorBody"
+          },
+          "id": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "type": {
+            "const": "error",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "One part of a streaming method's answer; a `result` with the same `id` ends the stream.",
+        "properties": {
+          "data": true,
+          "id": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "seq": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": {
+            "const": "stream",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "seq",
+          "data"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "An event about a project the connection subscribed to, or about the companion (`project` null).",
+        "properties": {
+          "data": true,
+          "name": {
+            "type": "string"
+          },
+          "project": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "const": "event",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "name",
+          "data"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "One piece of a message longer than the frame limit: the message as a JSON string, cut at character\nboundaries; join `data` by `seq` until `last` and parse the joined string as a frame.",
+        "properties": {
+          "data": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "seq": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": {
+            "const": "chunk",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "seq",
+          "last",
+          "data"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "ServerFrame"
+  }
+}

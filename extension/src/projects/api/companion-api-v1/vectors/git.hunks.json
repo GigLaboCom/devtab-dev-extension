@@ -1,0 +1,68 @@
+[
+  {
+    "request": {
+      "id": 30,
+      "method": "git.hunks",
+      "params": {
+        "path": "src/app.txt",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 30,
+      "result": {
+        "chunkable": true,
+        "diskHash": "36a8c5242c933bf17bfe0e6367ba66cb5a1a0348a23b12d89abdacb0e99ef69e",
+        "headHash": "d36dadaf134395eda856c6c5ef8cf52663a2049abd7b922335eaae3a655a0820",
+        "hunks": [
+          {
+            "index": 0,
+            "lines": 1,
+            "oldLines": 1,
+            "oldStart": 2,
+            "start": 2
+          },
+          {
+            "index": 1,
+            "lines": 1,
+            "oldLines": 1,
+            "oldStart": 14,
+            "start": 14
+          },
+          {
+            "index": 2,
+            "lines": 1,
+            "oldLines": 0,
+            "oldStart": 30,
+            "start": 30
+          }
+        ],
+        "reason": null
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 31,
+      "method": "git.hunks",
+      "params": {
+        "path": "image.bin",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 31,
+      "result": {
+        "chunkable": false,
+        "diskHash": null,
+        "headHash": "ece9bbbd23fd7f0fc2f1b81f645cbbcc1cdbfcce54188ad89fe7523cca8e1dba",
+        "hunks": [],
+        "reason": "binary"
+      },
+      "type": "result"
+    }
+  }
+]

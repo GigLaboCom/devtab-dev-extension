@@ -1,0 +1,280 @@
+{
+  "errors": [
+    {
+      "code": "invalid-params",
+      "data": "{field}",
+      "description": "The request does not match the method's schema: an unknown field, a wrong type, a frame above the limit.",
+      "since": "read"
+    },
+    {
+      "code": "unknown-method",
+      "data": "{method}",
+      "description": "The method is not one this companion knows or offers; `welcome.methods` lists those it offers.",
+      "since": "read"
+    },
+    {
+      "code": "invalid-path",
+      "data": "—",
+      "description": "The path breaks the path rules: absolute, `.`/`..`/empty segments, `\\`, NUL or control characters, too long.",
+      "since": "read"
+    },
+    {
+      "code": "not-found",
+      "data": "—",
+      "description": "No such project, file or history point.",
+      "since": "read"
+    },
+    {
+      "code": "outside-project",
+      "data": "—",
+      "description": "After canonicalisation the path lies outside the project root (a symlink leading out).",
+      "since": "read"
+    },
+    {
+      "code": "protected-path",
+      "data": "{rule}",
+      "description": "The path is in a protected place: any segment that folds to `.git` is never read, shown or written.",
+      "since": "read"
+    },
+    {
+      "code": "secret-file",
+      "data": "—",
+      "description": "A write to a secret file (secrets are readable, never written from the browser).",
+      "since": "write"
+    },
+    {
+      "code": "not-mine",
+      "data": "—",
+      "description": "A method that needs a writable (\"mine\") project, called in a view project.",
+      "since": "write"
+    },
+    {
+      "code": "paused",
+      "data": "—",
+      "description": "A write while writing is paused.",
+      "since": "write"
+    },
+    {
+      "code": "binary",
+      "data": "{size}",
+      "description": "The file is binary: not read, not edited.",
+      "since": "read"
+    },
+    {
+      "code": "too-large",
+      "data": "{size, limit}",
+      "description": "The text is above `limits.maxTextBytes`.",
+      "since": "read"
+    },
+    {
+      "code": "too-many-files",
+      "data": "{size, limit}",
+      "description": "A folder with too many files for the operation.",
+      "since": "write"
+    },
+    {
+      "code": "conflict",
+      "data": "{currentHash}",
+      "description": "The file changed since `baseHash`.",
+      "since": "write"
+    },
+    {
+      "code": "exists",
+      "data": "—",
+      "description": "Create or rename over an existing file.",
+      "since": "write"
+    },
+    {
+      "code": "stale-selection",
+      "data": "{paths}",
+      "description": "HEAD or files on disk changed since they were shown.",
+      "since": "write"
+    },
+    {
+      "code": "hunks-unsupported",
+      "data": "{reason}",
+      "description": "Hunks of a binary, non-UTF-8 or conflicted file or a submodule.",
+      "since": "write"
+    },
+    {
+      "code": "nothing-selected",
+      "data": "—",
+      "description": "A commit with nothing selected.",
+      "since": "write"
+    },
+    {
+      "code": "identity-missing",
+      "data": "—",
+      "description": "git has no `user.name` / `user.email`.",
+      "since": "write"
+    },
+    {
+      "code": "hook-failed",
+      "data": "{hook, exitCode, output}",
+      "description": "A hook exited with a non-zero code.",
+      "since": "write"
+    },
+    {
+      "code": "hook-tool-missing",
+      "data": "{hook, tool, output, pathCapturedAt}",
+      "description": "A hook could not find a tool (code 127, \"command not found\").",
+      "since": "write"
+    },
+    {
+      "code": "hook-timeout",
+      "data": "{hook?, afterMs}",
+      "description": "A hook ran out of time and was stopped.",
+      "since": "write"
+    },
+    {
+      "code": "index-locked",
+      "data": "—",
+      "description": "Someone else holds `.git/index.lock`.",
+      "since": "write"
+    },
+    {
+      "code": "signing-failed",
+      "data": "{output}",
+      "description": "Signing the commit failed.",
+      "since": "write"
+    },
+    {
+      "code": "undo-unavailable",
+      "data": "{reason}",
+      "description": "The last commit cannot be undone.",
+      "since": "write"
+    },
+    {
+      "code": "push-rejected",
+      "data": "{remote, branch}",
+      "description": "The remote branch has new commits (not a fast-forward).",
+      "since": "write"
+    },
+    {
+      "code": "push-remote-rejected",
+      "data": "{output}",
+      "description": "The remote refused the push.",
+      "since": "write"
+    },
+    {
+      "code": "push-auth-failed",
+      "data": "{remote}",
+      "description": "No credentials for the remote.",
+      "since": "write"
+    },
+    {
+      "code": "push-needs-input",
+      "data": "{command}",
+      "description": "git or ssh wanted to ask something in a terminal.",
+      "since": "write"
+    },
+    {
+      "code": "push-remote-ambiguous",
+      "data": "{remotes?}",
+      "description": "No remote can be chosen.",
+      "since": "write"
+    },
+    {
+      "code": "push-detached",
+      "data": "—",
+      "description": "HEAD is detached.",
+      "since": "write"
+    },
+    {
+      "code": "push-timeout",
+      "data": "{afterMs?}",
+      "description": "The push ran out of time.",
+      "since": "write"
+    },
+    {
+      "code": "push-network",
+      "data": "—",
+      "description": "The network is unreachable.",
+      "since": "write"
+    },
+    {
+      "code": "confirmation-declined",
+      "data": "—",
+      "description": "The person declined in the companion's window.",
+      "since": "write"
+    },
+    {
+      "code": "confirmation-unavailable",
+      "data": "—",
+      "description": "No graphical session to show the companion's window.",
+      "since": "write"
+    },
+    {
+      "code": "confirmation-busy",
+      "data": "—",
+      "description": "Another confirmation is already waiting.",
+      "since": "write"
+    },
+    {
+      "code": "rate-limited",
+      "data": "{retryAfterMs}",
+      "description": "Too many calls; retry after the given time.",
+      "since": "read"
+    },
+    {
+      "code": "server-restarting",
+      "data": "{retryAfterMs}",
+      "description": "The server is restarting; retry after the given time.",
+      "since": "read"
+    },
+    {
+      "code": "unsupported-version",
+      "data": "{supported}",
+      "description": "No API version in common (`hello`).",
+      "since": "read"
+    },
+    {
+      "code": "cancelled",
+      "data": "—",
+      "description": "The call was cancelled by a `cancel` frame.",
+      "since": "read"
+    },
+    {
+      "code": "trash-unavailable",
+      "data": "—",
+      "description": "The Trash is unavailable; nothing was deleted.",
+      "since": "write"
+    },
+    {
+      "code": "confirmation-required",
+      "data": "{reason, files}",
+      "description": "A commit or push waits for the companion's window.",
+      "since": "write"
+    },
+    {
+      "code": "disk-low",
+      "data": "{freeBytes, floorBytes}",
+      "description": "Free disk space is below the floor; writes and snapshots are refused.",
+      "since": "write"
+    },
+    {
+      "code": "not-running",
+      "data": "—",
+      "description": "The relay could not reach the supervisor; sent by the relay just before it exits.",
+      "since": "read"
+    },
+    {
+      "code": "peer-not-allowed",
+      "data": "—",
+      "description": "The connection's peer is not allowed: a wrong origin at the relay, a process other than the relay on the browser socket, a sandboxed process, another user. Sent just before the connection closes.",
+      "since": "read"
+    },
+    {
+      "code": "too-many-connections",
+      "data": "{limit}",
+      "description": "The supervisor already has as many browser connections as it allows.",
+      "since": "read"
+    },
+    {
+      "code": "internal",
+      "data": "—",
+      "description": "Anything else; details go to the supervisor's debug log only.",
+      "since": "read"
+    }
+  ]
+}

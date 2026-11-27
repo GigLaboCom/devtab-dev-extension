@@ -1,0 +1,170 @@
+[
+  {
+    "request": {
+      "id": 14,
+      "method": "file.read",
+      "params": {
+        "path": "src/app.txt",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 14,
+      "result": {
+        "bom": false,
+        "encoding": "utf-8",
+        "hash": "36a8c5242c933bf17bfe0e6367ba66cb5a1a0348a23b12d89abdacb0e99ef69e",
+        "large": false,
+        "lineEnding": "lf",
+        "mtimeMs": 0,
+        "protected": false,
+        "secret": false,
+        "size": 611,
+        "text": "line 01 of the app\nline 02 of the app\nline 03 changed of the app\nline 04 of the app\nline 05 of the app\nline 06 of the app\nline 07 of the app\nline 08 of the app\nline 09 of the app\nline 10 of the app\nline 11 of the app\nline 12 of the app\nline 13 of the app\nline 14 of the app\nline 15 changed of the app\nline 16 of the app\nline 17 of the app\nline 18 of the app\nline 19 of the app\nline 20 of the app\nline 21 of the app\nline 22 of the app\nline 23 of the app\nline 24 of the app\nline 25 of the app\nline 26 of the app\nline 27 of the app\nline 28 of the app\nline 29 of the app\nline 30 of the app\nline 31 added at the end\n"
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 15,
+      "method": "file.read",
+      "params": {
+        "path": ".env",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 15,
+      "result": {
+        "bom": false,
+        "encoding": "utf-8",
+        "hash": "754f6a26ef1c0075ec4a8dc643ef734cc190ab1e7b950f425e3c804f4344edc4",
+        "large": false,
+        "lineEnding": "lf",
+        "mtimeMs": 0,
+        "protected": false,
+        "secret": true,
+        "size": 32,
+        "text": "API_TOKEN=dummy-value-for-tests\n"
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 16,
+      "method": "file.read",
+      "params": {
+        "path": "crlf.txt",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 16,
+      "result": {
+        "bom": false,
+        "encoding": "utf-8",
+        "hash": "f5c962601b413ccda2fc14d64d98479d9fc74c90c2dde15f25ee9922e57f5074",
+        "large": false,
+        "lineEnding": "crlf",
+        "mtimeMs": 0,
+        "protected": false,
+        "secret": false,
+        "size": 22,
+        "text": "first\nsecond\nthird\n"
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 17,
+      "method": "file.read",
+      "params": {
+        "path": "image.bin",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "binary",
+        "data": {
+          "size": 15
+        },
+        "message": "the file is binary"
+      },
+      "id": 17,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 18,
+      "method": "file.read",
+      "params": {
+        "path": "big.txt",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "too-large",
+        "data": {
+          "limit": 5242880,
+          "size": 6291456
+        },
+        "message": "the file is larger than the companion shows"
+      },
+      "id": 18,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 19,
+      "method": "file.read",
+      "params": {
+        "path": "/etc/hosts",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "invalid-path",
+        "message": "the path must be relative to the project root"
+      },
+      "id": 19,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 20,
+      "method": "file.read",
+      "params": {
+        "encoding": "latin1",
+        "path": "src/app.txt",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "invalid-params",
+        "data": {
+          "field": "encoding"
+        },
+        "message": "the parameters do not match the method's schema"
+      },
+      "id": 20,
+      "type": "error"
+    }
+  }
+]

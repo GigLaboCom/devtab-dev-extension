@@ -1,0 +1,30 @@
+[
+  {
+    "request": {
+      "id": 21,
+      "method": "files.find",
+      "params": {
+        "limit": 10,
+        "project": "p_abcdefgh23",
+        "query": "app"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 21,
+      "result": [
+        {
+          "ignored": false,
+          "indices": [
+            4,
+            5,
+            6
+          ],
+          "path": "src/app.txt",
+          "score": 1053040.0
+        }
+      ],
+      "type": "result"
+    }
+  }
+]

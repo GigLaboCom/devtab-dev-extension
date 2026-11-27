@@ -1,0 +1,34 @@
+{
+  "frames": [
+    {
+      "data": "{\"type\":\"result\",\"id\":7,\"result\":{\"text\":\"line \\\"one\\\"\\nété 中文 😀 tab\\there\\nl",
+      "id": 7,
+      "last": false,
+      "seq": 0,
+      "type": "chunk"
+    },
+    {
+      "data": "ine \\\"one\\\"\\nété 中文 😀 tab\\there\\nline \\\"one\\\"\\nété 中文 😀 tab\\there\\nline ",
+      "id": 7,
+      "last": false,
+      "seq": 1,
+      "type": "chunk"
+    },
+    {
+      "data": "\\\"one\\\"\\nété 中文 😀 tab\\there\\nline \\\"one\\\"\\nété 中文 😀 tab\\there\\nline \\\"",
+      "id": 7,
+      "last": false,
+      "seq": 2,
+      "type": "chunk"
+    },
+    {
+      "data": "one\\\"\\nété 中文 😀 tab\\there\\n\"}}",
+      "id": 7,
+      "last": true,
+      "seq": 3,
+      "type": "chunk"
+    }
+  ],
+  "maxFrameBytes": 160,
+  "message": "{\"type\":\"result\",\"id\":7,\"result\":{\"text\":\"line \\\"one\\\"\\nété 中文 😀 tab\\there\\nline \\\"one\\\"\\nété 中文 😀 tab\\there\\nline \\\"one\\\"\\nété 中文 😀 tab\\there\\nline \\\"one\\\"\\nété 中文 😀 tab\\there\\nline \\\"one\\\"\\nété 中文 😀 tab\\there\\nline \\\"one\\\"\\nété 中文 😀 tab\\there\\n\"}}"
+}

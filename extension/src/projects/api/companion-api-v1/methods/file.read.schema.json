@@ -1,0 +1,90 @@
+{
+  "method": "file.read",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Parameters naming a path in a project.",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "path"
+    ],
+    "title": "PathParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "LineEnding": {
+        "enum": [
+          "lf",
+          "crlf",
+          "mixed"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`file.read`.",
+    "properties": {
+      "bom": {
+        "type": "boolean"
+      },
+      "encoding": {
+        "type": "string"
+      },
+      "hash": {
+        "description": "SHA-256 (hex) of `text`.",
+        "type": "string"
+      },
+      "large": {
+        "type": "boolean"
+      },
+      "lineEnding": {
+        "$ref": "#/$defs/LineEnding"
+      },
+      "mtimeMs": {
+        "format": "double",
+        "type": "number"
+      },
+      "protected": {
+        "type": "boolean"
+      },
+      "secret": {
+        "type": "boolean"
+      },
+      "size": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "text": {
+        "description": "The text with `\\n` line ends.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "text",
+      "hash",
+      "size",
+      "mtimeMs",
+      "encoding",
+      "bom",
+      "lineEnding",
+      "large",
+      "secret",
+      "protected"
+    ],
+    "title": "FileText",
+    "type": "object"
+  },
+  "scope": "project",
+  "summary": "The text of a file (secrets too, flagged); binary and too large files are refused."
+}

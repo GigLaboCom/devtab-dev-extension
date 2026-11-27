@@ -1,0 +1,204 @@
+[
+  {
+    "request": {
+      "id": 26,
+      "method": "diff.sides",
+      "params": {
+        "base": "HEAD",
+        "path": "src/app.txt",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 26,
+      "result": {
+        "flags": {
+          "binary": false,
+          "conflicted": false,
+          "crlf": false,
+          "renamedFrom": null,
+          "utf8": true
+        },
+        "hunks": [
+          {
+            "lines": 1,
+            "oldLines": 1,
+            "oldStart": 2,
+            "start": 2
+          },
+          {
+            "lines": 1,
+            "oldLines": 1,
+            "oldStart": 14,
+            "start": 14
+          },
+          {
+            "lines": 1,
+            "oldLines": 0,
+            "oldStart": 30,
+            "start": 30
+          }
+        ],
+        "new": {
+          "exists": true,
+          "text": "line 01 of the app\nline 02 of the app\nline 03 changed of the app\nline 04 of the app\nline 05 of the app\nline 06 of the app\nline 07 of the app\nline 08 of the app\nline 09 of the app\nline 10 of the app\nline 11 of the app\nline 12 of the app\nline 13 of the app\nline 14 of the app\nline 15 changed of the app\nline 16 of the app\nline 17 of the app\nline 18 of the app\nline 19 of the app\nline 20 of the app\nline 21 of the app\nline 22 of the app\nline 23 of the app\nline 24 of the app\nline 25 of the app\nline 26 of the app\nline 27 of the app\nline 28 of the app\nline 29 of the app\nline 30 of the app\nline 31 added at the end\n"
+        },
+        "old": {
+          "exists": true,
+          "text": "line 01 of the app\nline 02 of the app\nline 03 of the app\nline 04 of the app\nline 05 of the app\nline 06 of the app\nline 07 of the app\nline 08 of the app\nline 09 of the app\nline 10 of the app\nline 11 of the app\nline 12 of the app\nline 13 of the app\nline 14 of the app\nline 15 of the app\nline 16 of the app\nline 17 of the app\nline 18 of the app\nline 19 of the app\nline 20 of the app\nline 21 of the app\nline 22 of the app\nline 23 of the app\nline 24 of the app\nline 25 of the app\nline 26 of the app\nline 27 of the app\nline 28 of the app\nline 29 of the app\nline 30 of the app\n"
+        }
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 27,
+      "method": "diff.sides",
+      "params": {
+        "base": "index",
+        "path": "src/app.txt",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 27,
+      "result": {
+        "flags": {
+          "binary": false,
+          "conflicted": false,
+          "crlf": false,
+          "renamedFrom": null,
+          "utf8": true
+        },
+        "hunks": [
+          {
+            "lines": 1,
+            "oldLines": 1,
+            "oldStart": 2,
+            "start": 2
+          },
+          {
+            "lines": 1,
+            "oldLines": 1,
+            "oldStart": 14,
+            "start": 14
+          },
+          {
+            "lines": 1,
+            "oldLines": 0,
+            "oldStart": 30,
+            "start": 30
+          }
+        ],
+        "new": {
+          "exists": true,
+          "text": "line 01 of the app\nline 02 of the app\nline 03 changed of the app\nline 04 of the app\nline 05 of the app\nline 06 of the app\nline 07 of the app\nline 08 of the app\nline 09 of the app\nline 10 of the app\nline 11 of the app\nline 12 of the app\nline 13 of the app\nline 14 of the app\nline 15 changed of the app\nline 16 of the app\nline 17 of the app\nline 18 of the app\nline 19 of the app\nline 20 of the app\nline 21 of the app\nline 22 of the app\nline 23 of the app\nline 24 of the app\nline 25 of the app\nline 26 of the app\nline 27 of the app\nline 28 of the app\nline 29 of the app\nline 30 of the app\nline 31 added at the end\n"
+        },
+        "old": {
+          "exists": true,
+          "text": "line 01 of the app\nline 02 of the app\nline 03 of the app\nline 04 of the app\nline 05 of the app\nline 06 of the app\nline 07 of the app\nline 08 of the app\nline 09 of the app\nline 10 of the app\nline 11 of the app\nline 12 of the app\nline 13 of the app\nline 14 of the app\nline 15 of the app\nline 16 of the app\nline 17 of the app\nline 18 of the app\nline 19 of the app\nline 20 of the app\nline 21 of the app\nline 22 of the app\nline 23 of the app\nline 24 of the app\nline 25 of the app\nline 26 of the app\nline 27 of the app\nline 28 of the app\nline 29 of the app\nline 30 of the app\n"
+        }
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 28,
+      "method": "diff.sides",
+      "params": {
+        "base": {
+          "rev": "a5c8a8f38f555426b8634a56dac2a7423e9f3902"
+        },
+        "path": "src/app.txt",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 28,
+      "result": {
+        "flags": {
+          "binary": false,
+          "conflicted": false,
+          "crlf": false,
+          "renamedFrom": null,
+          "utf8": true
+        },
+        "hunks": [
+          {
+            "lines": 1,
+            "oldLines": 1,
+            "oldStart": 2,
+            "start": 2
+          },
+          {
+            "lines": 1,
+            "oldLines": 1,
+            "oldStart": 14,
+            "start": 14
+          },
+          {
+            "lines": 1,
+            "oldLines": 0,
+            "oldStart": 30,
+            "start": 30
+          }
+        ],
+        "new": {
+          "exists": true,
+          "text": "line 01 of the app\nline 02 of the app\nline 03 changed of the app\nline 04 of the app\nline 05 of the app\nline 06 of the app\nline 07 of the app\nline 08 of the app\nline 09 of the app\nline 10 of the app\nline 11 of the app\nline 12 of the app\nline 13 of the app\nline 14 of the app\nline 15 changed of the app\nline 16 of the app\nline 17 of the app\nline 18 of the app\nline 19 of the app\nline 20 of the app\nline 21 of the app\nline 22 of the app\nline 23 of the app\nline 24 of the app\nline 25 of the app\nline 26 of the app\nline 27 of the app\nline 28 of the app\nline 29 of the app\nline 30 of the app\nline 31 added at the end\n"
+        },
+        "old": {
+          "exists": true,
+          "text": "line 01 of the app\nline 02 of the app\nline 03 of the app\nline 04 of the app\nline 05 of the app\nline 06 of the app\nline 07 of the app\nline 08 of the app\nline 09 of the app\nline 10 of the app\nline 11 of the app\nline 12 of the app\nline 13 of the app\nline 14 of the app\nline 15 of the app\nline 16 of the app\nline 17 of the app\nline 18 of the app\nline 19 of the app\nline 20 of the app\nline 21 of the app\nline 22 of the app\nline 23 of the app\nline 24 of the app\nline 25 of the app\nline 26 of the app\nline 27 of the app\nline 28 of the app\nline 29 of the app\nline 30 of the app\n"
+        }
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 29,
+      "method": "diff.sides",
+      "params": {
+        "base": "HEAD",
+        "path": "gone.txt",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 29,
+      "result": {
+        "flags": {
+          "binary": false,
+          "conflicted": false,
+          "crlf": false,
+          "renamedFrom": null,
+          "utf8": true
+        },
+        "hunks": [
+          {
+            "lines": 0,
+            "oldLines": 1,
+            "oldStart": 0,
+            "start": 0
+          }
+        ],
+        "new": {
+          "exists": false,
+          "text": null
+        },
+        "old": {
+          "exists": true,
+          "text": "This file will be deleted.\n"
+        }
+      },
+      "type": "result"
+    }
+  }
+]

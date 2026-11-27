@@ -1,0 +1,117 @@
+[
+  {
+    "request": {
+      "id": 22,
+      "method": "search.start",
+      "params": {
+        "maxMatches": 3,
+        "pattern": "line 0",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 22,
+      "result": {
+        "files": 1,
+        "matches": 3,
+        "truncated": true
+      },
+      "type": "result"
+    },
+    "stream": [
+      {
+        "data": {
+          "matches": [
+            {
+              "line": 0,
+              "ranges": [
+                [
+                  0,
+                  6
+                ]
+              ],
+              "text": "line 01 of the app"
+            },
+            {
+              "line": 1,
+              "ranges": [
+                [
+                  0,
+                  6
+                ]
+              ],
+              "text": "line 02 of the app"
+            },
+            {
+              "line": 2,
+              "ranges": [
+                [
+                  0,
+                  6
+                ]
+              ],
+              "text": "line 03 changed of the app"
+            }
+          ],
+          "path": "src/app.txt"
+        },
+        "id": 22,
+        "seq": 0,
+        "type": "stream"
+      }
+    ]
+  },
+  {
+    "request": {
+      "id": 23,
+      "method": "search.start",
+      "params": {
+        "pattern": "dummy",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 23,
+      "result": {
+        "files": 1,
+        "matches": 2,
+        "truncated": false
+      },
+      "type": "result"
+    },
+    "stream": [
+      {
+        "data": {
+          "matches": [
+            {
+              "line": 0,
+              "ranges": [
+                [
+                  11,
+                  16
+                ]
+              ],
+              "text": "-----BEGIN DUMMY KEY-----"
+            },
+            {
+              "line": 2,
+              "ranges": [
+                [
+                  9,
+                  14
+                ]
+              ],
+              "text": "-----END DUMMY KEY-----"
+            }
+          ],
+          "path": "keys/id_rsa"
+        },
+        "id": 23,
+        "seq": 0,
+        "type": "stream"
+      }
+    ]
+  }
+]

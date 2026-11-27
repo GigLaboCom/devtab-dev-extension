@@ -1,0 +1,114 @@
+{
+  "method": "projects.list",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "No parameters.",
+    "title": "NoParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "ProjectClass": {
+        "oneOf": [
+          {
+            "const": "view",
+            "description": "Read-only.",
+            "type": "string"
+          },
+          {
+            "const": "mine",
+            "description": "Writable (from a later stage of the companion).",
+            "type": "string"
+          }
+        ]
+      },
+      "ProjectRunState": {
+        "oneOf": [
+          {
+            "enum": [
+              "open",
+              "error"
+            ],
+            "type": "string"
+          },
+          {
+            "const": "missing",
+            "description": "The folder is gone or moved.",
+            "type": "string"
+          }
+        ]
+      },
+      "ProjectSummary": {
+        "additionalProperties": false,
+        "description": "One entry of `projects.list`.",
+        "properties": {
+          "branch": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "class": {
+            "$ref": "#/$defs/ProjectClass"
+          },
+          "displayPath": {
+            "description": "The root with `~/` for the home directory.",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "locationName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "description": "The folder's name.",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/$defs/ProjectRunState"
+          },
+          "via": {
+            "$ref": "#/$defs/Via"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "displayPath",
+          "class",
+          "via",
+          "state"
+        ],
+        "type": "object"
+      },
+      "Via": {
+        "description": "How the project got its class.",
+        "enum": [
+          "terminal",
+          "dialog",
+          "location"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "items": {
+      "$ref": "#/$defs/ProjectSummary"
+    },
+    "title": "Array_of_ProjectSummary",
+    "type": "array"
+  },
+  "scope": "companion",
+  "summary": "The added projects with their class, branch and state."
+}

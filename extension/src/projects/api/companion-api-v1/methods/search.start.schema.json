@@ -1,0 +1,151 @@
+{
+  "method": "search.start",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`search.start` parameters. The scope is always the project.",
+    "properties": {
+      "caseSensitive": {
+        "default": false,
+        "type": "boolean"
+      },
+      "exclude": {
+        "default": [],
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "include": {
+        "default": [],
+        "description": "File masks such as `*.rs`, `src/**/*.ts`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "includeIgnored": {
+        "default": false,
+        "description": "Also return ignored files outside ignored folders (ignored folders are never searched).",
+        "type": "boolean"
+      },
+      "isRegex": {
+        "default": false,
+        "type": "boolean"
+      },
+      "maxMatches": {
+        "default": null,
+        "description": "At most 5000; 5000 when absent.",
+        "format": "uint32",
+        "minimum": 0,
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "pattern": {
+        "type": "string"
+      },
+      "project": {
+        "type": "string"
+      },
+      "wholeWord": {
+        "default": false,
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "project",
+      "pattern"
+    ],
+    "title": "SearchParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "The `result` that ends `search.start`.",
+    "properties": {
+      "files": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "matches": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "truncated": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "files",
+      "matches",
+      "truncated"
+    ],
+    "title": "SearchDone",
+    "type": "object"
+  },
+  "scope": "project",
+  "stream": {
+    "$defs": {
+      "SearchMatch": {
+        "additionalProperties": false,
+        "properties": {
+          "line": {
+            "description": "0-based line.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ranges": {
+            "description": "UTF-16 column ranges within `text`.",
+            "items": {
+              "items": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "line",
+          "text",
+          "ranges"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "One `stream` frame of `search.start`: the matches in one file.",
+    "properties": {
+      "matches": {
+        "items": {
+          "$ref": "#/$defs/SearchMatch"
+        },
+        "type": "array"
+      },
+      "path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path",
+      "matches"
+    ],
+    "title": "SearchFile",
+    "type": "object"
+  },
+  "summary": "Text search in the project, streamed per file; cancellable."
+}

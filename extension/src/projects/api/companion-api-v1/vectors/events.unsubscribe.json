@@ -1,0 +1,17 @@
+[
+  {
+    "request": {
+      "id": 6,
+      "method": "events.unsubscribe",
+      "params": {
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 6,
+      "result": {},
+      "type": "result"
+    }
+  }
+]

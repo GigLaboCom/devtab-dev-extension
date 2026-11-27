@@ -1,0 +1,24 @@
+[
+  {
+    "request": {
+      "id": 25,
+      "method": "git.identity",
+      "params": {
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 25,
+      "result": {
+        "email": null,
+        "name": null,
+        "signing": {
+          "enabled": false,
+          "format": null
+        }
+      },
+      "type": "result"
+    }
+  }
+]

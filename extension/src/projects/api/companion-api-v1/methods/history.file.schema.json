@@ -1,0 +1,126 @@
+{
+  "method": "history.file",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Parameters naming a path in a project.",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "path"
+    ],
+    "title": "PathParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "Gap": {
+        "additionalProperties": false,
+        "description": "A stretch of time without history.",
+        "properties": {
+          "from": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "to": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
+      "HistoryPoint": {
+        "additionalProperties": false,
+        "description": "One point of `history.file`.",
+        "properties": {
+          "label": {
+            "description": "`External change`, `Saved`, `Deleted`, a commit's summary, …",
+            "type": "string"
+          },
+          "point": {
+            "description": "Opaque to the extension; pass it to `history.content` or `diff.sides`.",
+            "type": "string"
+          },
+          "size": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/$defs/PointSource"
+          },
+          "timeMs": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "point",
+          "label",
+          "source",
+          "size",
+          "timeMs"
+        ],
+        "type": "object"
+      },
+      "PointSource": {
+        "oneOf": [
+          {
+            "const": "server",
+            "description": "The server's local history.",
+            "type": "string"
+          },
+          {
+            "const": "companion",
+            "description": "The companion's own snapshots (from a later stage).",
+            "type": "string"
+          },
+          {
+            "const": "commit",
+            "description": "A commit that changed the file.",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`history.file`.",
+    "properties": {
+      "gaps": {
+        "items": {
+          "$ref": "#/$defs/Gap"
+        },
+        "type": "array"
+      },
+      "points": {
+        "items": {
+          "$ref": "#/$defs/HistoryPoint"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "points",
+      "gaps"
+    ],
+    "title": "HistoryFile",
+    "type": "object"
+  },
+  "scope": "project",
+  "summary": "The history points of one regular file inside the project."
+}

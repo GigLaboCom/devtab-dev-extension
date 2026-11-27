@@ -1,0 +1,185 @@
+{
+  "method": "diff.sides",
+  "params": {
+    "$defs": {
+      "DiffBase": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/NamedBase",
+            "description": "`\"HEAD\"` or `\"index\"`."
+          },
+          {
+            "description": "A commit: 7 to 64 hexadecimal characters.",
+            "properties": {
+              "rev": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "rev"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A history point from `history.file` / `history.project`.",
+            "properties": {
+              "point": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "point"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "What `diff.sides` compares the file on disk with."
+      },
+      "NamedBase": {
+        "enum": [
+          "HEAD",
+          "index"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`diff.sides` parameters.",
+    "properties": {
+      "base": {
+        "$ref": "#/$defs/DiffBase"
+      },
+      "path": {
+        "type": "string"
+      },
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "path",
+      "base"
+    ],
+    "title": "DiffParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "DiffFlags": {
+        "additionalProperties": false,
+        "properties": {
+          "binary": {
+            "type": "boolean"
+          },
+          "conflicted": {
+            "type": "boolean"
+          },
+          "crlf": {
+            "type": "boolean"
+          },
+          "renamedFrom": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utf8": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "crlf",
+          "binary",
+          "conflicted",
+          "utf8"
+        ],
+        "type": "object"
+      },
+      "Hunk": {
+        "additionalProperties": false,
+        "description": "A changed range: `old*` in the old side, `start`/`lines` in the new one; 0-based lines.",
+        "properties": {
+          "lines": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "oldLines": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "oldStart": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "oldStart",
+          "oldLines",
+          "start",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "Side": {
+        "additionalProperties": false,
+        "description": "One side of a diff.",
+        "properties": {
+          "exists": {
+            "type": "boolean"
+          },
+          "text": {
+            "description": "Null when the side does not exist or is binary.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "exists"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`diff.sides`.",
+    "properties": {
+      "flags": {
+        "$ref": "#/$defs/DiffFlags"
+      },
+      "hunks": {
+        "items": {
+          "$ref": "#/$defs/Hunk"
+        },
+        "type": "array"
+      },
+      "new": {
+        "$ref": "#/$defs/Side"
+      },
+      "old": {
+        "$ref": "#/$defs/Side"
+      }
+    },
+    "required": [
+      "old",
+      "new",
+      "hunks",
+      "flags"
+    ],
+    "title": "DiffSides",
+    "type": "object"
+  },
+  "scope": "project",
+  "summary": "Both sides of a file's diff: HEAD, the index, a commit or a history point against the disk."
+}

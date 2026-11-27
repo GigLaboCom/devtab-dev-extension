@@ -1,0 +1,31 @@
+[
+  {
+    "request": {
+      "id": 4,
+      "method": "project.state",
+      "params": {
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 4,
+      "result": {
+        "ahead": 0,
+        "behind": 0,
+        "branch": "main",
+        "class": "view",
+        "detached": false,
+        "historyGaps": [],
+        "hooks": [
+          "pre-commit"
+        ],
+        "hooksPath": false,
+        "location": null,
+        "upstream": null,
+        "via": "terminal"
+      },
+      "type": "result"
+    }
+  }
+]

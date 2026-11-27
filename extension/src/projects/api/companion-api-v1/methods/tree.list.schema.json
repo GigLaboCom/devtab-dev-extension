@@ -1,0 +1,139 @@
+{
+  "method": "tree.list",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Parameters naming a path in a project.",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "path"
+    ],
+    "title": "PathParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "EntryKind": {
+        "enum": [
+          "file",
+          "dir",
+          "symlink"
+        ],
+        "type": "string"
+      },
+      "LinkKind": {
+        "description": "Where a symlink leads.",
+        "oneOf": [
+          {
+            "const": "inside",
+            "description": "To an entry inside the project.",
+            "type": "string"
+          },
+          {
+            "const": "outside",
+            "description": "Out of the project (or nowhere): shown as a leaf, never followed.",
+            "type": "string"
+          }
+        ]
+      },
+      "TreeEntry": {
+        "additionalProperties": false,
+        "description": "One entry of `tree.list`.",
+        "properties": {
+          "hidden": {
+            "type": "boolean"
+          },
+          "ignored": {
+            "description": "Ignored by git (shown dimmed).",
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/$defs/EntryKind"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/LinkKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mtimeMs": {
+            "format": "double",
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "protected": {
+            "description": "A file that runs code or changes what git runs (hooks, tool settings): marked, not refused.",
+            "type": "boolean"
+          },
+          "secret": {
+            "description": "A secret (`.env`, keys): readable, never written from the browser.",
+            "type": "boolean"
+          },
+          "size": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "path",
+          "kind",
+          "size",
+          "mtimeMs",
+          "ignored",
+          "hidden",
+          "protected",
+          "secret"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`tree.list`.",
+    "properties": {
+      "entries": {
+        "items": {
+          "$ref": "#/$defs/TreeEntry"
+        },
+        "type": "array"
+      },
+      "skippedNames": {
+        "description": "Entries left out because their names are not valid UTF-8 or contain control characters.",
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "truncated": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "entries",
+      "truncated",
+      "skippedNames"
+    ],
+    "title": "TreeList",
+    "type": "object"
+  },
+  "scope": "project",
+  "summary": "The entries of one folder (.git left out, symlinks out of the project shown as leaves)."
+}
