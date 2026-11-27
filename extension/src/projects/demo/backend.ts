@@ -89,8 +89,6 @@ interface Point {
   label: string;
   source: FilePoint['source'];
   timeMs: number;
-  firstMs?: number;
-  count?: number;
   text: string;
   session?: string;
 }
@@ -226,7 +224,6 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       label: h.label,
       source: h.source,
       timeMs: ago(h.ago),
-      ...(h.count ? { count: h.count, firstMs: ago(h.ago + 9) } : {}),
       text: h.text,
     }));
     projects.set(seed.id, {
@@ -260,7 +257,11 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
   let disposed = false;
 
   const emit = (event: CompanionEvent): void => {
-    const heard = [...(listeners.get(event.project) ?? [])];
+    // An event about the companion (no project) reaches every listener.
+    const heard =
+      event.project === null
+        ? [...listeners.values()].flatMap(set => [...set])
+        : [...(listeners.get(event.project) ?? [])];
     queueMicrotask(() => {
       if (disposed) return;
       for (const listener of heard)
@@ -454,7 +455,6 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       const p = projectOf(project);
       if (p.class !== 'mine') fail('not-mine', 'the project is «view» already');
       p.class = 'view';
-      p.via = 'person';
       emit({ name: 'project.changed', project, data: { class: 'view' } });
       return { class: 'view' };
     },
@@ -497,7 +497,6 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
             hidden: name.startsWith('.'),
             link,
             protected: rule !== undefined,
-            ...(rule ? { rule } : {}),
             secret: kind === 'file' && isSecretPath(full),
           };
         })
@@ -513,7 +512,6 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       checkPath(path);
       if (isGitPath(path)) fail('protected-path', '.git is not read', { rule: '.git' });
       const text = textOf(p.disk.get(path), path);
-      const rule = protectedRule(path);
       return {
         text,
         hash: textHash(text),
@@ -523,11 +521,11 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
         bom: false,
         lineEnding: 'lf',
         large: false,
-        ...(isSecretPath(path) ? { secret: true } : {}),
-        ...(rule ? { protected: true, rule } : {}),
+        secret: isSecretPath(path),
+        protected: protectedRule(path) !== undefined,
       };
     },
-    'files.find': ({ project, query, limit = 50 }) => {
+    'files.find': ({ project, query, limit }) => {
       const p = projectOf(project);
       const wanted = query.toLowerCase().replace(/\s+/g, '');
       const found: FoundFile[] = [];
@@ -537,7 +535,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       }
       return found
         .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
-        .slice(0, Math.min(Math.max(1, limit), 100));
+        .slice(0, Math.min(Math.max(1, limit ?? 100), 100));
     },
     'search.start': async (params, opts) => {
       const p = projectOf(params.project);
@@ -606,9 +604,16 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       const oldText = old === undefined || binary ? '' : textOf(old, path);
       const newText = onDisk === undefined || binary ? '' : textOf(onDisk, path);
       return {
-        old: { text: oldText, exists: old !== undefined },
-        new: { text: newText, exists: onDisk !== undefined },
-        hunks: binary ? [] : lineHunks(oldText, newText),
+        old: { text: old === undefined || binary ? null : oldText, exists: old !== undefined },
+        new: { text: onDisk === undefined || binary ? null : newText, exists: onDisk !== undefined },
+        hunks: binary
+          ? []
+          : lineHunks(oldText, newText).map(({ oldStart, oldLines, start, lines }) => ({
+              oldStart,
+              oldLines,
+              start,
+              lines,
+            })),
         flags: {
           crlf: false,
           binary,
@@ -677,9 +682,8 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       const hash = textHash(text);
       if (session !== undefined) p.sessions.set(session, hash);
       const last = p.points.at(-1);
+      // The saves of one editing session are one point: its latest text and time.
       if (session !== undefined && last?.path === path && last.label === 'Saved' && last.session === session) {
-        last.count = (last.count ?? 1) + 1;
-        last.firstMs ??= last.timeMs;
         last.timeMs = now();
         last.text = text;
       } else point(p, path, 'Saved', text, session === undefined ? {} : { session });
@@ -927,13 +931,14 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
         gaps: [],
       };
     },
-    'history.project': ({ project, since, cursor, limit = 100 }) => {
+    'history.project': ({ project, since, cursor, limit }) => {
       const p = projectOf(project);
-      const all: ProjectPoint[] = newestFirst(p.points.filter(pt => since === undefined || pt.timeMs > since)).map(
-        pt => ({ ...toFilePoint(pt), path: pt.path }),
-      );
+      const all: ProjectPoint[] = newestFirst(p.points.filter(pt => since == null || pt.timeMs >= since)).map(pt => ({
+        ...toFilePoint(pt),
+        path: pt.path,
+      }));
       const from = cursor ? Number(cursor) : 0;
-      const size = Math.min(Math.max(1, limit), 500);
+      const size = Math.min(Math.max(1, limit ?? 500), 500);
       const deleted = [...new Set(p.points.map(pt => pt.path))].filter(path => !p.disk.has(path)).sort();
       return {
         points: all.slice(from, from + size),
@@ -971,7 +976,6 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
     source: pt.source,
     size: sizeOf(pt.text),
     timeMs: pt.timeMs,
-    ...(pt.count ? { count: pt.count, firstMs: pt.firstMs ?? pt.timeMs } : {}),
   });
 
   const controls: DemoControls = {
@@ -1002,10 +1006,14 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
     name: 'demo',
     controls,
     connect: () => Promise.resolve({ state: paused ? 'paused' : 'ready' }),
+    status: () => ({ state: paused ? 'paused' : 'ready', connecting: false }),
+    // The demo needs no permission and has no companion to try again.
+    requestPermission: () => Promise.resolve(false),
+    retry: () => undefined,
     capabilities: () => ({ methods: Object.keys(handlers) as Method[], demo: true }),
     async call<M extends Method>(method: M, params: Params<M>, opts: CallOptions<M> = {}): Promise<Result<M>> {
       const handler = (handlers as unknown as Record<string, Handler<M> | undefined>)[method];
-      if (!handler) return fail('invalid-params', `unknown method ${String(method)}`, { field: 'method' });
+      if (!handler) return fail('unknown-method', `unknown method ${String(method)}`, { method: String(method) });
       if (typeof params !== 'object' || params === null) fail('invalid-params', 'params must be an object');
       // The page and the demo share no objects: what comes back is a copy, as a message over a port would be.
       const result = await handler(structuredClone(params), opts);

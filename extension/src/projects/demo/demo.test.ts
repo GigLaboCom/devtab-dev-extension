@@ -81,11 +81,12 @@ describe('reading', () => {
     expect(by('dist').ignored).toBe(true);
     expect(by('src').ignored).toBe(false);
     expect(by('.env')).toMatchObject({ secret: true, ignored: true, hidden: true });
-    expect(by('.nvmrc')).toMatchObject({ protected: true, rule: 'shell environment' });
+    expect(by('.nvmrc')).toMatchObject({ protected: true });
+    expect(by('.nvmrc')).not.toHaveProperty('rule');
     const docs = await backend.call('tree.list', { project: LEDGER, path: 'docs' });
     expect(docs.entries[0]).toMatchObject({ name: 'handbook', kind: 'symlink', link: 'outside' });
     const husky = await backend.call('tree.list', { project: LEDGER, path: '.husky' });
-    expect(husky.entries[0]).toMatchObject({ protected: true, rule: 'hooks' });
+    expect(husky.entries[0]).toMatchObject({ protected: true });
   });
 
   it('a binary and a too-large file are refused with their sizes; a link out of the project too', async () => {
@@ -175,11 +176,13 @@ describe('reading', () => {
     ).toBe('invalid-params');
   });
 
-  it('the history of a file, newest first, saves of one session as one row; the project’s with deleted files', async () => {
+  it('the history of a file, newest first; the project’s with deleted files', async () => {
     const backend = open();
     const { points } = await backend.call('history.file', { project: LEDGER, path: 'src/server.ts' });
     expect(points.map(p => p.label)).toEqual(['Saved', 'Saved', 'Before edit', 'Commit']);
-    expect(points[1]).toMatchObject({ count: 4 });
+    // In the contract's shape: no field it does not name.
+    for (const point of points)
+      expect(Object.keys(point).sort()).toEqual(['label', 'point', 'size', 'source', 'timeMs']);
     const project = await backend.call('history.project', { project: LEDGER, limit: 3 });
     expect(project.points).toHaveLength(3);
     expect(project.next).toBe('3');
@@ -199,7 +202,7 @@ describe('reading', () => {
 });
 
 describe('writing in memory', () => {
-  it('a save keeps one «Before edit» per session, merges its saves, and tells the listeners', async () => {
+  it('a save keeps one «Before edit» per session, merges its saves into one point, and tells the listeners', async () => {
     const backend = open();
     const events: CompanionEvent[] = [];
     backend.subscribe(LEDGER, e => events.push(e));
@@ -213,10 +216,8 @@ describe('writing in memory', () => {
         session: 'one',
       }));
     const { points } = await backend.call('history.file', { project: LEDGER, path: 'src/index.ts' });
-    expect(points.map(p => [p.label, p.count])).toEqual([
-      ['Saved', 3],
-      ['Before edit', undefined],
-    ]);
+    expect(points.map(p => p.label)).toEqual(['Saved', 'Before edit']);
+    expect((await backend.call('history.content', { project: LEDGER, point: points[0]!.point })).text).toBe('c\n');
     await settle();
     expect(events.filter(e => e.name === 'files.changed')).toHaveLength(3);
     expect((await backend.call('git.status', { project: LEDGER })).files.some(f => f.path === 'src/index.ts')).toBe(
@@ -241,7 +242,7 @@ describe('writing in memory', () => {
     );
     // Files that run code are writable in «mine» (Р25).
     const nvmrc = await backend.call('file.read', { project: LEDGER, path: '.nvmrc' });
-    expect(nvmrc).toMatchObject({ protected: true, rule: 'shell environment' });
+    expect(nvmrc).toMatchObject({ protected: true, secret: false });
     expect(
       await codeOf(backend.call('file.save', { project: LEDGER, path: '.nvmrc', baseHash: nvmrc.hash, text: '24\n' })),
     ).toBe('resolved');

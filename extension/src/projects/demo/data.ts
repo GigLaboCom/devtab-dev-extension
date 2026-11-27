@@ -26,8 +26,6 @@ export interface DemoPointSeed {
   readonly source: 'server' | 'companion' | 'commit';
   readonly ago: number;
   readonly text: string;
-  /** Saves of one session shown as one row. */
-  readonly count?: number;
 }
 
 export interface DemoProjectSeed {
@@ -370,7 +368,7 @@ export const DEMO_PROJECTS: readonly DemoProjectSeed[] = [
     history: [
       { path: 'src/server.ts', label: 'Commit', source: 'commit', ago: DAY, text: SERVER_HEAD },
       { path: 'src/server.ts', label: 'Before edit', source: 'companion', ago: 95, text: SERVER_HEAD },
-      { path: 'src/server.ts', label: 'Saved', source: 'server', ago: 80, text: SERVER_EARLIER, count: 4 },
+      { path: 'src/server.ts', label: 'Saved', source: 'server', ago: 80, text: SERVER_EARLIER },
       { path: 'src/server.ts', label: 'Saved', source: 'server', ago: 25, text: SERVER_DISK },
       { path: 'README.md', label: 'External change', source: 'server', ago: 40, text: README_DISK },
       { path: 'src/legacy/report.ts', label: 'Deleted', source: 'server', ago: 70, text: REPORT },

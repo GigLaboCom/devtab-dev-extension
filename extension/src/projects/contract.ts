@@ -1,13 +1,15 @@
 /**
- * The contract of seam `ProjectBackend` (./backend.ts): one suite that every implementation passes — the demo
- * (./contract.test.ts) today, the companion's client against a scripted companion when it comes (the specification,
- * §11.3–§11.4). It knows no project by name: it finds a project of each class, a file of each kind and a changed file
- * through the API itself, so it runs over any data that has them.
+ * The contract of seam `ProjectBackend` (./backend.ts): one suite that every implementation passes — the demo and the
+ * companion's client over a scripted companion (./contract.test.ts; the specification, §11.3–§11.4). It knows no
+ * project by name: it finds a project of each class, a file of each kind and a changed file through the API itself, so
+ * it runs over any data that has them. What a backend does not offer (`capabilities().methods` — a companion that does
+ * not write yet) is skipped, never failed. Not to be confused with ./api/, the companion's API contract.
  */
+import { CONTRACT_METHODS } from './api/types.gen';
 import { WRITE_METHODS, isCompanionError } from './types';
 import { describe, expect, it } from 'vitest';
 import type { ProjectBackend } from './backend';
-import type { CompanionEvent, ErrorCode, ProjectSummary, TreeEntry } from './types';
+import type { CompanionEvent, ErrorCode, Method, ProjectSummary, TreeEntry } from './types';
 
 export interface ProjectBackendHarness {
   backend: ProjectBackend;
@@ -37,10 +39,15 @@ export const projectBackendContract = (name: string, make: () => ProjectBackendH
     const open = async () => {
       const harness = make();
       const { backend } = harness;
+      await backend.connect();
       const projects = await backend.call('projects.list', {});
-      const mine = projects.find(p => p.class === 'mine' && p.state === 'open');
+      const offers = (method: Method): boolean => backend.capabilities().methods.includes(method);
+      const writes = offers('file.save');
+      const mine = writes ? projects.find(p => p.class === 'mine' && p.state === 'open') : undefined;
       const view = projects.find(p => p.class === 'view' && p.state === 'open');
-      return { ...harness, projects, mine, view };
+      // Reading works in a project of either class.
+      const any = mine ?? view;
+      return { ...harness, projects, mine, view, any, offers };
     };
 
     it('connects, names the methods it answers, and answers the page’s every method', async () => {
@@ -48,37 +55,21 @@ export const projectBackendContract = (name: string, make: () => ProjectBackendH
       const connection = await backend.connect();
       expect(['ready', 'ready-empty', 'paused']).toContain(connection.state);
       const { methods } = backend.capabilities();
-      for (const method of [
-        'projects.list',
-        'project.state',
-        'locations.list',
-        'tree.list',
-        'file.read',
-        'files.find',
-        'search.start',
-        'git.status',
-        'git.identity',
-        'diff.sides',
-        'git.hunks',
-        'git.outgoing',
-        'git.messages',
-        ...WRITE_METHODS,
-        'history.file',
-        'history.project',
-        'history.content',
-      ] as const)
-        expect(methods).toContain(method);
-      await rejects(backend.call('no.such' as 'projects.list', {}), 'invalid-params');
+      for (const method of CONTRACT_METHODS) expect(methods).toContain(method);
+      // Writing is all or nothing: a backend that saves offers every write.
+      if (methods.includes('file.save')) for (const method of WRITE_METHODS) expect(methods).toContain(method);
+      await rejects(backend.call('no.such' as 'projects.list', {}), 'unknown-method');
       backend.dispose();
     });
 
     it('lists projects and trusted folders without an absolute path; a project’s folder is one of them or none', async () => {
-      const { backend, projects } = await open();
-      const locations = await backend.call('locations.list', {});
+      const { backend, projects, offers } = await open();
+      const locations = offers('locations.list') ? await backend.call('locations.list', {}) : [];
       expect(new Set(projects.map(p => p.id)).size).toBe(projects.length);
       for (const project of projects) {
         expect(project.displayPath.startsWith('~/')).toBe(true);
-        if (project.location !== null) expect(locations.map(l => l.displayPath)).toContain(project.location);
+        if (project.location != null && offers('locations.list'))
+          expect(locations.map(l => l.displayPath)).toContain(project.location);
       }
       for (const location of locations) expect(location.name.length).toBeGreaterThan(0);
       expect(JSON.stringify({ projects, locations })).not.toMatch(absolute);
@@ -87,43 +78,43 @@ export const projectBackendContract = (name: string, make: () => ProjectBackendH
     });
 
     it('walks the tree without .git; refuses paths that leave the project', async () => {
-      const { backend, mine } = await open();
-      if (!mine) return;
-      const all = await walk(backend, mine.id);
+      const { backend, any } = await open();
+      if (!any) return;
+      const all = await walk(backend, any.id);
       expect(all.length).toBeGreaterThan(0);
       expect(all.some(e => e.path === '.git' || e.path.startsWith('.git/'))).toBe(false);
       for (const bad of ['../outside', '/etc/hosts', 'a//b', 'a/./b', 'back\\slash'])
-        await rejects(backend.call('file.read', { project: mine.id, path: bad }), 'invalid-path');
-      await rejects(backend.call('tree.list', { project: mine.id, path: 'no-such-folder' }), 'not-found');
+        await rejects(backend.call('file.read', { project: any.id, path: bad }), 'invalid-path');
+      await rejects(backend.call('tree.list', { project: any.id, path: 'no-such-folder' }), 'not-found');
       backend.dispose();
     });
 
     it('reads a text file with its hash; refuses a binary with its size; marks a secret', async () => {
-      const { backend, mine } = await open();
-      if (!mine) return;
-      const files = (await walk(backend, mine.id)).filter(e => e.kind === 'file');
+      const { backend, any } = await open();
+      if (!any) return;
+      const files = (await walk(backend, any.id)).filter(e => e.kind === 'file');
       const text = files.find(e => !e.secret && e.size > 0 && e.size < 1_000_000);
       expect(text).toBeDefined();
-      const read = await backend.call('file.read', { project: mine.id, path: text!.path });
+      const read = await backend.call('file.read', { project: any.id, path: text!.path });
       expect(typeof read.text).toBe('string');
       expect(read.hash.length).toBeGreaterThan(8);
       const secret = files.find(e => e.secret);
-      if (secret) expect((await backend.call('file.read', { project: mine.id, path: secret.path })).secret).toBe(true);
+      if (secret) expect((await backend.call('file.read', { project: any.id, path: secret.path })).secret).toBe(true);
       backend.dispose();
     });
 
     it('finds files by a few letters, and searches with parts before the result; a search can be cancelled', async () => {
-      const { backend, mine } = await open();
-      if (!mine) return;
-      const [first] = (await walk(backend, mine.id)).filter(e => e.kind === 'file' && !e.ignored && e.size > 0);
-      const found = await backend.call('files.find', { project: mine.id, query: first!.name.slice(0, 3) });
+      const { backend, any } = await open();
+      if (!any) return;
+      const [first] = (await walk(backend, any.id)).filter(e => e.kind === 'file' && !e.ignored && e.size > 0);
+      const found = await backend.call('files.find', { project: any.id, query: first!.name.slice(0, 3) });
       expect(found.some(f => f.path === first!.path)).toBe(true);
-      const { text } = await backend.call('file.read', { project: mine.id, path: first!.path });
+      const { text } = await backend.call('file.read', { project: any.id, path: first!.path });
       const word = /\w{3,}/.exec(text)?.[0] ?? 'a';
       const parts: string[] = [];
       const done = await backend.call(
         'search.start',
-        { project: mine.id, pattern: word, isRegex: false, caseSensitive: true, wholeWord: false },
+        { project: any.id, pattern: word, isRegex: false, caseSensitive: true, wholeWord: false },
         { onStream: hit => parts.push(hit.path) },
       );
       expect(done.files).toBe(parts.length);
@@ -133,7 +124,7 @@ export const projectBackendContract = (name: string, make: () => ProjectBackendH
       await rejects(
         backend.call(
           'search.start',
-          { project: mine.id, pattern: word, isRegex: false, caseSensitive: false, wholeWord: false },
+          { project: any.id, pattern: word, isRegex: false, caseSensitive: false, wholeWord: false },
           { signal: controller.signal },
         ),
         'cancelled',
@@ -142,14 +133,16 @@ export const projectBackendContract = (name: string, make: () => ProjectBackendH
     });
 
     it('refuses every write in a «view» project, and a write to a secret or into .git anywhere', async () => {
-      const { backend, mine, view } = await open();
+      const { backend, mine, view, offers } = await open();
       if (view) {
+        // A backend that does not write answers every write with `unknown-method` and never sends it.
+        const refused = offers('file.save') ? 'not-mine' : 'unknown-method';
         await rejects(
           backend.call('file.save', { project: view.id, path: 'README.md', baseHash: 'x', text: 'y' }),
-          'not-mine',
+          refused,
         );
-        await rejects(backend.call('file.create', { project: view.id, path: 'new.txt', text: '' }), 'not-mine');
-        await rejects(backend.call('git.undoCommit', { project: view.id, headSha: 'x' }), 'not-mine');
+        await rejects(backend.call('file.create', { project: view.id, path: 'new.txt', text: '' }), refused);
+        await rejects(backend.call('git.undoCommit', { project: view.id, headSha: 'x' }), refused);
       }
       if (mine) {
         await rejects(backend.call('file.create', { project: mine.id, path: '.env.local', text: 'x' }), 'secret-file');
