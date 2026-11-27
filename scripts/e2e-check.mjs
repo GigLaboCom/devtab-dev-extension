@@ -37,6 +37,9 @@
 //      page's field taking the same shortcut, the editor's height under the toolbar, the theme following the system
 //      when none is chosen (CDP emulates the scheme), the user's shortcuts set in Settings;
 //   4. «Projects»: the section opens on its demo (its own checks: scripts/e2e-projects-demo.mjs, step projects-demo);
+//   4b. «Projects» with a companion (scripts/e2e-projects.mjs, step projects): a browser of its own, the build's copy
+//      loaded by CDP, a fake Native Messaging host speaking the companion's contract — every state of the connection,
+//      the tree, a file, find, changes, diff, history, events, long answers, the permission removed and granted;
 //   5. the default dark theme repaints the page and the editor; every part again;
 //   6. a theme that is not a default (Tokyo Night) chosen from the theme list reaches the page AND the editor (the
 //      editor's background is that theme's); every part again;
@@ -50,7 +53,8 @@
 //   pnpm test:e2e [-- <dist>] [--shots=<dir>] [--json=<file>] [--only=<step or tool>,…]
 //   --only  run only these after the extension has loaded: a tool's id (its module of scripts/e2e-tools/, e.g.
 //           `--only=jwt`), or a step — start, own-page, toolbar, compare (2–2c), tools (3: every tool and the JSON
-//           controls), shell, themes (4–6), projects-demo, history. The console-error check runs over what ran.
+//           controls), shell, themes (4–6), projects-demo, projects, history. The console-error check runs over what
+//           ran.
 // Needs a build (pnpm build) and Playwright with Chrome for Testing: `pnpm e2e:setup` puts both under .state/
 // (Playwright is NOT a workspace dependency, as in the second sibling extension). Elsewhere: PLAYWRIGHT_DIR=<a
 // directory with node_modules/playwright>, PLAYWRIGHT_BROWSERS_PATH=<its browsers>.
@@ -70,6 +74,7 @@ import { runToolbarChecks } from './e2e-toolbar.mjs';
 import { themeFromList, themeMode, withSettings } from './e2e-theme.mjs';
 import { runShellChecks } from './e2e-shell.mjs';
 import { runProjectsDemoChecks } from './e2e-projects-demo.mjs';
+import { runProjectsChecks } from './e2e-projects.mjs';
 import { runGrammarChecks } from './e2e-grammars.mjs';
 
 /* global document, window, addEventListener, chrome, createImageBitmap, OffscreenCanvas, getComputedStyle, location -- page.evaluate callbacks run in the pages */
@@ -1085,6 +1090,9 @@ try {
   // «Projects» on its demo data (scripts/e2e-projects-demo.mjs).
   if (want('projects-demo')) await runProjectsDemoChecks({ ctx, id, check, shoot, report, sleep });
   await noteErrors('projects-demo');
+
+  // «Projects» with a companion (scripts/e2e-projects.mjs): in a browser of its own, so this one's profile stays as it is.
+  if (want('projects')) await runProjectsChecks({ chromium, dist: DIST, check, shoot, report, sleep });
 
   // 8. The tool history (scripts/e2e-history.mjs). Last: allowing incognito there reloads the extension.
   if (want('history')) await runHistoryChecks({ ctx, sw, id, check, shoot, report, sleep, root: ROOT });
