@@ -11,7 +11,7 @@ import { TOOL_CATALOGUE } from '@src/tools/catalogue';
 export type DestinationKind = 'section' | 'tool';
 
 export interface Destination {
-  /** `compare`, `review`, `settings`, or `tools/<id>`. */
+  /** `compare`, `projects`, `settings`, or `tools/<id>`. */
   id: string;
   kind: DestinationKind;
   title: string;
@@ -41,12 +41,12 @@ export const SECTION_DESTINATIONS: readonly Destination[] = [
     hash: '#/tools',
   },
   {
-    id: 'review',
+    id: 'projects',
     kind: 'section',
-    title: 'Live review',
-    summary: 'Uncommitted changes in your repositories.',
-    keywords: ['review', 'live', 'git', 'changes', 'repository', 'companion'],
-    hash: '#/review',
+    title: 'Projects',
+    summary: 'Your local repositories: files, changes, commits and history.',
+    keywords: ['projects', 'repository', 'git', 'commit', 'history', 'files', 'companion'],
+    hash: '#/projects',
   },
   {
     id: 'history',

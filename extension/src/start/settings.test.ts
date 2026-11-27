@@ -66,11 +66,11 @@ describe('start settings', () => {
     for (const hash of ['#/compare', '#/tools/json', '#/settings', '#/start', '#/compare'])
       recent = visit(recent, hash);
     expect(recent).toEqual({ last: '#/compare', used: ['#/compare', '#/tools/json'] });
-    expect(normalizeRecent({ last: '#/settings', used: ['#/x', 7, '#/review'] })).toEqual({
+    expect(normalizeRecent({ last: '#/settings', used: ['#/x', 7, '#/projects'] })).toEqual({
       last: null,
-      used: ['#/review'],
+      used: ['#/projects'],
     });
-    for (let i = 0; i < 20; i++) recent = visit(recent, i % 2 ? '#/review' : `#/tools/t${i}`);
+    for (let i = 0; i < 20; i++) recent = visit(recent, i % 2 ? '#/projects' : `#/tools/t${i}`);
     expect(recent.used.length).toBeLessThanOrEqual(MAX_RECENT);
   });
 });

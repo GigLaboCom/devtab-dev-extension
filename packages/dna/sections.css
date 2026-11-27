@@ -43,6 +43,37 @@
  *                              .kit-plan-card-note, .kit-plan-card-summary, .kit-plan-card-includes), and at the foot
  *                              .kit-plan-card-foot (.kit-plan-card-state, .kit-plan-card-action) — pressed to the bottom
  *                              so the buttons of a row line up
+ *
+ * «Projects» (the companion's section; its parts are the extension's src/app/projects/, the page only arranges them —
+ * the look is the owner's to choose, these are the first, plain frames on the kit's numbers):
+ *   .kit-projects[data-connection]   the section's column; .kit-projects-demo (.kit-projects-demo-badge,
+ *                              .kit-projects-demo-text) — the demo's notice; .kit-projects-note[data-tone] — one line said
+ *   .kit-projects-home         the list of projects and the trusted folders: .kit-projects-home-part
+ *                              (.kit-projects-part-title, .kit-projects-part-hint), .kit-projects-group
+ *                              (.kit-projects-group-title, .kit-projects-group-path), .kit-projects-list >
+ *                              .kit-projects-item / .kit-projects-folder (-name, -path, -meta), .kit-projects-empty,
+ *                              .kit-projects-command (a command to type)
+ *   .kit-projects-bar          a project's bar: -back, -title, -path, -branch, .kit-projects-class[data-class]
+ *                              (.kit-projects-class-via), -actions
+ *   .kit-projects-workspace    the tree, the editor and the Commit window side by side:
+ *     .kit-projects-tree-frame > .kit-projects-tree (.kit-projects-tree-group nested, .kit-projects-node,
+ *                              .kit-projects-tree-note[data-tone]); .kit-projects-row[data-ignored][aria-current]
+ *                              (.kit-projects-row-name, .kit-projects-row-gap), .kit-projects-mark[data-mark]
+ *     .kit-projects-editor     .kit-projects-editor-bar (-path, -title, -tools, .kit-projects-save[data-state]),
+ *                              .kit-projects-conflict, .kit-projects-editor-view > .kit-projects-frame and
+ *                              .kit-projects-card
+ *     .kit-projects-commit     .kit-projects-commit-head (-tools), .kit-projects-changes > .kit-projects-change-group
+ *                              (-head, -title, .kit-projects-change-list > .kit-projects-change[data-change] with
+ *                              .kit-projects-change-kind, .kit-projects-change-folder), .kit-projects-chunks >
+ *                              .kit-projects-chunk, .kit-projects-message, .kit-projects-check, .kit-projects-commit-line,
+ *                              .kit-projects-commit-actions, .kit-projects-output (a hook's or git's output)
+ *   .kit-projects-panel        below: .kit-projects-panel-body with .kit-projects-search (-form, .kit-projects-results >
+ *                              .kit-projects-result-file, .kit-projects-result-line (-number, -text), .kit-projects-match)
+ *                              or .kit-projects-history (-bar, .kit-projects-points > .kit-projects-point[data-source]
+ *                              with -time, -label, -path, -actions)
+ *   .kit-projects-quick        quick open's dialog (.kit-projects-quick-list); .kit-projects-push (.kit-projects-commit-row,
+ *                              .kit-projects-commit-summary); .kit-projects-dialog-list — the files or commits a dialog
+ *                              names
  */
 @layer components {
   .kit-bare {
@@ -893,5 +924,727 @@
 
   .kit-plan-card-action > * {
     flex: 1;
+  }
+
+  /* «Projects»: a column filling the main area like «Compare code»; the parts stand next to the wasm editor, so they
+     take gpui-kit's numbers — rows of 26, 13 px names in lists, 12 px marks, the border colour between the parts. */
+  .kit-projects {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: calc(var(--spacing) * 150);
+    padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3) calc(var(--spacing) * 3);
+    gap: calc(var(--spacing) * 2);
+  }
+
+  .kit-projects-demo {
+    display: flex;
+    align-items: flex-start;
+    gap: calc(var(--spacing) * 2);
+    padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--muted);
+    color: var(--foreground);
+  }
+
+  .kit-projects-demo-badge {
+    flex: none;
+    padding: 0 calc(var(--spacing) * 1.5);
+    border-radius: var(--radius-sm);
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--text-xs--line-height);
+  }
+
+  .kit-projects-demo-text {
+    margin: 0;
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+  }
+
+  .kit-projects-note {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--spacing) * 1.5);
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+  }
+
+  .kit-projects-note[data-tone='error'] {
+    color: var(--destructive);
+  }
+
+  .kit-projects-note[data-tone='success'] {
+    color: var(--foreground);
+  }
+
+  .kit-projects-command {
+    padding: 0 calc(var(--spacing) * 1);
+    border-radius: var(--radius-sm);
+    background: var(--muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+  }
+
+  /* The list of projects and the trusted folders. */
+  .kit-projects-home {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(calc(var(--spacing) * 80), 1fr));
+    align-items: start;
+    gap: calc(var(--spacing) * 6);
+  }
+
+  .kit-projects-home-part {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 2);
+    min-width: 0;
+  }
+
+  .kit-projects-part-title {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+    line-height: var(--text-sm--line-height);
+  }
+
+  .kit-projects-part-hint {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+  }
+
+  .kit-projects-group {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 1);
+  }
+
+  .kit-projects-group-title {
+    display: flex;
+    align-items: baseline;
+    gap: calc(var(--spacing) * 2);
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .kit-projects-group-path {
+    font-weight: var(--font-weight-normal);
+  }
+
+  .kit-projects-list {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 0.5);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .kit-projects-item,
+  .kit-projects-folder {
+    display: grid;
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+    column-gap: calc(var(--spacing) * 2);
+    padding: calc(var(--spacing) * 1.5) calc(var(--spacing) * 2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--foreground);
+    text-decoration: none;
+  }
+
+  .kit-projects-item:hover,
+  .kit-projects-item[aria-current='page'] {
+    background: var(--list-hover);
+  }
+
+  .kit-projects-item-name {
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .kit-projects-item-path {
+    overflow: hidden;
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    line-height: var(--text-sm--line-height);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kit-projects-item-meta {
+    grid-column: 1 / -1;
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+  }
+
+  .kit-projects-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: calc(var(--spacing) * 1);
+    color: var(--muted-foreground);
+    font-size: var(--text-sm);
+  }
+
+  .kit-projects-empty > p {
+    margin: 0;
+  }
+
+  /* A project's bar. */
+  .kit-projects-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    min-height: var(--size-control);
+  }
+
+  .kit-projects-bar-back {
+    font-size: var(--text-xs);
+  }
+
+  .kit-projects-bar-title {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+    line-height: var(--text-sm--line-height);
+  }
+
+  .kit-projects-bar-path,
+  .kit-projects-bar-branch {
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+  }
+
+  .kit-projects-bar-branch {
+    font-family: var(--font-mono);
+  }
+
+  .kit-projects-class {
+    display: inline-flex;
+    gap: calc(var(--spacing) * 1);
+    padding: 0 calc(var(--spacing) * 1.5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    line-height: var(--text-sm--line-height);
+  }
+
+  .kit-projects-class[data-class='view'] {
+    color: var(--muted-foreground);
+  }
+
+  .kit-projects-class-via {
+    color: var(--muted-foreground);
+  }
+
+  .kit-projects-bar-actions {
+    display: flex;
+    gap: calc(var(--spacing) * 2);
+    margin-inline-start: auto;
+  }
+
+  /* The tree, the editor and the Commit window. */
+  .kit-projects-workspace {
+    display: grid;
+    flex: 1 1 0;
+    grid-template-columns: minmax(calc(var(--spacing) * 48), 1fr) minmax(0, 3fr) minmax(
+        calc(var(--spacing) * 72),
+        1.3fr
+      );
+    min-height: calc(var(--spacing) * 80);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--background);
+    overflow: hidden;
+  }
+
+  .kit-projects-tree-frame,
+  .kit-projects-commit {
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .kit-projects-tree-frame {
+    padding: calc(var(--spacing) * 1);
+    border-inline-end: 1px solid var(--border);
+  }
+
+  .kit-projects-tree,
+  .kit-projects-tree-group,
+  .kit-projects-change-list,
+  .kit-projects-quick-list,
+  .kit-projects-results,
+  .kit-projects-results ul,
+  .kit-projects-points,
+  .kit-projects-dialog-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .kit-projects-tree-group {
+    padding-inline-start: calc(var(--spacing) * 4);
+  }
+
+  .kit-projects-tree-note {
+    padding: calc(var(--spacing) * 1) calc(var(--spacing) * 2);
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+  }
+
+  .kit-projects-tree-note[data-tone='error'] {
+    color: var(--destructive);
+  }
+
+  .kit-projects-row {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: calc(var(--spacing) * 1.5);
+    width: 100%;
+    min-width: 0;
+    height: var(--size-row);
+    padding: 0 calc(var(--spacing) * 1.5);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--foreground);
+    font: inherit;
+    font-size: var(--text-code);
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .kit-projects-row:hover {
+    background: var(--list-hover);
+  }
+
+  .kit-projects-row[aria-current='true'] {
+    background: var(--list-active);
+  }
+
+  .kit-projects-row:disabled {
+    cursor: default;
+  }
+
+  .kit-projects-row[data-ignored] {
+    color: var(--muted-foreground);
+  }
+
+  .kit-projects-row svg {
+    flex: none;
+    width: calc(var(--spacing) * 4);
+    height: calc(var(--spacing) * 4);
+    color: var(--muted-foreground);
+  }
+
+  .kit-projects-row-gap {
+    flex: none;
+    width: calc(var(--spacing) * 4);
+  }
+
+  .kit-projects-row-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kit-projects-mark {
+    flex: none;
+    padding: 0 calc(var(--spacing) * 1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+    white-space: nowrap;
+  }
+
+  .kit-projects-mark[data-mark='secret'] {
+    border-color: var(--status-warning-border);
+    color: var(--warning);
+  }
+
+  .kit-projects-mark[data-mark='runs-code'] {
+    border-color: var(--status-info-border);
+    color: var(--info);
+  }
+
+  /* The editor. */
+  .kit-projects-editor {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .kit-projects-editor-bar,
+  .kit-projects-conflict {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    min-height: var(--size-control);
+    padding: 0 calc(var(--spacing) * 2);
+    border-block-end: 1px solid var(--border);
+  }
+
+  .kit-projects-editor-path {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+  }
+
+  .kit-projects-editor-title {
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+  }
+
+  .kit-projects-editor-tools {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    margin-inline-start: auto;
+  }
+
+  .kit-projects-save {
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    white-space: nowrap;
+  }
+
+  .kit-projects-save[data-state='conflict'],
+  .kit-projects-save[data-state='offline'],
+  .kit-projects-save[data-state='refused'] {
+    color: var(--destructive);
+  }
+
+  .kit-projects-conflict {
+    background: var(--status-warning-background);
+    font-size: var(--text-xs);
+  }
+
+  .kit-projects-editor-view {
+    position: relative;
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  .kit-projects-frame {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: var(--background);
+  }
+
+  .kit-projects-card {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: calc(var(--spacing) * 4);
+    background: var(--background);
+    color: var(--muted-foreground);
+    font-size: var(--text-sm);
+    text-align: center;
+  }
+
+  .kit-projects-card > p {
+    margin: 0;
+  }
+
+  /* The Commit window. */
+  .kit-projects-commit {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 2);
+    padding: calc(var(--spacing) * 1) calc(var(--spacing) * 2) calc(var(--spacing) * 2);
+    border-inline-start: 1px solid var(--border);
+  }
+
+  .kit-projects-commit-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: calc(var(--spacing) * 2);
+  }
+
+  .kit-projects-commit-tools {
+    display: flex;
+    gap: calc(var(--spacing) * 0.5);
+  }
+
+  .kit-projects-commit-tools [data-pressed] {
+    background: var(--list-active);
+  }
+
+  .kit-projects-changes,
+  .kit-projects-chunks {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 1);
+  }
+
+  .kit-projects-change-group-head {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    padding-inline-start: calc(var(--spacing) * 1);
+  }
+
+  .kit-projects-change-group-title {
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .kit-projects-change,
+  .kit-projects-chunk {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 1);
+    padding-inline-start: calc(var(--spacing) * 3);
+  }
+
+  .kit-projects-change .kit-projects-row-name {
+    flex: 0 1 auto;
+  }
+
+  .kit-projects-change-kind {
+    flex: 0 2 auto;
+    min-width: 0;
+    overflow: hidden;
+    margin-inline-start: auto;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+  }
+
+  .kit-projects-change[data-change='added'] .kit-projects-row-name,
+  .kit-projects-change[data-change='untracked'] .kit-projects-row-name {
+    color: var(--success);
+  }
+
+  .kit-projects-change[data-change='deleted'] .kit-projects-row-name {
+    color: var(--muted-foreground);
+    text-decoration: line-through;
+  }
+
+  .kit-projects-change[data-change='conflicted'] .kit-projects-row-name {
+    color: var(--destructive);
+  }
+
+  .kit-projects-change-folder {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .kit-projects-message {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 1);
+  }
+
+  .kit-projects-check {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+  }
+
+  .kit-projects-commit-line {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+  }
+
+  .kit-projects-commit-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: calc(var(--spacing) * 2);
+  }
+
+  .kit-projects-output {
+    max-height: calc(var(--spacing) * 40);
+    margin: 0;
+    padding: calc(var(--spacing) * 2);
+    overflow: auto;
+    border-radius: var(--radius-md);
+    background: var(--muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+    white-space: pre-wrap;
+  }
+
+  /* The panel below: Find and History. */
+  .kit-projects-panel {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 2);
+    height: calc(var(--spacing) * 60);
+    min-height: 0;
+  }
+
+  .kit-projects-panel-body {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: calc(var(--spacing) * 2);
+  }
+
+  .kit-projects-search,
+  .kit-projects-history {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 2);
+  }
+
+  .kit-projects-search-form,
+  .kit-projects-history-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+  }
+
+  .kit-projects-search-form > input {
+    flex: 1 1 calc(var(--spacing) * 60);
+    width: auto;
+  }
+
+  .kit-projects-result-file {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .kit-projects-result-line {
+    display: flex;
+    gap: calc(var(--spacing) * 2);
+    width: 100%;
+    padding: 0 calc(var(--spacing) * 2);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--foreground);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    line-height: var(--text-code--line-height);
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .kit-projects-result-line:hover {
+    background: var(--list-hover);
+  }
+
+  .kit-projects-result-number {
+    flex: none;
+    min-width: calc(var(--spacing) * 8);
+    color: var(--muted-foreground);
+    text-align: end;
+  }
+
+  .kit-projects-result-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: pre;
+  }
+
+  .kit-projects-match {
+    background: var(--selection);
+    color: inherit;
+  }
+
+  .kit-projects-point {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    min-height: var(--size-row);
+    padding: 0 calc(var(--spacing) * 1);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+  }
+
+  .kit-projects-point:hover {
+    background: var(--list-hover);
+  }
+
+  .kit-projects-point-time {
+    min-width: calc(var(--spacing) * 24);
+    color: var(--muted-foreground);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .kit-projects-point-label {
+    font-weight: var(--font-weight-medium);
+  }
+
+  .kit-projects-point-path {
+    font-family: var(--font-mono);
+  }
+
+  .kit-projects-point-actions {
+    display: flex;
+    gap: calc(var(--spacing) * 1);
+    margin-inline-start: auto;
+  }
+
+  /* The dialogs: quick open, push, the lists they name. */
+  .kit-projects-quick.cn-dialog-content {
+    width: min(calc(100% - var(--spacing) * 8), calc(var(--spacing) * 140));
+  }
+
+  .kit-projects-quick-list {
+    max-height: calc(var(--spacing) * 80);
+    overflow: auto;
+  }
+
+  .kit-projects-dialog-list {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 1);
+    max-height: calc(var(--spacing) * 60);
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+  }
+
+  .kit-projects-push.cn-dialog-content {
+    width: min(calc(100% - var(--spacing) * 8), calc(var(--spacing) * 150));
+  }
+
+  .kit-projects-node,
+  .kit-projects-change-group {
+    min-width: 0;
+  }
+
+  .kit-projects-commit-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: calc(var(--spacing) * 2);
+  }
+
+  .kit-projects-commit-summary {
+    font-family: var(--font-sans);
   }
 }

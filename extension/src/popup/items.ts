@@ -11,7 +11,7 @@
  *             route comes to the front (seam PageOpener, src/toolbar/index.ts)
  *   Settings  the extension's options page (runtime.openOptionsPage)
  *
- * Live review is not here while it is a stub (the sidebar leads to it). The titles are the sections' own
+ * Projects is not here (the sidebar leads to it). The titles are the sections' own
  * (src/shared/destinations.ts; items.test.ts holds them together) — that module is not imported: it brings the tools'
  * registry with React, and the menu stays light.
  *

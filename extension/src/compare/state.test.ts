@@ -34,6 +34,7 @@ const shown = (modified: [boolean, boolean], empty: [boolean, boolean] = [false,
     old: { editable: false, modified: modified[0], empty: empty[0] },
     new: { editable: false, modified: modified[1], empty: empty[1] },
   },
+  mode: 'diff',
 });
 
 describe('where texts go', () => {

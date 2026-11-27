@@ -11,7 +11,7 @@ describe('the start page field', () => {
     expect(titles('json')[0]).toBe('JSON');
     expect(titles('Comp')[0]).toBe('Compare code');
     expect(titles('diff')).toContain('Compare code');
-    expect(titles('git')).toEqual(['Live review']);
+    expect(titles('git')).toEqual(['Projects']);
     expect(titles('theme')).toEqual(['Settings']);
     expect(titles('minify')).toEqual(['JSON']);
     expect(titles('   ')).toEqual([]);
@@ -47,7 +47,21 @@ describe('the start page field', () => {
 
 describe('PlaceMatcher: the strict matcher, what the start page has before its first paint', () => {
   // Every query the strict tiers answer: exact, prefix, word start, substring — by title or keyword.
-  const STRICT = ['json', 'HASH', 'hásh', 'comp', 'review', 'diff', 'minify', 'git', 'theme', 'u', 'uid', 'Comp', 'e'];
+  const STRICT = [
+    'json',
+    'HASH',
+    'hásh',
+    'comp',
+    'projects',
+    'diff',
+    'minify',
+    'git',
+    'theme',
+    'u',
+    'uid',
+    'Comp',
+    'e',
+  ];
 
   // The fuzzy matcher puts the same places first, in the same order, and may only add weaker matches after them: a
   // near miss of some tool's keyword ("comp" against "commonmark") is its business, and must not break this.

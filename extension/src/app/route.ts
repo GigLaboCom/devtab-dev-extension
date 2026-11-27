@@ -3,31 +3,59 @@
  * bookmarked, reloaded and opened from elsewhere. The page is also the browser's New Tab page: a new tab opens it with
  * no hash, which is the start page (public/route-boot.js may first turn it into the last opened tool). On a new tab
  * the address bar stays empty however the hash changes (a same-document navigation keeps Chrome's New Tab address).
+ *
+ * The Projects section has three depths (the companion's specification §8.4): `#/projects` — the projects;
+ * `#/projects/<id>` — one project; `#/projects/<id>/<path, URL-encoded>` — a file open in it. The address only shows:
+ * nothing is written, committed or asked for from an address. `#/review` (the section's former stub) opens Projects.
  */
 import { BARE_FLAG, OPTIONS_FLAG, hasFlag } from '@src/shared/pages';
 import { useSyncExternalStore } from 'react';
 
-export type SectionId = 'start' | 'settings' | 'compare' | 'tools' | 'review' | 'history';
+export type SectionId = 'start' | 'settings' | 'compare' | 'tools' | 'projects' | 'history';
 
 export interface Route {
   section: SectionId;
   /** The tool's id in the tools section. */
   tool?: string;
+  /** The project's id in the Projects section. */
+  project?: string;
+  /** The file open in that project: a path inside it. */
+  path?: string;
 }
 
 export const DEFAULT_ROUTE: Route = { section: 'start' };
 
-const SECTIONS: readonly SectionId[] = ['start', 'settings', 'compare', 'tools', 'review', 'history'];
+const SECTIONS: readonly SectionId[] = ['start', 'settings', 'compare', 'tools', 'projects', 'history'];
+
+const decoded = (part: string): string | undefined => {
+  try {
+    return decodeURIComponent(part) || undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 export const parseRoute = (hash: string): Route => {
-  const [section, tool] = hash.replace(/^#\/?/, '').split('/');
+  const [section, tool, ...rest] = hash.replace(/^#\/?/, '').split('/');
   if (section === 'tools') return tool ? { section, tool } : { section };
+  if (section === 'review') return { section: 'projects' };
+  if (section === 'projects') {
+    const project = tool ? decoded(tool) : undefined;
+    const path = project && rest.length ? decoded(rest.join('/')) : undefined;
+    return { section, ...(project && { project }), ...(path && { path }) };
+  }
   if (SECTIONS.includes(section as SectionId)) return { section: section as SectionId };
   return DEFAULT_ROUTE;
 };
 
-export const routeHash = (route: Route): string =>
-  route.section === 'tools' && route.tool ? `#/tools/${route.tool}` : `#/${route.section}`;
+export const routeHash = (route: Route): string => {
+  if (route.section === 'tools' && route.tool) return `#/tools/${route.tool}`;
+  if (route.section === 'projects' && route.project) {
+    const project = `#/projects/${encodeURIComponent(route.project)}`;
+    return route.path ? `${project}/${encodeURIComponent(route.path)}` : project;
+  }
+  return `#/${route.section}`;
+};
 
 const subscribe = (onChange: () => void): (() => void) => {
   window.addEventListener('hashchange', onChange);

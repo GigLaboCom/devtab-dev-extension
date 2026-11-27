@@ -6,7 +6,7 @@ describe('route', () => {
     expect(parseRoute('#/start')).toEqual({ section: 'start' });
     expect(parseRoute('#/settings')).toEqual({ section: 'settings' });
     expect(parseRoute('#/compare')).toEqual({ section: 'compare' });
-    expect(parseRoute('#/review')).toEqual({ section: 'review' });
+    expect(parseRoute('#/projects')).toEqual({ section: 'projects' });
     expect(parseRoute('#/tools')).toEqual({ section: 'tools' });
     expect(parseRoute('#/tools/json')).toEqual({ section: 'tools', tool: 'json' });
   });
@@ -14,8 +14,24 @@ describe('route', () => {
     expect(parseRoute('')).toEqual({ section: 'start' });
     expect(parseRoute('#/nowhere')).toEqual({ section: 'start' });
   });
+  it('reads a project and a file open in it; the former «Live review» address opens Projects', () => {
+    expect(parseRoute('#/review')).toEqual({ section: 'projects' });
+    expect(parseRoute('#/projects/p_demo0ledgr')).toEqual({ section: 'projects', project: 'p_demo0ledgr' });
+    expect(parseRoute('#/projects/p_demo0ledgr/src%2Fserver.ts')).toEqual({
+      section: 'projects',
+      project: 'p_demo0ledgr',
+      path: 'src/server.ts',
+    });
+    // An unencoded path reads the same; a broken escape is no file.
+    expect(parseRoute('#/projects/p_x/src/a b.ts').path).toBe('src/a b.ts');
+    expect(parseRoute('#/projects/p_x/%E0%A4%A')).toEqual({ section: 'projects', project: 'p_x' });
+    expect(routeHash({ section: 'projects', project: 'p_x', path: 'src/a b.ts' })).toBe(
+      '#/projects/p_x/src%2Fa%20b.ts',
+    );
+    expect(routeHash(parseRoute('#/projects/p_x/src%2Fa%20b.ts'))).toBe('#/projects/p_x/src%2Fa%20b.ts');
+  });
   it('writes what it reads', () => {
-    for (const hash of ['#/start', '#/settings', '#/compare', '#/review', '#/tools', '#/tools/json'])
+    for (const hash of ['#/start', '#/settings', '#/compare', '#/projects', '#/tools', '#/tools/json'])
       expect(routeHash(parseRoute(hash))).toBe(hash);
   });
 });

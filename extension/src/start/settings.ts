@@ -62,7 +62,7 @@ export const DEFAULT_STATE: StartState = {
 const isRecord = (raw: unknown): raw is Record<string, unknown> => !!raw && typeof raw === 'object';
 
 /** The routes a new tab may reopen: a section or a tool — never the start page or the settings. */
-export const REOPENABLE = /^#\/(?:compare|review|tools(?:\/[a-z0-9-]+)?)$/;
+export const REOPENABLE = /^#\/(?:compare|projects|tools(?:\/[a-z0-9-]+)?)$/;
 
 /**
  * Version 1 (no `version`; 2026-11-20, before the parts were definitions) stored all six switches by name; the history

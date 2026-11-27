@@ -93,7 +93,7 @@ const state: StartState = {
     { id: 'a', title: 'Docs', url: 'https://docs.example.com/' },
     { id: 'b', title: 'Mail', url: 'https://mail.example.com/' },
   ],
-  recent: { last: '#/review', used: ['#/review', '#/tools/json'] },
+  recent: { last: '#/projects', used: ['#/projects', '#/tools/json'] },
 };
 
 afterEach(() => window.localStorage.clear());
@@ -360,7 +360,7 @@ describe('the parts’ data', () => {
     // The tools after the sections come from the registry: a new tool adds a tile without editing this test.
     const others = TOOL_DESTINATIONS.map(d => d.hash).filter(h => h !== '#/tools/json');
     expect((await tools.tiles.tiles(state)).map(t => t.href)).toEqual(
-      ['#/review', '#/tools/json', '#/compare', '#/history', ...others].slice(0, MAX_TILES),
+      ['#/projects', '#/tools/json', '#/compare', '#/history', ...others].slice(0, MAX_TILES),
     );
   });
 

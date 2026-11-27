@@ -203,8 +203,8 @@ describe('the rules', () => {
   });
 
   it('matches a pressed chord; in a text field only with ⌘ / Ctrl', () => {
-    const withAlt = bindingsOf(ACTIONS, withKey(DEFAULT_SHORTCUTS, 'open:review', k('KeyR', { alt: true })), true);
-    expect(actionFor(k('KeyR', { alt: true }), withAlt, ACTIONS, false)?.id).toBe('open:review');
+    const withAlt = bindingsOf(ACTIONS, withKey(DEFAULT_SHORTCUTS, 'open:projects', k('KeyR', { alt: true })), true);
+    expect(actionFor(k('KeyR', { alt: true }), withAlt, ACTIONS, false)?.id).toBe('open:projects');
     expect(actionFor(k('KeyR', { alt: true }), withAlt, ACTIONS, true)).toBeUndefined();
     expect(actionFor(FIND_SHORTCUT, withAlt, ACTIONS, true)?.id).toBe('find');
     expect(actionFor(k('KeyK', { mod: true, other: true }), withAlt, ACTIONS, false)).toBeUndefined();

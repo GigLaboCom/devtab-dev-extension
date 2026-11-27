@@ -58,7 +58,7 @@ export const titleOf = (route: Route, newTab: boolean): string => {
           start: 'Start page',
           settings: 'Settings',
           compare: 'Compare code',
-          review: 'Live review',
+          projects: 'Projects',
           history: 'History',
         }[route.section];
   return `${part} — ${product.name}`;
@@ -71,7 +71,8 @@ export const App = ({ deps }: { deps: AppDeps }): ReactElement => {
   const start = useStartState(deps.start);
   const held = useHeldPermissions(deps.permissions, optionalPermissionNames(deps.behaviors.parts));
   useLateNewTabChoice(deps.start, deps.behaviors, start);
-  useRecordVisit(deps.start, hash, route);
+  // A project or a file in «Projects» is remembered as the section.
+  useRecordVisit(deps.start, route.section === 'projects' ? routeHash({ section: 'projects' }) : hash, route);
   // Before the first paint, so a tab opened on a route never shows the static "New Tab" of index.html.
   useLayoutEffect(() => {
     document.title = titleOf(route, isNewTabPage(deps.behaviors.newTab) && isNewTabLoad(window.location));

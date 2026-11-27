@@ -14,14 +14,14 @@ import type { SiteIcons } from './siteIcons';
 const recents: Recent[] = [
   { last: null, used: [] },
   { last: '#/tools/json', used: ['#/tools/json', '#/compare'] },
-  { last: '#/review', used: ['#/review'] },
+  { last: '#/projects', used: ['#/projects'] },
 ];
 
 describe.each(Object.entries(NEW_TAB_PAGES))('NewTabPage contract: %s', (_name, page: NewTabPage) => {
   it.each(recents)('answers a route the page knows, synchronously (route-boot.js mirrors it): %j', recent => {
     const hash = page.initialHash(recent);
     expect(typeof hash).toBe('string');
-    expect([START_HASH, '#/compare', '#/review', '#/tools', ...recent.used]).toContain(hash);
+    expect([START_HASH, '#/compare', '#/projects', '#/tools', ...recent.used]).toContain(hash);
   });
   it('opens the start page when nothing was opened yet', () => {
     expect(page.initialHash({ last: null, used: [] })).toBe(START_HASH);

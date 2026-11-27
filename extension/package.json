@@ -1,7 +1,7 @@
 {
   "name": "extension",
   "version": "0.0.1",
-  "description": "The Manifest V3 extension: code comparison on the wasm editor, developer tools, live review (a stub until the companion exists). Its name is in product.json.",
+  "description": "The Manifest V3 extension: code comparison on the wasm editor, developer tools, Projects (demo data until the companion exists). Its name is in product.json.",
   "type": "module",
   "private": true,
   "scripts": {

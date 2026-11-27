@@ -11,7 +11,6 @@ import { iconOf } from './destinationIcons';
 import { HistoryPage } from './history/HistoryPage';
 import { go, routeHash } from './route';
 import { ComparePage } from './sections/ComparePage';
-import { LiveReviewPage } from './sections/LiveReviewPage';
 import { SettingsPage } from './sections/SettingsPage';
 import { ToolsPage } from './sections/ToolsPage';
 import { Palette } from './shell/Palette';
@@ -25,7 +24,7 @@ import { compareBehaviors } from '@src/compare/behaviors';
 import { DESTINATIONS, SECTION_DESTINATIONS, SETTINGS_DESTINATION } from '@src/shared/destinations';
 import { shellBehaviors } from '@src/shell/behaviors';
 import { trailOf } from '@src/shell/trail';
-import { use, useMemo, useRef } from 'react';
+import { lazy, Suspense, use, useMemo, useRef } from 'react';
 import type { Route } from './route';
 import type { SettingsProps, ShellChoices } from './sections/SettingsPage';
 import type { Shortcuts } from './shell/useShortcuts';
@@ -41,6 +40,9 @@ export interface ShellProps {
   theme: { pref: ThemePref; onChange: (pref: ThemePref) => void };
   settings: Omit<SettingsProps, 'theme' | 'history'>;
 }
+
+// «Projects»: a chunk of its own, loaded when the section opens — the shell's chunk does not carry it.
+const ProjectsSection = lazy(() => import('./sections/ProjectsPage'));
 
 const Shell = ({ route, history, theme, settings }: ShellProps): ReactElement => {
   const SettingsIcon = iconOf(SETTINGS_DESTINATION.id);
@@ -135,7 +137,11 @@ const Part = ({
     <>
       {route.section === 'compare' && <ComparePage behaviors={compare} frameKeys={frameKeys} />}
       {route.section === 'tools' && <ToolsPage toolId={route.tool} history={host} />}
-      {route.section === 'review' && <LiveReviewPage />}
+      {route.section === 'projects' && (
+        <Suspense fallback={null}>
+          <ProjectsSection route={route} frameKeys={frameKeys} />
+        </Suspense>
+      )}
       {route.section === 'settings' && (
         <SettingsPage {...settings} theme={theme} history={host} shortcuts={shortcuts} shell={shell} />
       )}

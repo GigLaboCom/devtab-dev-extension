@@ -3,7 +3,7 @@
  * popup Chrome sends no click and nothing listens), and the licence (src/background/licence) with the plans list.
  * The network is only there, only to the licence configuration's origin (src/licence), only with a licence — or for the
  * plans list when the person asks; the store build's configuration has no origin yet, so nothing is ever sent. No DOM,
- * no Native Messaging (live review is a stub until the companion exists).
+ * no Native Messaging (the Projects section shows its demo until the companion exists).
  */
 import { startLicence } from './licence';
 import { createDebug } from '@extension/logger';

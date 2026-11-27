@@ -9,7 +9,8 @@ The code repository of devtab-dev (the project's code name; the domain is devtab
   offline, with nothing else installed.
 - **Tools**: offline developer tools in React (JSON so far), each a pair of reusable packages (its logic and its
   component) that the extension finds by itself; what a tool keeps is in the local, optional tool history.
-- **Live review**: reviewing local changes through a companion app on macOS. Not built yet; the page says so.
+- **Projects**: local repositories — files, changes, commits and history — through a companion app on macOS. The
+  companion is not built yet; the section runs on invented demo data and says so.
 
 Its main page is also the browser's New Tab page: a start page with one field that finds the extension's tools,
 opens pasted text in the tool that recognises it and otherwise searches the web through Chrome's search API, with

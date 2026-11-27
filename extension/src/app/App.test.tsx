@@ -282,14 +282,14 @@ describe('a new tab: the start page', () => {
   });
 
   it('remembers the sections and tools opened, most recent first, for the Tools tiles', async () => {
-    const { storage } = setup('#/review');
-    await screen.findByRole('heading', { name: 'Companion app required' });
-    await waitFor(() => expect(storage.rows.get(RECENT_KEY)).toEqual({ last: '#/review', used: ['#/review'] }));
+    const { storage } = setup('#/projects');
+    await screen.findByRole('heading', { name: 'Projects', level: 1 });
+    await waitFor(() => expect(storage.rows.get(RECENT_KEY)).toEqual({ last: '#/projects', used: ['#/projects'] }));
     act(() => {
       window.location.hash = '#/start';
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     });
-    await waitFor(() => expect(within(row('Tools')!).getAllByRole('link')[0].textContent).toBe('Live review'));
+    await waitFor(() => expect(within(row('Tools')!).getAllByRole('link')[0].textContent).toBe('Projects'));
   });
 });
 
@@ -520,9 +520,11 @@ describe('the shell', () => {
     expect(screen.getByRole('group', { name: 'Changed side' }).textContent).toContain('after.rs');
   });
 
-  it('shows the companion notice in «Live review»', async () => {
+  it('opens «Projects» on its demo, also from the former «Live review» address', async () => {
     setup('#/review');
-    expect(await screen.findByRole('heading', { name: 'Companion app required' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Projects', level: 1 })).toBeTruthy();
+    expect(await screen.findByRole('group', { name: 'Work' })).toBeTruthy();
+    expect(screen.getByRole('note').textContent).toContain('invented projects');
   });
 
   it('the theme switch saves the choice and repaints the page', async () => {

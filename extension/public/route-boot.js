@@ -24,7 +24,7 @@
     var cached = JSON.parse(window.localStorage.getItem('start-cache') || 'null');
     if (!cached || !cached.settings || cached.settings.newTab !== 'last' || !cached.recent) return;
     var last = cached.recent.last;
-    if (typeof last === 'string' && /^#\/(?:compare|review|tools(?:\/[a-z0-9-]+)?)$/.test(last)) {
+    if (typeof last === 'string' && /^#\/(?:compare|projects|tools(?:\/[a-z0-9-]+)?)$/.test(last)) {
       window.history.replaceState(null, '', last);
     }
   } catch (ignored) {

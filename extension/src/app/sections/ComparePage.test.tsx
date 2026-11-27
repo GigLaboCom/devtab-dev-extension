@@ -40,6 +40,7 @@ const shown = (changes: number, over: Partial<DiffShown> = {}): DiffShown => ({
     old: { editable: false, modified: false, empty: false },
     new: { editable: false, modified: false, empty: false },
   },
+  mode: 'diff',
   ...over,
 });
 
