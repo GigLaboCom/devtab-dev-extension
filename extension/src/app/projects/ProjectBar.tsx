@@ -1,13 +1,14 @@
 /**
  * A project's bar: which project (and a way back to all of them), where it is, its branch, its class (§8.4 «Класс
- * проекта») with the way to change it, and «Go to file». Making a project writable asks the companion: inside a
- * trusted folder it is at once, outside only after the companion's own window — which the demo does not have.
+ * проекта») with the way to change it, «Go to file» and «Find in files…» (it opens the panel find lives in). Making a
+ * project writable asks the companion: inside a trusted folder it is at once, outside only after the companion's own
+ * window — which the demo does not have.
  */
 import { TEXT, printable } from './text';
 import { routeHash } from '../route';
 import { isCompanionError } from '@src/projects/types';
 import { Button } from '@workspace/ui/button';
-import { SearchIcon } from 'lucide-react';
+import { SearchIcon, TextSearchIcon } from 'lucide-react';
 import { useState } from 'react';
 import type { Workspace } from './useWorkspace';
 import type { TrustedLocation } from '@src/projects/types';
@@ -17,10 +18,18 @@ export interface ProjectBarProps {
   workspace: Workspace;
   locations: readonly TrustedLocation[];
   onGoToFile(): void;
+  /** Starts a search: the panel with find in files opens, its field focused. */
+  onFindInFiles(): void;
   onClassChanged(): void;
 }
 
-export const ProjectBar = ({ workspace, locations, onGoToFile, onClassChanged }: ProjectBarProps): ReactElement => {
+export const ProjectBar = ({
+  workspace,
+  locations,
+  onGoToFile,
+  onFindInFiles,
+  onClassChanged,
+}: ProjectBarProps): ReactElement => {
   const { project, state, backend } = workspace;
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -85,6 +94,10 @@ export const ProjectBar = ({ workspace, locations, onGoToFile, onClassChanged }:
         <Button variant="outline" size="sm" onClick={onGoToFile}>
           <SearchIcon aria-hidden="true" />
           {TEXT.goToFile}
+        </Button>
+        <Button variant="outline" size="sm" onClick={onFindInFiles}>
+          <TextSearchIcon aria-hidden="true" />
+          {TEXT.findInFiles}
         </Button>
       </div>
     </header>

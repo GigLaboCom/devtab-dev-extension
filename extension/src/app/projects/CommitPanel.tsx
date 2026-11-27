@@ -4,6 +4,8 @@
  * and their chunks (what is checked is committed, from HEAD; the person's index is not touched); the message with its
  * history; «Run Git hooks» when the project has hooks, on again for every commit; the branch, its upstream and the
  * author; Commit and «Commit and Push…». No confirmation before a commit (§6.2): it can be undone while not pushed.
+ * A project that cannot commit (read only, or a companion that does not offer it) shows its changes, their diffs and
+ * chunks, and one line saying why there is nothing more: no checkboxes, no message, no buttons that would fail (D35).
  */
 import { PushDialog } from './PushDialog';
 import { RollbackDialog } from './RollbackDialog';
@@ -52,6 +54,8 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
   // What is written needs a writable project and a backend that offers the write: otherwise inactive, with why.
   const commits = can('git.commit');
   const mine = project.class === 'mine' && commits;
+  // A project that cannot commit shows its changes and their diffs; what only serves a commit is not drawn (D35).
+  const readOnly = !mine;
   const [identity, setIdentity] = useState<GitIdentity | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
   const [outgoing, setOutgoing] = useState<Outgoing | null>(null);
@@ -165,6 +169,13 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
   }, 0);
   const hooksShown = (state?.hooks ?? []).some(h => h === 'pre-commit' || h === 'commit-msg');
   const canCommit = mine && !busy && checkedFiles.length > 0 && message.trim().length > 0 && !!identity?.email;
+  // Commits not pushed yet: the last one can be undone, and they can be pushed.
+  const undoable = (outgoing?.commits.length ?? 0) > 0;
+  const branchLine = `${
+    state?.branch
+      ? TEXT.branchLine(printable(state.branch), state.upstream == null ? null : printable(state.upstream), state.ahead)
+      : ''
+  }${identity?.email ? ` · ${printable(identity.name ?? '')} <${printable(identity.email)}>` : ''}`;
 
   const commit = async (andPush: boolean): Promise<void> => {
     if (!status || !canCommit) return;
@@ -262,19 +273,21 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
 
   const fileRow = (file: StatusFile): ReactElement => (
     <li key={file.path} className="kit-projects-change" data-change={file.change}>
-      <Checkbox
-        aria-label={file.path}
-        checked={stateOf(checks.get(file.path))}
-        disabled={!checkable(file) || !mine}
-        onCheckedChange={() => toggleFile(file)}
-      />
+      {!readOnly && (
+        <Checkbox
+          aria-label={file.path}
+          checked={stateOf(checks.get(file.path))}
+          disabled={!checkable(file)}
+          onCheckedChange={() => toggleFile(file)}
+        />
+      )}
       <button
         type="button"
         className="kit-projects-row"
         aria-current={file.path === (selected ?? openPath) ? 'true' : undefined}
         title={file.change === 'conflicted' ? TEXT.conflicted : undefined}
         onClick={() => select(file)}>
-        <span className="kit-projects-row-name">
+        <span className="kit-projects-row-name" title={printable(file.path)}>
           {printable(byFolder ? file.path.slice(file.path.lastIndexOf('/') + 1) : file.path)}
         </span>
         <span className="kit-projects-change-kind">{changeLabel(file)}</span>
@@ -302,15 +315,17 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
             onClick={workspace.refresh}>
             <RefreshCwIcon aria-hidden="true" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={TEXT.rollback}
-            title={TEXT.rollback}
-            disabled={!mine || !can('git.rollback') || rollbackPaths.length === 0}
-            onClick={() => setRollbackOpen(true)}>
-            <Undo2Icon aria-hidden="true" />
-          </Button>
+          {!readOnly && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={TEXT.rollback}
+              title={TEXT.rollback}
+              disabled={!can('git.rollback') || rollbackPaths.length === 0}
+              onClick={() => setRollbackOpen(true)}>
+              <Undo2Icon aria-hidden="true" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon-sm"
@@ -360,12 +375,14 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
           return (
             <div key={group.id} className="kit-projects-change-group" role="group" aria-label={group.title}>
               <div className="kit-projects-change-group-head">
-                <Checkbox
-                  aria-label={group.title}
-                  checked={all ? true : some ? 'indeterminate' : false}
-                  disabled={!mine || on.length === 0}
-                  onCheckedChange={() => toggleGroup(group.files)}
-                />
+                {!readOnly && (
+                  <Checkbox
+                    aria-label={group.title}
+                    checked={all ? true : some ? 'indeterminate' : false}
+                    disabled={on.length === 0}
+                    onCheckedChange={() => toggleGroup(group.files)}
+                  />
+                )}
                 <span className="kit-projects-change-group-title">{group.title}</span>
                 <span className="kit-projects-item-meta">{group.files.length}</span>
               </div>
@@ -417,12 +434,13 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
                 const on = check === 'all' || (check !== undefined && check.has(hunk.index));
                 return (
                   <li key={hunk.index} className="kit-projects-chunk">
-                    <Checkbox
-                      aria-label={TEXT.chunk(hunk.index, hunk.start, hunk.lines)}
-                      checked={on}
-                      disabled={!mine}
-                      onCheckedChange={() => toggleChunk(hunk.index)}
-                    />
+                    {!readOnly && (
+                      <Checkbox
+                        aria-label={TEXT.chunk(hunk.index, hunk.start, hunk.lines)}
+                        checked={on}
+                        onCheckedChange={() => toggleChunk(hunk.index)}
+                      />
+                    )}
                     <button type="button" className="kit-projects-row" onClick={() => workspace.revealHunk(hunk.index)}>
                       <span className="kit-projects-row-name">{TEXT.chunk(hunk.index, hunk.start, hunk.lines)}</span>
                     </button>
@@ -434,111 +452,98 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
         </div>
       )}
 
-      <div className="kit-projects-message">
-        <Label htmlFor="projects-commit-message" className="sr-only">
-          {TEXT.message}
-        </Label>
-        <Textarea
-          id="projects-commit-message"
-          placeholder={TEXT.message}
-          value={message}
-          disabled={!mine || busy}
-          onChange={e => setMessage(e.target.value)}
-        />
-        {messages.length > 0 && (
-          <Select value="" onValueChange={value => setMessage(value)} disabled={!mine || busy}>
-            <SelectTrigger size="sm" aria-label={TEXT.recentMessages}>
-              <SelectValue placeholder={TEXT.recentMessages} />
-            </SelectTrigger>
-            <SelectContent>
-              {messages.map(m => (
-                <SelectItem key={m} value={m}>
-                  {printable(m.split('\n')[0] ?? '')}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
-      {hooksShown && (
-        <div className="kit-projects-check">
-          <Checkbox
-            id="projects-run-hooks"
-            checked={runHooks}
-            disabled={!mine || busy}
-            onCheckedChange={v => setRunHooks(v === true)}
-          />
-          <Label htmlFor="projects-run-hooks">{TEXT.runHooks}</Label>
-          {!runHooks && <span className="kit-projects-part-hint">{TEXT.hooksSkipped}</span>}
-        </div>
-      )}
-
-      <p className="kit-projects-commit-line">
-        {state?.branch
-          ? TEXT.branchLine(
-              printable(state.branch),
-              state.upstream == null ? null : printable(state.upstream),
-              state.ahead,
-            )
-          : ''}
-        {identity?.email ? ` · ${printable(identity.name ?? '')} <${printable(identity.email)}>` : ''}
-      </p>
-      {identity && !identity.email && (
-        <p className="kit-projects-note" data-tone="error">
-          {TEXT.noIdentity} <code className="kit-projects-command">{TEXT.noIdentityCommand}</code>
+      <p className="kit-projects-commit-line">{branchLine}</p>
+      {readOnly ? (
+        <p className="kit-projects-note" data-read-only="">
+          {project.class !== 'mine' ? TEXT.commitReadOnly : TEXT.commitNotOffered}
         </p>
+      ) : (
+        <>
+          {identity && !identity.email && (
+            <p className="kit-projects-note" data-tone="error">
+              {TEXT.noIdentity} <code className="kit-projects-command">{TEXT.noIdentityCommand}</code>
+            </p>
+          )}
+          <div className="kit-projects-message">
+            <Label htmlFor="projects-commit-message" className="sr-only">
+              {TEXT.message}
+            </Label>
+            <Textarea
+              id="projects-commit-message"
+              placeholder={TEXT.message}
+              value={message}
+              disabled={busy}
+              onChange={e => setMessage(e.target.value)}
+            />
+            {messages.length > 0 && (
+              <Select value="" onValueChange={value => setMessage(value)} disabled={busy}>
+                <SelectTrigger size="sm" aria-label={TEXT.recentMessages}>
+                  <SelectValue placeholder={TEXT.recentMessages} />
+                </SelectTrigger>
+                <SelectContent>
+                  {messages.map(m => (
+                    <SelectItem key={m} value={m}>
+                      {printable(m.split('\n')[0] ?? '')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          {hooksShown && (
+            <div className="kit-projects-check">
+              <Checkbox
+                id="projects-run-hooks"
+                checked={runHooks}
+                disabled={busy}
+                onCheckedChange={v => setRunHooks(v === true)}
+              />
+              <Label htmlFor="projects-run-hooks">{TEXT.runHooks}</Label>
+              {!runHooks && <span className="kit-projects-part-hint">{TEXT.hooksSkipped}</span>}
+            </div>
+          )}
+          <p className="kit-projects-part-hint">{TEXT.checked(checkedFiles.length, chunkCount)}</p>
+          <div className="kit-projects-commit-actions">
+            <Button disabled={!canCommit} onClick={() => void commit(false)}>
+              {TEXT.commit}
+            </Button>
+            <Button variant="outline" disabled={!canCommit || !can('git.push')} onClick={() => void commit(true)}>
+              {TEXT.commitAndPush}
+            </Button>
+            {busy && (
+              <Button variant="ghost" onClick={() => abort.current?.abort()}>
+                {TEXT.cancel}
+              </Button>
+            )}
+          </div>
+          {output.length > 0 && <pre className="kit-projects-output">{terminalText(output.join('\n'))}</pre>}
+          {note && (
+            <p className="kit-projects-note" data-tone={note.tone} role="status">
+              {note.text}
+              {note.detail && <code className="kit-projects-command">{note.detail}</code>}
+            </p>
+          )}
+          {(undoable || rolledBack.length > 0) && (
+            <div className="kit-projects-commit-actions">
+              {undoable && can('git.undoCommit') && !busy && (
+                <Button variant="ghost" size="sm" onClick={() => void undo()}>
+                  {TEXT.undoCommit}
+                </Button>
+              )}
+              {can('history.restore') && rolledBack.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={() => void undoRollback()}>
+                  {TEXT.undoRollback}
+                </Button>
+              )}
+              {undoable && can('git.push') && (
+                <Button variant="ghost" size="sm" onClick={() => setPushOpen(true)}>
+                  {TEXT.pushRun}…
+                </Button>
+              )}
+            </div>
+          )}
+        </>
       )}
-      {project.class !== 'mine' && <p className="kit-projects-note">{TEXT.viewExplained}</p>}
-      {!commits && (
-        <p className="kit-projects-note" data-offered="no">
-          {TEXT.notOffered}
-        </p>
-      )}
-      <p className="kit-projects-part-hint">{TEXT.checked(checkedFiles.length, chunkCount)}</p>
-
-      <div className="kit-projects-commit-actions">
-        <Button disabled={!canCommit} title={commits ? undefined : TEXT.notOffered} onClick={() => void commit(false)}>
-          {TEXT.commit}
-        </Button>
-        <Button
-          variant="outline"
-          disabled={!canCommit || !can('git.push')}
-          title={commits ? undefined : TEXT.notOffered}
-          onClick={() => void commit(true)}>
-          {TEXT.commitAndPush}
-        </Button>
-        {busy && (
-          <Button variant="ghost" onClick={() => abort.current?.abort()}>
-            {TEXT.cancel}
-          </Button>
-        )}
-      </div>
-
-      {output.length > 0 && <pre className="kit-projects-output">{terminalText(output.join('\n'))}</pre>}
-      {note && (
-        <p className="kit-projects-note" data-tone={note.tone} role="status">
-          {note.text}
-          {note.detail && <code className="kit-projects-command">{note.detail}</code>}
-        </p>
-      )}
-      <div className="kit-projects-commit-actions">
-        {mine && can('git.undoCommit') && !busy && (outgoing?.commits.length ?? 0) > 0 && (
-          <Button variant="ghost" size="sm" onClick={() => void undo()}>
-            {TEXT.undoCommit}
-          </Button>
-        )}
-        {mine && can('history.restore') && rolledBack.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={() => void undoRollback()}>
-            {TEXT.undoRollback}
-          </Button>
-        )}
-        {mine && can('git.push') && (outgoing?.commits.length ?? 0) > 0 && (
-          <Button variant="ghost" size="sm" onClick={() => setPushOpen(true)}>
-            {TEXT.pushRun}…
-          </Button>
-        )}
-      </div>
 
       <RollbackDialog
         paths={rollbackPaths}

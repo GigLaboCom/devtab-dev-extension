@@ -44,8 +44,9 @@
  *                              .kit-plan-card-foot (.kit-plan-card-state, .kit-plan-card-action) — pressed to the bottom
  *                              so the buttons of a row line up
  *
- * «Projects» (the companion's section; its parts are the extension's src/app/projects/, the page only arranges them —
- * the look is the owner's to choose, these are the first, plain frames on the kit's numbers):
+ * «Projects» (the companion's section; its parts are the extension's src/app/projects/, arranged by the
+ * `WorkspaceLayout` seam — D35, the IDE arrangement of SidePanels.tsx; colours and sizes stay the owner's, these are
+ * plain frames on the kit's numbers):
  *   .kit-projects[data-connection]   the section's column; .kit-projects-demo (.kit-projects-demo-badge,
  *                              .kit-projects-demo-text) — the demo's notice; .kit-projects-connection[data-state] — the
  *                              companion's state and its buttons; .kit-projects-note[data-tone] — one line said
@@ -56,7 +57,13 @@
  *                              .kit-projects-command (a command to type)
  *   .kit-projects-bar          a project's bar: -back, -title, -path, -branch, .kit-projects-class[data-class]
  *                              (.kit-projects-class-via), -actions
- *   .kit-projects-workspace    the tree, the editor and the Commit window side by side:
+ *   .kit-projects-workspace    the side panel, the editor and the bottom panel:
+ *     .kit-projects-side[data-open]   the side panel (its width inline): .kit-projects-side-head (.kit-projects-switches
+ *                              of .kit-projects-switch[data-view] — -label, .kit-projects-badge —, .kit-projects-panel-hide),
+ *                              .kit-projects-side-body > .kit-projects-view[data-view]; collapsed, the head is a strip
+ *     .kit-projects-splitter[data-axis][data-dragging]   a border that moves; .kit-projects-drag-cover while dragged
+ *     .kit-projects-column     the editor over .kit-projects-bottom[data-open] (its height inline):
+ *                              .kit-projects-bottom-head (switches, .kit-projects-panel-hide), .kit-projects-bottom-body
  *     .kit-projects-tree-frame > .kit-projects-tree (.kit-projects-tree-group nested, .kit-projects-node,
  *                              .kit-projects-tree-note[data-tone]); .kit-projects-row[data-ignored][aria-current]
  *                              (.kit-projects-row-name, .kit-projects-row-gap), .kit-projects-mark[data-mark]
@@ -68,7 +75,7 @@
  *                              .kit-projects-change-kind, .kit-projects-change-folder), .kit-projects-chunks >
  *                              .kit-projects-chunk, .kit-projects-message, .kit-projects-check, .kit-projects-commit-line,
  *                              .kit-projects-commit-actions, .kit-projects-output (a hook's or git's output)
- *   .kit-projects-panel        below: .kit-projects-panel-body with .kit-projects-search (-form, .kit-projects-results >
+ *   in the bottom panel:       .kit-projects-search (-form, .kit-projects-results >
  *                              .kit-projects-result-file, .kit-projects-result-line (-number, -text), .kit-projects-match)
  *                              or .kit-projects-history (-bar, .kit-projects-points > .kit-projects-point[data-source]
  *                              with -time, -label, -path, -actions)
@@ -1169,14 +1176,11 @@
     margin-inline-start: auto;
   }
 
-  /* The tree, the editor and the Commit window. */
+  /* The side panel, the editor and the bottom panel (D35). The panels' sizes come inline from the remembered layout;
+     the limits here keep the editor at least 320 wide and 160 tall whatever is remembered. */
   .kit-projects-workspace {
-    display: grid;
+    display: flex;
     flex: 1 1 0;
-    grid-template-columns: minmax(calc(var(--spacing) * 48), 1fr) minmax(0, 3fr) minmax(
-        calc(var(--spacing) * 72),
-        1.3fr
-      );
     min-height: calc(var(--spacing) * 80);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
@@ -1184,16 +1188,192 @@
     overflow: hidden;
   }
 
-  .kit-projects-tree-frame,
-  .kit-projects-commit {
+  .kit-projects-side {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    max-width: calc(100% - var(--spacing) * 80 - 1px);
+    min-height: 0;
+  }
+
+  .kit-projects-side[data-open='true'] {
+    min-width: calc(var(--spacing) * 50);
+  }
+
+  .kit-projects-side[data-open='false'] {
+    border-inline-end: 1px solid var(--border);
+  }
+
+  .kit-projects-side-head,
+  .kit-projects-bottom-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: calc(var(--spacing) * 1);
+    min-height: var(--size-control);
+    padding: 0 calc(var(--spacing) * 1);
+  }
+
+  .kit-projects-side[data-open='true'] .kit-projects-side-head,
+  .kit-projects-bottom[data-open='true'] .kit-projects-bottom-head {
+    border-block-end: 1px solid var(--border);
+  }
+
+  .kit-projects-switches {
+    display: flex;
+    flex: 1 1 auto;
+    gap: calc(var(--spacing) * 0.5);
+    min-width: 0;
+  }
+
+  .kit-projects-panel-hide {
+    flex: none;
+    margin-inline-start: auto;
+  }
+
+  /* Collapsed: a strip of the switches, their names in their tooltips. */
+  .kit-projects-side[data-open='false'] .kit-projects-side-head,
+  .kit-projects-side[data-open='false'] .kit-projects-switches {
+    flex-direction: column;
+  }
+
+  .kit-projects-side[data-open='false'] .kit-projects-side-head {
+    padding: calc(var(--spacing) * 1);
+  }
+
+  .kit-projects-side[data-open='false'] .kit-projects-switch {
+    flex-direction: column;
+    height: auto;
+    padding: calc(var(--spacing) * 1);
+  }
+
+  .kit-projects-side[data-open='false'] .kit-projects-switch-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .kit-projects-badge {
+    min-width: calc(var(--spacing) * 4);
+    padding: 0 calc(var(--spacing) * 1);
+    border-radius: var(--radius-sm);
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+    line-height: var(--text-xs--line-height);
+    text-align: center;
+  }
+
+  .kit-projects-side-body,
+  .kit-projects-side-body > .kit-projects-view {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
     min-width: 0;
     min-height: 0;
+  }
+
+  .kit-projects-side-body[hidden],
+  .kit-projects-side-body > .kit-projects-view[hidden],
+  .kit-projects-bottom-body[hidden],
+  .kit-projects-bottom-body > .kit-projects-view[hidden] {
+    display: none;
+  }
+
+  /* A border that moves: one hairline, a wider band to take the pointer, the accent while it is held or focused. */
+  .kit-projects-splitter {
+    position: relative;
+    z-index: 1;
+    flex: none;
+    background: var(--border);
+    outline: none;
+    touch-action: none;
+  }
+
+  .kit-projects-splitter[data-axis='x'] {
+    width: 1px;
+    cursor: col-resize;
+  }
+
+  .kit-projects-splitter[data-axis='y'] {
+    height: 1px;
+    cursor: row-resize;
+  }
+
+  .kit-projects-splitter::before {
+    position: absolute;
+    inset: 0 calc(var(--spacing) * -1);
+    content: '';
+  }
+
+  .kit-projects-splitter[data-axis='y']::before {
+    inset: calc(var(--spacing) * -1) 0;
+  }
+
+  .kit-projects-splitter:hover,
+  .kit-projects-splitter:focus-visible,
+  .kit-projects-splitter[data-dragging] {
+    background: var(--ring);
+  }
+
+  .kit-projects-splitter:focus-visible {
+    box-shadow: var(--shadow-focus);
+  }
+
+  /* Over everything while a border is dragged, so the editor's iframe never takes the pointer. */
+  .kit-projects-drag-cover {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    cursor: col-resize;
+  }
+
+  .kit-projects-drag-cover[data-axis='y'] {
+    cursor: row-resize;
+  }
+
+  .kit-projects-column {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .kit-projects-column > .kit-projects-editor {
+    flex: 1 1 0;
+    min-height: calc(var(--spacing) * 40);
+  }
+
+  .kit-projects-bottom {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    max-height: calc(100% - var(--spacing) * 40);
+    min-height: 0;
+  }
+
+  .kit-projects-bottom[data-open='false'] {
+    border-block-start: 1px solid var(--border);
+  }
+
+  .kit-projects-bottom-body {
+    flex: 1 1 0;
+    min-height: 0;
+    padding: calc(var(--spacing) * 2);
     overflow: auto;
   }
 
   .kit-projects-tree-frame {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
     padding: calc(var(--spacing) * 1);
-    border-inline-end: 1px solid var(--border);
+    overflow: auto;
   }
 
   .kit-projects-tree,
@@ -1271,9 +1451,18 @@
   }
 
   .kit-projects-row-name {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* In a row the marks give way to the name: they shrink first, down to a sliver (the name's tooltip is whole). */
+  .kit-projects-row .kit-projects-mark {
+    flex: 0 1000 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .kit-projects-mark {
@@ -1380,13 +1569,32 @@
     margin: 0;
   }
 
-  /* The Commit window. */
+  /* The Commit window: the changes take the height left, the message and the buttons stay below them in view; when
+     even the changes' least height does not fit, the whole view scrolls. */
   .kit-projects-commit {
     display: flex;
+    flex: 1 1 0;
     flex-direction: column;
     gap: calc(var(--spacing) * 2);
+    min-width: 0;
+    min-height: 0;
     padding: calc(var(--spacing) * 1) calc(var(--spacing) * 2) calc(var(--spacing) * 2);
-    border-inline-start: 1px solid var(--border);
+    overflow: auto;
+  }
+
+  .kit-projects-commit > * {
+    flex: none;
+  }
+
+  .kit-projects-commit > .kit-projects-changes {
+    flex: 1 1 auto;
+    min-height: calc(var(--spacing) * 24);
+    overflow: auto;
+  }
+
+  .kit-projects-commit > .kit-projects-chunks {
+    max-height: calc(var(--spacing) * 40);
+    overflow: auto;
   }
 
   .kit-projects-commit-head {
@@ -1505,24 +1713,7 @@
     white-space: pre-wrap;
   }
 
-  /* The panel below: Find and History. */
-  .kit-projects-panel {
-    display: flex;
-    flex-direction: column;
-    gap: calc(var(--spacing) * 2);
-    height: calc(var(--spacing) * 60);
-    min-height: 0;
-  }
-
-  .kit-projects-panel-body {
-    flex: 1 1 0;
-    min-height: 0;
-    overflow: auto;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: calc(var(--spacing) * 2);
-  }
-
+  /* In the bottom panel: Find and History. */
   .kit-projects-search,
   .kit-projects-history {
     display: flex;

@@ -57,6 +57,18 @@ export const TEXT = {
   makeView: 'Make read only',
   makeMineCommand: 'devtab add --write',
   viewExplained: 'This project is read only: nothing can be written from the page.',
+  findInFiles: 'Find in files…',
+
+  // The panels around the editor (D35). Working placeholders: the owner writes these texts.
+  sidePanel: 'Side panel',
+  bottomPanel: 'Bottom panel',
+  hideSidePanel: 'Hide the side panel',
+  hideBottomPanel: 'Hide the bottom panel',
+  showBottomPanel: 'Show the bottom panel',
+  resizeSidePanel: 'Resize the side panel',
+  resizeBottomPanel: 'Resize the bottom panel',
+  withChanges: (label: string, files: number) => `${label}, ${files} changed ${files === 1 ? 'file' : 'files'}`,
+  showHistory: 'Show history',
 
   // The tree (§8.4 «Дерево»).
   treeLabel: 'Files',
@@ -119,6 +131,9 @@ export const TEXT = {
 
   // The commit window (§6, §8.4 «Коммит»).
   commitTitle: 'Commit',
+  // A read-only project's Commit view, in place of the message and the buttons (D35). Working placeholders.
+  commitReadOnly: 'This project is read only: its changes and diffs can be looked at, not committed.',
+  commitNotOffered: 'This companion cannot commit yet: the changes and diffs can be looked at.',
   refresh: 'Refresh',
   rollback: 'Rollback…',
   showDiff: 'Show diff',

@@ -5,10 +5,10 @@
  * nor the shell carries it — and the only place of the extension's Native Messaging code (§8.7: Check 12 of
  * scripts/validate-build.sh finds this chunk by `DEVTAB_PROJECTS_CHUNK`).
  *
- * This file only arranges the parts (src/app/projects/); the look is the owner's to choose (Р4), and the
- * specification's layouts are other arrangements of the same parts. This one is the first it lists (§8.4, variant 1):
- * the project's tree on the left, the file in the middle, the Commit window as a column on the right, a panel below
- * with Find and History. `#/projects` is the list of projects and the trusted folders.
+ * This file only puts the parts together (src/app/projects/); how an open project's parts are arranged is the seam
+ * `WorkspaceLayout` the composition root names (D35: an IDE's side panel with Files and Commit, the editor in the
+ * centre, History and Find in files below — src/app/projects/SidePanels.tsx). `#/projects` is the list of projects and
+ * the trusted folders.
  */
 import { CommitPanel } from '../projects/CommitPanel';
 import { ConnectionBar } from '../projects/ConnectionBar';
@@ -24,11 +24,11 @@ import { TEXT } from '../projects/text';
 import { TrustedFolders } from '../projects/TrustedFolders';
 import { useWorkspace } from '../projects/useWorkspace';
 import { projectsBehaviors } from '@src/projects/behaviors';
-import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Route } from '../route';
 import type { ConnectionStatus, ProjectBackend } from '@src/projects/backend';
 import type { ProjectsBehaviors } from '@src/projects/behaviors';
+import type { PanelView } from '@src/projects/layout';
 import type { ProjectSummary, TrustedLocation } from '@src/projects/types';
 import type { FrameKeys } from '@src/shared/keys';
 import type { ReactElement } from 'react';
@@ -71,13 +71,19 @@ const Workspace = ({
 }): ReactElement => {
   const workspace = useWorkspace(backend, project, path, onProjectChanged, generation);
   const [quickOpen, setQuickOpen] = useState(false);
-  const [panel, setPanel] = useState<'find' | 'history'>('history');
+  // A panel's view asked for from a part (a search started, a file's history asked for).
+  const [reveal, setReveal] = useState<{ view: PanelView; n: number } | null>(null);
+  const ask = (view: PanelView): void => setReveal(r => ({ view, n: (r?.n ?? 0) + 1 }));
+  // Asking for a file's history shows the file's, whatever the history showed before.
+  const [historyAsked, setHistoryAsked] = useState(0);
+  const Layout = behaviors.layout;
   return (
     <>
       <ProjectBar
         workspace={workspace}
         locations={locations}
         onGoToFile={() => setQuickOpen(true)}
+        onFindInFiles={() => ask('find')}
         onClassChanged={onProjectChanged}
       />
       {workspace.error && (
@@ -85,26 +91,28 @@ const Workspace = ({
           {workspace.error}
         </p>
       )}
-      <div className="kit-projects-workspace">
-        <ProjectTree workspace={workspace} />
-        <EditorPane workspace={workspace} frameKeys={frameKeys} autosaveDelayMs={behaviors.autosaveDelayMs} />
-        <CommitPanel workspace={workspace} />
-      </div>
-      <div className="kit-projects-panel">
-        <ToggleGroup
-          type="single"
-          variant="outline"
-          size="sm"
-          value={panel}
-          aria-label={TEXT.title}
-          onValueChange={value => (value === 'find' || value === 'history') && setPanel(value)}>
-          <ToggleGroupItem value="history">{TEXT.historyLabel}</ToggleGroupItem>
-          <ToggleGroupItem value="find">{TEXT.searchLabel}</ToggleGroupItem>
-        </ToggleGroup>
-        <div className="kit-projects-panel-body">
-          {panel === 'find' ? <SearchPanel workspace={workspace} /> : <HistoryPanel workspace={workspace} />}
-        </div>
-      </div>
+      <Layout
+        memory={behaviors.layoutMemory}
+        changes={workspace.status ? workspace.status.files.length : null}
+        reveal={reveal}
+        parts={{
+          files: <ProjectTree workspace={workspace} />,
+          commit: <CommitPanel workspace={workspace} />,
+          editor: (
+            <EditorPane
+              workspace={workspace}
+              frameKeys={frameKeys}
+              autosaveDelayMs={behaviors.autosaveDelayMs}
+              onShowHistory={() => {
+                setHistoryAsked(n => n + 1);
+                ask('history');
+              }}
+            />
+          ),
+          history: <HistoryPanel key={historyAsked} workspace={workspace} />,
+          find: <SearchPanel workspace={workspace} />,
+        }}
+      />
       <QuickOpen workspace={workspace} open={quickOpen} onOpenChange={setQuickOpen} />
     </>
   );

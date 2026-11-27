@@ -3,12 +3,14 @@
  * that asks and then connects, the companion's projects once connected, its states as text, the actions it does not
  * offer inactive with why, and the repository's strings — HTML, a terminal's escape sequences — drawn as text (S17).
  */
+import { SidePanels } from './SidePanels';
 import { HOSTILE_STRINGS } from '../../../../scripts/e2e-projects/companion.mjs';
 import { ProjectsPage } from '../sections/ProjectsPage';
 import { chosenBackend } from '@src/projects/behaviors';
 import { fakeCompanion } from '@src/projects/companion/fakeLink';
 import { createConnection } from '@src/projects/connection';
 import { demoBackend } from '@src/projects/demo/backend';
+import { memoryLayout } from '@src/projects/layoutMemory';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Route } from '../route';
@@ -41,7 +43,12 @@ const gate = (granted: boolean) => {
 
 let backend: ProjectBackend;
 const page = (route: Route) => {
-  const behaviors: ProjectsBehaviors = { backend: Object.assign(() => backend, { id: 'test' }), autosaveDelayMs: 20 };
+  const behaviors: ProjectsBehaviors = {
+    backend: Object.assign(() => backend, { id: 'test' }),
+    autosaveDelayMs: 20,
+    layout: SidePanels,
+    layoutMemory: memoryLayout(),
+  };
   return render(<ProjectsPage route={route} behaviors={behaviors} />);
 };
 const make = (granted: boolean, options: Parameters<typeof fakeCompanion>[0] = {}) => {
@@ -99,9 +106,12 @@ describe('the section and the companion', () => {
     const tree = await screen.findByRole('tree', { name: 'Files' });
     await waitFor(() => expect(tree.querySelector('[data-path="build"]')?.getAttribute('data-ignored')).toBe(''));
     expect(tree.querySelector('[data-path="link-out"]')?.hasAttribute('disabled')).toBe(true);
-    const commit = screen.getByRole('region', { name: 'Commit' });
-    expect(within(commit).getByRole('button', { name: 'Commit' }).hasAttribute('disabled')).toBe(true);
-    expect(within(commit).getByText('This companion cannot do this yet.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^Commit/, pressed: false }));
+    const commit = await screen.findByRole('region', { name: 'Commit' });
+    // Nothing that would fail: the changes, and one line instead of the commit.
+    expect(within(commit).queryByRole('button', { name: 'Commit' })).toBeNull();
+    expect(within(commit).queryByRole('checkbox')).toBeNull();
+    expect(within(commit).getByText(/its changes and diffs can be looked at, not committed/)).toBeTruthy();
     const makeMine = screen.getByRole('button', { name: 'Make writable…' });
     expect(makeMine.hasAttribute('disabled')).toBe(true);
     expect(makeMine.getAttribute('title')).toBe('This companion cannot do this yet.');
@@ -123,7 +133,7 @@ describe('the section and the companion', () => {
     await waitFor(() => expect(document.body.textContent).toContain(HOSTILE_STRINGS.branch));
     expect((window as { __pwned?: number }).__pwned).toBeUndefined();
     // Find the line with escape sequences: they arrive as visible symbols.
-    fireEvent.click(screen.getByRole('radio', { name: 'Find in files' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Find in files', pressed: false }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Find in files' }), { target: { value: 'hostile' } });
     fireEvent.click(screen.getByRole('button', { name: 'Find' }));
     await waitFor(() =>

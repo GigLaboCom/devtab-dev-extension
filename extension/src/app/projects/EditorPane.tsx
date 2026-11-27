@@ -16,6 +16,7 @@ import { VIEWER_PAGE } from '@src/shared/pages';
 import { sameChord } from '@src/shared/viewerProtocol';
 import { Button } from '@workspace/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
+import { HistoryIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EditorView, Workspace } from './useWorkspace';
 import type { Autosave, SaveState } from '@src/projects/autosave';
@@ -36,6 +37,8 @@ export interface EditorPaneProps {
   workspace: Workspace;
   frameKeys?: FrameKeys;
   autosaveDelayMs?: number;
+  /** Asks for the open file's history (the panel holding it opens); without it the editor offers none. */
+  onShowHistory?: () => void;
 }
 
 const saveText = (state: SaveState): string => {
@@ -64,7 +67,7 @@ const viewKey = (view: EditorView): string =>
       ? `points:${view.a.point}:${view.b.point}`
       : view.kind;
 
-export const EditorPane = ({ workspace, frameKeys, autosaveDelayMs }: EditorPaneProps): ReactElement => {
+export const EditorPane = ({ workspace, frameKeys, autosaveDelayMs, onShowHistory }: EditorPaneProps): ReactElement => {
   const { backend, project, path, view, reveal, changed } = workspace;
   const [content, setContent] = useState<Content>({ kind: 'none' });
   const [saveState, setSaveState] = useState<SaveState>({ kind: 'saved' });
@@ -380,6 +383,16 @@ export const EditorPane = ({ workspace, frameKeys, autosaveDelayMs }: EditorPane
           {content.kind === 'diff' && view.kind !== 'diff' && (
             <Button variant="ghost" size="sm" onClick={() => workspace.setView({ kind: 'file' })}>
               {TEXT.backToFile}
+            </Button>
+          )}
+          {path && onShowHistory && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={TEXT.showHistory}
+              title={TEXT.showHistory}
+              onClick={onShowHistory}>
+              <HistoryIcon aria-hidden="true" />
             </Button>
           )}
         </span>

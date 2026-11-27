@@ -4,8 +4,10 @@
  * find and history. The editor page in the iframe is played by a fake that answers as it does.
  */
 import { groupProjects } from './ProjectList';
+import { SidePanels } from './SidePanels';
 import { ProjectsPage } from '../sections/ProjectsPage';
 import { demoBackend } from '@src/projects/demo/backend';
+import { memoryLayout } from '@src/projects/layoutMemory';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Route } from '../route';
@@ -79,6 +81,8 @@ let backend: DemoBackend;
 const behaviors = (autosaveDelayMs = 20): ProjectsBehaviors => ({
   backend: Object.assign(() => backend, { id: 'demo' }),
   autosaveDelayMs,
+  layout: SidePanels,
+  layoutMemory: memoryLayout(),
 });
 
 const show = (route: Route, delay?: number) => render(<ProjectsPage route={route} behaviors={behaviors(delay)} />);
@@ -94,6 +98,10 @@ const goTo = (hash: string, rerender: (ui: React.ReactElement) => void): void =>
     />,
   );
 };
+
+/** Presses a panel's switch (Files, Commit, History, Find in files). */
+const showView = async (name: string | RegExp): Promise<void> =>
+  void fireEvent.click(await screen.findByRole('button', { name, pressed: false }));
 
 // Radix's Switch measures itself; jsdom has no ResizeObserver.
 globalThis.ResizeObserver ??= class {
@@ -201,14 +209,17 @@ describe('a project', () => {
     expect(await screen.findByText('Too large to show (7.0 MB)')).toBeTruthy();
   });
 
-  it('a read-only project opens its files read only and refuses commits', async () => {
+  it('a read-only project opens its files read only; its Commit view has one line instead of the commit', async () => {
     const editor = fakeEditor();
     show({ section: 'projects', project: 'p_demo0notes', path: 'README.md' });
     await editor.attach();
     await waitFor(() => expect(editor.last('viewer/show-file')?.request.readOnly).toBe(true));
     expect(await screen.findByText('Read only: the project is read only.')).toBeTruthy();
-    expect(screen.getByText('This project is read only: nothing can be written from the page.')).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Commit' }) as HTMLButtonElement).disabled).toBe(true);
+    await showView('Commit');
+    const panel = await screen.findByRole('region', { name: 'Commit' });
+    expect(within(panel).getByText(/its changes and diffs can be looked at, not committed/)).toBeTruthy();
+    expect(within(panel).queryByRole('button', { name: 'Commit' })).toBeNull();
+    expect(within(panel).queryByRole('textbox')).toBeNull();
   });
 
   it('⌘S writes at once, without waiting for the pause', async () => {
@@ -284,6 +295,7 @@ describe('a project', () => {
     const editor = fakeEditor();
     show({ section: 'projects', project: LEDGER, path: 'src/server.ts' });
     await editor.attach();
+    await showView(/^Commit/);
     await screen.findByRole('group', { name: 'Changes' });
     fireEvent.click(screen.getByRole('button', { name: /^src\/server\.ts/ }));
     await waitFor(() => expect(editor.last('viewer/show-diff')?.payload.hunks).toHaveLength(3));
@@ -297,8 +309,9 @@ describe('a project', () => {
 });
 
 describe('the Commit window', () => {
-  const commitWindow = async () => {
-    show({ section: 'projects', project: LEDGER });
+  const commitWindow = async (project = LEDGER) => {
+    show({ section: 'projects', project });
+    await showView(/^Commit/);
     return screen.findByRole('region', { name: 'Commit' });
   };
 
@@ -319,8 +332,7 @@ describe('the Commit window', () => {
   });
 
   it('a conflicted file cannot be checked', async () => {
-    show({ section: 'projects', project: 'p_demo0tides' });
-    const panel = await screen.findByRole('region', { name: 'Commit' });
+    const panel = await commitWindow('p_demo0tides');
     const box = await within(panel).findByRole('checkbox', { name: 'tide/stations.csv' });
     expect((box as HTMLButtonElement).disabled).toBe(true);
   });
@@ -397,7 +409,7 @@ describe('the Commit window', () => {
 describe('find and history', () => {
   it('finds in files, ignored folders only when asked; a match opens its file at its line', async () => {
     show({ section: 'projects', project: LEDGER });
-    fireEvent.click(await screen.findByRole('radio', { name: 'Find in files' }));
+    await showView('Find in files');
     const input = screen.getByRole('textbox', { name: 'Find in files' });
     fireEvent.change(input, { target: { value: 'padStart' } });
     fireEvent.click(screen.getByRole('button', { name: 'Find' }));
@@ -415,6 +427,8 @@ describe('find and history', () => {
     const editor = fakeEditor();
     show({ section: 'projects', project: LEDGER, path: 'src/server.ts' });
     await editor.attach();
+    // Asked for from the editor: the bottom panel opens on the file's history.
+    fireEvent.click(await screen.findByRole('button', { name: 'Show history' }));
     const history = await screen.findByRole('region', { name: 'History' });
     const rows = await within(history).findAllByRole('listitem');
     expect(rows.map(r => r.querySelector('.kit-projects-point-label')?.textContent)).toEqual([
@@ -444,6 +458,7 @@ describe('find and history', () => {
     const editor = fakeEditor();
     show({ section: 'projects', project: LEDGER, path: 'src/server.ts' });
     await editor.attach();
+    await showView('History');
     const history = await screen.findByRole('region', { name: 'History' });
     const boxes = await within(history).findAllByRole('checkbox');
     fireEvent.click(boxes[0]!);

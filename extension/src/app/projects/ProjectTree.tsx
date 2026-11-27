@@ -116,7 +116,10 @@ export const ProjectTree = ({ workspace }: { workspace: Workspace }): ReactEleme
                 onClick={() => (isDir ? toggle(entry.path) : open(entry.path))}>
                 {isDir ? <Chevron aria-hidden="true" /> : <span className="kit-projects-row-gap" />}
                 <Icon aria-hidden="true" />
-                <span className="kit-projects-row-name">{printable(entry.name)}</span>
+                {/* The marks give way to a long name; the whole name is the name's tooltip. */}
+                <span className="kit-projects-row-name" title={printable(entry.name)}>
+                  {printable(entry.name)}
+                </span>
                 <Marks entry={entry} />
               </button>
               {isOpen && (
