@@ -36,7 +36,7 @@
 //      click and by ⌘K / Ctrl+K, «Compare code» with the editor focused included, keyboard only, focus back), the start
 //      page's field taking the same shortcut, the editor's height under the toolbar, the theme following the system
 //      when none is chosen (CDP emulates the scheme), the user's shortcuts set in Settings;
-//   4. «Live review»: the companion notice;
+//   4. «Projects»: the section opens on its demo (its own checks: scripts/e2e-projects-demo.mjs, step projects-demo);
 //   5. the default dark theme repaints the page and the editor; every part again;
 //   6. a theme that is not a default (Tokyo Night) chosen from the theme list reaches the page AND the editor (the
 //      editor's background is that theme's); every part again;
@@ -50,7 +50,7 @@
 //   pnpm test:e2e [-- <dist>] [--shots=<dir>] [--json=<file>] [--only=<step or tool>,…]
 //   --only  run only these after the extension has loaded: a tool's id (its module of scripts/e2e-tools/, e.g.
 //           `--only=jwt`), or a step — start, own-page, toolbar, compare (2–2c), tools (3: every tool and the JSON
-//           controls), shell, themes (4–6), history. The console-error check runs over what ran.
+//           controls), shell, themes (4–6), projects-demo, history. The console-error check runs over what ran.
 // Needs a build (pnpm build) and Playwright with Chrome for Testing: `pnpm e2e:setup` puts both under .state/
 // (Playwright is NOT a workspace dependency, as in the second sibling extension). Elsewhere: PLAYWRIGHT_DIR=<a
 // directory with node_modules/playwright>, PLAYWRIGHT_BROWSERS_PATH=<its browsers>.
@@ -69,6 +69,7 @@ import { recordedErrors, runToolChecks, toolCheckModules } from './e2e-tools.mjs
 import { runToolbarChecks } from './e2e-toolbar.mjs';
 import { themeFromList, themeMode, withSettings } from './e2e-theme.mjs';
 import { runShellChecks } from './e2e-shell.mjs';
+import { runProjectsDemoChecks } from './e2e-projects-demo.mjs';
 import { runGrammarChecks } from './e2e-grammars.mjs';
 
 /* global document, window, addEventListener, chrome, createImageBitmap, OffscreenCanvas, getComputedStyle, location -- page.evaluate callbacks run in the pages */
@@ -441,7 +442,7 @@ try {
     // The JSON tool formats as the text changes: the result is there once the status says so.
     await page.locator('[data-part="status"]', { hasText: 'Valid JSON' }).waitFor({ timeout: 5_000 });
   };
-  const reviewReady = () => page.getByRole('heading', { name: 'Companion app required' }).waitFor({ timeout: 5_000 });
+  const projectsReady = () => page.getByRole('heading', { name: 'Projects', level: 1 }).waitFor({ timeout: 10_000 });
 
   if (want('compare')) {
     // 2. Compare code — the default light theme.
@@ -1014,10 +1015,10 @@ try {
   await noteErrors('shell');
 
   if (want('themes')) {
-    // 4. Live review.
-    await openSection('review', reviewReady);
-    check('live review shows the companion notice', true);
-    await shoot(page, '05-review-light.png');
+    // 4. Projects.
+    await openSection('projects', projectsReady);
+    check('Projects opens on its demo', true);
+    await shoot(page, '05-projects-light.png');
 
     // 5. The default dark theme, chosen in Settings in another tab: the page and the editor follow the switch (through
     // chrome.storage) without a reload.
@@ -1037,8 +1038,8 @@ try {
     await shoot(page, '06-compare-dark.png');
     await openSection('tools/json', toolsReady);
     await shoot(page, '07-tools-dark.png');
-    await openSection('review', reviewReady);
-    await shoot(page, '08-review-dark.png');
+    await openSection('projects', projectsReady);
+    await shoot(page, '08-projects-dark.png');
 
     // 6. A theme that is not a default, from the list in Settings: the page and the editor (with gpui-kit's theme file).
     await openSection('compare', editorReady);
@@ -1072,14 +1073,18 @@ try {
     await shoot(page, '10-compare-tokyo-night.png');
     await openSection('tools/json', toolsReady);
     await shoot(page, '11-tools-tokyo-night.png');
-    await openSection('review', reviewReady);
-    await shoot(page, '12-review-tokyo-night.png');
+    await openSection('projects', projectsReady);
+    await shoot(page, '12-projects-tokyo-night.png');
 
     // Back to the defaults for the next run's profile (each run has its own profile; this only tidies the report).
     await themeFromList(ctx, base, 'Dark theme', 'Default Dark');
     await themeMode(ctx, base, 'System');
   }
   await noteErrors('themes');
+
+  // «Projects» on its demo data (scripts/e2e-projects-demo.mjs).
+  if (want('projects-demo')) await runProjectsDemoChecks({ ctx, id, check, shoot, report, sleep });
+  await noteErrors('projects-demo');
 
   // 8. The tool history (scripts/e2e-history.mjs). Last: allowing incognito there reloads the extension.
   if (want('history')) await runHistoryChecks({ ctx, sw, id, check, shoot, report, sleep, root: ROOT });

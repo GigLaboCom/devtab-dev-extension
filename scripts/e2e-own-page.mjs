@@ -81,7 +81,7 @@ export const runOwnPageChecks = async ({ ctx, sw, id, dist, check, shoot, report
     // An address naming no tool: the Tools overview, which says so.
     ['#/tools/nope', `Tools — ${name}`, '.kit-tools-note'],
     ['#/compare', `Compare code — ${name}`, 'h1:has-text("Compare code")'],
-    ['#/review', `Live review — ${name}`, 'h1:has-text("Live review")'],
+    ['#/projects', `Projects — ${name}`, 'h1:has-text("Projects")'],
     ['#/settings', `Settings — ${name}`, 'h1:has-text("Settings")'],
     ['#/history', `History — ${name}`, 'h1:has-text("History")'],
   ];

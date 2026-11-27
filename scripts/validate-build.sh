@@ -17,7 +17,7 @@
 #       loads; no side panel, other overrides, content scripts, web-accessible resources…
 #   10  permissions: `storage` plus exactly what the start page's parts declare (required and optional — read from
 #       their definitions by scripts/start-parts.mjs; an optional one is never required), no host permissions — in particular no
-#       `nativeMessaging` while live review is a stub
+#       `nativeMessaging` while the Projects section runs on its demo (no companion yet)
 #   11  no remote hosts in the built JS beyond a short allowlist (Chrome Web Store: no remotely hosted code)
 #   12  CSP exactly the one manifest.config.ts declares (spikes/extension-e2e's minimum + the iframe pair); no inline
 #       scripts or styles; a service worker that loads no DOM code; no Native Messaging code
@@ -643,7 +643,7 @@ if [ -n "$SW" ] && [ -f "$INSPECT_DIR/$SW" ]; then
         fi
     done < <(walk_chunks "$(norm "$INSPECT_DIR/$SW")")
 fi
-# Live review is a stub: no Native Messaging code may ship before the permission and the companion exist.
+# The Projects section runs on its demo: no Native Messaging code may ship before the permission and the companion exist.
 NM_REFS=$(grep -rlE 'connectNative|sendNativeMessage|nativeMessaging' "$INSPECT_DIR" --include='*.js' --include='*.mjs' 2>/dev/null || true)
 [ -z "$NM_REFS" ] || BUILD_ERRORS+=("Native Messaging code shipped: $(echo "$NM_REFS" | tr '\n' ' ')")
 if [ ${#BUILD_ERRORS[@]} -gt 0 ]; then

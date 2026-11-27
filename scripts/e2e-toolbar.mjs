@@ -190,7 +190,7 @@ export const runToolbarChecks = async ({ ctx, sw, id, dist, check, shoot, report
   };
 
   // The tab the button is pressed in: an extension page of ours, so its index is readable without `tabs`.
-  const anchorUrl = `${base}#/review`;
+  const anchorUrl = `${base}#/projects`;
   const anchor = await ctx.newPage();
   await anchor.goto(anchorUrl);
   await anchor.bringToFront();
