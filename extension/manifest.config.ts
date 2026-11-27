@@ -1,4 +1,4 @@
-import { licenceOrigin } from './build/licenceOrigin';
+import { licenceOrigin, siteOrigin } from './build/licenceOrigin';
 import pkg from './package.json';
 import product from './product.json';
 import { declaredSectionPermissions } from './src/app/sectionPermissions';
@@ -52,6 +52,10 @@ const SAFE_AREA_PROBE_HASHES = [
   "'sha256-MnlFZhszarHl/R/A2EWXa+4M/Hs8g3j+PBNaIrrscZ8='",
   "'sha256-KVR0sJO9NDObqCUVDwC9L9fIyWNaULEbUQPAXIyMyx4='",
 ];
+
+/** `externally_connectable` for the site's pages, or nothing. */
+const externallyConnectable = (origin: string | undefined) =>
+  origin ? { externally_connectable: { matches: [`${origin}/*`] } } : {};
 
 /** `connect-src`: own files, the dev server's socket in a dev build, and the licence server's origin when the build has one. */
 const connectSrc = (origin: string | undefined, dev: boolean): string =>
@@ -144,6 +148,11 @@ export default defineManifest({
     service_worker: 'src/background/index.ts',
     type: 'module',
   },
+  // The site's connect page may hand the service worker an activation for the signed-in person
+  // (src/background/licence/external.ts): only pages of the build's site (build/licenceOrigin.ts), which Chrome
+  // enforces; no install warning. Absent while the build has no site — the store build today, which the validator holds
+  // to that (scripts/validate-build.sh refuses the key).
+  ...externallyConnectable(siteOrigin()),
   // The toolbar button (src/toolbar/index.ts picks it): with a popup page, `default_popup` names it and Chrome opens it
   // under the button (the menu: the start page, Tools, Compare code, the settings); without one, a click reaches the
   // service worker (action.onClicked), which opens the start page. The Chrome Web Store's FAQ lets a new-tab extension's button "open a new

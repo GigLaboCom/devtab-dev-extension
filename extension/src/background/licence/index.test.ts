@@ -15,15 +15,18 @@ type Listener = (message: unknown, sender: chrome.runtime.MessageSender, respond
 
 const MAIN = 'chrome-extension://ours/src/app/index.html';
 
-const start = (config: LicenceConfig) => {
+const start = (config: LicenceConfig, manifest: object = {}) => {
   const storage = fakeStorage();
   const setAccessLevel = vi.fn(() => Promise.resolve());
   let listener: Listener | undefined;
+  let external: Listener | undefined;
   const occasions: string[] = [];
   const runtime = {
     id: 'ours',
     getURL: (path: string) => `chrome-extension://ours/${path}`,
+    getManifest: () => manifest,
     onMessage: { addListener: (l: Listener) => (listener = l) },
+    onMessageExternal: { addListener: (l: Listener) => (external = l) },
     onStartup: { addListener: () => occasions.push('startup') },
     onInstalled: { addListener: () => occasions.push('installed') },
   };
@@ -39,7 +42,15 @@ const start = (config: LicenceConfig) => {
     const returned = listener!(message, { id: 'ours', url }, respond);
     return { returned, answer: returned === undefined ? undefined : await answered };
   };
-  return { storage, setAccessLevel, occasions, send };
+  /** Sends `message` from a page of `origin` to the external listener, if there is one. */
+  const fromPage = async (message: unknown, origin: string) => {
+    if (!external) return undefined;
+    let respond: (answer: unknown) => void = () => undefined;
+    const answered = new Promise<unknown>(resolve => (respond = resolve));
+    external(message, { origin, url: `${origin}/pro/connect/` }, respond);
+    return answered;
+  };
+  return { storage, setAccessLevel, occasions, send, fromPage };
 };
 
 const browserFetch = vi.fn(() => Promise.reject(new Error('the network')));
@@ -107,5 +118,36 @@ describe('startLicence', () => {
     });
     expect((storage.rows.get(FAKE_SERVER_KEY) as { calls: unknown[] }).calls).toHaveLength(1);
     expect(browserFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('the site’s connect page', () => {
+  const SITE = 'https://web.example.invalid';
+  const manifest = { externally_connectable: { matches: [`${SITE}/*`] } };
+
+  it('is not listened to without the manifest’s key (the store build)', async () => {
+    const { fromPage } = start(production);
+    expect(await fromPage({ type: 'devtab:hello' }, SITE)).toBeUndefined();
+  });
+
+  it('gets the installation’s number; another origin or another message is refused', async () => {
+    const { fromPage, storage } = start(testConfig, manifest);
+    const hello = (await fromPage({ type: 'devtab:hello' }, SITE)) as { inst: string };
+    expect(hello.inst).toMatch(/^[A-Za-z0-9_-]{22}$/);
+    expect((storage.rows.get('licence') as { inst: string }).inst).toBe(hello.inst);
+    expect(await fromPage({ type: 'devtab:hello' }, 'https://elsewhere.example.invalid')).toEqual({
+      ok: false,
+      reason: 'refused',
+    });
+    expect(await fromPage({ type: 'licence/activate', v: 1, key: 'DTD-X' }, SITE)).toEqual({
+      ok: false,
+      reason: 'refused',
+    });
+    expect(
+      await fromPage({ type: 'devtab:licence', lid: 'lic_X', token: 'a.b.c', secret: 's'.repeat(43) }, SITE),
+    ).toEqual({
+      ok: false,
+      reason: 'bad-answer',
+    });
   });
 });

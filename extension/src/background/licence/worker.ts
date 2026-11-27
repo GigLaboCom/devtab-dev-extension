@@ -12,6 +12,10 @@
  * network error, a timeout, an HTML page, a 5xx, a 4xx without a token: only the count of failures grows, and a
  * Retry-After may only postpone the next request. The licence key lives in memory for the one request and is never
  * stored or logged.
+ *
+ * The site may hand over an activation it made for the signed-in person (src/background/licence/external.ts): first it
+ * asks for the installation's number (`siteHello`), then it gives the activation's answer (`siteLicence`), kept by the
+ * same rule as an activation's: signed, `active`, for this installation, for the licence it names.
  */
 import {
   acceptActivation,
@@ -45,9 +49,20 @@ export interface LicenceWorkerDeps {
 /** The licence's own requests (`plans/refresh` goes to the plans worker, src/background/plans). */
 export type LicenceWork = Exclude<LicenceRequest, { readonly type: 'plans/refresh' }>;
 
+/** An activation the site made for this installation: what `POST /v1/activate` answers, with the licence's id. */
+export interface SiteActivation {
+  readonly lid: string;
+  readonly token: string;
+  readonly secret: string;
+}
+
 export interface LicenceWorker {
   /** Answers one trusted request; never rejects. */
   handle(request: LicenceWork): Promise<LicenceReply>;
+  /** The installation's number for the site, made and kept now if there is none yet. */
+  siteHello(): Promise<{ readonly inst: string }>;
+  /** Keeps an activation the site made, when it passes; never rejects. */
+  siteLicence(activation: SiteActivation): Promise<LicenceOutcome>;
   /** A reason to see whether a check is due (startup, installed, a page opened). */
   trigger(trigger: Exclude<Trigger, 'button'>): Promise<void>;
 }
@@ -236,6 +251,29 @@ export const licenceWorker = (deps: LicenceWorkerDeps): LicenceWorker => {
     return OK;
   };
 
+  const siteHello = async (): Promise<{ readonly inst: string }> => {
+    const { licence } = await store.read();
+    if (licence?.inst) return { inst: licence.inst };
+    const inst = base64urlEncode(deps.random());
+    // Kept without a pending mark: nothing was sent yet.
+    await store.beginActivation(inst, now());
+    await store.endActivation();
+    return { inst };
+  };
+
+  const siteLicence = async ({ lid, token, secret }: SiteActivation): Promise<LicenceOutcome> => {
+    const { licence } = await store.read();
+    const inst = licence?.inst;
+    if (!inst || !/^[A-Za-z0-9_-]{32,128}$/.test(secret)) return { ok: false, error: 'bad-answer' };
+    const verified = await verifyToken(token, keys, subtle);
+    if (!verified.ok || !acceptActivation(inst, verified.claims).accept || verified.claims.lid !== lid) {
+      debug.warn("the site's activation not kept", verified.ok ? 'not active or not ours' : verified.reason);
+      return { ok: false, error: 'bad-answer' };
+    }
+    await store.activated({ inst, lid, secret, token, iat: verified.claims.iat });
+    return OK;
+  };
+
   /** Never rejects: a failure of the browser's storage itself is answered as the server's. */
   const safely = (work: Promise<LicenceOutcome>): Promise<LicenceReply> =>
     work.then(reply, error => {
@@ -266,6 +304,12 @@ export const licenceWorker = (deps: LicenceWorkerDeps): LicenceWorker => {
           return Promise.resolve(reply({ ok: false, error: 'version' }));
       }
     },
+    siteHello: () => enqueue(siteHello),
+    siteLicence: activation =>
+      enqueue(() => siteLicence(activation)).catch(error => {
+        debug.warn('site licence', error);
+        return { ok: false, error: 'server' } as const;
+      }),
     trigger: async trigger => {
       await runCheck(trigger).catch(error => debug.warn('check', error));
     },

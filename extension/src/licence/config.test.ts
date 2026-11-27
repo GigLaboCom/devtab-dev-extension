@@ -8,7 +8,7 @@ import { hostOf } from './config';
 import { mock } from './mock';
 import { production } from './production';
 import { test as testConfig } from './test';
-import { licenceOrigin } from '../../build/licenceOrigin';
+import { licenceOrigin, siteOrigin } from '../../build/licenceOrigin';
 import { describe, expect, it } from 'vitest';
 import { resolve } from 'node:path';
 
@@ -78,6 +78,18 @@ describe('the origin the manifest’s CSP allows', () => {
     expect(licenceOrigin(SRC, 'edition:licensed,licence:mock')).toBe('http://127.0.0.1:8790');
     expect(licenceOrigin(SRC, 'edition:licensed,licence:test')).toBeUndefined();
     expect(licenceOrigin(SRC, 'licence:production')).toBeUndefined();
+  });
+
+  it('the site whose pages may talk to the worker: the configuration’s, or DEVTAB_SITE_ORIGIN', () => {
+    expect(siteOrigin(SRC, undefined, undefined)).toBeUndefined();
+    expect(siteOrigin(SRC, 'licence:production', undefined)).toBeUndefined();
+    expect(siteOrigin(SRC, 'edition:licensed,licence:mock', undefined)).toBe('https://web.example.invalid');
+    expect(siteOrigin(SRC, 'edition:licensed,licence:test', undefined)).toBe('https://web.example.invalid');
+    expect(siteOrigin(SRC, 'licence:mock', 'http://localhost:4321')).toBe('http://localhost:4321');
+    expect(siteOrigin(SRC, undefined, 'https://site.example.invalid')).toBe('https://site.example.invalid');
+    for (const bad of ['http://site.example.invalid', 'https://site.example.invalid/pro/', 'localhost:4321']) {
+      expect(() => siteOrigin(SRC, undefined, bad)).toThrow(/DEVTAB_SITE_ORIGIN/);
+    }
   });
 
   it('refuses a configuration it does not know, and a variant spec that is not one', () => {

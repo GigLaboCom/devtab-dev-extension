@@ -9,6 +9,7 @@
 import { PlansPart } from './PlansPart';
 import { errorText, proTexts, stateLine } from './proTexts';
 import { useLicenceState } from '../useHostEdition';
+import { siteOrigins } from '@src/shared/siteOrigins';
 import { Button } from '@workspace/ui/button';
 import { Input } from '@workspace/ui/input';
 import { Label } from '@workspace/ui/label';
@@ -67,6 +68,8 @@ const ProBlock = ({
   state: SourceState;
   plans?: () => Promise<PlansChoice>;
 }): ReactElement => {
+  // The site's connect page, when this build lets the site's pages talk to it (src/shared/siteOrigins.ts).
+  const [site] = [...siteOrigins(globalThis.chrome?.runtime?.getManifest?.() ?? {})];
   const [key, setKey] = useState('');
   const [pending, setPending] = useState<Action | null>(null);
   const [error, setError] = useState<{ text: string; at: 'field' | 'block' } | null>(null);
@@ -225,6 +228,19 @@ const ProBlock = ({
                 <span className="kit-settings-note" role="alert">
                   {error.text}
                 </span>
+              )}
+              {site && (
+                <div className="kit-settings-buttons" data-setting="licence-connect">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => window.open(`${site}/pro/connect/`, '_blank', 'noopener')}>
+                    {proTexts.connect}
+                  </Button>
+                  <span className="kit-settings-hint">{proTexts.connectHint(new URL(site).host)}</span>
+                </div>
               )}
               <div className="kit-settings-buttons">
                 <Button type="button" size="sm" disabled={busy || key.trim() === ''} onClick={activate}>
