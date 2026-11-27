@@ -2,7 +2,7 @@
  * Find in files (§8.4 «Поиск»): the companion's search, streamed file by file, cancellable; ignored folders are left
  * out unless the person includes them (Р20). A match opens its file at its line.
  */
-import { TEXT } from './text';
+import { TEXT, printable } from './text';
 import { isCompanionError } from '@src/projects/types';
 import { Button } from '@workspace/ui/button';
 import { Input } from '@workspace/ui/input';
@@ -25,7 +25,9 @@ type Run =
     };
 
 /** The line with its matches marked. */
-const Line = ({ text, ranges }: { text: string; ranges: [number, number][] }): ReactElement => {
+const Line = ({ text: raw, ranges }: { text: string; ranges: [number, number][] }): ReactElement => {
+  // One unit for one: the ranges (UTF-16 columns) still fit the printable text.
+  const text = printable(raw);
   const parts: ReactElement[] = [];
   let at = 0;
   ranges.forEach(([from, to], i) => {
@@ -104,12 +106,13 @@ export const SearchPanel = ({ workspace }: { workspace: Workspace }): ReactEleme
           <Switch id="projects-search-ignored" checked={includeIgnored} onCheckedChange={setIncludeIgnored} />
           <Label htmlFor="projects-search-ignored">{TEXT.searchIgnored}</Label>
         </span>
+        {/* Two buttons, not one that changes its type: a click on Cancel must not submit the form it turned into. */}
         {run.state === 'running' ? (
-          <Button type="button" variant="outline" size="sm" onClick={() => abort.current?.abort()}>
+          <Button key="cancel" type="button" variant="outline" size="sm" onClick={() => abort.current?.abort()}>
             {TEXT.searchCancel}
           </Button>
         ) : (
-          <Button type="submit" size="sm" disabled={!pattern}>
+          <Button key="find" type="submit" size="sm" disabled={!pattern}>
             {TEXT.searchRun}
           </Button>
         )}
@@ -128,7 +131,7 @@ export const SearchPanel = ({ workspace }: { workspace: Workspace }): ReactEleme
       <ul className="kit-projects-results">
         {hits.map(hit => (
           <li key={hit.path}>
-            <span className="kit-projects-result-file">{hit.path}</span>
+            <span className="kit-projects-result-file">{printable(hit.path)}</span>
             <ul>
               {hit.matches.map(match => (
                 <li key={match.line}>

@@ -2,7 +2,7 @@
  * Quick open (§8.4 «Быстрый переход»): a few letters of a path, the companion's matches, ignored ones dimmed; Enter or
  * a click opens the file.
  */
-import { TEXT } from './text';
+import { TEXT, printable } from './text';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@workspace/ui/dialog';
 import { Input } from '@workspace/ui/input';
 import { useEffect, useState } from 'react';
@@ -63,7 +63,7 @@ export const QuickOpen = ({ workspace, open, onOpenChange }: QuickOpenProps): Re
                 className="kit-projects-row"
                 data-ignored={file.ignored ? '' : undefined}
                 onClick={() => choose(file.path)}>
-                <span className="kit-projects-row-name">{file.path}</span>
+                <span className="kit-projects-row-name">{printable(file.path)}</span>
               </button>
             </li>
           ))}

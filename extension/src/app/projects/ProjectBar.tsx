@@ -3,7 +3,7 @@
  * проекта») with the way to change it, and «Go to file». Making a project writable asks the companion: inside a
  * trusted folder it is at once, outside only after the companion's own window — which the demo does not have.
  */
-import { TEXT } from './text';
+import { TEXT, printable } from './text';
 import { routeHash } from '../route';
 import { isCompanionError } from '@src/projects/types';
 import { Button } from '@workspace/ui/button';
@@ -26,6 +26,8 @@ export const ProjectBar = ({ workspace, locations, onGoToFile, onClassChanged }:
   const [problem, setProblem] = useState<string | null>(null);
   const location = locations.find(l => l.displayPath === project.location);
   const mine = project.class === 'mine';
+  // The companion of this stage changes no class: the button stays, inactive, and says why.
+  const offered = workspace.can(mine ? 'project.setView' : 'project.requestMine');
 
   const change = async (): Promise<void> => {
     setBusy(true);
@@ -52,18 +54,28 @@ export const ProjectBar = ({ workspace, locations, onGoToFile, onClassChanged }:
       <a className="kit-projects-bar-back" href={routeHash({ section: 'projects' })}>
         {TEXT.allProjects}
       </a>
-      <h1 className="kit-projects-bar-title">{project.name}</h1>
-      <span className="kit-projects-bar-path">{project.displayPath}</span>
-      {state?.branch && <span className="kit-projects-bar-branch">{state.branch}</span>}
+      <h1 className="kit-projects-bar-title">{printable(project.name)}</h1>
+      <span className="kit-projects-bar-path">{printable(project.displayPath)}</span>
+      {state?.branch && <span className="kit-projects-bar-branch">{printable(state.branch)}</span>}
       <span className="kit-projects-class" data-class={project.class}>
         {mine ? TEXT.classMine : TEXT.classView}
         {mine && project.via === 'location' && location && (
-          <span className="kit-projects-class-via">{TEXT.viaFolder(location.name)}</span>
+          <span className="kit-projects-class-via">{TEXT.viaFolder(printable(location.name))}</span>
         )}
       </span>
-      <Button variant="ghost" size="sm" disabled={busy} onClick={() => void change()}>
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={busy || !offered}
+        title={offered ? undefined : TEXT.notOffered}
+        onClick={() => void change()}>
         {mine ? TEXT.makeView : TEXT.makeMine}
       </Button>
+      {!offered && (
+        <span className="kit-projects-note" data-offered="no">
+          {TEXT.notOffered}
+        </span>
+      )}
       {problem && (
         <span className="kit-projects-note" data-tone="error" role="status">
           {problem}

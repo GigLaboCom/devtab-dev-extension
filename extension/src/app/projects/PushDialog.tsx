@@ -2,7 +2,7 @@
  * Push (§6.9; IntelliJ's Push Commits window): the current branch to its upstream (set when there is none), the
  * commits that go, Push and Cancel; while it runs, its output and Cancel; each failure with what to do in the terminal.
  */
-import { TEXT, formatTime } from './text';
+import { TEXT, terminalText, formatTime } from './text';
 import { isCompanionError } from '@src/projects/types';
 import { Button } from '@workspace/ui/button';
 import {
@@ -116,7 +116,7 @@ export const PushDialog = ({ workspace, open, onOpenChange }: PushDialogProps): 
             ))}
           </ul>
         )}
-        {output.length > 0 && <pre className="kit-projects-output">{output.join('\n')}</pre>}
+        {output.length > 0 && <pre className="kit-projects-output">{terminalText(output.join('\n'))}</pre>}
         {result && (
           <p className="kit-projects-note" data-tone={result.tone} role="status">
             {result.text}

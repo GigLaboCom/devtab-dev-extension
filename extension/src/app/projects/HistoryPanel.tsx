@@ -3,7 +3,7 @@
  * compared with the current file, two points compared, and a point restored — after a question, with the comparison in
  * the editor; the version it replaces stays in the history, so a restore is undone the same way.
  */
-import { TEXT, formatSize, formatTime } from './text';
+import { TEXT, formatSize, formatTime, printable } from './text';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
 import {
@@ -29,7 +29,8 @@ export const HistoryPanel = ({ workspace }: { workspace: Workspace }): ReactElem
   const [picked, setPicked] = useState<FilePoint[]>([]);
   const [restoring, setRestoring] = useState<FilePoint | null>(null);
   const [note, setNote] = useState<{ text: string; undo?: { point: string } } | null>(null);
-  const mine = project.class === 'mine';
+  // Restoring writes: only in a writable project of a backend that restores.
+  const mine = project.class === 'mine' && workspace.can('history.restore');
 
   useEffect(() => {
     if (scope === 'file' && !path) {
@@ -53,14 +54,13 @@ export const HistoryPanel = ({ workspace }: { workspace: Workspace }): ReactElem
   useEffect(() => setPicked([]), [path, scope]);
 
   const pathOf = (point: FilePoint | ProjectPoint): string => ('path' in point ? point.path : path!);
-  const label = (point: FilePoint): string =>
-    point.count ? `${point.label} (${TEXT.savesInOne(point.count)})` : point.label;
+  const label = (point: FilePoint): string => printable(point.label);
 
   const compare = (point: FilePoint | ProjectPoint): void =>
     workspace.open(pathOf(point), {
       kind: 'point',
       point: point.point,
-      label: `${point.label} ${formatTime(point.timeMs)}`,
+      label: `${label(point)} ${formatTime(point.timeMs)}`,
     });
 
   const ask = (point: FilePoint | ProjectPoint): void => {
@@ -148,14 +148,11 @@ export const HistoryPanel = ({ workspace }: { workspace: Workspace }): ReactElem
                   }
                 />
               )}
-              <span className="kit-projects-point-time">
-                {point.count && point.firstMs
-                  ? `${formatTime(point.firstMs)}–${formatTime(point.timeMs)}`
-                  : formatTime(point.timeMs)}
-              </span>
+              <span className="kit-projects-point-time">{formatTime(point.timeMs)}</span>
               <span className="kit-projects-point-label">{label(point)}</span>
-              {'path' in point && <span className="kit-projects-point-path">{point.path}</span>}
-              <span className="kit-projects-item-meta">{formatSize(point.size)}</span>
+              {'path' in point && <span className="kit-projects-point-path">{printable(point.path)}</span>}
+              {/* A commit's point has no size of its own (the companion sends 0). */}
+              {point.source !== 'commit' && <span className="kit-projects-item-meta">{formatSize(point.size)}</span>}
               <span className="kit-projects-point-actions">
                 <Button size="sm" variant="ghost" onClick={() => compare(point)}>
                   {TEXT.compareWithCurrent}

@@ -47,7 +47,8 @@
  * «Projects» (the companion's section; its parts are the extension's src/app/projects/, the page only arranges them —
  * the look is the owner's to choose, these are the first, plain frames on the kit's numbers):
  *   .kit-projects[data-connection]   the section's column; .kit-projects-demo (.kit-projects-demo-badge,
- *                              .kit-projects-demo-text) — the demo's notice; .kit-projects-note[data-tone] — one line said
+ *                              .kit-projects-demo-text) — the demo's notice; .kit-projects-connection[data-state] — the
+ *                              companion's state and its buttons; .kit-projects-note[data-tone] — one line said
  *   .kit-projects-home         the list of projects and the trusted folders: .kit-projects-home-part
  *                              (.kit-projects-part-title, .kit-projects-part-hint), .kit-projects-group
  *                              (.kit-projects-group-title, .kit-projects-group-path), .kit-projects-list >
@@ -946,6 +947,19 @@
     border-radius: var(--radius-md);
     background: var(--muted);
     color: var(--foreground);
+  }
+
+  .kit-projects-connection {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+  }
+
+  .kit-projects-connection:empty {
+    display: none;
   }
 
   .kit-projects-demo-badge {

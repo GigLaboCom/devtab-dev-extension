@@ -1,8 +1,9 @@
 /**
  * «Projects» (D29; the companion's specification §8.4): the developer's local repositories, from the backend the
- * section's composition root names (src/projects/behaviors.ts) — the demo's invented projects until the companion
- * exists. A chunk of its own, loaded when the section opens (Shell.tsx), so neither the start page nor the shell carries
- * it.
+ * section's composition root names (src/projects/behaviors.ts) — the companion's projects once it is connected, the
+ * demo's invented ones before. A chunk of its own, loaded when the section opens (Shell.tsx), so neither the start page
+ * nor the shell carries it — and the only place of the extension's Native Messaging code (§8.7: Check 12 of
+ * scripts/validate-build.sh finds this chunk by `DEVTAB_PROJECTS_CHUNK`).
  *
  * This file only arranges the parts (src/app/projects/); the look is the owner's to choose (Р4), and the
  * specification's layouts are other arrangements of the same parts. This one is the first it lists (§8.4, variant 1):
@@ -10,6 +11,7 @@
  * with Find and History. `#/projects` is the list of projects and the trusted folders.
  */
 import { CommitPanel } from '../projects/CommitPanel';
+import { ConnectionBar } from '../projects/ConnectionBar';
 import { DemoNotice } from '../projects/DemoNotice';
 import { EditorPane } from '../projects/EditorPane';
 import { HistoryPanel } from '../projects/HistoryPanel';
@@ -25,11 +27,14 @@ import { projectsBehaviors } from '@src/projects/behaviors';
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Route } from '../route';
-import type { ConnectionState, ProjectBackend } from '@src/projects/backend';
+import type { ConnectionStatus, ProjectBackend } from '@src/projects/backend';
 import type { ProjectsBehaviors } from '@src/projects/behaviors';
 import type { ProjectSummary, TrustedLocation } from '@src/projects/types';
 import type { FrameKeys } from '@src/shared/keys';
 import type { ReactElement } from 'react';
+
+/** The marker by which Check 12 of scripts/validate-build.sh finds this chunk in the build. */
+export const DEVTAB_PROJECTS_CHUNK = 'DEVTAB_PROJECTS_CHUNK';
 
 export interface ProjectsPageProps {
   route: Route;
@@ -40,6 +45,8 @@ export interface ProjectsPageProps {
 interface Lists {
   projects: ProjectSummary[];
   locations: TrustedLocation[];
+  /** Whether the backend lists trusted folders (a companion of this stage does not). */
+  folders: boolean;
 }
 
 const Workspace = ({
@@ -49,6 +56,7 @@ const Workspace = ({
   locations,
   behaviors,
   frameKeys,
+  generation,
   onProjectChanged,
 }: {
   backend: ProjectBackend;
@@ -57,9 +65,11 @@ const Workspace = ({
   locations: readonly TrustedLocation[];
   behaviors: ProjectsBehaviors;
   frameKeys?: FrameKeys;
+  /** Bumped when the connection comes back: everything is read again. */
+  generation: number;
   onProjectChanged(): void;
 }): ReactElement => {
-  const workspace = useWorkspace(backend, project, path, onProjectChanged);
+  const workspace = useWorkspace(backend, project, path, onProjectChanged, generation);
   const [quickOpen, setQuickOpen] = useState(false);
   const [panel, setPanel] = useState<'find' | 'history'>('history');
   return (
@@ -100,42 +110,73 @@ const Workspace = ({
   );
 };
 
-export const ProjectsPage = ({ route, behaviors, frameKeys }: ProjectsPageProps): ReactElement => {
-  // One backend for the page's life in the section; let go when the section closes (§8.2).
-  const backend = useMemo(() => behaviors.backend(), [behaviors]);
-  useEffect(() => () => backend.dispose(), [backend]);
-  const [connection, setConnection] = useState<ConnectionState | null>(null);
+export const ProjectsPage = ({ route, behaviors, frameKeys }: ProjectsPageProps): ReactElement | null => {
+  // One backend for the page's life in the section, holding the one port; let go when the section closes (§8.2).
+  // Made in an effect, not during render: what the effect's cleanup disposed is never used again.
+  const [backend, setBackend] = useState<ProjectBackend | null>(null);
+  useEffect(() => {
+    const made = behaviors.backend();
+    setBackend(made);
+    return () => made.dispose();
+  }, [behaviors]);
+  return backend ? <Projects route={route} behaviors={behaviors} frameKeys={frameKeys} backend={backend} /> : null;
+};
+
+const Projects = ({
+  route,
+  behaviors,
+  frameKeys,
+  backend,
+}: ProjectsPageProps & { backend: ProjectBackend }): ReactElement => {
+  const [status, setStatus] = useState<ConnectionStatus>(() => backend.status());
   const [lists, setLists] = useState<Lists | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  // Which backend the lists came from and how often the connection came back: a change reads everything again.
+  const demo = backend.capabilities().demo;
+  const [generation, setGeneration] = useState(0);
 
   const reload = useCallback(() => {
-    Promise.all([backend.call('projects.list', {}), backend.call('locations.list', {})]).then(
-      ([projects, locations]) => setLists({ projects, locations }),
+    const folders = backend.capabilities().methods.includes('locations.list');
+    Promise.all([backend.call('projects.list', {}), folders ? backend.call('locations.list', {}) : []]).then(
+      ([projects, locations]) => {
+        setFailed(null);
+        setLists({ projects, locations, folders });
+      },
       (e: unknown) => setFailed(e instanceof Error ? e.message : String(e)),
     );
   }, [backend]);
 
   useEffect(() => {
-    let live = true;
-    void backend.connect().then(c => live && setConnection(c.state));
-    const undo = backend.onState(state => setConnection(state));
+    let previous = backend.status().state;
+    const undo = backend.onState(() => {
+      const next = backend.status();
+      setStatus(next);
+      // Back from a lost port or a restarted server, or now connected: read everything again.
+      if ((next.state === 'ready' || next.state === 'ready-empty') && previous !== next.state) {
+        setGeneration(g => g + 1);
+      }
+      previous = next.state;
+    });
+    void backend.connect().then(() => setStatus(backend.status()));
+    return undo;
+  }, [backend]);
+
+  useEffect(() => {
+    if (status.connecting) return;
     reload();
-    return () => {
-      live = false;
-      undo();
-    };
-  }, [backend, reload]);
+  }, [reload, demo, generation, status.connecting]);
 
   const project = route.project ? lists?.projects.find(p => p.id === route.project) : undefined;
-  const demo = backend.capabilities().demo;
 
   return (
     <section
       className="kit-projects"
       aria-labelledby={project ? undefined : 'projects-title'}
       aria-label={project ? project.name : undefined}
-      data-connection={connection ?? 'connecting'}>
-      <DemoNotice demo={demo} state={connection ?? 'ready'} />
+      data-connection={status.connecting && status.state !== 'reconnecting' ? 'connecting' : status.state}
+      data-backend={demo ? 'demo' : 'companion'}>
+      <DemoNotice demo={demo} state={status.state} />
+      <ConnectionBar backend={backend} status={status} />
       {failed && (
         <p className="kit-projects-note" data-tone="error" role="status">
           {TEXT.failed(failed)}
@@ -143,13 +184,14 @@ export const ProjectsPage = ({ route, behaviors, frameKeys }: ProjectsPageProps)
       )}
       {project ? (
         <Workspace
-          key={project.id}
+          key={`${demo ? 'demo' : 'companion'}:${project.id}`}
           backend={backend}
           project={project}
           path={route.path}
           locations={lists?.locations ?? []}
           behaviors={behaviors}
           frameKeys={frameKeys}
+          generation={generation}
           onProjectChanged={reload}
         />
       ) : (
@@ -165,7 +207,7 @@ export const ProjectsPage = ({ route, behaviors, frameKeys }: ProjectsPageProps)
           {lists && (
             <div className="kit-projects-home">
               <ProjectList projects={lists.projects} locations={lists.locations} />
-              <TrustedFolders locations={lists.locations} />
+              <TrustedFolders locations={lists.locations} offered={lists.folders} />
             </div>
           )}
         </>

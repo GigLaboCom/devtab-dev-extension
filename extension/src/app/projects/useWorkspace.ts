@@ -5,7 +5,7 @@
 import { go, routeHash } from '../route';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ProjectBackend } from '@src/projects/backend';
-import type { FilePoint, GitStatus, HistoryPoint, ProjectState, ProjectSummary } from '@src/projects/types';
+import type { FilePoint, GitStatus, HistoryPoint, Method, ProjectState, ProjectSummary } from '@src/projects/types';
 
 /** How the editor shows the open file. */
 export type EditorView =
@@ -42,6 +42,8 @@ export interface Workspace {
   setView(view: EditorView): void;
   revealHunk(index: number): void;
   refresh(): void;
+  /** Whether the backend offers the method: an action whose method it does not offer is inactive, with why. */
+  can(method: Method): boolean;
   /** Something failed: said once, in the page's status line. */
   error: string | null;
   setError(message: string | null): void;
@@ -52,6 +54,7 @@ export const useWorkspace = (
   project: ProjectSummary,
   path: string | undefined,
   onProjectChanged: () => void,
+  generation = 0,
 ): Workspace => {
   const [state, setState] = useState<ProjectState | null>(null);
   const [status, setStatus] = useState<GitStatus | null>(null);
@@ -90,13 +93,14 @@ export const useWorkspace = (
         if (!live) return;
         setState(nextState);
         setStatus(nextStatus);
+        setError(null);
       },
       (e: unknown) => live && setError(e instanceof Error ? e.message : String(e)),
     );
     return () => {
       live = false;
     };
-  }, [backend, project.id, project.class, version]);
+  }, [backend, project.id, project.class, version, generation]);
 
   useEffect(() => {
     void backend.call('events.subscribe', { project: project.id }).catch(() => undefined);
@@ -110,6 +114,11 @@ export const useWorkspace = (
       void backend.call('events.unsubscribe', { project: project.id }).catch(() => undefined);
     };
   }, [backend, project.id]);
+
+  // The connection came back: every part reads again (the backend says the subscriptions again itself).
+  useEffect(() => {
+    if (generation) setVersion(v => v + 1);
+  }, [generation]);
 
   const open = useCallback(
     (target: string, nextKind: EditorView = { kind: 'file' }, nextReveal?: Omit<Reveal, 'n'>) => {
@@ -138,6 +147,7 @@ export const useWorkspace = (
     setView,
     revealHunk: index => setReveal({ hunk: index, n: ++counter.current }),
     refresh,
+    can: method => backend.capabilities().methods.includes(method),
     error,
     setError,
   };

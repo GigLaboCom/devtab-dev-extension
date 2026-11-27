@@ -3,7 +3,7 @@
  * only (Р19), files that run code marked (Р25), a link that leads out of the project shown and never followed. A
  * folder is read again when the project's files change.
  */
-import { TEXT } from './text';
+import { TEXT, printable } from './text';
 import { ChevronDownIcon, ChevronRightIcon, FileIcon, FolderIcon, LinkIcon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import type { Workspace } from './useWorkspace';
@@ -20,7 +20,7 @@ const Marks = ({ entry }: { entry: TreeEntry }): ReactElement => (
       </span>
     )}
     {entry.protected && (
-      <span className="kit-projects-mark" data-mark="runs-code" title={entry.rule}>
+      <span className="kit-projects-mark" data-mark="runs-code" title={TEXT.runsCode}>
         {TEXT.markRunsCode}
       </span>
     )}
@@ -116,7 +116,7 @@ export const ProjectTree = ({ workspace }: { workspace: Workspace }): ReactEleme
                 onClick={() => (isDir ? toggle(entry.path) : open(entry.path))}>
                 {isDir ? <Chevron aria-hidden="true" /> : <span className="kit-projects-row-gap" />}
                 <Icon aria-hidden="true" />
-                <span className="kit-projects-row-name">{entry.name}</span>
+                <span className="kit-projects-row-name">{printable(entry.name)}</span>
                 <Marks entry={entry} />
               </button>
               {isOpen && (

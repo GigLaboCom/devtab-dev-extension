@@ -7,7 +7,7 @@
  */
 import { PushDialog } from './PushDialog';
 import { RollbackDialog } from './RollbackDialog';
-import { TEXT } from './text';
+import { TEXT, printable, terminalText } from './text';
 import { isCompanionError } from '@src/projects/types';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
@@ -41,15 +41,17 @@ const stateOf = (check: Check | undefined): boolean | 'indeterminate' =>
 const folderOf = (path: string): string => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
 
 const changeLabel = (file: StatusFile): string =>
-  file.change === 'renamed' && file.renamedFrom ? `renamed from ${file.renamedFrom}` : file.change;
+  file.change === 'renamed' && file.renamedFrom ? `renamed from ${printable(file.renamedFrom)}` : file.change;
 
 export interface CommitPanelProps {
   workspace: Workspace;
 }
 
 export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
-  const { backend, project, status, state, version, path: openPath } = workspace;
-  const mine = project.class === 'mine';
+  const { backend, project, status, state, version, path: openPath, can } = workspace;
+  // What is written needs a writable project and a backend that offers the write: otherwise inactive, with why.
+  const commits = can('git.commit');
+  const mine = project.class === 'mine' && commits;
   const [identity, setIdentity] = useState<GitIdentity | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
   const [outgoing, setOutgoing] = useState<Outgoing | null>(null);
@@ -76,8 +78,8 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
     let live = true;
     Promise.all([
       backend.call('git.identity', { project: project.id }),
-      backend.call('git.messages', { project: project.id }),
-      backend.call('git.outgoing', { project: project.id }),
+      can('git.messages') ? backend.call('git.messages', { project: project.id }) : { messages: [] },
+      can('git.outgoing') ? backend.call('git.outgoing', { project: project.id }) : null,
     ]).then(
       ([nextIdentity, nextMessages, nextOutgoing]) => {
         if (!live) return;
@@ -90,24 +92,26 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
     return () => {
       live = false;
     };
+    // `can` follows the backend.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backend, project.id, version]);
 
   // New changes are checked as IntelliJ checks its default list: tracked ones on, unversioned ones off; what the
-  // person checked or unchecked stays while the file is changed.
+  // person checked or unchecked stays while the file is changed. Nothing is checked where nothing can be committed.
   useEffect(() => {
     setChecks(previous => {
       const next = new Map<string, Check>();
       for (const file of files) {
         const kept = previous.get(file.path);
         if (kept !== undefined) next.set(file.path, kept);
-        else if (!seen.current.has(file.path) && file.group === 'changes' && checkable(file))
+        else if (mine && !seen.current.has(file.path) && file.group === 'changes' && checkable(file))
           next.set(file.path, 'all');
         seen.current.add(file.path);
       }
       for (const path of [...seen.current]) if (!files.some(f => f.path === path)) seen.current.delete(path);
       return next;
     });
-  }, [files]);
+  }, [files, mine]);
 
   // The chunks of the selected file, read again when the files change.
   useEffect(() => {
@@ -271,7 +275,7 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
         title={file.change === 'conflicted' ? TEXT.conflicted : undefined}
         onClick={() => select(file)}>
         <span className="kit-projects-row-name">
-          {byFolder ? file.path.slice(file.path.lastIndexOf('/') + 1) : file.path}
+          {printable(byFolder ? file.path.slice(file.path.lastIndexOf('/') + 1) : file.path)}
         </span>
         <span className="kit-projects-change-kind">{changeLabel(file)}</span>
         {file.stagedOutside && (
@@ -303,7 +307,7 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
             size="icon-sm"
             aria-label={TEXT.rollback}
             title={TEXT.rollback}
-            disabled={!mine || rollbackPaths.length === 0}
+            disabled={!mine || !can('git.rollback') || rollbackPaths.length === 0}
             onClick={() => setRollbackOpen(true)}>
             <Undo2Icon aria-hidden="true" />
           </Button>
@@ -383,7 +387,7 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
                                 return next;
                               })
                             }>
-                            <span className="kit-projects-row-name">{folder || '/'}</span>
+                            <span className="kit-projects-row-name">{printable(folder) || '/'}</span>
                           </button>
                           {!collapsed.has(folder) && (
                             <ul className="kit-projects-tree-group">
@@ -449,7 +453,7 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
             <SelectContent>
               {messages.map(m => (
                 <SelectItem key={m} value={m}>
-                  {m.split('\n')[0]}
+                  {printable(m.split('\n')[0] ?? '')}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -471,22 +475,37 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
       )}
 
       <p className="kit-projects-commit-line">
-        {state?.branch ? TEXT.branchLine(state.branch, state.upstream, state.ahead) : ''}
-        {identity?.email ? ` · ${identity.name ?? ''} <${identity.email}>` : ''}
+        {state?.branch
+          ? TEXT.branchLine(
+              printable(state.branch),
+              state.upstream == null ? null : printable(state.upstream),
+              state.ahead,
+            )
+          : ''}
+        {identity?.email ? ` · ${printable(identity.name ?? '')} <${printable(identity.email)}>` : ''}
       </p>
       {identity && !identity.email && (
         <p className="kit-projects-note" data-tone="error">
           {TEXT.noIdentity} <code className="kit-projects-command">{TEXT.noIdentityCommand}</code>
         </p>
       )}
-      {!mine && <p className="kit-projects-note">{TEXT.viewExplained}</p>}
+      {project.class !== 'mine' && <p className="kit-projects-note">{TEXT.viewExplained}</p>}
+      {!commits && (
+        <p className="kit-projects-note" data-offered="no">
+          {TEXT.notOffered}
+        </p>
+      )}
       <p className="kit-projects-part-hint">{TEXT.checked(checkedFiles.length, chunkCount)}</p>
 
       <div className="kit-projects-commit-actions">
-        <Button disabled={!canCommit} onClick={() => void commit(false)}>
+        <Button disabled={!canCommit} title={commits ? undefined : TEXT.notOffered} onClick={() => void commit(false)}>
           {TEXT.commit}
         </Button>
-        <Button variant="outline" disabled={!canCommit} onClick={() => void commit(true)}>
+        <Button
+          variant="outline"
+          disabled={!canCommit || !can('git.push')}
+          title={commits ? undefined : TEXT.notOffered}
+          onClick={() => void commit(true)}>
           {TEXT.commitAndPush}
         </Button>
         {busy && (
@@ -496,7 +515,7 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
         )}
       </div>
 
-      {output.length > 0 && <pre className="kit-projects-output">{output.join('\n')}</pre>}
+      {output.length > 0 && <pre className="kit-projects-output">{terminalText(output.join('\n'))}</pre>}
       {note && (
         <p className="kit-projects-note" data-tone={note.tone} role="status">
           {note.text}
@@ -504,17 +523,17 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
         </p>
       )}
       <div className="kit-projects-commit-actions">
-        {mine && !busy && (outgoing?.commits.length ?? 0) > 0 && (
+        {mine && can('git.undoCommit') && !busy && (outgoing?.commits.length ?? 0) > 0 && (
           <Button variant="ghost" size="sm" onClick={() => void undo()}>
             {TEXT.undoCommit}
           </Button>
         )}
-        {mine && rolledBack.length > 0 && (
+        {mine && can('history.restore') && rolledBack.length > 0 && (
           <Button variant="ghost" size="sm" onClick={() => void undoRollback()}>
             {TEXT.undoRollback}
           </Button>
         )}
-        {mine && (outgoing?.commits.length ?? 0) > 0 && (
+        {mine && can('git.push') && (outgoing?.commits.length ?? 0) > 0 && (
           <Button variant="ghost" size="sm" onClick={() => setPushOpen(true)}>
             {TEXT.pushRun}…
           </Button>

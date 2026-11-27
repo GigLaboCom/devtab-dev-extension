@@ -149,6 +149,16 @@ describe('the list of projects', () => {
       ['W', ['a', 'b']],
       [null, ['c']],
     ]);
+    // A companion that lists no folders: each project's own folder name groups it.
+    expect(
+      groupProjects([{ ...p('d', '~/x'), locationName: 'X' }, p('e', null)], []).map(g => [
+        g.name,
+        g.projects.map(x => x.id),
+      ]),
+    ).toEqual([
+      ['X', ['d']],
+      [null, ['e']],
+    ]);
   });
 });
 
@@ -409,7 +419,7 @@ describe('find and history', () => {
     const rows = await within(history).findAllByRole('listitem');
     expect(rows.map(r => r.querySelector('.kit-projects-point-label')?.textContent)).toEqual([
       'Saved',
-      'Saved (4 saves)',
+      'Saved',
       'Before edit',
       'Commit',
     ]);

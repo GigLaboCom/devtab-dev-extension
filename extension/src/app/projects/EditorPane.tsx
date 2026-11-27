@@ -6,10 +6,11 @@
  * under an unsaved edit stops its saving and offers the three choices (Р23); without an unsaved edit the disk's text is
  * taken by itself.
  */
-import { TEXT, formatSize, formatTime } from './text';
+import { TEXT, formatSize, formatTime, printable } from './text';
 import { useEditorFrame } from './useEditorFrame';
 import { languageOfFile } from '@src/compare/languages';
 import { createAutosave } from '@src/projects/autosave';
+import { toLineHunks } from '@src/projects/hunks';
 import { isCompanionError } from '@src/projects/types';
 import { VIEWER_PAGE } from '@src/shared/pages';
 import { sameChord } from '@src/shared/viewerProtocol';
@@ -122,7 +123,14 @@ export const EditorPane = ({ workspace, frameKeys, autosaveDelayMs }: EditorPane
     async (target: string, ticket: () => boolean) => {
       const file = await backend.call('file.read', { project: project.id, path: target });
       if (!ticket()) return;
-      const readOnly = project.class !== 'mine' ? TEXT.readOnlyView : file.secret ? TEXT.readOnlySecret : null;
+      const readOnly =
+        project.class !== 'mine'
+          ? TEXT.readOnlyView
+          : file.secret
+            ? TEXT.readOnlySecret
+            : !workspace.can('file.save')
+              ? TEXT.notOffered
+              : null;
       const language = languageOf(target);
       if (diskInDiff.current === file.text && contentRef.current.kind === 'diff') {
         // The diff already holds the file on its right side: the editor shows it alone, with no new text.
@@ -202,11 +210,13 @@ export const EditorPane = ({ workspace, frameKeys, autosaveDelayMs }: EditorPane
             setContent({ kind: 'card', text: TEXT.binary('') });
             return;
           }
-          diskInDiff.current = sides.new.exists ? sides.new.text : null;
+          const oldText = sides.old.text ?? '';
+          const newText = sides.new.text ?? '';
+          diskInDiff.current = sides.new.exists ? newText : null;
           request(id => ({
             type: 'viewer/show-diff',
             id,
-            payload: { path: target, language, oldText: sides.old.text, newText: sides.new.text, hunks: sides.hunks },
+            payload: { path: target, language, oldText, newText, hunks: toLineHunks(oldText, sides.hunks) },
           }));
           setContent({
             kind: 'diff',
@@ -335,7 +345,7 @@ export const EditorPane = ({ workspace, frameKeys, autosaveDelayMs }: EditorPane
   return (
     <section className="kit-projects-editor" aria-label={TEXT.editorTitle}>
       <div className="kit-projects-editor-bar">
-        <span className="kit-projects-editor-path">{path ?? ''}</span>
+        <span className="kit-projects-editor-path">{printable(path ?? '')}</span>
         {content.kind === 'diff' && <span className="kit-projects-editor-title">{content.title}</span>}
         {content.kind === 'compare' && (
           <span className="kit-projects-editor-title">{TEXT.comparing(TEXT.onDisk, TEXT.mine)}</span>

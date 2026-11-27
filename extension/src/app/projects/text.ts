@@ -14,6 +14,26 @@ export const TEXT = {
   demoCompanion:
     'With the DevTab.Dev Companion installed (macOS), this section shows the projects you add on your computer: their files, changes, commits and local history.',
 
+  // The connection to the companion (§8.3, §8.5). Working placeholders: the owner writes these texts.
+  connectionLabel: 'Companion',
+  connect: 'Connect the companion',
+  connectAsked: 'Chrome asks whether to allow it.',
+  connectDenied: 'Chrome did not allow it.',
+  connecting: 'Connecting…',
+  checkAgain: 'Check again',
+  notInstalled: 'The companion is not installed. It runs on macOS only.',
+  notRunning: 'The companion is installed but not running.',
+  notRunningCommand: 'devtab doctor',
+  retryIn: (seconds: number) => `Trying again in ${seconds} s.`,
+  updateCompanion: 'The companion is older than this extension: update the companion.',
+  updateExtension: 'This extension is older than the companion: update the extension.',
+  reconnecting: 'Reconnecting to the companion…',
+  connected: (version: string) => `Companion ${version}`,
+  said: (detail: string) => `It said: ${detail}`,
+  // An action the connected companion does not offer yet (its `welcome` does not list the method).
+  notOffered: 'This companion cannot do this yet.',
+  foldersNotOffered: 'This companion does not list trusted folders yet.',
+
   // The list of projects and the trusted folders (§3.7а, §8.4).
   projectsTitle: 'Projects',
   outsideFolders: 'Outside trusted folders',
@@ -183,11 +203,37 @@ export const TEXT = {
   restoreRun: 'Restore',
   restored: 'Restored. The version it replaced is in the history.',
   undoRestore: 'Undo restore',
-  savesInOne: (n: number) => `${n} saves`,
 
   // Errors any call may meet.
   failed: (message: string) => `Failed: ${message}`,
 } as const;
+
+/**
+ * A string from the repository (a name, a branch, a label, a line) as text to show: control characters — a terminal's
+ * escape sequences among them (ANSI, OSC 8 links) — become visible symbols instead of acting (S17). One UTF-16 unit
+ * for one, so the companion's column ranges still fit.
+ */
+export const printable = (text: string): string =>
+  // eslint-disable-next-line no-control-regex
+  text.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, c => {
+    const code = c.charCodeAt(0);
+    return code < 0x20 ? String.fromCharCode(0x2400 + code) : code === 0x7f ? '\u2421' : '\ufffd';
+  });
+
+/**
+ * A hook's or git's output as text (S17): a terminal's escape sequences — CSI (colours, cursor), OSC (titles, links:
+ * `ESC]8;;…`) and the two-character ones — are removed, what control characters remain become visible.
+ */
+export const terminalText = (text: string): string =>
+  printable(
+    text
+      // eslint-disable-next-line no-control-regex
+      .replace(/\u001b\][^\u0007\u001b]*(\u0007|\u001b\\)?/g, '')
+      // eslint-disable-next-line no-control-regex
+      .replace(/(\u001b\[|\u009b)[0-?]*[ -/]*[@-~]/g, '')
+      // eslint-disable-next-line no-control-regex
+      .replace(/\u001b[@-_]/g, ''),
+  );
 
 /** A size in bytes as people read it. */
 export const formatSize = (bytes: number): string =>
