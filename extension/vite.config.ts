@@ -1,3 +1,4 @@
+import { grammarFiles } from './build/highlighter';
 import { toolCatalogue } from './build/toolCatalogue';
 import { parseVariants, ROOT_LINE } from './build/variants';
 import manifest from './manifest.config';
@@ -215,6 +216,9 @@ export default defineConfig({
     crx({ manifest }),
     productName(),
     emitLicences(),
+    // The mixed tree-sitter highlighter (DEVTAB_VARIANT=highlighter:treeSitter): its grammar files and their licences
+    // (build/highlighter.ts). The default build has none.
+    grammarFiles(SRC, resolve(__dirname, '../packages/review-wasm/pkg-tree-sitter'), process.env.DEVTAB_VARIANT),
     IS_DEV && crxWatchRebuildFix(),
     // From the reference boilerplate: `public/` (icons, theme-boot.js) is watched too, so editing it rebuilds.
     IS_DEV && watchPublicPlugin(publicDir),

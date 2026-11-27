@@ -1,5 +1,6 @@
 dist
 dist-zip
+dist-tree-sitter
 pnpm-lock.yaml
 *.md
 .claude
@@ -8,6 +9,7 @@ spikes
 vendor
 docs
 packages/review-wasm/pkg
+packages/review-wasm/pkg-tree-sitter
 # The Rust workspace: its target/, tools and the module's generated JS
 crates
 # generated: copied byte for byte from spikes/theme-export (packages/dna/scripts/sync-themes.mjs) and derived from it

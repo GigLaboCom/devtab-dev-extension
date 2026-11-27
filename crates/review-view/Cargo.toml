@@ -16,6 +16,10 @@ inspect = ["view"]
 # `cargo test -p review-view --features view-tests`. A feature, not dev-dependencies, so `--no-default-features`
 # stays a build without gpui and the module never carries gpui's test support.
 view-tests = ["view", "gpui/test-support"]
+# Grammars that arrive as files while the page runs (src/grammars.rs; the mixed highlighter build of review-wasm,
+# docs/editor-base.md): gpui-kit's tree-sitter highlighter, and the runtime itself for the languages' checks. The
+# registration's tests run natively: `cargo test -p review-view --features grammar-files`.
+grammar-files = ["view", "dep:tree-sitter", "gpui-component/tree-sitter"]
 # The `window` example: the view in a native window (`cargo run -p review-view --features window-example --example
 # window`). Kept behind a feature so `cargo test` and the wasm module never build the native platform.
 window-example = ["inspect", "dep:gpui_platform", "dep:gpui-kit-assets", "gpui-component/syntect"]
@@ -29,6 +33,8 @@ gpui = { workspace = true, optional = true }
 gpui-component = { workspace = true, optional = true }
 lsp-types = { workspace = true, optional = true }
 web-time = { workspace = true, optional = true }
+# The version gpui-kit's highlighter uses (one runtime in the module: the grammars' ABI is checked against it).
+tree-sitter = { workspace = true, optional = true }
 # The `window` example's icons and native platform.
 gpui-kit-assets = { workspace = true, optional = true }
 

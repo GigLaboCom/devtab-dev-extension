@@ -12,10 +12,11 @@
  */
 import './viewer.css';
 import { behindModal, guardFocus } from './focusGuard';
+import { reportUnlessLeaving, watchPageLife } from './pageLife';
 import { createDebug } from '@extension/logger';
-import { startReview } from '@extension/review-wasm/host';
 import { loadThemeSource } from '@extension/theme/sources';
 import { collectDrop } from '@src/compare/files';
+import { highlighter } from '@src/highlighter';
 import { applyTheme, watchTheme } from '@src/shared/theme/store';
 import { chordOf, isMac, isToViewer, sameChord } from '@src/shared/viewerProtocol';
 import type { ReviewController, Side, ThemeArgs } from '@extension/review-wasm';
@@ -41,6 +42,8 @@ const sideAt = (x: number): Side => (x < window.innerWidth / 2 ? 'old' : 'new');
 
 // First, before the module can focus anything: no focus while the main page has a modal open (focusGuard.ts).
 guardFocus(window, behindModal(window));
+// Whether the page is going away: a load it interrupts is not the editor's failure (pageLife.ts).
+const life = watchPageLife(window);
 
 const main = async (): Promise<void> => {
   let controller: ReviewController | null = null;
@@ -169,9 +172,13 @@ const main = async (): Promise<void> => {
   const fontSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
   const startTicket = latest;
   const initial = await themeArgs(current!);
-  const started = await startReview(
+  // Which build of the module, and what it needs on this page: the highlighter's composition root (src/highlighter).
+  const started = await highlighter.start(
     { dark: initial.dark, themeName: initial.name, themeJson: initial.json, fontSize },
     {
+      life,
+      // A grammar file of the mixed highlighter build: the main page notes it; the text stays plain without it.
+      onGrammar: event => toParent({ type: 'viewer/grammar', ...event }),
       onEvent: event => {
         if (event.name === 'first-frame') {
           document.getElementById('placeholder')?.setAttribute('hidden', '');
@@ -195,9 +202,13 @@ const main = async (): Promise<void> => {
   if (latest !== startTicket) started.setTheme(await themeArgs(current!));
 };
 
-main().catch(error => {
-  debug.error('start', error);
-  const placeholder = document.getElementById('placeholder');
-  if (placeholder) placeholder.textContent = 'The editor could not start.';
-  toParent({ type: 'viewer/error', message: String(error) });
-});
+// A start that fails because the page is going away (a reload or a close while the module is still arriving aborts
+// its load) is not reported: it is not the editor's failure, and Chrome would record it as the extension's error.
+main().catch(error =>
+  reportUnlessLeaving(error, life, () => {
+    debug.error('start', error);
+    const placeholder = document.getElementById('placeholder');
+    if (placeholder) placeholder.textContent = 'The editor could not start.';
+    toParent({ type: 'viewer/error', message: String(error) });
+  }),
+);

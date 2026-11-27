@@ -12,6 +12,44 @@ crate-type = ["cdylib"]
 default = ["syntect"]
 # The highlighter: syntect is gpui-kit's portable one. Off (`--no-default-features`) = plain text only.
 syntect = ["gpui-component/syntect"]
+# gpui-kit's tree-sitter highlighter instead (pull request #4006, ../../vendor/gpui-kit/patches), with the grammars of
+# the compare page's language list (extension/src/compare/languages.ts) and the two they inject (jsdoc, inline
+# Markdown). On wasm gpui-kit leaves out bash, c, cpp, csharp, sql and swift: their crates do not build there. Not
+# shipped (the default stays syntect); built into another directory:
+# `CARGO_FLAGS="--no-default-features --features tree-sitter" OUT=<dir> ./build.sh`. With syntect as well, gpui-kit
+# uses tree-sitter alone.
+tree-sitter = [
+    "gpui-component/tree-sitter-bash",
+    "gpui-component/tree-sitter-c",
+    "gpui-component/tree-sitter-cpp",
+    "gpui-component/tree-sitter-csharp",
+    "gpui-component/tree-sitter-css",
+    "gpui-component/tree-sitter-go",
+    "gpui-component/tree-sitter-html",
+    "gpui-component/tree-sitter-java",
+    "gpui-component/tree-sitter-javascript",
+    "gpui-component/tree-sitter-jsdoc",
+    "gpui-component/tree-sitter-kotlin",
+    "gpui-component/tree-sitter-markdown",
+    "gpui-component/tree-sitter-markdown-inline",
+    "gpui-component/tree-sitter-php",
+    "gpui-component/tree-sitter-python",
+    "gpui-component/tree-sitter-ruby",
+    "gpui-component/tree-sitter-rust",
+    "gpui-component/tree-sitter-sql",
+    "gpui-component/tree-sitter-swift",
+    "gpui-component/tree-sitter-toml",
+    "gpui-component/tree-sitter-tsx",
+    "gpui-component/tree-sitter-typescript",
+    "gpui-component/tree-sitter-yaml",
+]
+# Every grammar gpui-kit builds for wasm (27 of its 35), for measurements only: `--features tree-sitter-all`.
+tree-sitter-all = ["gpui-component/tree-sitter-languages"]
+# The mixed highlighter (DEVTAB_VARIANT=highlighter:treeSitter, docs/editor-base.md): gpui-kit's tree-sitter with the
+# grammars ./grammars.json marks `builtIn` compiled in — build.sh passes their features, read from the table — and the
+# exports that take the others as grammar files while the page runs (src/grammars.rs). Built by
+# `HIGHLIGHTER=tree-sitter ./build.sh` into pkg-tree-sitter/, with the grammar files beside the module.
+grammar-files = ["review-view/grammar-files"]
 # A throwaway probe (src/probe.rs, docs/research/inline-range-background.md): one more export, `probe_ranges`. Never
 # in the shipped module; built into another directory: `CARGO_FLAGS="--features probe" OUT=<dir> ./build.sh`.
 probe = ["review-view/inspect"]

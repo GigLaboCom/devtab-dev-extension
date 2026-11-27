@@ -1,0 +1,14 @@
+<!-- The release page -->
+<h1><%= title %></h1>
+<% if (items.length > 0) { %>
+  <ul class="items">
+    <% items.forEach(function (item, index) { %>
+      <li id="item-<%= index %>"><%= item.label %> — <%- item.html %></li>
+    <% }); %>
+  </ul>
+<% } else { %>
+  <p class="empty">Nothing to show yet.</p>
+<% } %>
+<%# a comment that never reaches the page %>
+<footer>Version <%= version %>, built <%= new Date().getFullYear() %></footer>
+<%- include('partials/footer', { year: 2026 }) %>

@@ -382,6 +382,19 @@ impl ReviewView {
         }
     }
 
+    /// A grammar arrived at run time (feature `grammar-files`, [`crate::grammars`]): both sides are highlighted again
+    /// if the text is shown in that language or in one that injects it. Whether they were.
+    #[cfg(feature = "grammar-files")]
+    pub fn grammar_arrived(&mut self, id: &str, cx: &mut Context<Self>) -> bool {
+        if !crate::grammars::colours(&self.language, id) {
+            return false;
+        }
+        // Setting the same language again drops each editor's highlighter; the next frame builds one with the grammar.
+        self.set_language_of_editors(self.language.to_string(), cx);
+        cx.notify();
+        true
+    }
+
     /// The two editors, old side first (feature `inspect`): for probes and examples that look inside the view.
     #[cfg(feature = "inspect")]
     pub fn editors(&self) -> [&Entity<EditorState>; 2] {
@@ -740,5 +753,49 @@ mod editing_tests {
             view.mark_saved(DiffSide::Old, "!right\n".into(), cx)
         });
         assert!(!saved.sides[0].modified);
+    }
+
+    /// A grammar that arrives after its text is shown (feature `grammar-files`): the view highlights again when the
+    /// text is in that language, and leaves it alone otherwise.
+    #[cfg(feature = "grammar-files")]
+    #[gpui::test]
+    fn a_grammar_that_arrives_repaints_only_the_text_in_its_language(cx: &mut TestAppContext) {
+        use gpui_component::highlighter::LanguageRegistry;
+
+        use crate::grammars::{GrammarFile, register};
+
+        let mut o = open(cx);
+        let texts = Texts {
+            path: "a.late".into(),
+            language: "test-late".into(),
+            old_text: "[1]\n".into(),
+            new_text: "[2]\n".into(),
+        };
+        o.view
+            .update_in(o.cx, |view, window, cx| {
+                view.compare(texts, &CompareOptions::default(), window, cx)
+            })
+            .unwrap();
+        o.draw();
+        let json = LanguageRegistry::singleton()
+            .language("json")
+            .and_then(|config| config.language)
+            .unwrap();
+        let file = GrammarFile {
+            id: "test-late".into(),
+            abi: json.abi_version(),
+            injects: vec![],
+            highlights: "(number) @number".into(),
+            injections: String::new(),
+            locals: String::new(),
+        };
+        register(&file, json).unwrap();
+        assert!(
+            !o.view
+                .update(o.cx, |view, cx| view.grammar_arrived("test-elsewhere", cx))
+        );
+        assert!(o.view.update(o.cx, |view, cx| view.grammar_arrived("test-late", cx)));
+        o.draw();
+        assert_eq!(o.text(DiffSide::New), "[2]\n");
     }
 }

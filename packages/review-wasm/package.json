@@ -6,13 +6,15 @@
   "type": "module",
   "exports": {
     ".": "./lib/index.ts",
-    "./host": "./lib/host.ts"
+    "./host": "./lib/host.ts",
+    "./host-tree-sitter": "./lib/hostTreeSitter.ts"
   },
   "scripts": {
     "ready": "bash scripts/sync.sh",
+    "ready:tree-sitter": "bash scripts/sync.sh tree-sitter",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
-    "clean:bundle": "rm -rf pkg",
+    "clean:bundle": "rm -rf pkg pkg-tree-sitter",
     "clean:turbo": "rm -rf .turbo"
   },
   "devDependencies": {

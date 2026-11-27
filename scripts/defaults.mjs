@@ -140,6 +140,7 @@ const ROOT_FILES = [
   'extension/src/edition/index.ts',
   'extension/src/licence/index.ts',
   'extension/src/plans/index.ts',
+  'extension/src/highlighter/index.ts',
   'extension/src/start/behaviors.ts',
   'extension/src/start/parts/index.ts',
   'extension/src/shell/behaviors.ts',
@@ -152,6 +153,9 @@ const picks = ROOT_FILES.map(file => ({
     .split('\n')
     .filter(l => /^export \{ \w+ as \w+ \}|^import \{[^}]+\} from '\.\.?\//.test(l) && !/^import type/.test(l)),
 }));
+
+// The editor's highlighter as its root names it (the root imports the module's build, which is not bundled here).
+const highlighter = /^export \{ (\w+) as highlighter \}/m.exec(src('extension/src/highlighter/index.ts'))?.[1] ?? null;
 
 const budget = (file, name) => Number(new RegExp(`${name}\\s*=\\s*([\\d_]+)`).exec(src(file))?.[1].replaceAll('_', ''));
 const budgets = {
@@ -334,7 +338,7 @@ out.push(
   ),
 );
 out.push(
-  `\nВыбрано: кнопка на панели — \`${code.roots.toolbarButton}\`, подмена новой вкладки — \`${code.roots.newTab}\`, страница настроек — \`${code.roots.optionsPage}\`, как кнопка открывает нашу страницу — \`${code.roots.pageOpener}\`, источник издания — \`${code.roots.editionSource}\`, конфигурация лицензии — \`${code.roots.licence}\`, источник планов — \`${code.roots.planSource}\`.`,
+  `\nВыбрано: кнопка на панели — \`${code.roots.toolbarButton}\`, подмена новой вкладки — \`${code.roots.newTab}\`, страница настроек — \`${code.roots.optionsPage}\`, как кнопка открывает нашу страницу — \`${code.roots.pageOpener}\`, источник издания — \`${code.roots.editionSource}\`, конфигурация лицензии — \`${code.roots.licence}\`, источник планов — \`${code.roots.planSource}\`, подсветка редактора — \`${highlighter}\`.`,
 );
 h('Инструменты');
 out.push(

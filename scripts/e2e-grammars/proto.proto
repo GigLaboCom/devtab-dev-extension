@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package review.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// A change the reviewer sees.
+message Hunk {
+  string path = 1;
+  int32 start = 2;
+  int32 lines = 3;
+  repeated string old_text = 4;
+  google.protobuf.Timestamp seen_at = 5;
+}
+
+enum Kind {
+  KIND_UNSPECIFIED = 0;
+  KIND_ADDED = 1;
+  KIND_DELETED = 2;
+}
+
+service Review {
+  rpc ListHunks (ListHunksRequest) returns (stream Hunk);
+}

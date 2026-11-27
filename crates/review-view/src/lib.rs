@@ -12,7 +12,9 @@
 //! - [`alignment`]: the blank rows that keep both sides level;
 //! - [`sides`]: which side the user may edit and whether its text moved away from what was loaded or saved;
 //! - `view` (feature `view`, gpui): the view itself — read-only by default, a side editable on request, the comparison
-//!   following the edits.
+//!   following the edits;
+//! - [`grammars`] (feature `grammar-files`): tree-sitter grammars that arrive as files while the page runs, checked,
+//!   registered with gpui-kit's highlighter and repainted into the open text.
 //!
 //! Everything but the view is free of gpui: `cargo test --no-default-features` checks the seams without building it.
 
@@ -25,6 +27,8 @@ pub mod sides;
 
 #[cfg(feature = "view")]
 mod diff_view;
+#[cfg(feature = "grammar-files")]
+pub mod grammars;
 #[cfg(feature = "view")]
 mod view;
 

@@ -135,3 +135,57 @@ export interface ReviewModule {
   focused_side: () => string | undefined;
   focus_side: (side: Side) => void;
 }
+
+/**
+ * The grammar files of the mixed highlighter build: `grammars/index.json` of the package, written by
+ * crates/review-wasm/grammars/build.mjs from the table crates/review-wasm/grammars.json.
+ */
+export interface GrammarIndex {
+  format: 1;
+  /** The tree-sitter runtime the grammars were built for and the ABI versions it takes. */
+  runtime: { crate: string; version: string; abi: AbiRange };
+  /** Every language id and alias of the table → its id. */
+  languages: Record<string, string>;
+  /** Ids compiled into the module. */
+  builtIn: string[];
+  /** Ids with no grammar: plain text. */
+  none: string[];
+  /** Ids that are grammar files. */
+  grammars: Record<string, GrammarEntry>;
+}
+
+export interface AbiRange {
+  min: number;
+  max: number;
+}
+
+/** One grammar file. Two ids may share a file (one grammar, other queries). */
+export interface GrammarEntry {
+  /** Its name under `grammars/`. */
+  file: string;
+  size: number;
+  sha256: string;
+  /** The ABI version it was generated with. */
+  abi: number;
+  /** The export that returns its language. */
+  symbol: string;
+  /** Languages it injects. */
+  injects: string[];
+  /** The queries, as gpui-kit's highlighter takes them. */
+  highlights: string;
+  injections: string;
+  locals: string;
+}
+
+/** What the mixed highlighter build's module offers for grammar files. */
+export interface GrammarHost {
+  /** The ABI versions the module's tree-sitter takes. */
+  abi: AbiRange;
+  /** Instantiates a grammar file over the module's memory and table; the address of its language. */
+  link: (bytes: Uint8Array<ArrayBuffer>, symbol: string) => Promise<number>;
+  /**
+   * Registers a linked language under `entry.id` with the entry's queries; the module highlights the open text again
+   * when it is shown in that language. Whether it did. Throws when the module refuses the grammar.
+   */
+  register: (entry: GrammarEntry & { id: string }, language: number) => boolean;
+}

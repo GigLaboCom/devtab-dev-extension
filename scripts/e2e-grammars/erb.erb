@@ -1,0 +1,14 @@
+<!-- The release page -->
+<h1><%= @title %></h1>
+<% if @items.any? %>
+  <ul class="items">
+    <% @items.each_with_index do |item, index| %>
+      <li id="item-<%= index %>"><%= item.label %> — <%== item.html %></li>
+    <% end %>
+  </ul>
+<% else %>
+  <p class="empty">Nothing to show yet.</p>
+<% end %>
+<%# a comment that never reaches the page %>
+<footer>Version <%= Review::VERSION %>, built <%= Time.now.year %></footer>
+<%= render partial: "footer", locals: { year: 2026 } %>

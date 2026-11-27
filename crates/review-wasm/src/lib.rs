@@ -18,7 +18,9 @@
 //! - `set_editable(side, editable, focus)` — let the user edit a side, or make it read-only again (default);
 //! - `side_text(side)` — a side's text as it is now, edits included;
 //! - `mark_saved(side, text)` — the host saved `text` for the side: no longer modified;
-//! - `focused_side()` / `focus_side(side)` — which side has the keyboard; give it to one.
+//! - `focused_side()` / `focus_side(side)` — which side has the keyboard; give it to one;
+//! - with the feature `grammar-files` (the mixed highlighter build), `grammar_abi()`, `register_grammar(entry_json,
+//!   language)` and `function_table()`: grammars that arrive as files while the page runs (src/grammars.rs).
 //!
 //! A call the module refuses (bad JSON, an unknown option, variant or side, no window yet) throws a string. Outbound:
 //! `globalThis.__reviewEvent(name, detail)` for `first-frame` (detail empty), `shown` (detail: JSON
@@ -45,6 +47,8 @@ use review_view::{CompareOptions, DiffDocument, DiffSide, LineHunk, ReviewEvent,
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 
+#[cfg(feature = "grammar-files")]
+mod grammars;
 #[cfg(feature = "probe")]
 mod probe;
 

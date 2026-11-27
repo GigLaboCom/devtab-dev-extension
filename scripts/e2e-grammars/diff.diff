@@ -1,0 +1,23 @@
+diff --git a/src/queue.go b/src/queue.go
+index 3b18e51..a9c4f02 100644
+--- a/src/queue.go
++++ b/src/queue.go
+@@ -1,9 +1,12 @@
+ package queue
+ 
+-import "sync"
++import (
++	"errors"
++	"sync"
++)
+ 
+ type Queue struct {
+-	mu sync.Mutex
++	mu    sync.Mutex
++	limit int
+ }
+@@ -20,4 +23,6 @@ func (q *Queue) Push(job string) {
+-	q.jobs = append(q.jobs, job)
++	if len(q.jobs) >= q.limit {
++		return errors.New("full")
++	}

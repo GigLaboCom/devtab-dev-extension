@@ -22,8 +22,15 @@
 #   12  CSP exactly the one manifest.config.ts declares (spikes/extension-e2e's minimum + the iframe pair); no inline
 #       scripts or styles; a service worker that loads no DOM code; no Native Messaging code
 #   13  the editor module: exactly one .wasm — the one packages/review-wasm/pkg holds (sha256) — loaded by the editor
-#       page only; the main page's chunks stay free of it (D3: the wasm loads lazily, the tools never wait for it)
-#   14  the licences of what the editor module embeds (gpui-kit and imara-diff Apache-2.0, the fonts' OFL) ship with it
+#       page only; the main page's chunks stay free of it (D3: the wasm loads lazily, the tools never wait for it).
+#       Which module is the highlighter's choice (extension/src/highlighter as written, or the DEVTAB_VARIANT the build
+#       was made with; scripts/highlighter-config.mjs): the default ships that one wasm and no grammars/; the mixed
+#       tree-sitter build ships packages/review-wasm/pkg-tree-sitter's module and, besides it, exactly the grammar files
+#       its grammars/index.json lists — each with the size and sha256 the index states, the index as that package holds
+#       it — and no other file
+#   14  the licences of what the editor module embeds (gpui-kit and imara-diff Apache-2.0, the fonts' OFL) ship with it;
+#       a tree-sitter build also the tree-sitter runtime's and every grammar crate's it ships (built in or a file): the
+#       list made from the split table crates/review-wasm/grammars.json, each text as its package's licenses/ has it
 #   15  the start route's initial load — what a new tab loads before its first paint: the boot scripts, the main page's
 #       script with its static imports, its stylesheet — stays within a byte budget, and loads none of the chunks the
 #       page imports lazily (the shell, the parts, the tools, the editor's theme files)
@@ -34,12 +41,17 @@
 #       build of the licence: no DEVTAB_LICENCE_TEST, test key id or fake address; the keys as pinned; no licensed
 #       edition without a server; pay hosts apart from the licence server; the plans from the server's record, their
 #       path in the service worker only; no currency for trials (scripts/licence-config.mjs reads the configuration)
+#   18  the gpui-kit base of the editor module (vendor/gpui-kit/check.sh): the pinned upstream commit, the patches of
+#       vendor/gpui-kit/patches/manifest with their notes made for that commit, the checkout's stamp; whether the pin
+#       is on upstream main needs the network (a warning when offline; GPUI_KIT_OFFLINE=1 skips it)
 #
 # Widening the extension (a new permission, a new page, content scripts) is intentional work: update manifest.config.ts
 # AND the allowlists below in the same change. The start page's permissions and the toolbar button are not lists here:
 # they come from their definitions, which manifest.config.ts reads too.
 #
 # Needs bash ≥ 4, jq, node, unzip (for a zip). Usage: scripts/validate-build.sh <dist-directory-or-zip>  (default: dist)
+# A build of another highlighter is checked with the DEVTAB_VARIANT it was made with:
+#   DEVTAB_VARIANT=highlighter:treeSitter scripts/validate-build.sh dist-tree-sitter   (pnpm validate:build:tree-sitter)
 
 set -u
 
@@ -112,8 +124,13 @@ START_ROUTE_BUDGET=512000
 # What the toolbar popup loads (Check 16), in bytes: its HTML, JS, CSS and the theme boot script, fonts aside. Measured
 # 105 661 for the menu (2026-11-20; about 95 KB of it the 30 themes' variables); the budget is that plus about 10 %.
 POPUP_BUDGET=116000
-# The editor module the build must ship (packages/review-wasm/scripts/sync.sh puts it there).
-REVIEW_WASM="$ROOT/packages/review-wasm/pkg/review_wasm_bg.wasm"
+# The editor's highlighter and the module the build must ship (packages/review-wasm/scripts/sync.sh puts it there); for
+# the mixed tree-sitter build, also its grammar files and the licences they need (scripts/highlighter-config.mjs).
+HIGHLIGHTER_JSON="$(node "$ROOT/scripts/highlighter-config.mjs")" || { echo -e "${RED}ERROR: scripts/highlighter-config.mjs failed${NC}"; exit 1; }
+HIGHLIGHTER="$(jq -r '.highlighter' <<<"$HIGHLIGHTER_JSON")"
+REVIEW_PKG="$ROOT/$(jq -r '.pkg' <<<"$HIGHLIGHTER_JSON")"
+REVIEW_WASM="$REVIEW_PKG/review_wasm_bg.wasm"
+GRAMMAR_LICENSES="$(jq -r '.licences | join(" ")' <<<"$HIGHLIGHTER_JSON")"
 # Licence files that must ship under licenses/ (packages/review-wasm/licenses and the IBM Plex OFL of packages/dna,
 # emitted by vite.config.ts).
 REQUIRED_LICENSES="GPUI-KIT-LICENSE-APACHE.txt IMARA-DIFF-LICENSE-APACHE.txt OFL-fonts.txt OFL-IBMPlex.txt"
@@ -640,13 +657,54 @@ fi
 echo "Check 13: Editor module (one wasm, pinned by sha256, only in the editor page)..."
 WASM_ERRORS=()
 WASMS=()
-while IFS= read -r -d '' w; do WASMS+=("$w"); done < <(find "$INSPECT_DIR" -name '*.wasm' -print0)
-if [ ${#WASMS[@]} -ne 1 ]; then
-    WASM_ERRORS+=("${#WASMS[@]} .wasm files shipped, expected exactly 1 (the editor module)")
-elif [ ! -f "$REVIEW_WASM" ]; then
-    WASM_ERRORS+=("$REVIEW_WASM is missing — cannot compare (run: pnpm --filter @extension/review-wasm ready)")
-elif [ "$(sha256 "${WASMS[0]}")" != "$(sha256 "$REVIEW_WASM")" ]; then
-    WASM_ERRORS+=("${WASMS[0]#"$INSPECT_DIR"/} is not packages/review-wasm/pkg/review_wasm_bg.wasm")
+GRAMMARS_NOTE=""
+if [ "$HIGHLIGHTER" = "treeSitter" ]; then
+    # The mixed tree-sitter build: its module, and under grammars/ exactly the files the index lists.
+    while IFS= read -r -d '' w; do WASMS+=("$w"); done < <(find "$INSPECT_DIR" -name '*.wasm' -not -path "$INSPECT_DIR/grammars/*" -print0)
+    if [ ${#WASMS[@]} -ne 1 ]; then
+        WASM_ERRORS+=("${#WASMS[@]} .wasm files outside grammars/, expected exactly 1 (the editor module)")
+    elif [ ! -f "$REVIEW_WASM" ]; then
+        WASM_ERRORS+=("$REVIEW_WASM is missing — cannot compare (run: pnpm --filter @extension/review-wasm ready:tree-sitter)")
+    elif [ "$(sha256 "${WASMS[0]}")" != "$(sha256 "$REVIEW_WASM")" ]; then
+        WASM_ERRORS+=("${WASMS[0]#"$INSPECT_DIR"/} is not ${REVIEW_WASM#"$ROOT"/}")
+    fi
+    INDEX="$INSPECT_DIR/grammars/index.json"
+    if [ ! -f "$INDEX" ]; then
+        WASM_ERRORS+=("grammars/index.json is missing")
+    elif [ ! -f "$REVIEW_PKG/grammars/index.json" ] || [ "$(sha256 "$INDEX")" != "$(sha256 "$REVIEW_PKG/grammars/index.json")" ]; then
+        WASM_ERRORS+=("grammars/index.json is not ${REVIEW_PKG#"$ROOT"/}/grammars/index.json")
+    else
+        LISTED="$(jq -r '[.grammars[] | "\(.file) \(.size) \(.sha256)"] | unique | .[]' "$INDEX")"
+        GRAMMAR_BYTES=0
+        GRAMMAR_COUNT=0
+        while read -r file size digest; do
+            [ -n "$file" ] || continue
+            if [ ! -f "$INSPECT_DIR/grammars/$file" ]; then
+                WASM_ERRORS+=("grammars/$file (in the index) is missing")
+            elif [ "$(wc -c < "$INSPECT_DIR/grammars/$file" | tr -d ' ')" != "$size" ] || [ "$(sha256 "$INSPECT_DIR/grammars/$file")" != "$digest" ]; then
+                WASM_ERRORS+=("grammars/$file is not the file the index states (size $size, sha256 $digest)")
+            fi
+            GRAMMAR_BYTES=$((GRAMMAR_BYTES + size))
+            GRAMMAR_COUNT=$((GRAMMAR_COUNT + 1))
+        done <<<"$LISTED"
+        while IFS= read -r -d '' f; do
+            name="${f#"$INSPECT_DIR"/grammars/}"
+            if [ "$name" != "index.json" ] && ! grep -q "^$name " <<<"$LISTED"; then
+                WASM_ERRORS+=("grammars/$name is not in the index")
+            fi
+        done < <(find "$INSPECT_DIR/grammars" -mindepth 1 -print0)
+        GRAMMARS_NOTE="; grammars/: $GRAMMAR_COUNT files ($GRAMMAR_BYTES bytes) as the index lists, nothing else"
+    fi
+else
+    while IFS= read -r -d '' w; do WASMS+=("$w"); done < <(find "$INSPECT_DIR" -name '*.wasm' -print0)
+    if [ ${#WASMS[@]} -ne 1 ]; then
+        WASM_ERRORS+=("${#WASMS[@]} .wasm files shipped, expected exactly 1 (the editor module)")
+    elif [ ! -f "$REVIEW_WASM" ]; then
+        WASM_ERRORS+=("$REVIEW_WASM is missing — cannot compare (run: pnpm --filter @extension/review-wasm ready)")
+    elif [ "$(sha256 "${WASMS[0]}")" != "$(sha256 "$REVIEW_WASM")" ]; then
+        WASM_ERRORS+=("${WASMS[0]#"$INSPECT_DIR"/} is not packages/review-wasm/pkg/review_wasm_bg.wasm")
+    fi
+    [ -e "$INSPECT_DIR/grammars" ] && WASM_ERRORS+=("grammars/ shipped by a $HIGHLIGHTER build (only the tree-sitter build has grammar files)")
 fi
 GLUE_MARK='__wbindgen'
 VIEWER_HAS=false
@@ -665,7 +723,7 @@ if [ ${#WASM_ERRORS[@]} -gt 0 ]; then
     fail "editor module:"
     printf '  - %s\n' "${WASM_ERRORS[@]}"
 else
-    pass "one wasm ($(wc -c < "${WASMS[0]}" | tr -d ' ') bytes, sha256 as packages/review-wasm/pkg); only the editor page loads it"
+    pass "one wasm ($(wc -c < "${WASMS[0]}" | tr -d ' ') bytes, sha256 as ${REVIEW_PKG#"$ROOT"/}); only the editor page loads it$GRAMMARS_NOTE"
 fi
 
 # Check 14: licences of what the editor module embeds
@@ -674,8 +732,20 @@ MISSING_LICENSES=()
 for file in $REQUIRED_LICENSES; do
     [ -s "$INSPECT_DIR/licenses/$file" ] || MISSING_LICENSES+=("licenses/$file")
 done
+if [ "$HIGHLIGHTER" = "treeSitter" ]; then
+    # The table's list (runtime and every shipped grammar crate), and every text the package made, as it made it.
+    for file in $GRAMMAR_LICENSES; do
+        [ -s "$REVIEW_PKG/licenses/$file" ] || MISSING_LICENSES+=("${REVIEW_PKG#"$ROOT"/}/licenses/$file (the build makes it)")
+    done
+    for f in "$REVIEW_PKG"/licenses/*.txt; do
+        [ -e "$f" ] || continue
+        cmp -s "$f" "$INSPECT_DIR/licenses/${f##*/}" || MISSING_LICENSES+=("licenses/${f##*/} (as ${REVIEW_PKG#"$ROOT"/}/licenses has it)")
+    done
+fi
 if [ ${#MISSING_LICENSES[@]} -gt 0 ]; then
     fail "missing licence files: ${MISSING_LICENSES[*]}"
+elif [ "$HIGHLIGHTER" = "treeSitter" ]; then
+    pass "licenses/: $REQUIRED_LICENSES, and the tree-sitter runtime's and grammars' ($(ls "$REVIEW_PKG"/licenses/*.txt | wc -l | tr -d ' ') files)"
 else
     pass "licenses/: $REQUIRED_LICENSES"
 fi
@@ -838,6 +908,19 @@ if [ ${#LICENCE_ERRORS[@]} -gt 0 ]; then
     printf '  - %s\n' "${LICENCE_ERRORS[@]}"
 else
     pass "Check 17: no test build's traces; licence keys as pinned (${LICENCE_KEYS}); edition source '$EDITION_SOURCE', origin '${LICENCE_ORIGIN:-none}'; plans from '$PLAN_SOURCE', their path in the service worker only; no currency for trials"
+fi
+
+# Check 18: the gpui-kit base the editor module is built on (vendor/gpui-kit/check.sh): the pin, the patches and their
+# notes, the checkout's stamp when there is one; whether the pin is on upstream main is a warning when offline.
+echo "Check 18: gpui-kit base (vendor/gpui-kit/check.sh)..."
+KIT_OUT="$("$ROOT/vendor/gpui-kit/check.sh" 2>&1)"
+KIT_STATUS=$?
+if [ $KIT_STATUS -ne 0 ]; then
+    fail "Check 18: the gpui-kit base is not consistent:"
+    grep -E '^error:' <<<"$KIT_OUT" | sed 's/^/  - /'
+else
+    while IFS= read -r line; do warn "Check 18: ${line#warning: }"; done < <(grep -E '^warning:' <<<"$KIT_OUT")
+    pass "Check 18: $(grep -cE '^ok:' <<<"$KIT_OUT") gpui-kit base checks — $(grep -E '^ok: mode ' <<<"$KIT_OUT" | sed 's/^ok: //')"
 fi
 
 # Summary

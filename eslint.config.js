@@ -42,10 +42,11 @@ const WORKER_RECORDS = {
 export default config(
   {
     // spikes/, vendor/, .state/, docs/: research code, binaries and working state — not part of the workspace.
-    // packages/review-wasm/pkg: the editor module's generated JS (wasm-bindgen).
+    // packages/review-wasm/pkg, pkg-tree-sitter: the editor module's generated JS (wasm-bindgen).
     ignores: [
       '**/dist/**',
       '**/dist-zip/**',
+      'dist-tree-sitter/**',
       '**/node_modules/**',
       '**/.turbo/**',
       '.state/**',
@@ -53,6 +54,7 @@ export default config(
       'vendor/**',
       'docs/**',
       'packages/review-wasm/pkg/**',
+      'packages/review-wasm/pkg-tree-sitter/**',
       // The Rust workspace: its target/, tools and the module's generated JS (crates/review-wasm/pkg).
       'crates/**',
     ],

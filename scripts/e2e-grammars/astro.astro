@@ -1,0 +1,15 @@
+---
+// The page's data, read at build time.
+import Layout from '../layouts/Layout.astro';
+const title = "Release notes";
+const items = [1, 2, 3].map((n) => ({ id: n, label: `Item ${n}` }));
+---
+<Layout title={title}>
+  <h1 class="heading">{title}</h1>
+  <ul>
+    {items.map((item) => <li data-id={item.id}>{item.label}</li>)}
+  </ul>
+  <style>
+    .heading { color: #3366ff; font-weight: 700; }
+  </style>
+</Layout>

@@ -1,0 +1,21 @@
+# The reviewer's view of a change.
+type Hunk {
+  path: String!
+  start: Int!
+  lines: Int!
+  oldText: [String!]
+}
+
+enum Kind {
+  ADDED
+  DELETED
+  MODIFIED
+}
+
+query Changes($path: String!, $first: Int = 10) {
+  hunks(path: $path, first: $first) {
+    path
+    start
+    lines
+  }
+}

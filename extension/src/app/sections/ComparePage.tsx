@@ -8,6 +8,7 @@
  * only writes are the user's Save and Save as. The editor keeps the keys pressed in it, so it hands up the page's
  * shortcuts and the frame's (`frameKeys`: ⌘K for the shell's palette).
  */
+import { createDebug } from '@extension/logger';
 import { sideWord } from '@src/compare/actions';
 import { collectDrop } from '@src/compare/files';
 import { LANGUAGES, languageOfFile } from '@src/compare/languages';
@@ -36,6 +37,8 @@ import type { Arrival, CompareState, Side, Tone } from '@src/compare/state';
 import type { FrameKeys } from '@src/shared/keys';
 import type { DroppedEntry, KeyChord, ToViewer } from '@src/shared/viewerProtocol';
 import type { DragEvent, ReactElement } from 'react';
+
+const debug = createDebug('app:compare');
 
 /** The language of the example the page opens with. */
 export const DEFAULT_LANGUAGE = 'rust';
@@ -428,6 +431,7 @@ export const ComparePage = ({ behaviors, frameKeys }: ComparePageProps): ReactEl
   // ---- the editor page's messages ------------------------------------------------------------------------------
   const handlers = useRef({ runShortcut, handleDrop, leaveEditor });
   handlers.current = { runShortcut, handleDrop, leaveEditor };
+  const grammarNotes = useRef(new Set<string>());
   useEffect(() => {
     const onMessage = (event: MessageEvent): void => {
       if (event.origin !== location.origin || event.source !== frame.current?.contentWindow) return;
@@ -477,6 +481,14 @@ export const ComparePage = ({ behaviors, frameKeys }: ComparePageProps): ReactEl
           return;
         case 'viewer/leave':
           handlers.current.leaveEditor(data.backwards);
+          return;
+        case 'viewer/grammar':
+          // A grammar file of the mixed highlighter build that could not be used: texts in that language stay plain.
+          // A note, not the editor's error — logged once.
+          if (data.state === 'failed' && !grammarNotes.current.has(data.language)) {
+            grammarNotes.current.add(data.language);
+            debug.warn(`grammar ${data.language}: ${data.message}`);
+          }
       }
     };
     window.addEventListener('message', onMessage);

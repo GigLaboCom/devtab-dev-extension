@@ -27,6 +27,9 @@
 //      a request before the first frame: the module on a page of its own refuses it with an error before run() and
 //      while its window opens, shows one it took before the first frame in that frame, and takes calls from inside its
 //      own callbacks; the editor page answers a request sent before its module has loaded;
+//   2d. the build with the mixed tree-sitter highlighter (DEVTAB_VARIANT=highlighter:treeSitter, run with the same
+//      variable): its grammar files (scripts/e2e-grammars.mjs) — and «Compare code» expects the colours its split table
+//      gives (crates/review-wasm/grammars.json);
 //   3. «Tools»: every tool's own checks (scripts/e2e-tools/<id>.mjs, run by scripts/e2e-tools.mjs — a new tool adds a
 //      file there, nothing here); then the JSON tool's controls measured against gpui-kit;
 //   3b. the shell (scripts/e2e-shell.mjs): the tools nested under Tools in the sidebar, the toolbar and the palette (by
@@ -52,6 +55,7 @@
 // (Playwright is NOT a workspace dependency, as in the second sibling extension). Elsewhere: PLAYWRIGHT_DIR=<a
 // directory with node_modules/playwright>, PLAYWRIGHT_BROWSERS_PATH=<its browsers>.
 
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
@@ -61,10 +65,11 @@ import { forgetSavedParameters } from './e2e-helpers.mjs';
 import { runOwnPageChecks } from './e2e-own-page.mjs';
 import { runHistoryChecks } from './e2e-history.mjs';
 import { runStartChecks } from './e2e-start.mjs';
-import { runToolChecks, toolCheckModules } from './e2e-tools.mjs';
+import { recordedErrors, runToolChecks, toolCheckModules } from './e2e-tools.mjs';
 import { runToolbarChecks } from './e2e-toolbar.mjs';
 import { themeFromList, themeMode, withSettings } from './e2e-theme.mjs';
 import { runShellChecks } from './e2e-shell.mjs';
+import { runGrammarChecks } from './e2e-grammars.mjs';
 
 /* global document, window, addEventListener, chrome, createImageBitmap, OffscreenCanvas, getComputedStyle, location -- page.evaluate callbacks run in the pages */
 
@@ -84,6 +89,20 @@ process.env.PLAYWRIGHT_BROWSERS_PATH ??= join(ROOT, '.state/extension-e2e/browse
 
 if (!existsSync(join(DIST, 'manifest.json'))) {
   console.error(`No built extension in ${DIST} (run pnpm build, or pass the dist path).`);
+  process.exit(2);
+}
+
+// The editor's highlighter of the build under test: the root as written, or the DEVTAB_VARIANT it was built with
+// (scripts/highlighter-config.mjs) — `DEVTAB_VARIANT=highlighter:treeSitter pnpm test:e2e -- dist-tree-sitter`. Which
+// module the module-page checks load, which colours the list must have, and whether the grammar files are checked.
+const HIGHLIGHTER = JSON.parse(
+  execFileSync(process.execPath, [join(ROOT, 'scripts/highlighter-config.mjs')], { encoding: 'utf8' }),
+);
+if (existsSync(join(DIST, 'grammars/index.json')) !== (HIGHLIGHTER.highlighter === 'treeSitter')) {
+  console.error(
+    `${DIST} is ${existsSync(join(DIST, 'grammars/index.json')) ? '' : 'not '}a tree-sitter build, but the highlighter ` +
+      `is ${HIGHLIGHTER.highlighter}: run with the DEVTAB_VARIANT the build was made with.`,
+  );
   process.exit(2);
 }
 
@@ -128,7 +147,7 @@ const ctx = await chromium.launchPersistentContext(profile, {
 // The module the extension ships (validate-build checks that dist carries exactly this wasm), on a page of its own for
 // the checks that call it directly. Served by route: nothing goes to the network.
 const MODULE_ORIGIN = 'https://review-module.test';
-const MODULE_DIR = join(ROOT, 'packages/review-wasm/pkg');
+const MODULE_DIR = join(ROOT, HIGHLIGHTER.pkg);
 await ctx.route(`${MODULE_ORIGIN}/**`, route => {
   const path = new URL(route.request().url()).pathname;
   if (path === '/') {
@@ -301,8 +320,15 @@ const over = (top, bottom) => {
 };
 // The editor in the wasm paints its background with gpui-kit's input_background() (the highlight theme's
 // `editor.background` is not read without tree-sitter — docs/theming.md §1.8): `--input-background` over `--background`.
+// A tree-sitter build reads it (gpui-kit's editor_background(): the highlight theme's, else input_background()).
 const otherTokens = TOKENS.themes[OTHER_THEME.id].tokens;
-const OTHER_EDITOR_BG = over(otherTokens['--input-background'], otherTokens['--background']);
+const OTHER_HIGHLIGHT_BG =
+  HIGHLIGHTER.highlighter === 'treeSitter'
+    ? JSON.parse(readFileSync(join(ROOT, 'packages/theme/gpui-themes', OTHER_THEME.source), 'utf8'))
+        .themes.find(t => t.name === OTHER_THEME.name)
+        ?.highlight?.['editor.background']?.toLowerCase()
+    : undefined;
+const OTHER_EDITOR_BG = OTHER_HIGHLIGHT_BG ?? over(otherTokens['--input-background'], otherTokens['--background']);
 
 /** Box, spacing, type and colours of one element, as the browser computed them. */
 const measureOf = locator =>
@@ -942,7 +968,9 @@ try {
     );
 
     // 2c. «Compare code»: drops, the toolbar, edit mode, saving, the examples, the keyboard.
-    await runCompareChecks({ ctx, id, check, shoot, report, sleep });
+    await runCompareChecks({ ctx, id, check, shoot, report, sleep, highlighter: HIGHLIGHTER });
+    // 2d. The mixed tree-sitter build's grammar files (scripts/e2e-grammars.mjs).
+    if (HIGHLIGHTER.highlighter === 'treeSitter') await runGrammarChecks({ ctx, id, check, shoot, report, sleep });
   }
 
   // 3. The tools: each tool's own checks (scripts/e2e-tools/<id>.mjs, found by scripts/e2e-tools.mjs), then the
@@ -968,8 +996,22 @@ try {
     await forgetSavedParameters(page, 'json');
   }
 
+  // What Chrome has recorded for the extension is asked after each of the last groups too, so that an error found at
+  // the end of a long run is named with the group it appeared in (as scripts/e2e-tools.mjs does per tool module).
+  let knownErrors = (await recordedErrors({ ctx, id }))?.length ?? 0;
+  const noteErrors = async group => {
+    const now = await recordedErrors({ ctx, id });
+    if (now && now.length > knownErrors) {
+      const added = now.slice(knownErrors);
+      (report.runtimeErrorsByGroup ??= {})[group] = added;
+      console.log(`  (Chrome recorded ${added.length} error(s) during ${group}: ${added.join(' | ').slice(0, 300)})`);
+    }
+    knownErrors = now?.length ?? knownErrors;
+  };
+
   // 3b. The shell: the tools nested under Tools, the toolbar and the palette, the theme by the system, the shortcuts.
   if (want('shell')) await runShellChecks({ ctx, id, check, shoot, report, sleep });
+  await noteErrors('shell');
 
   if (want('themes')) {
     // 4. Live review.
@@ -1023,7 +1065,9 @@ try {
       `a theme from the list (${OTHER_THEME.name}) reaches the page and the editor`,
       pageOther === OTHER_THEME.id && near(editorBg.color, OTHER_EDITOR_BG),
       `page ${pageOther}; editor background ${editorBg.color} (${Math.round(editorBg.share * 100)} % of the frame), ` +
-        `the theme's input_background over background ${OTHER_EDITOR_BG}`,
+        (OTHER_HIGHLIGHT_BG
+          ? `the theme's editor.background (a tree-sitter build reads it) ${OTHER_EDITOR_BG}`
+          : `the theme's input_background over background ${OTHER_EDITOR_BG}`),
     );
     await shoot(page, '10-compare-tokyo-night.png');
     await openSection('tools/json', toolsReady);
@@ -1035,6 +1079,7 @@ try {
     await themeFromList(ctx, base, 'Dark theme', 'Default Dark');
     await themeMode(ctx, base, 'System');
   }
+  await noteErrors('themes');
 
   // 8. The tool history (scripts/e2e-history.mjs). Last: allowing incognito there reloads the extension.
   if (want('history')) await runHistoryChecks({ ctx, sw, id, check, shoot, report, sleep, root: ROOT });

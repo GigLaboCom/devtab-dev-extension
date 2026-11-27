@@ -57,6 +57,16 @@ describe('viewer protocol', () => {
     expect(isFromViewer({ type: 'viewer/leave', backwards: true })).toBe(true);
   });
 
+  it('a grammar file of the mixed highlighter: arrived (and whether it repainted) or failed, as a note', () => {
+    expect(isFromViewer({ type: 'viewer/grammar', language: 'go', state: 'loaded', repainted: true, ms: 9 })).toBe(
+      true,
+    );
+    expect(isFromViewer({ type: 'viewer/grammar', language: 'go', state: 'failed', message: 'HTTP 404' })).toBe(true);
+    expect(isFromViewer({ type: 'viewer/grammar', language: 'go', state: 'loaded' })).toBe(false);
+    expect(isFromViewer({ type: 'viewer/grammar', language: 'go', state: 'failed' })).toBe(false);
+    expect(isFromViewer({ type: 'viewer/grammar', state: 'failed', message: 'x' })).toBe(false);
+  });
+
   it('a chord takes ⌘ on a Mac and Ctrl elsewhere', () => {
     const event = { key: 'S', metaKey: true, ctrlKey: false, shiftKey: true };
     expect(chordOf(event, true)).toEqual({ key: 's', mod: true, shift: true });

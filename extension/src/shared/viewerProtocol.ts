@@ -50,7 +50,17 @@ export type FromViewer =
   | { type: 'viewer/drag' }
   | { type: 'viewer/drop'; side: Side; entries: DroppedEntry[] }
   | { type: 'viewer/key'; chord: KeyChord; side: Side | null }
-  | { type: 'viewer/leave'; backwards: boolean };
+  | { type: 'viewer/leave'; backwards: boolean }
+  | GrammarNote;
+
+/**
+ * A grammar file of the mixed highlighter build (src/viewer/grammars.ts): it arrived — and whether the open text was
+ * highlighted again with it — or it could not be used, and texts in that language stay plain. A note, never an error
+ * of the editor; `language` `*` is the package's index of grammar files.
+ */
+export type GrammarNote =
+  | { type: 'viewer/grammar'; language: string; state: 'loaded'; repainted: boolean; ms: number }
+  | { type: 'viewer/grammar'; language: string; state: 'failed'; message: string };
 
 const isObject = (data: unknown): data is Record<string, unknown> => typeof data === 'object' && data !== null;
 const isSide = (value: unknown): value is Side => value === 'old' || value === 'new';
@@ -112,6 +122,12 @@ export const isFromViewer = (data: unknown): data is FromViewer => {
       return isChord(data.chord) && (data.side === null || isSide(data.side));
     case 'viewer/leave':
       return typeof data.backwards === 'boolean';
+    case 'viewer/grammar':
+      return (
+        typeof data.language === 'string' &&
+        ((data.state === 'loaded' && typeof data.repainted === 'boolean' && typeof data.ms === 'number') ||
+          (data.state === 'failed' && typeof data.message === 'string'))
+      );
     default:
       return false;
   }

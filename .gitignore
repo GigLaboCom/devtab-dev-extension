@@ -10,17 +10,22 @@ vendor/gpui-kit/checkout/
 node_modules/
 dist/
 dist-zip/
+# the mixed tree-sitter highlighter build (pnpm build:tree-sitter)
+dist-tree-sitter/
 .vite/
 .turbo/
 .env
 packages/*/dist/
 *.tsbuildinfo
 .DS_Store
-# the prebuilt editor module, copied from crates/review-wasm/pkg by packages/review-wasm/scripts/sync.sh
+# the prebuilt editor module, copied from crates/review-wasm/pkg by packages/review-wasm/scripts/sync.sh (and the mixed
+# highlighter's module with its grammar files, from crates/review-wasm/pkg-tree-sitter)
 packages/review-wasm/pkg/
+packages/review-wasm/pkg-tree-sitter/
 # the Rust workspace (crates/): build output of crates/review-wasm/build.sh and the wasm-bindgen CLI it installs;
 # crates/target is covered by target/ above
 crates/review-wasm/pkg/
+crates/review-wasm/pkg-tree-sitter/
 crates/.tools/
 
 # The built showcase page of the style package (pnpm --filter @workspace/dna showcase)

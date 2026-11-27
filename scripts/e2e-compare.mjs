@@ -1,7 +1,8 @@
 // The e2e checks of «Compare code» (D11: drop, edit, save), run by scripts/e2e-check.mjs:
 //   - the empty page opens on the example of the selected language, marked as an example; choosing a language switches
 //     the example; every language of the list is coloured by the module (its example compared as that language has
-//     clearly more coloured text than the same texts as plain text);
+//     clearly more coloured text than the same texts as plain text) — in the mixed tree-sitter build, exactly the
+//     languages its split table gives a grammar, a grammar file's language looked at once its file arrived;
 //   - drops go through Chrome's own drag pipeline (CDP Input.dispatchDragEvent with real files on disk — synthetic
 //     only in that DevTools sends the events instead of a mouse): over the editor the editor page hands the drag up
 //     and the page covers it with one drop target per side; one file goes on the side it was dropped on, two are the
@@ -18,7 +19,8 @@
 //     through the plain file input;
 //   - the empty state after Clear on both sides, and the example back from it;
 //   - the keyboard: every toolbar action is reached by Tab in the order of the bars; Enter runs it; Tab into the
-//     editor and out of a read-only side.
+//     editor and out of a read-only side;
+//   - a reload and a close of the page while the editor's module is still arriving log and record no error.
 // Screenshots: compare-*.png, light and dark, each state.
 
 /* global document, window, location, addEventListener, removeEventListener, createImageBitmap, OffscreenCanvas -- page.evaluate callbacks run in the pages */
@@ -28,6 +30,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { at, readDefinitions, ROOT } from './read-definitions.mjs';
 import { themeMode } from './e2e-theme.mjs';
+import { recordedErrors } from './e2e-tools.mjs';
+import { readTable } from '../crates/review-wasm/grammars/build.mjs';
 
 const median = values => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 
@@ -109,7 +113,7 @@ export const pointOn = async (page, side) => {
  * How the same texts look coloured against plain: the pixels whose colour differs between the two screenshots (the
  * layout is the same, so only the text's colour can differ), and how many of them are strongly coloured.
  */
-const colourDifference = async (ctx, coloured, plain) => {
+export const colourDifference = async (ctx, coloured, plain) => {
   const page = await ctx.newPage();
   try {
     return await page.evaluate(
@@ -151,7 +155,12 @@ const examplePair = language => {
   return { before: read('before'), after: read('after') };
 };
 
-export const runCompareChecks = async ({ ctx, id, check, shoot, report, sleep }) => {
+/**
+ * `highlighter` is what scripts/highlighter-config.mjs says of the build under test; for the mixed tree-sitter build
+ * the colours are expected as its split table (crates/review-wasm/grammars.json) gives each language a grammar.
+ */
+export const runCompareChecks = async ({ ctx, id, check, shoot, report, sleep, highlighter }) => {
+  const table = highlighter?.highlighter === 'treeSitter' ? readTable() : null;
   const base = `chrome-extension://${id}/src/app/index.html`;
   const origin = `chrome-extension://${id}`;
   const files = fixtures();
@@ -312,20 +321,45 @@ export const runCompareChecks = async ({ ctx, id, check, shoot, report, sleep })
       await sleep(350);
       return frame.screenshot();
     };
+    // The mixed tree-sitter build colours what its split table gives a grammar (built in or a file) and leaves the
+    // rest plain; a grammar file arrives after the text is shown, so its language is looked at once the editor page
+    // has noted the file (`viewer/grammar`). Every other build colours the whole list.
+    const grammarOf = language =>
+      language === 'text'
+        ? 'none'
+        : table
+          ? (table.languages.find(e => e.id === language)?.grammar ?? 'none')
+          : 'builtIn';
     const colours = {};
     for (const { id: language } of languages) {
       const pair = examplePair(language);
-      const coloured = await showRaw(pair, language);
+      let coloured = await showRaw(pair, language);
+      if (grammarOf(language) === 'file') {
+        await page
+          .waitForFunction(
+            l => globalThis.__answers.some(m => m.type === 'viewer/grammar' && m.language === l),
+            language,
+            { timeout: 20_000 },
+          )
+          .catch(() => {});
+        await sleep(350);
+        coloured = await frame.screenshot();
+      }
       const plain = await showRaw(pair, 'text');
-      colours[language] = await colourDifference(ctx, coloured, plain);
+      colours[language] = { ...(await colourDifference(ctx, coloured, plain)), grammar: grammarOf(language) };
     }
     report.compare.colours = colours;
-    const uncoloured = Object.entries(colours).filter(([language, c]) => language !== 'text' && !(c.vivid > 500));
+    const unexpected = Object.entries(colours).filter(
+      ([language, c]) => language !== 'text' && (c.grammar !== 'none') !== c.vivid > 500,
+    );
+    const count = grammar => languages.filter(l => l.id !== 'text' && grammarOf(l.id) === grammar).length;
     check(
-      `compare: the module colours every language of the list (${languages.length - 1} besides plain text)`,
-      uncoloured.length === 0 && colours.text.changed === 0,
+      table
+        ? `compare: the module colours the languages of the list as the split table says (${languages.length - 1} besides plain text: ${count('builtIn')} built in, ${count('file')} grammar files, ${count('none')} plain)`
+        : `compare: the module colours every language of the list (${languages.length - 1} besides plain text)`,
+      unexpected.length === 0 && colours.text.changed === 0,
       `strongly coloured pixels that plain text does not have: ${Object.entries(colours)
-        .map(([l, c]) => `${l} ${c.vivid}`)
+        .map(([l, c]) => `${l} ${c.vivid}${table ? ` (${c.grammar})` : ''}`)
         .join(', ')}`,
     );
     await pick('Rust');
@@ -779,6 +813,53 @@ export const runCompareChecks = async ({ ctx, id, check, shoot, report, sleep })
         `(of which ${150} ms is the pause it waits for)`,
     );
     await big.close();
+
+    // ---- a reload while the editor's module is still arriving --------------------------------------------------------
+    // A reload or a close of the main page while the module is still arriving makes Chrome abort its load, and the
+    // module's compilation rejects ("WebAssembly compilation aborted: Network error: Response body loading was aborted")
+    // while the editor page is going away — before its pagehide. Not the editor's failure: nothing may be logged or
+    // recorded. The moment is made, not waited for: in this tab the editor page's compilation never finishes and
+    // rejects as Chrome's does when its page starts to go away (beforeunload).
+    const errorsBefore = (await recordedErrors({ ctx, id }))?.length ?? 0;
+    const leaving = await ctx.newPage();
+    const leavingConsole = [];
+    leaving.on('console', m => {
+      if (m.type() === 'error' || m.type() === 'warning') leavingConsole.push(`${m.type()}: ${m.text()}`);
+    });
+    leaving.on('pageerror', e => leavingConsole.push(`pageerror: ${e}`));
+    await leaving.addInitScript(() => {
+      if (!location.pathname.includes('/src/viewer/')) return;
+      for (const name of ['instantiateStreaming', 'compileStreaming', 'instantiate', 'compile'])
+        WebAssembly[name] = () =>
+          new Promise((_resolve, reject) => {
+            globalThis.__moduleHeld = true;
+            addEventListener('beforeunload', () =>
+              reject(
+                new TypeError('WebAssembly compilation aborted: Network error: Response body loading was aborted'),
+              ),
+            );
+          });
+    });
+    const held = () =>
+      leaving.waitForFunction(
+        () => document.querySelector('iframe.kit-compare-frame')?.contentWindow?.__moduleHeld === true,
+        null,
+        { timeout: 30_000, polling: 100 },
+      );
+    await leaving.goto(`${base}#/compare`);
+    await held();
+    await leaving.reload();
+    await held();
+    await leaving.close();
+    await sleep(1_500); // longer than an abort waits before it counts as the editor's failure (src/viewer/pageLife.ts)
+    const errorsAfter = await recordedErrors({ ctx, id });
+    const added = (errorsAfter ?? []).slice(errorsBefore);
+    report.console.push(...leavingConsole.map(text => ({ type: text.split(':')[0], text })));
+    check(
+      'compare: a reload and a close while the editor’s module is still arriving log and record no error (the aborted load is not the editor’s failure)',
+      errorsAfter !== undefined && added.length === 0 && leavingConsole.length === 0,
+      [...added, ...leavingConsole].join(' | ') || 'none',
+    );
   } finally {
     for (const cdp of sessions) await cdp.detach().catch(() => {});
     files.cleanup();
