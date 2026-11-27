@@ -109,6 +109,10 @@ const code = await load(
   import { licence } from ${at('extension/src/licence/index.ts')};
   import * as PANELS from ${at('extension/src/projects/layout.ts')};
   import { LAYOUT_KEY, LAYOUT_CACHE_KEY } from ${at('extension/src/projects/layoutMemory.ts')};
+  import { AUTOSAVE_DELAY_MS } from ${at('extension/src/projects/autosave.ts')};
+  import { SCRATCH_MAX_COUNT, SCRATCH_MAX_CHARS, SCRATCH_NAME_MAX, SCRATCH_DEFAULT_NAME, SCRATCH_DEFAULT_LANGUAGE } from ${at('extension/src/projects/scratch/store.ts')};
+  import { SCRATCHES_KEY, SCRATCH_TEXT_PREFIX } from ${at('extension/src/projects/scratch/storage.ts')};
+  import { LANGUAGES, labelOf } from ${at('extension/src/compare/languages.ts')};
   const actions = shortcutActions(DESTINATIONS, suggestedKeys(TOOL_CATALOGUE));
   const resolved = mac => {
     const r = resolveBindings(actions, DEFAULT_SHORTCUTS, mac);
@@ -131,6 +135,9 @@ const code = await load(
     panels: { layout: PANELS.DEFAULT_LAYOUT, key: LAYOUT_KEY, cache: LAYOUT_CACHE_KEY, SIDE_MIN: PANELS.SIDE_MIN, SIDE_MAX: PANELS.SIDE_MAX,
       BOTTOM_MIN: PANELS.BOTTOM_MIN, BOTTOM_MAX: PANELS.BOTTOM_MAX, EDITOR_MIN_WIDTH: PANELS.EDITOR_MIN_WIDTH, EDITOR_MIN_HEIGHT: PANELS.EDITOR_MIN_HEIGHT,
       NARROW_BELOW: PANELS.NARROW_BELOW, RESIZE_STEP: PANELS.RESIZE_STEP, RESIZE_STEP_LARGE: PANELS.RESIZE_STEP_LARGE },
+    scratches: { MAX_COUNT: SCRATCH_MAX_COUNT, MAX_CHARS: SCRATCH_MAX_CHARS, NAME_MAX: SCRATCH_NAME_MAX, name: SCRATCH_DEFAULT_NAME,
+      language: labelOf(SCRATCH_DEFAULT_LANGUAGE), languages: LANGUAGES.filter(l => l.id !== 'text').length, key: SCRATCHES_KEY, textPrefix: SCRATCH_TEXT_PREFIX,
+      autosaveMs: AUTOSAVE_DELAY_MS, inPro: editionFor({ kind: 'fixed', edition: 'pro' }).scratches, inFree: editionFor({ kind: 'fixed', edition: 'free' }).scratches },
     roots: { toolbarButton: toolbarButton.id, newTab: newTab.id, optionsPage: optionsPage.id, pageOpener: pageOpener.id ?? null, editionSource: editionSource.id, planSource: planSource.id, licence: licence.id },
   };
 `,
@@ -316,6 +323,68 @@ out.push(
 );
 out.push(
   `\nХранится в \`chrome.storage.local\` (\`${pl.key}\`), одна запись на расширение, не на проект; копия для первой отрисовки — \`localStorage\` (\`${pl.cache}\`).`,
+);
+h('Projects: скретч-файлы (D34)');
+const sc = code.scratches;
+out.push(
+  table(
+    ['Что', 'По умолчанию', 'Пределы', 'Хранится'],
+    [
+      [
+        'Где',
+        'группа «Scratches» на главной раздела, рядом со списком проектов; без компаньона, в любом состоянии подключения',
+        '—',
+        '—',
+      ],
+      [
+        'Язык нового скретча',
+        `${sc.language}, дальше — язык последнего созданного`,
+        `все языки редактора: ${sc.languages} и Plain text, список «Compare code»`,
+        `\`${sc.key}.lastLanguage\``,
+      ],
+      [
+        'Имя нового скретча',
+        `\`${sc.name}.<расширение>\`, если занято — \`${sc.name}_1\`, \`${sc.name}_2\`, …; открывается сразу`,
+        `имя без расширения — до ${sc.NAME_MAX} знаков`,
+        `\`${sc.key}.items[].name\``,
+      ],
+      [
+        'Расширение',
+        'первое расширение языка; смена языка меняет его, расширение известного языка в новом имени меняет язык',
+        '—',
+        '—',
+      ],
+      ['Число скретчей', '—', `не больше ${sc.MAX_COUNT}`, `\`${sc.key}.items\``],
+      [
+        'Длина текста скретча',
+        '—',
+        `не больше ${sc.MAX_CHARS.toLocaleString('ru-RU')} единиц UTF-16`,
+        `\`${sc.textPrefix}<id>\``,
+      ],
+      [
+        'Запись',
+        `через ${sc.autosaveMs} мс после последней правки, сразу при уходе и по ⌘S`,
+        'отказ — одной строкой, сохранённое остаётся',
+        '—',
+      ],
+      [
+        'Скачивание',
+        'Save as через выбор файла браузера, без него — загрузка; имя — имя скретча с расширением',
+        '—',
+        '—',
+      ],
+      ['Удаление', 'спрашивает', '—', '—'],
+      [
+        'Издание',
+        `Pro — ${sc.inPro ? 'есть' : 'нет'}, free — ${sc.inFree ? 'есть' : 'нет'} (решает владелец: \`scratches\` в \`extension/src/edition/pro.ts\`, \`free.ts\`)`,
+        '—',
+        '—',
+      ],
+    ],
+  ),
+);
+out.push(
+  `\nХранится в \`chrome.storage.local\`: список — \`${sc.key}\`, текст каждого — \`${sc.textPrefix}<id>\`; не синхронизируется между вкладками, последняя запись выигрывает.`,
 );
 h('Сочетания клавиш (сочетания приложения, по умолчанию)');
 out.push(
