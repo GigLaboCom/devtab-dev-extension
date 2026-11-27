@@ -20,6 +20,8 @@ export const proTexts = {
     'Every tool works in full in this version. Pro adds memory: the tool history and its archive, tools that remember your options, and copying automatically after generating.',
   /** Over the key field in the free state, under the plans. */
   alreadyBought: 'Already bought Pro? Paste your licence key.',
+  connect: 'Connect with your account',
+  connectHint: (host: string) => `Signed in on ${host}? Connect this browser there, without the key.`,
   active: 'Pro is active in this browser.',
   checkedOn: (checkedAt: number) => `Licence checked on ${dateText(checkedAt)}.`,
   /** Follows `checkedOn` when the licence has a paid date. */

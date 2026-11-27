@@ -501,3 +501,45 @@ describe('a worker stopped in the middle of a request', () => {
     expect(first.remote.calls).toHaveLength(2);
   });
 });
+
+describe('an activation the site made', () => {
+  const NEW_INST = 'BwcHBwcHBwcHBwcHBwcHBw';
+
+  it('hello gives the installation number, made and kept once, and sends nothing', async () => {
+    const { worker, remote, licence } = setup();
+    expect(await worker.siteHello()).toEqual({ inst: NEW_INST });
+    expect(licence()?.inst).toBe(NEW_INST);
+    expect(licence()?.pending).toBeUndefined();
+    expect(await worker.siteHello()).toEqual({ inst: NEW_INST });
+    expect(remote.calls).toEqual([]);
+  });
+
+  it('a signed active token for this installation and the licence it names is kept as after a key', async () => {
+    const { worker, licence, entitlement } = setup({ now: T0 + 1_000 });
+    const { inst } = await worker.siteHello();
+    const token = await sign(claimsAt(T0, { inst, lid: LID }));
+    expect(await worker.siteLicence({ lid: LID, token, secret: SECRET })).toEqual({ ok: true });
+    expect(licence()).toMatchObject({ inst, lid: LID, secret: SECRET });
+    expect(entitlement()).toEqual({ v: 1, inst, token, seen: T0 });
+  });
+
+  it('another installation, another licence, another key, a bad secret or no hello: nothing is kept', async () => {
+    const { worker, licence, entitlement } = setup({ now: T0 + 1_000 });
+    const stranger = await sign(claimsAt(T0, { inst: INST, lid: LID }));
+    expect(await worker.siteLicence({ lid: LID, token: stranger, secret: SECRET })).toEqual({
+      ok: false,
+      error: 'bad-answer',
+    });
+    const { inst } = await worker.siteHello();
+    for (const [lid, token, secret] of [
+      [LID, await sign(claimsAt(T0, { inst: INST, lid: LID })), SECRET],
+      ['lic_OTHER000000001', await sign(claimsAt(T0, { inst, lid: LID })), SECRET],
+      [LID, await sign(claimsAt(T0, { inst, lid: LID }), other), SECRET],
+      [LID, await sign(claimsAt(T0, { inst, lid: LID })), 'short'],
+    ] as const) {
+      expect(await worker.siteLicence({ lid, token, secret })).toEqual({ ok: false, error: 'bad-answer' });
+    }
+    expect(licence()?.secret).toBeUndefined();
+    expect(entitlement()).toBeUndefined();
+  });
+});

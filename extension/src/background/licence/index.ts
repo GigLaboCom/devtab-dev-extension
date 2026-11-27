@@ -7,6 +7,7 @@
  * The network: only here, only to the configuration's origin, only with a licence — or for the plans list when the
  * person asks. The store build's configuration has no origin yet, so it sends nothing at all.
  */
+import { isSiteMessage, siteOrigins, siteSender } from './external';
 import { trustedSender } from './sender';
 import { httpLicenceServer } from './server';
 import { licenceStore } from './store';
@@ -23,7 +24,10 @@ const debug = createDebug('extension:licence');
 
 export interface LicenceWorkerEnvironment {
   readonly chrome: {
-    readonly runtime: Pick<typeof chrome.runtime, 'id' | 'getURL' | 'onMessage' | 'onStartup' | 'onInstalled'>;
+    readonly runtime: Pick<
+      typeof chrome.runtime,
+      'id' | 'getURL' | 'getManifest' | 'onMessage' | 'onMessageExternal' | 'onStartup' | 'onInstalled'
+    >;
     readonly storage: {
       readonly local: Pick<chrome.storage.LocalStorageArea, 'get' | 'set' | 'remove' | 'setAccessLevel'>;
     };
@@ -76,6 +80,24 @@ export const startLicence = ({ chrome: api, config, now = Date.now }: LicenceWor
     void answer.then(sendResponse);
     return true;
   });
+  // The site's connect page (./external.ts); only the origins the manifest lists, which Chrome enforces first.
+  const origins = siteOrigins(api.runtime.getManifest?.() ?? {});
+  if (origins.size > 0 && api.runtime.onMessageExternal) {
+    api.runtime.onMessageExternal.addListener((message: unknown, sender, sendResponse) => {
+      if (!siteSender(sender, origins) || !isSiteMessage(message)) {
+        sendResponse({ ok: false, reason: 'refused' });
+        return false;
+      }
+      const answer =
+        message.type === 'devtab:hello'
+          ? licence.siteHello()
+          : licence
+              .siteLicence({ lid: message.lid, token: message.token, secret: message.secret })
+              .then(outcome => (outcome.ok ? { ok: true } : { ok: false, reason: outcome.error }));
+      void answer.then(sendResponse, () => sendResponse({ ok: false, reason: 'server' }));
+      return true;
+    });
+  }
   api.runtime.onStartup.addListener(() => void licence.trigger('startup'));
   api.runtime.onInstalled.addListener(() => void licence.trigger('installed'));
 };

@@ -5,6 +5,7 @@
  * trusts is the test key scripts/licence-test-key.mjs made in .state/licence-test/ — `virtual:licence-test-key` exists
  * only in this variant (extension/vite.config.ts, licenceTestKey()); the private half never enters a build.
  */
+import { EXAMPLE_SITE_ORIGIN } from './mockOrigin';
 import { scriptedFetch } from '@src/background/licence/scriptedFetch';
 import testKey from 'virtual:licence-test-key';
 import type { LicenceConfig } from './config';
@@ -15,7 +16,7 @@ export const test: LicenceConfig = {
   keys: [testKey],
   transport: ({ local }) => scriptedFetch(local),
   payHosts: ['web.example.invalid'],
-  siteUrl: 'https://web.example.invalid/pro/',
+  siteUrl: `${EXAMPLE_SITE_ORIGIN}/pro/`,
   testCurrencies: ['XTS'],
   marks: ['DEVTAB_LICENCE_TEST'],
 };
