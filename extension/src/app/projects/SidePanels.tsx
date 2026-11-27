@@ -8,11 +8,15 @@
  * both IDEs do this. A collapsed side panel leaves its switches as a narrow strip; a collapsed bottom panel leaves its
  * tab row. The borders between the panels move (./Splitter.tsx). A view is mounted the first time it shows and then kept
  * (hidden while another shows), so a commit message, a search or an opened folder survive a switch.
+ *
+ * A view's key (D38, `activate`) acts as IntelliJ's tool-window keys: hidden, the view shows and takes the keyboard;
+ * showing while the keyboard is elsewhere (the editor, say), it takes it; holding it, its panel hides and the keyboard
+ * goes to the view's switch, as the panel's hide button leaves it. A switch's tooltip says the key.
  */
 import { Splitter } from './Splitter';
 import { TEXT } from './text';
 import { usePanels } from './usePanels';
-import { BOTTOM_MIN, SIDE_MIN } from '@src/projects/layout';
+import { BOTTOM_MIN, SIDE_MIN, isSideView } from '@src/projects/layout';
 import { Button } from '@workspace/ui/button';
 import { Toggle } from '@workspace/ui/toggle';
 import {
@@ -42,7 +46,11 @@ const BOTTOM: readonly { view: BottomView; label: string; Icon: LucideIcon }[] =
 const switchId = (view: PanelView): string => `projects-switch-${view}`;
 const viewId = (view: PanelView): string => `projects-view-${view}`;
 
-const SidePanelsLayout = ({ parts, changes, memory, reveal }: WorkspaceLayoutProps): ReactElement => {
+/** What takes the keyboard in a view: its field (find), the first row of the tree, else its first control. */
+const FOCUSABLE =
+  'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), button:not([disabled]), a[href], [tabindex="0"]';
+
+const SidePanelsLayout = ({ parts, changes, memory, reveal, activate, hintOf }: WorkspaceLayoutProps): ReactElement => {
   const workspace = useRef<HTMLDivElement>(null);
   const column = useRef<HTMLDivElement>(null);
   const panels = usePanels(memory, workspace, column);
@@ -68,6 +76,44 @@ const SidePanelsLayout = ({ parts, changes, memory, reveal }: WorkspaceLayoutPro
     document.getElementById(viewId('find'))?.querySelector<HTMLInputElement>('input')?.focus();
   });
 
+  // A view's key: show and focus, focus, or hide (see above).
+  const focusView = useRef<PanelView | null>(null);
+  const focusFrame = useRef(0);
+  useEffect(() => {
+    if (!activate) return;
+    const { view: id } = activate;
+    const panel = isSideView(id) ? side : bottom;
+    const showing = panel.open && panel.view === id;
+    const holder = document.getElementById(viewId(id));
+    if (showing && holder?.contains(document.activeElement)) {
+      panels.collapse(isSideView(id) ? 'side' : 'bottom');
+      document.getElementById(switchId(id))?.focus();
+      return;
+    }
+    if (!showing) panels.reveal(id);
+    focusView.current = id;
+    // Only a new press acts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activate?.n]);
+  useEffect(() => {
+    const id = focusView.current;
+    if (!id) return;
+    const panel = isSideView(id) ? side : bottom;
+    if (!panel.open || panel.view !== id) return;
+    focusView.current = null;
+    // A part that reads its content first draws its controls a moment later: tried for a second, then the switch.
+    cancelAnimationFrame(focusFrame.current);
+    const until = performance.now() + 1000;
+    const attempt = (): void => {
+      const target = document.getElementById(viewId(id))?.querySelector<HTMLElement>(FOCUSABLE);
+      if (target) target.focus();
+      else if (performance.now() < until) focusFrame.current = requestAnimationFrame(attempt);
+      else document.getElementById(switchId(id))?.focus();
+    };
+    attempt();
+  });
+  useEffect(() => () => cancelAnimationFrame(focusFrame.current), []);
+
   const view = (id: PanelView, showing: boolean, part: ReactNode): ReactElement => (
     <div id={viewId(id)} className="kit-projects-view" data-view={id} hidden={!showing}>
       {seen.current.has(id) && part}
@@ -91,8 +137,9 @@ const SidePanelsLayout = ({ parts, changes, memory, reveal }: WorkspaceLayoutPro
           data-view={id}
           pressed={open && current === id}
           aria-controls={viewId(id)}
-          aria-label={name}
           title={name}
+          {...hintOf?.(id, name)}
+          aria-label={name}
           onPressedChange={() => panels.press(id)}>
           <Icon aria-hidden="true" />
           <span className="kit-projects-switch-label">{label}</span>

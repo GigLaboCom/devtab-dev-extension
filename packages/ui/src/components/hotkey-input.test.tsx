@@ -20,6 +20,8 @@ describe('formatHotkey: as the platform shows it', () => {
     expect(formatHotkey({ ...K, shift: true, alt: true }, 'other')).toBe('Ctrl+Alt+Shift+K');
     expect(formatHotkey({ ...K, other: true }, 'other')).toBe('Ctrl+Win+K');
     expect(formatHotkey({ key: 'ß', code: 'KeyS', mod: true, shift: false, alt: true }, 'other')).toBe('Ctrl+Alt+S');
+    // A named key by its name, not by the lower-case `key` it is stored with.
+    expect(formatHotkey({ key: 'insert', code: 'Insert', mod: true, shift: true }, 'other')).toBe('Ctrl+Shift+Insert');
     expect(formatHotkey({ key: 'f5', code: 'F5', mod: true, shift: false }, 'other')).toBe('Ctrl+F5');
   });
 

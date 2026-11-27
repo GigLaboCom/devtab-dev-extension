@@ -756,15 +756,18 @@ describe('Settings → Shortcuts', { timeout: 30_000 }, () => {
     expect(within(tools).getAllByRole('textbox')).toHaveLength(TOOLS.length);
     expect(fieldOf('JSON').value).toBe('');
 
-    await record(fieldOf('JSON'), { key: 'J', code: 'KeyJ', ctrlKey: true, shiftKey: true });
+    // (Ctrl+Shift+J is Chrome's devtools console on Windows and Linux: refused since D38.)
+    await record(fieldOf('JSON'), { key: 'J', code: 'KeyJ', ctrlKey: true, altKey: true, shiftKey: true });
     expect(storage.rows.get(SHORTCUT_KEYS_KEY)).toEqual({
       version: 2,
-      keys: { 'open:tools/json': { key: 'j', code: 'KeyJ', mod: true, shift: true } },
+      keys: { 'open:tools/json': { key: 'j', code: 'KeyJ', mod: true, shift: true, alt: true } },
     });
-    await waitFor(() => expect(fieldOf('JSON').value).toBe('Ctrl+Shift+J'));
+    await waitFor(() => expect(fieldOf('JSON').value).toBe('Ctrl+Alt+Shift+J'));
     // Live in this page: the shortcut opens the tool, from a text field too (it has Ctrl).
     act(() => (document.activeElement as HTMLElement).blur());
-    await act(async () => fireEvent.keyDown(window, { key: 'J', code: 'KeyJ', ctrlKey: true, shiftKey: true }));
+    await act(async () =>
+      fireEvent.keyDown(window, { key: 'J', code: 'KeyJ', ctrlKey: true, altKey: true, shiftKey: true }),
+    );
     expect(window.location.hash).toBe('#/tools/json');
   });
 

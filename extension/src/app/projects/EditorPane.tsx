@@ -5,9 +5,14 @@
  * project are said, not opened; a secret and a file of a read-only project open read only. A file changed on disk
  * under an unsaved edit stops its saving and offers the three choices (Р23); without an unsaved edit the disk's text is
  * taken by itself.
+ *
+ * Keys (D38): while a diff with changes is shown the part offers "next change" and "previous change" (the editor
+ * brings the hunk into view, `viewer/reveal-hunk`; past the last one it starts again at the first, as the IDEs' diff
+ * viewers do), and while the file / diff switch is there, "switch file and diff".
  */
 import { TEXT, formatSize, formatTime, printable } from './text';
 import { useEditorFrame } from './useEditorFrame';
+import { hintOf, useOffer } from '../shell/sectionKeys';
 import { languageOfFile } from '@src/compare/languages';
 import { createAutosave } from '@src/projects/autosave';
 import { toLineHunks } from '@src/projects/hunks';
@@ -18,6 +23,7 @@ import { Button } from '@workspace/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { HistoryIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { SectionKeys } from '../shell/sectionKeys';
 import type { EditorView, Workspace } from './useWorkspace';
 import type { Autosave, SaveState } from '@src/projects/autosave';
 import type { FrameKeys, KeyChord } from '@src/shared/keys';
@@ -36,6 +42,8 @@ type Content =
 export interface EditorPaneProps {
   workspace: Workspace;
   frameKeys?: FrameKeys;
+  /** The user's shortcuts as the section gets them; absent: no keys. */
+  keys?: SectionKeys;
   autosaveDelayMs?: number;
   /** Asks for the open file's history (the panel holding it opens); without it the editor offers none. */
   onShowHistory?: () => void;
@@ -67,7 +75,13 @@ const viewKey = (view: EditorView): string =>
       ? `points:${view.a.point}:${view.b.point}`
       : view.kind;
 
-export const EditorPane = ({ workspace, frameKeys, autosaveDelayMs, onShowHistory }: EditorPaneProps): ReactElement => {
+export const EditorPane = ({
+  workspace,
+  frameKeys,
+  keys,
+  autosaveDelayMs,
+  onShowHistory,
+}: EditorPaneProps): ReactElement => {
   const { backend, project, path, view, reveal, changed } = workspace;
   const [content, setContent] = useState<Content>({ kind: 'none' });
   const [saveState, setSaveState] = useState<SaveState>({ kind: 'saved' });
@@ -83,8 +97,8 @@ export const EditorPane = ({ workspace, frameKeys, autosaveDelayMs, onShowHistor
   const frameKeysRef = useRef(frameKeys);
   frameKeysRef.current = frameKeys;
 
-  const keys = useMemo(() => [SAVE_KEY, ...(frameKeys?.keys ?? [])], [frameKeys?.keys]);
-  const editor = useEditorFrame(keys, {
+  const handedUp = useMemo(() => [SAVE_KEY, ...(frameKeys?.keys ?? [])], [frameKeys?.keys]);
+  const editor = useEditorFrame(handedUp, {
     onKey: chord => {
       if (sameChord(chord, SAVE_KEY)) void autosave.current?.flush('explicit');
       else frameKeysRef.current?.run(chord);
@@ -345,6 +359,25 @@ export const EditorPane = ({ workspace, frameKeys, autosaveDelayMs, onShowHistor
     content.kind === 'file' || (content.kind === 'diff' && (view.kind === 'diff' || view.kind === 'file'));
   const conflict = saveState.kind === 'conflict';
 
+  // The hunk the keys brought into view last; a new comparison starts before the first.
+  const hunk = useRef(-1);
+  const changes = (content.kind === 'diff' || content.kind === 'compare') && editor.shown ? editor.shown.changes : 0;
+  const shownCount = editor.shownCount;
+  useEffect(() => {
+    hunk.current = -1;
+  }, [path, key, shownCount]);
+  const step = (by: 1 | -1) => (): void => {
+    if (!changes) return;
+    hunk.current = hunk.current < 0 && by < 0 ? changes - 1 : (hunk.current + by + changes) % changes;
+    post({ type: 'viewer/reveal-hunk', index: hunk.current });
+  };
+  const switchable = !!path && fileOrDiff;
+  useOffer(keys, {
+    'projects:next-change': changes > 0 && step(1),
+    'projects:previous-change': changes > 0 && step(-1),
+    'projects:view': switchable && (() => workspace.setView({ kind: view.kind === 'diff' ? 'file' : 'diff' })),
+  });
+
   return (
     <section className="kit-projects-editor" aria-label={TEXT.editorTitle}>
       <div className="kit-projects-editor-bar">
@@ -366,13 +399,14 @@ export const EditorPane = ({ workspace, frameKeys, autosaveDelayMs, onShowHistor
               {saveText(saveState)}
             </span>
           )}
-          {path && fileOrDiff && (
+          {switchable && (
             <ToggleGroup
               type="single"
               variant="outline"
               size="sm"
               value={view.kind === 'diff' ? 'diff' : 'file'}
               aria-label={TEXT.editorTitle}
+              {...hintOf(keys, 'projects:view', TEXT.switchView)}
               onValueChange={value => {
                 if (value === 'file' || value === 'diff') workspace.setView({ kind: value });
               }}>

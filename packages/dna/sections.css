@@ -55,8 +55,8 @@
  *                              (.kit-projects-group-title, .kit-projects-group-path), .kit-projects-list >
  *                              .kit-projects-item / .kit-projects-folder (-name, -path, -meta), .kit-projects-empty,
  *                              .kit-projects-command (a command to type); the scratch files' group (D34):
- *                              .kit-projects-scratch-new (the language, .kit-projects-scratch-language, and «New
- *                              scratch»), .kit-projects-scratch (a list item: the link and its delete button)
+ *                              .kit-projects-scratch-new («New scratch…»), .kit-projects-scratch-language (an open
+ *                              scratch's language), .kit-projects-scratch (a list item: the link and its delete button)
  *   .kit-projects-bar          a project's or a scratch's bar: -back, -title (a scratch's in place of it while renamed:
  *                              .kit-projects-bar-name), -path, -branch, .kit-projects-class[data-class], -actions;
  *                              a scratch's editor is the only part of its .kit-projects-workspace
@@ -82,6 +82,8 @@
  *                              .kit-projects-result-file, .kit-projects-result-line (-number, -text), .kit-projects-match)
  *                              or .kit-projects-history (-bar, .kit-projects-points > .kit-projects-point[data-source]
  *                              with -time, -label, -path, -actions)
+ *   .kit-projects-picker       the language popup (D38) on the palette's frame (shell.css .kit-palette): its title
+ *                              .kit-projects-picker-title, .kit-projects-picker-list, .kit-projects-picker-problem
  *   .kit-projects-quick        quick open's dialog (.kit-projects-quick-list); .kit-projects-push (.kit-projects-commit-row,
  *                              .kit-projects-commit-summary); .kit-projects-dialog-list — the files or commits a dialog
  *                              names
@@ -1125,8 +1127,8 @@
     margin: 0;
   }
 
-  /* The scratch files' group (D34): the language and «New scratch» on one line; each scratch's link takes the row,
-     its delete button stays at its end. */
+  /* The scratch files' group (D34): «New scratch…»; each scratch's link takes the row, its delete button stays at its
+     end. */
   .kit-projects-scratch-new {
     display: flex;
     flex-wrap: wrap;
@@ -1852,6 +1854,31 @@
     display: flex;
     gap: calc(var(--spacing) * 1);
     margin-inline-start: auto;
+  }
+
+  /* The language popup (D38): the palette's frame, narrower — a list of short names, as IDEs' small popups. */
+  .kit-palette.kit-projects-picker.cn-dialog-content {
+    width: min(calc(100% - var(--spacing) * 8), calc(var(--spacing) * 90));
+  }
+
+  .kit-projects-picker-title {
+    margin: 0;
+    padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+    border-block-end: 1px solid var(--border);
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--text-xs--line-height);
+  }
+
+  .kit-command-results.kit-palette-results.kit-projects-picker-list {
+    padding: calc(var(--spacing) * 1);
+  }
+
+  .kit-projects-picker-problem {
+    margin: 0;
+    padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+    border-block-start: 1px solid var(--border);
   }
 
   /* The dialogs: quick open, push, the lists they name. */

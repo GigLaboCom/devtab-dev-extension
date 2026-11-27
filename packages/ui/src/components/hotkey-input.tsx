@@ -50,6 +50,7 @@ const NAMES: Record<string, string> = {
   Escape: 'Esc',
   Backspace: 'Backspace',
   Delete: 'Delete',
+  Insert: 'Insert',
   Tab: 'Tab',
   ArrowUp: '↑',
   ArrowDown: '↓',

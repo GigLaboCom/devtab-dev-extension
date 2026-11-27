@@ -10,7 +10,7 @@ import { iconOf } from '@src/app/destinationIcons';
 import { GlobeIcon } from 'lucide-react';
 import { useLayoutEffect, useRef } from 'react';
 import type { FieldResult, FinderGroup } from '@src/shared/finder';
-import type { ReactElement } from 'react';
+import type { ComponentType, ReactElement } from 'react';
 
 export interface FinderListProps {
   /** The listbox's id; each row's is `<id>-<index>`, the index counted across the groups. */
@@ -24,11 +24,20 @@ export interface FinderListProps {
   className: string;
   /** The shortcut of a row's place, as shown (the palette: the user's shortcuts). */
   keyOf?: (result: FieldResult) => string | undefined;
+  /** The icon of a command row (the palette's). */
+  commandIcon?: ComponentType<{ 'aria-hidden'?: 'true'; className?: string }>;
 }
 
-const rowKey = (result: FieldResult): string => (result.kind === 'web' ? 'web' : result.destination.id);
+const rowKey = (result: FieldResult): string =>
+  result.kind === 'web' ? 'web' : result.kind === 'command' ? result.id : result.destination.id;
 
-const ResultRow = ({ result }: { result: FieldResult }): ReactElement => {
+const ResultRow = ({
+  result,
+  commandIcon,
+}: {
+  result: FieldResult;
+  commandIcon?: FinderListProps['commandIcon'];
+}): ReactElement => {
   if (result.kind === 'web')
     return (
       <>
@@ -38,8 +47,9 @@ const ResultRow = ({ result }: { result: FieldResult }): ReactElement => {
         </span>
       </>
     );
-  const Icon = iconOf(result.destination.id);
-  const { title } = result.destination;
+  const command = result.kind === 'command';
+  const Icon = (command ? commandIcon : undefined) ?? iconOf(command ? '' : result.destination.id);
+  const title = command ? result.title : result.destination.title;
   const marked = new Set(result.match?.positions);
   const keyword = result.match?.keyword;
   return (
@@ -57,7 +67,7 @@ const ResultRow = ({ result }: { result: FieldResult }): ReactElement => {
         )}
       </span>
       <span className="kit-command-result-kind">
-        {result.destination.kind === 'tool' ? 'Tool' : 'Section'}
+        {command ? 'Command' : result.destination.kind === 'tool' ? 'Tool' : 'Section'}
         {keyword && ` · matches “${keyword}”`}
       </span>
     </>
@@ -73,6 +83,7 @@ export const FinderList = ({
   hidden,
   className,
   keyOf,
+  commandIcon,
 }: FinderListProps): ReactElement => {
   const list = useRef<HTMLUListElement>(null);
 
@@ -99,7 +110,7 @@ export const FinderList = ({
         onMouseMove={() => i !== current && onHover(i)}
         onClick={() => onTake(result)}
         onKeyDown={() => undefined}>
-        <ResultRow result={result} />
+        <ResultRow result={result} commandIcon={commandIcon} />
         {shortcut && <kbd className="cn-kbd">{shortcut}</kbd>}
         {i === current && (
           <kbd className="cn-kbd kit-command-result-enter" aria-hidden="true">

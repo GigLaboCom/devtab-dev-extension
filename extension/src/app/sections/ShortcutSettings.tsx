@@ -1,6 +1,7 @@
 /**
  * Settings → Shortcuts: every action a shortcut can be bound to (src/shortcuts/actions.ts — the palette, the start
- * page, each section, each tool, from their definitions), with its combination now. Click a field (or Tab to it) and
+ * page, each section, each tool, from their definitions, and the commands of the scratch files and the Projects
+ * section, each group under its own heading), with its combination now. Click a field (or Tab to it) and
  * press the keys to record one (@workspace/ui/hotkey-input); clear it; reset one or all to the defaults. Each row says
  * whether its key is the default, the person's own, cleared (it stays so), or a default another action holds. A combination
  * that cannot be taken — Chrome keeps it, the browser or the editor needs it, no ⌘ / Ctrl or ⌥ / Alt, or another action
@@ -66,8 +67,9 @@ export const ShortcutSettings = ({ shortcuts, fixed, mac }: ShortcutSettingsProp
         Shortcuts
       </h2>
       <p className="kit-settings-intro kit-settings-hint">
-        They work on this extension’s pages — in «Compare code»’s editor too — not in other tabs. In a text field only a
-        shortcut with {mac ? '⌘' : 'Ctrl'} counts. Click a field and press the keys; Backspace clears it.
+        They work on this extension’s pages — in the editors too — not in other tabs. In a text field only a shortcut
+        with {mac ? '⌘' : 'Ctrl'} counts. A scratch file’s or a project’s shortcut works where there is one open. Click
+        a field and press the keys; Backspace clears it.
       </p>
       {groups.map(group => (
         <div key={group} role="group" aria-labelledby={`shortcuts-${slug(group)}`}>

@@ -226,8 +226,7 @@ export const TEXT = {
   scratchesHint: 'Files of no project, kept in this browser. No companion needed.',
   scratchesNotKept: 'This page has no storage: scratches last only while it is open.',
   noScratches: 'No scratches yet.',
-  newScratch: 'New scratch',
-  newScratchLanguage: 'Language of the new scratch',
+  newScratch: 'New scratch…',
   scratchMark: 'Scratch',
   scratchEdited: (when: string) => `Edited ${when}`,
   scratchLanguage: 'Language',
@@ -250,6 +249,23 @@ export const TEXT = {
     'Not saved: the extension’s storage in this browser is full. Delete a scratch, or download this one.',
   scratchDeletedElsewhere: 'Not saved: this scratch was deleted in another tab. Download it to keep it.',
   scratchNotSaved: (message: string) => `Not saved: ${message}`,
+
+  // The language popup and the keys of the section (D38). Working placeholders: the owner writes these texts.
+  newScratchTitle: 'New scratch file',
+  switchView: 'Switch file and diff',
+  renameScratchTitle: 'Rename scratch',
+  changeLanguageTitle: 'Change scratch language',
+  downloadScratchTitle: 'Download scratch',
+  deleteScratchTitleShort: 'Delete scratch',
+  languageOf: (name: string) => `Language of ${name}`,
+  languages: 'Languages',
+  languageFilter: 'Filter languages',
+  languageFilterPlaceholder: 'Type to filter',
+  languageLast: 'Used last',
+  noLanguage: (query: string) => `No language matches “${query}”.`,
+  pickerMove: 'to move',
+  pickerChoose: 'to choose',
+  pickerClose: 'to close',
 
   // Errors any call may meet.
   failed: (message: string) => `Failed: ${message}`,

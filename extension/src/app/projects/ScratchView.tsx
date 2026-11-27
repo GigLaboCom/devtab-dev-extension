@@ -10,11 +10,17 @@
  * the scratch too long, the storage full — leaves the text in the editor and what was stored as it was, and the bar
  * says so in one line; the next edit tries again. Download is «Compare code»'s seam `SideSaver`: Save as through the
  * browser's file picker, or a download, under the scratch's file name.
+ *
+ * Keys (D38): while the scratch is open the view offers download, rename, change language (the page's language popup,
+ * ./LanguagePicker.tsx, the scratch's language chosen) and delete (it asks first); ⌘S stays "save now". Each control's
+ * tooltip says its key now.
  */
 import { DeleteScratchDialog } from './DeleteScratchDialog';
+import { LanguagePicker } from './LanguagePicker';
 import { TEXT, printable, scratchRefusal } from './text';
 import { useEditorFrame } from './useEditorFrame';
 import { go, routeHash } from '../route';
+import { hintOf, useOffer } from '../shell/sectionKeys';
 import { LANGUAGES } from '@src/compare/languages';
 import { createAutosave } from '@src/projects/autosave';
 import { fileName } from '@src/projects/scratch/store';
@@ -26,6 +32,7 @@ import { Label } from '@workspace/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
 import { DownloadIcon, Trash2Icon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { SectionKeys } from '../shell/sectionKeys';
 import type { SideSaver } from '@src/compare/sideSaver';
 import type { Autosave, SaveState } from '@src/projects/autosave';
 import type { ScratchInfo, ScratchRefusal, ScratchStore } from '@src/projects/scratch/store';
@@ -46,6 +53,8 @@ export interface ScratchViewProps {
   store: ScratchStore;
   saver: SideSaver;
   frameKeys?: FrameKeys;
+  /** The user's shortcuts as the section gets them; absent: no keys. */
+  keys?: SectionKeys;
   autosaveDelayMs?: number;
   /** Give the editor the keyboard once the text is in (a scratch just made). */
   focus?: boolean;
@@ -61,6 +70,7 @@ export const ScratchView = ({
   store,
   saver,
   frameKeys,
+  keys,
   autosaveDelayMs,
   focus,
 }: ScratchViewProps): ReactElement => {
@@ -85,8 +95,8 @@ export const ScratchView = ({
   const frameKeysRef = useRef(frameKeys);
   frameKeysRef.current = frameKeys;
 
-  const keys = useMemo(() => [SAVE_KEY, ...(frameKeys?.keys ?? [])], [frameKeys?.keys]);
-  const editor = useEditorFrame(keys, {
+  const handedUp = useMemo(() => [SAVE_KEY, ...(frameKeys?.keys ?? [])], [frameKeys?.keys]);
+  const editor = useEditorFrame(handedUp, {
     onKey: chord => {
       if (sameChord(chord, SAVE_KEY)) void autosave.current?.flush('explicit');
       else frameKeysRef.current?.run(chord);
@@ -246,6 +256,18 @@ export const ScratchView = ({
     else setNote({ text: scratchRefusal(done.refused), tone: 'error' });
   };
 
+  const startRename = (): void => {
+    renameEnded.current = false;
+    setRenaming(true);
+  };
+  const [picking, setPicking] = useState(false);
+  useOffer(keys, {
+    'scratch:download': !!info && editor.ready && (() => void download()),
+    'scratch:rename': !!info && !renaming && startRename,
+    'scratch:language': !!info && (() => setPicking(true)),
+    'scratch:delete': !!info && (() => setDeleting(info)),
+  });
+
   const state = refused ? 'refused' : saveState.kind;
   return (
     <>
@@ -286,10 +308,8 @@ export const ScratchView = ({
             ref={renameButton}
             variant="ghost"
             size="sm"
-            onClick={() => {
-              renameEnded.current = false;
-              setRenaming(true);
-            }}>
+            onClick={startRename}
+            {...hintOf(keys, 'scratch:rename', TEXT.renameScratchTitle)}>
             {TEXT.renameScratch}
           </Button>
         )}
@@ -299,7 +319,11 @@ export const ScratchView = ({
               {TEXT.scratchLanguage}
             </Label>
             <Select value={info.language} onValueChange={language => void changeLanguage(language)}>
-              <SelectTrigger id="scratch-open-language" className="kit-projects-scratch-language" size="sm">
+              <SelectTrigger
+                id="scratch-open-language"
+                className="kit-projects-scratch-language"
+                size="sm"
+                {...hintOf(keys, 'scratch:language', TEXT.changeLanguageTitle)}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -310,11 +334,20 @@ export const ScratchView = ({
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" disabled={!editor.ready} onClick={() => void download()}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!editor.ready}
+              onClick={() => void download()}
+              {...hintOf(keys, 'scratch:download', TEXT.downloadScratchTitle)}>
               <DownloadIcon aria-hidden="true" />
               {TEXT.downloadScratch}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setDeleting(info)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDeleting(info)}
+              {...hintOf(keys, 'scratch:delete', TEXT.deleteScratchTitleShort)}>
               <Trash2Icon aria-hidden="true" />
               {TEXT.deleteScratch}
             </Button>
@@ -358,6 +391,18 @@ export const ScratchView = ({
         </section>
       </div>
       <DeleteScratchDialog scratch={deleting} onCancel={() => setDeleting(null)} onDelete={s => void remove(s)} />
+      {info && (
+        <LanguagePicker
+          open={picking}
+          onOpenChange={setPicking}
+          title={TEXT.languageOf(printable(fileName(info)))}
+          first={info.language}
+          onChoose={language => {
+            setPicking(false);
+            void changeLanguage(language);
+          }}
+        />
+      )}
     </>
   );
 };

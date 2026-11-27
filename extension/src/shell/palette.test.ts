@@ -13,7 +13,9 @@ const IMPLEMENTATIONS: Array<[string, () => PaletteSource]> = [['placesPalette',
 
 const rows = (groups: readonly FinderGroup[]) => groups.flatMap(g => g.results);
 const hashes = (groups: readonly FinderGroup[]) =>
-  rows(groups).map(r => (r.kind === 'open' ? r.destination.hash : `web:${r.text}`));
+  rows(groups).map(r =>
+    r.kind === 'open' ? r.destination.hash : r.kind === 'web' ? `web:${r.text}` : `command:${r.id}`,
+  );
 
 describe.each(IMPLEMENTATIONS)('PaletteSource contract: %s', (_name, make) => {
   it('answers with a promise, also for the empty query; every row it offers can be opened', async () => {
@@ -78,6 +80,22 @@ describe('placesPalette', () => {
       parent: 'tools',
     }));
     expect(rows(await placesPalette(places).offer('tool', { recent: [] }))).toHaveLength(12);
+  });
+
+  it('a query finds the commands that have a target now, ranked with the places; none before anything is typed', async () => {
+    const commands = [
+      { id: 'scratch:new', title: 'New scratch file', keywords: ['scratch', 'note'] },
+      { id: 'projects:files', title: 'Files panel', keywords: ['tree'] },
+    ];
+    const source = placesPalette(DESTINATIONS);
+    expect(hashes(await source.offer('new scratch', { recent: [], commands }))[0]).toBe('command:scratch:new');
+    expect(hashes(await source.offer('scratch', { recent: [], commands }))).toContain('command:scratch:new');
+    const found = rows(await source.offer('files panel', { recent: [], commands }))[0];
+    expect(found).toMatchObject({ kind: 'command', id: 'projects:files', title: 'Files panel' });
+    // Not offered now (no target): not found.
+    expect(hashes(await source.offer('new scratch', { recent: [] }))).not.toContain('command:scratch:new');
+    // The empty query shows the places as before.
+    expect(await source.offer('', { recent: [], commands })).toEqual(await source.offer('', { recent: [] }));
   });
 
   it('answers at once: the rows are readable without waiting (React’s `use` reads them in the same frame)', () => {

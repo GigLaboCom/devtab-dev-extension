@@ -10,6 +10,7 @@ import { isCompanionError } from '@src/projects/types';
 import { Button } from '@workspace/ui/button';
 import { SearchIcon, TextSearchIcon } from 'lucide-react';
 import { useState } from 'react';
+import type { KeyHint } from '../shell/sectionKeys';
 import type { Workspace } from './useWorkspace';
 import type { TrustedLocation } from '@src/projects/types';
 import type { ReactElement } from 'react';
@@ -21,6 +22,9 @@ export interface ProjectBarProps {
   /** Starts a search: the panel with find in files opens, its field focused. */
   onFindInFiles(): void;
   onClassChanged(): void;
+  /** The tooltips of «Go to file» and «Find in files…» with their keys now. */
+  goToFileHint?: KeyHint;
+  findHint?: KeyHint;
 }
 
 export const ProjectBar = ({
@@ -29,6 +33,8 @@ export const ProjectBar = ({
   onGoToFile,
   onFindInFiles,
   onClassChanged,
+  goToFileHint,
+  findHint,
 }: ProjectBarProps): ReactElement => {
   const { project, state, backend } = workspace;
   const [busy, setBusy] = useState(false);
@@ -91,11 +97,11 @@ export const ProjectBar = ({
         </span>
       )}
       <div className="kit-projects-bar-actions">
-        <Button variant="outline" size="sm" onClick={onGoToFile}>
+        <Button variant="outline" size="sm" aria-haspopup="dialog" onClick={onGoToFile} {...goToFileHint}>
           <SearchIcon aria-hidden="true" />
           {TEXT.goToFile}
         </Button>
-        <Button variant="outline" size="sm" onClick={onFindInFiles}>
+        <Button variant="outline" size="sm" onClick={onFindInFiles} {...findHint}>
           <TextSearchIcon aria-hidden="true" />
           {TEXT.findInFiles}
         </Button>

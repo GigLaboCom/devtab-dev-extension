@@ -14,6 +14,7 @@ import { ComparePage } from './sections/ComparePage';
 import { SettingsPage } from './sections/SettingsPage';
 import { ToolsPage } from './sections/ToolsPage';
 import { Palette } from './shell/Palette';
+import { useOffer } from './shell/sectionKeys';
 import { SidebarNav } from './shell/SidebarNav';
 import { Toolbar } from './shell/Toolbar';
 import { useFind } from './shell/useFind';
@@ -25,9 +26,11 @@ import { compareBehaviors } from '@src/compare/behaviors';
 import { DESTINATIONS, SECTION_DESTINATIONS, SETTINGS_DESTINATION } from '@src/shared/destinations';
 import { shellBehaviors } from '@src/shell/behaviors';
 import { trailOf } from '@src/shell/trail';
+import { ask } from '@src/shortcuts/intent';
 import { lazy, Suspense, use, useMemo, useRef } from 'react';
 import type { Route } from './route';
 import type { SettingsProps, ShellChoices } from './sections/SettingsPage';
+import type { SectionKeys } from './shell/sectionKeys';
 import type { Shortcuts } from './shell/useShortcuts';
 import type { ThemePref } from '@extension/theme';
 import type { HistoryHost } from '@src/history/behaviors';
@@ -45,6 +48,9 @@ export interface ShellProps {
 // «Projects»: a chunk of its own, loaded when the section opens — the shell's chunk does not carry it.
 const ProjectsSection = lazy(() => import('./sections/ProjectsPage'));
 
+/** The command "New scratch file" (src/shortcuts/actions.ts). */
+const NEW_SCRATCH = 'scratch:new';
+
 const Shell = ({ route, history, theme, settings }: ShellProps): ReactElement => {
   const SettingsIcon = iconOf(SETTINGS_DESTINATION.id);
   const hash = routeHash(route);
@@ -61,7 +67,13 @@ const Shell = ({ route, history, theme, settings }: ShellProps): ReactElement =>
   const shortcuts = useShortcuts(keyDeps, behaviors.shortcuts, { go, find: find.toggle });
   const findKey = shortcuts.bindings.get('find');
   const recent = settings.state.recent.used;
-  const context = useMemo(() => ({ recent }), [recent]);
+  const { commands, targets, bindings } = shortcuts;
+  const context = useMemo(() => ({ recent, commands }), [recent, commands]);
+  // What a section gets of the shortcuts: it offers its commands and shows their keys (app/shell/sectionKeys.ts).
+  const sectionKeys = useMemo<SectionKeys>(
+    () => ({ offer: targets.offer, keyOf: id => bindings.get(id), mac: find.mac }),
+    [targets, bindings, find.mac],
+  );
   return (
     <div className="kit-shell" data-breadcrumb={groups.settings.breadcrumb ? 'on' : undefined}>
       <aside className="kit-sidebar">
@@ -103,6 +115,7 @@ const Shell = ({ route, history, theme, settings }: ShellProps): ReactElement =>
             settings={settings}
             frameKeys={shortcuts.frameKeys}
             shortcuts={shortcuts}
+            sectionKeys={sectionKeys}
             shell={{ breadcrumb: groups.settings.breadcrumb, setBreadcrumb: groups.setBreadcrumb }}
           />
         </main>
@@ -115,8 +128,9 @@ const Shell = ({ route, history, theme, settings }: ShellProps): ReactElement =>
         recogniser={behaviors.recogniser}
         go={go}
         onClosed={find.closed}
-        keyOf={id => shortcuts.bindings.get(`open:${id}`)}
+        keyOf={id => shortcuts.bindings.get(id)}
         mac={find.mac}
+        onCommand={id => targets.run(id)}
       />
     </div>
   );
@@ -129,11 +143,28 @@ const Part = ({
   settings,
   frameKeys,
   shortcuts,
+  sectionKeys,
   shell,
-}: ShellProps & { frameKeys?: FrameKeys; shortcuts?: Shortcuts; shell?: ShellChoices }): ReactElement => {
+}: ShellProps & {
+  frameKeys?: FrameKeys;
+  shortcuts?: Shortcuts;
+  sectionKeys?: SectionKeys;
+  shell?: ShellChoices;
+}): ReactElement => {
   const host = use(history());
   // Whether the edition in force has scratch files (D34), followed while the page is open.
   const { scratches } = useHostEdition(host);
+  // "New scratch file" from any section (D38): the Projects section opens its language popup — at once when it is
+  // the section shown, on arrival otherwise; the intent goes in the page's memory, not in the address (F6).
+  const onProjects = route.section === 'projects';
+  useOffer(sectionKeys, {
+    [NEW_SCRATCH]:
+      scratches &&
+      (() => {
+        ask(NEW_SCRATCH);
+        if (!onProjects) go(routeHash({ section: 'projects' }));
+      }),
+  });
   // «Compare code»'s composition root (compare/behaviors.ts): in this lazy chunk, so a new tab never loads it.
   const compare = useMemo(() => compareBehaviors(window), []);
   return (
@@ -142,7 +173,7 @@ const Part = ({
       {route.section === 'tools' && <ToolsPage toolId={route.tool} history={host} />}
       {route.section === 'projects' && (
         <Suspense fallback={null}>
-          <ProjectsSection route={route} frameKeys={frameKeys} scratches={scratches} />
+          <ProjectsSection route={route} frameKeys={frameKeys} scratches={scratches} keys={sectionKeys} />
         </Suspense>
       )}
       {route.section === 'settings' && (

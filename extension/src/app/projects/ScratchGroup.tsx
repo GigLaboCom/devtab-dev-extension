@@ -3,36 +3,36 @@
  * «Scratches and Consoles» under the projects in its tree. A scratch is a file of no project: it needs no companion and
  * is there in every state of the connection.
  *
- * Making one is IntelliJ's «New Scratch File»: the language first (all the editor's languages, the one the last scratch
- * was made in offered), then the scratch opens at once, named `scratch.<extension>` (`scratch_1`, … when taken); it is
- * renamed afterwards. The list is by name, as a tree lists files; each one has its delete button, which asks first.
- * At the limit of scratches the new one is refused with one line saying so.
+ * Making one is IntelliJ's «New Scratch File»: «New scratch…» (or its shortcut, from any page: D38) opens the page's
+ * language popup (./LanguagePicker.tsx — all the editor's languages, the one the last scratch was made in offered and
+ * chosen), then the scratch opens at once, named `scratch.<extension>` (`scratch_1`, … when taken); it is renamed
+ * afterwards. The popup belongs to the page (ProjectsPage.tsx), so the shortcut opens the same one wherever it is
+ * pressed; at the limit of scratches it says so and nothing is made. The list is by name, as a tree lists files; each
+ * one has its delete button, which asks first.
  */
 import { DeleteScratchDialog } from './DeleteScratchDialog';
 import { TEXT, formatTime, printable, scratchRefusal } from './text';
 import { routeHash } from '../route';
-import { LANGUAGES, labelOf } from '@src/compare/languages';
+import { labelOf } from '@src/compare/languages';
 import { fileName } from '@src/projects/scratch/store';
 import { Button } from '@workspace/ui/button';
-import { Label } from '@workspace/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
 import { PlusIcon, Trash2Icon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import type { KeyHint } from '../shell/sectionKeys';
 import type { ScratchInfo, ScratchList, ScratchStore } from '@src/projects/scratch/store';
 import type { ReactElement } from 'react';
 
 export interface ScratchGroupProps {
   store: ScratchStore;
-  /** A scratch was made: the page opens it. */
-  onCreated(scratch: ScratchInfo): void;
+  /** «New scratch…»: the page opens its language popup. */
+  onNew(): void;
+  /** The tooltip of «New scratch…» with its key now. */
+  newHint?: KeyHint;
 }
 
-export const ScratchGroup = ({ store, onCreated }: ScratchGroupProps): ReactElement => {
+export const ScratchGroup = ({ store, onNew, newHint }: ScratchGroupProps): ReactElement => {
   const [list, setList] = useState<ScratchList | null>(null);
-  // The language chosen for the next scratch; until the person chooses, the one the last scratch was made in.
-  const [chosen, setChosen] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState<ScratchInfo | null>(null);
 
   const reload = useCallback(() => {
@@ -46,17 +46,6 @@ export const ScratchGroup = ({ store, onCreated }: ScratchGroupProps): ReactElem
     };
   }, [store]);
   useEffect(reload, [reload]);
-
-  const language = chosen ?? list?.lastLanguage ?? 'text';
-
-  const create = async (): Promise<void> => {
-    setBusy(true);
-    setProblem(null);
-    const made = await store.create(language);
-    setBusy(false);
-    if (made.ok) onCreated(made.value);
-    else setProblem(scratchRefusal(made.refused));
-  };
 
   const remove = async (scratch: ScratchInfo): Promise<void> => {
     setDeleting(null);
@@ -72,22 +61,7 @@ export const ScratchGroup = ({ store, onCreated }: ScratchGroupProps): ReactElem
       </h2>
       <p className="kit-projects-part-hint">{store.keeps ? TEXT.scratchesHint : TEXT.scratchesNotKept}</p>
       <div className="kit-projects-scratch-new">
-        <Label htmlFor="scratch-language" className="sr-only">
-          {TEXT.newScratchLanguage}
-        </Label>
-        <Select value={language} onValueChange={setChosen}>
-          <SelectTrigger id="scratch-language" className="kit-projects-scratch-language" size="sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {LANGUAGES.map(l => (
-              <SelectItem key={l.id} value={l.id}>
-                {l.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button size="sm" disabled={busy || !list} onClick={() => void create()}>
+        <Button size="sm" aria-haspopup="dialog" disabled={!list} onClick={onNew} {...newHint}>
           <PlusIcon aria-hidden="true" />
           {TEXT.newScratch}
         </Button>

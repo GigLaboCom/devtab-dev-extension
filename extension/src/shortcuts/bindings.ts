@@ -177,6 +177,9 @@ const NEEDED: readonly KeyChord[] = [
   // Chrome's menus: bookmarks bar and manager, bookmark all tabs, tab search, profiles, clear browsing data
   ...letters('B O D A M Delete', { shift: true }),
   chord('KeyB', { alt: true }),
+  // devtools' element picker (⇧⌘C / Ctrl+Shift+C); zoom in as ⌘+ / Ctrl++ (Shift with =); selecting to the line's
+  // ends (a Mac) or by word (elsewhere), in fields and in the editor
+  ...letters('C Equal ArrowLeft ArrowRight', { shift: true }),
   // tab numbers, zoom, back and forward, the editor's comment and moves
   ...digits.map(c => chord(c)),
   ...['Equal', 'Minus', 'BracketLeft', 'BracketRight', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Slash'].map(
@@ -188,6 +191,10 @@ const NEEDED: readonly KeyChord[] = [
 const NEEDED_MAC: readonly KeyChord[] = [
   ...letters('Y E O H M Comma'),
   ...letters('J H F L Y Slash Digit3 Digit4 Digit5 Digit6', { shift: true }),
+  // Chrome's "Clear browsing data" (⇧⌘⌫); the editor's selecting to the text's start and end (⇧⌘↑ / ↓)
+  ...letters('Backspace ArrowUp ArrowDown', { shift: true }),
+  // Chrome's printing through the system dialog
+  chord('KeyP', { alt: true }),
   chord('KeyL', { alt: true }),
   chord('KeyH', { alt: true }),
   chord('Space'),
@@ -195,9 +202,13 @@ const NEEDED_MAC: readonly KeyChord[] = [
 
 /**
  * On Windows and Linux only: Chrome's History, Downloads, view source, search box (Ctrl+E; Ctrl+K is the palette's,
- * taken on purpose), open file; IBus Unicode entry.
+ * taken on purpose), open file; IBus Unicode entry; devtools (Ctrl+Shift+I, Ctrl+Shift+J) and printing through the
+ * system dialog (Ctrl+Shift+P); selecting by paragraph in a text field (Ctrl+Shift+↑ / ↓).
  */
-const NEEDED_OTHER: readonly KeyChord[] = [...letters('H J U E O'), chord('KeyU', { shift: true })];
+const NEEDED_OTHER: readonly KeyChord[] = [
+  ...letters('H J U E O'),
+  ...letters('U I J P ArrowUp ArrowDown', { shift: true }),
+];
 
 /** What the browser, the system and the editor need on this platform. */
 export const browserNeeds = (mac: boolean): readonly KeyChord[] => [...NEEDED, ...(mac ? NEEDED_MAC : NEEDED_OTHER)];

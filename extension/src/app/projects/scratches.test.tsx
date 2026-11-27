@@ -7,6 +7,7 @@
 import { SidePanels } from './SidePanels';
 import { parseRoute } from '../route';
 import { ProjectsPage } from '../sections/ProjectsPage';
+import { LANGUAGES } from '@src/compare/languages';
 import { demoBackend } from '@src/projects/demo/backend';
 import { memoryLayout } from '@src/projects/layoutMemory';
 import { recordingSaver } from '@src/projects/scratch/fakeSaver';
@@ -155,16 +156,31 @@ describe('the Scratches group', () => {
     expect(rust.textContent).toContain('Rust');
   });
 
-  it('New scratch: in the language chosen (the last one used is offered), named scratch.<extension>, opened at once', async () => {
+  it('New scratch: the language popup — the last one used offered first and chosen; filter, Enter; opened at once', async () => {
     await made('go');
     const { rerender } = open('#/projects');
     const group = await screen.findByRole('region', { name: 'Scratches' });
     await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Language of the new scratch' }).textContent).toBe('Go'),
+      expect(within(group).getByRole('button', { name: 'New scratch…' }).hasAttribute('disabled')).toBe(false),
     );
-    await choose('Language of the new scratch', 'Python');
     await act(async () => {
-      fireEvent.click(within(group).getByRole('button', { name: 'New scratch' }));
+      fireEvent.click(within(group).getByRole('button', { name: 'New scratch…' }));
+    });
+    const popup = await screen.findByRole('dialog', { name: 'New scratch file' });
+    const filter = within(popup).getByRole('combobox', { name: 'Filter languages' });
+    expect(document.activeElement).toBe(filter);
+    // Every language of the editor, the last one used first and chosen.
+    await waitFor(() => expect(within(popup).getAllByRole('option')[0].textContent).toContain('Go'));
+    expect(within(popup).getAllByRole('option')).toHaveLength(LANGUAGES.length);
+    expect(within(popup).getAllByRole('option')[0].getAttribute('aria-selected')).toBe('true');
+    fireEvent.change(filter, { target: { value: 'pyt' } });
+    expect(
+      within(popup)
+        .getAllByRole('option')
+        .map(o => o.getAttribute('data-language')),
+    ).toEqual(['python']);
+    await act(async () => {
+      fireEvent.keyDown(filter, { key: 'Enter' });
     });
     const list = await store.list();
     const python = list.scratches.find(s => s.language === 'python')!;
@@ -176,6 +192,51 @@ describe('the Scratches group', () => {
     // A scratch just made opens with the keyboard in the editor.
     await waitFor(() => expect(editor.last('viewer/set-editable')).toMatchObject({ editable: true, focus: true }));
     expect(screen.getByRole('heading', { name: 'scratch.py' })).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'New scratch file' })).toBeNull();
+  });
+
+  it('the popup: ↑ / ↓ move the choice, a word or an extension narrows it; Escape closes it, nothing made', async () => {
+    open('#/projects');
+    const group = await screen.findByRole('region', { name: 'Scratches' });
+    const button = await waitFor(() => {
+      const found = within(group).getByRole('button', { name: 'New scratch…' });
+      if (found.hasAttribute('disabled')) throw new Error('not yet');
+      return found;
+    });
+    button.focus();
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    const popup = await screen.findByRole('dialog', { name: 'New scratch file' });
+    const filter = within(popup).getByRole('combobox', { name: 'Filter languages' });
+    const selected = () =>
+      within(popup)
+        .getAllByRole('option')
+        .find(o => o.getAttribute('aria-selected') === 'true');
+    // Nothing made yet: Plain text first, as the store's first language.
+    await waitFor(() => expect(selected()?.getAttribute('data-language')).toBe('text'));
+    fireEvent.keyDown(filter, { key: 'ArrowDown' });
+    expect(filter.getAttribute('aria-activedescendant')).toBe(selected()!.id);
+    expect(selected()?.getAttribute('data-language')).toBe(LANGUAGES[1].id);
+    fireEvent.keyDown(filter, { key: 'ArrowUp' });
+    fireEvent.keyDown(filter, { key: 'ArrowUp' });
+    expect(selected()?.getAttribute('data-language')).toBe(LANGUAGES[LANGUAGES.length - 1].id);
+    fireEvent.change(filter, { target: { value: 'rs' } });
+    expect(selected()?.getAttribute('data-language')).toBe('rust');
+    fireEvent.change(filter, { target: { value: 'script' } });
+    expect(
+      within(popup)
+        .getAllByRole('option')
+        .map(o => o.getAttribute('data-language')),
+    ).toEqual(['javascript', 'typescript']);
+    fireEvent.change(filter, { target: { value: 'cobol' } });
+    expect(within(popup).getByRole('status').textContent).toBe('No language matches “cobol”.');
+    await act(async () => {
+      fireEvent.keyDown(filter, { key: 'Escape' });
+    });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New scratch file' })).toBeNull());
+    expect((await store.list()).scratches).toHaveLength(0);
+    expect(document.activeElement).toBe(button);
   });
 
   it(`at ${SCRATCH_MAX_COUNT} scratches a new one is refused in one line; deleting one makes room`, async () => {
@@ -184,11 +245,19 @@ describe('the Scratches group', () => {
     const group = await screen.findByRole('region', { name: 'Scratches' });
     await waitFor(() => expect(within(group).getAllByRole('link')).toHaveLength(SCRATCH_MAX_COUNT));
     await act(async () => {
-      fireEvent.click(within(group).getByRole('button', { name: 'New scratch' }));
+      fireEvent.click(within(group).getByRole('button', { name: 'New scratch…' }));
     });
-    expect(within(group).getByRole('status').textContent).toBe(
+    const popup = await screen.findByRole('dialog', { name: 'New scratch file' });
+    await act(async () => {
+      fireEvent.keyDown(within(popup).getByRole('combobox'), { key: 'Enter' });
+    });
+    expect((await within(popup).findByRole('alert')).textContent).toBe(
       `${SCRATCH_MAX_COUNT} scratches are kept at most. Delete one to make another.`,
     );
+    await act(async () => {
+      fireEvent.keyDown(within(popup).getByRole('combobox'), { key: 'Escape' });
+    });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New scratch file' })).toBeNull());
     expect((await store.list()).scratches).toHaveLength(SCRATCH_MAX_COUNT);
     // Deleting from the list asks first.
     fireEvent.click(within(group).getByRole('button', { name: 'Delete scratch.txt' }));

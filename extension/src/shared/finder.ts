@@ -34,7 +34,11 @@ export interface Match {
   keyword?: string;
 }
 
-export type FieldResult = { kind: 'open'; destination: Destination; match?: Match } | { kind: 'web'; text: string };
+export type FieldResult =
+  | { kind: 'open'; destination: Destination; match?: Match }
+  | { kind: 'web'; text: string }
+  /** A command of a section that has a target now (the palette's alone: src/shortcuts/actions.ts). */
+  | { kind: 'command'; id: string; title: string; match?: Match };
 
 /** Rows that belong together; a group with a label is shown and announced under it. */
 export interface FinderGroup {

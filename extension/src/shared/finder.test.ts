@@ -36,7 +36,7 @@ describe('the start page field', () => {
   it('matches with the matcher it is given: strict by default, fuzzy when the start page has it', () => {
     const b64 = (matcher = strictMatcher) =>
       fieldResults('b64', { destinations: DESTINATIONS, webSearch: false, matcher }).map(r =>
-        r.kind === 'open' ? r.destination.title : r.text,
+        r.kind === 'open' ? r.destination.title : r.kind === 'web' ? r.text : r.title,
       );
     expect(b64()).toEqual([]);
     // Every tool whose title or a keyword has b, 6, 4 in order: Base64 (№ 2), Base64 Image (№ 27), Base64 File (№ 38) —

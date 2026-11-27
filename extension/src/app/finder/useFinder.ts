@@ -30,6 +30,8 @@ export interface FinderOptions {
   webSearch?: WebSearch;
   /** Escape empties a field with text in it (the start page); otherwise Escape is the page's (a dialog closes). */
   escapeClears?: boolean;
+  /** Runs a command row (the palette's); absent where there are none. */
+  command?: (id: string) => void;
 }
 
 export interface Finder {
@@ -50,6 +52,7 @@ export const useFinder = ({
   open,
   webSearch,
   escapeClears = false,
+  command,
 }: FinderOptions): Finder => {
   const [active, setActive] = useState(0);
   const current = results.length ? Math.min(active, results.length - 1) : -1;
@@ -59,6 +62,7 @@ export const useFinder = ({
       open(result.destination.hash);
       return;
     }
+    if (result.kind === 'command') return command?.(result.id);
     webSearch?.search(result.text).catch(e => debug.warn('web search', e));
   };
 

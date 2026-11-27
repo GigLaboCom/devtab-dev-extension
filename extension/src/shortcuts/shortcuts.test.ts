@@ -4,7 +4,7 @@
  * rules (portable chords, what is refused, conflicts, matching in and out of text fields), the storage subscription
  * across two pages, and the listener's dispatch.
  */
-import { PLACE_DEFAULTS, defaultFor, shortcutActions, suggestedKeys } from './actions';
+import { COMMANDS, COMMAND_DEFAULTS, PLACE_DEFAULTS, defaultFor, shortcutActions, suggestedKeys } from './actions';
 import {
   CHROME_KEEPS,
   DEFAULT_SHORTCUTS,
@@ -18,10 +18,13 @@ import {
   withKey,
 } from './bindings';
 import { isTyping, listenShortcuts } from './dispatch';
+import { ask, onAsk, take } from './intent';
 import { SHORTCUT_KEYS_KEY, saveShortcuts, watchShortcuts } from './store';
+import { createTargets } from './targets';
 import { compareActions } from '@src/compare/actions';
 import { DESTINATIONS } from '@src/shared/destinations';
-import { FIND_SHORTCUT, chordOf } from '@src/shared/keys';
+import { keyLabel } from '@src/shared/keyLabels';
+import { FIND_SHORTCUT, chordOf, sameChord } from '@src/shared/keys';
 import { fakeStorage } from '@src/test/fakes';
 import { TOOLS } from '@src/tools/registry';
 import { describe, expect, it, vi } from 'vitest';
@@ -38,11 +41,67 @@ const k = (code: string, mods: Partial<KeyChord> = {}): KeyChord => ({
   ...mods,
 });
 const FIXED = compareActions.flatMap(a => (a.shortcut ? [{ chord: a.shortcut, title: a.title }] : []));
-const context = () => ({ go: vi.fn(), find: vi.fn() });
+/** A page's context; `offered`: the commands a part of the page offers (by default every one). */
+const context = (offered: (id: string) => boolean = () => true) => ({
+  go: vi.fn(),
+  find: vi.fn(),
+  offers: vi.fn(offered),
+  command: vi.fn((id: string) => offered(id)),
+});
 const PLATFORMS = [
   ['macOS', true],
   ['Windows / Linux', false],
 ] as const;
+
+/**
+ * The editor's own keys, as gpui binds them (crates/review-wasm/src/lib.rs adds the Mac ones; gpui-kit's input binds
+ * the rest, and the module in a browser is never built for macOS, so they hold on a Mac too): in the portable form of
+ * the platform. A Ctrl binding on a Mac and a Cmd binding elsewhere are the other modifier, which no shortcut uses.
+ */
+const EDITOR_MAC = [
+  'cmd-c cmd-x cmd-a cmd-z cmd-shift-z cmd-left cmd-right cmd-up cmd-down shift-cmd-left shift-cmd-right',
+  'cmd-shift-up cmd-shift-down cmd-backspace cmd-delete cmd-. cmd-f cmd-shift-f',
+];
+const EDITOR_ALL = [
+  'alt-left alt-right alt-shift-left alt-shift-right shift-alt-up shift-alt-down alt-backspace alt-delete',
+  'ctrl-backspace ctrl-delete ctrl-] ctrl-[ ctrl-alt-up ctrl-alt-down ctrl-home ctrl-end ctrl-shift-home ctrl-shift-end',
+  'ctrl-shift-a ctrl-shift-e ctrl-shift-left ctrl-shift-right ctrl-a ctrl-c ctrl-x ctrl-v ctrl-e ctrl-left ctrl-right',
+  'ctrl-z ctrl-y ctrl-. ctrl-f ctrl-h',
+];
+const CODES: Record<string, string> = {
+  '.': 'Period',
+  ']': 'BracketRight',
+  '[': 'BracketLeft',
+  left: 'ArrowLeft',
+  right: 'ArrowRight',
+  up: 'ArrowUp',
+  down: 'ArrowDown',
+  backspace: 'Backspace',
+  delete: 'Delete',
+  home: 'Home',
+  end: 'End',
+};
+const editorKeys = (mac: boolean): KeyChord[] =>
+  [...(mac ? EDITOR_MAC : []), ...EDITOR_ALL]
+    .flatMap(line => line.split(' '))
+    .flatMap(binding => {
+      const parts = binding.split('-');
+      const key = parts.pop()!;
+      const command = mac ? 'cmd' : 'ctrl';
+      if (parts.includes(mac ? 'ctrl' : 'cmd')) return [];
+      const code = CODES[key] ?? `Key${key.toUpperCase()}`;
+      return [
+        {
+          key,
+          code,
+          mod: parts.includes(command),
+          shift: parts.includes('shift'),
+          ...(parts.includes('alt') ? { alt: true } : {}),
+        },
+      ];
+    });
+/** The definitions that came with the sections' commands (D38): their defaults must leave the editor's keys alone. */
+const NEW_IN_D38 = new Set([...COMMANDS.map(c => c.id), 'open:projects']);
 
 describe.each(ACTIONS.map(a => [a.id, a] as const))('ShortcutAction contract: %s', (_id, action: ShortcutAction) => {
   it('has a stable id, a title and a group, and runs through the page’s context alone', () => {
@@ -51,8 +110,19 @@ describe.each(ACTIONS.map(a => [a.id, a] as const))('ShortcutAction contract: %s
     expect(action.group.trim()).not.toBe('');
     const ctx = context();
     action.run(ctx);
-    expect(ctx.go.mock.calls.length + ctx.find.mock.calls.length).toBe(1);
+    expect(ctx.go.mock.calls.length + ctx.find.mock.calls.length + ctx.command.mock.calls.length).toBe(1);
     for (const [hash] of ctx.go.mock.calls) expect(hash).toMatch(/^#\//);
+    // A command of a section runs as itself, on the part that offers it; a place never asks for one.
+    if (action.command) expect(ctx.command).toHaveBeenCalledWith(action.id);
+    else expect(ctx.command).not.toHaveBeenCalled();
+  });
+
+  it.each(PLATFORMS)('its default, if any, is none of the editor’s own keys on %s', (_name, mac) => {
+    const chord = defaultFor(action, mac);
+    // Of the defaults before D38, «Compare code»'s Ctrl+Shift+E is the editor's "select to the line's end" elsewhere
+    // (the page takes it first): kept as it is — moving a default would move a key people have learnt.
+    if (!chord || !NEW_IN_D38.has(action.id)) return;
+    expect(editorKeys(mac).filter(c => sameChord(c, chord))).toEqual([]);
   });
 
   it.each(PLATFORMS)('its default, if any, passes every rule a recorded key passes, on %s', (_name, mac) => {
@@ -69,17 +139,33 @@ describe('the defaults', () => {
   });
 
   it('the places a person jumps to all the time have one; tools have none unless they suggest one', () => {
-    const withDefault = ACTIONS.filter(a => a.defaultKey).map(a => a.id);
-    expect(withDefault).toEqual(['find', 'start', 'open:compare', 'open:tools', 'open:history', 'open:settings']);
+    const withDefault = ACTIONS.filter(a => a.defaultKey && !a.command).map(a => a.id);
+    expect(withDefault).toEqual([
+      'find',
+      'start',
+      'open:compare',
+      'open:tools',
+      'open:projects',
+      'open:history',
+      'open:settings',
+    ]);
     expect(ACTIONS.find(a => a.id === 'find')!.defaultKey).toEqual(FIND_SHORTCUT);
-    expect(Object.keys(PLACE_DEFAULTS).sort()).toEqual(['compare', 'history', 'settings', 'start', 'tools']);
+    expect(Object.keys(PLACE_DEFAULTS).sort()).toEqual([
+      'compare',
+      'history',
+      'projects',
+      'settings',
+      'start',
+      'tools',
+    ]);
     // History differs on a Mac (⇧⌘H is Chrome's Home there).
     const history = ACTIONS.find(a => a.id === 'open:history')!;
     expect([defaultFor(history, true)?.alt, defaultFor(history, false)?.alt]).toEqual([true, undefined]);
   });
 
   it('a tool’s suggested key comes from its definition; two tools suggesting one key: the earlier keeps it, reported', () => {
-    const key: DefaultKey = k('KeyY', { mod: true, shift: true });
+    // A key no definition has (Ctrl+Shift+Y is «Go to file»'s on Windows and Linux since D38).
+    const key: DefaultKey = k('Digit7', { mod: true, shift: true });
     const tools = [
       { id: 'json', shortcut: key },
       { id: 'base64', shortcut: key },
@@ -273,5 +359,172 @@ describe('the subscription and the dispatch', () => {
     expect(ctx.go).toHaveBeenCalledWith('#/compare');
     expect(page.press(k('KeyM', { mod: true, alt: true }), true)).toBe(false);
     page.stop();
+  });
+});
+
+describe('the commands of a section (D38)', () => {
+  const commands = ACTIONS.filter(a => a.command);
+  const at = (mac: boolean, id: string) =>
+    defaultFor(
+      ACTIONS.find(a => a.id === id)!,
+      mac,
+    );
+
+  it('every command is an entry of the registry, after the places, in groups of their own', () => {
+    expect(commands.map(c => c.id)).toEqual(COMMANDS.map(c => c.id));
+    expect([...new Set(commands.map(c => c.group))]).toEqual(['Scratch files', 'Projects']);
+    const groups = [...new Set(ACTIONS.map(a => a.group))];
+    expect(groups.slice(-2)).toEqual(['Scratch files', 'Projects']);
+    for (const c of commands) expect(c.keywords?.length).toBeGreaterThan(0);
+    // Each default named here belongs to a command.
+    expect(Object.keys(COMMAND_DEFAULTS).every(id => COMMANDS.some(c => c.id === id))).toBe(true);
+  });
+
+  it('the defaults, as the table in docs/research/hotkeys.md §9 has them', () => {
+    const shown = (mac: boolean) =>
+      Object.fromEntries(
+        [...commands.map(c => c.id), 'open:projects'].map(id => {
+          const chord = at(mac, id);
+          return [id, chord ? keyLabel(chord, mac) : null];
+        }),
+      );
+    expect(shown(true)).toEqual({
+      'scratch:new': '⌥⇧⌘N',
+      'scratch:download': '⌥⇧⌘S',
+      'scratch:rename': '⌥⇧⌘R',
+      'scratch:language': null,
+      'scratch:delete': '⌥⇧⌘Backspace',
+      'projects:files': '⇧⌘1',
+      'projects:commit': '⇧⌘2',
+      'projects:history': '⇧⌘9',
+      'projects:find': '⌥⇧⌘F',
+      'projects:go-to-file': '⌥⇧⌘O',
+      'projects:next-change': '⌥⇧⌘↓',
+      'projects:previous-change': '⌥⇧⌘↑',
+      'projects:view': '⌥⇧⌘D',
+      'open:projects': '⌥⇧⌘L',
+    });
+    expect(shown(false)).toEqual({
+      'scratch:new': 'Ctrl+Shift+Insert',
+      'scratch:download': null,
+      'scratch:rename': 'Ctrl+Shift+F6',
+      'scratch:language': null,
+      'scratch:delete': 'Ctrl+Shift+Backspace',
+      'projects:files': 'Ctrl+Shift+1',
+      'projects:commit': 'Ctrl+Shift+2',
+      'projects:history': 'Ctrl+Shift+9',
+      'projects:find': 'Ctrl+Shift+F',
+      'projects:go-to-file': 'Ctrl+Shift+Y',
+      'projects:next-change': 'Ctrl+F7',
+      'projects:previous-change': 'Ctrl+Shift+F7',
+      'projects:view': null,
+      'open:projects': 'Ctrl+Shift+L',
+    });
+  });
+
+  it.each(PLATFORMS)('every default is free on %s: none meets another, a fixed page key or the editor’s', (_n, mac) => {
+    expect(defaultCollisions(ACTIONS, mac)).toEqual([]);
+    const resolved = resolveBindings(ACTIONS, DEFAULT_SHORTCUTS, mac);
+    expect([...resolved.blocked]).toEqual([]);
+    for (const c of commands) {
+      const chord = defaultFor(c, mac);
+      if (chord) expect(resolved.bindings.get(c.id)).toEqual(chord);
+    }
+  });
+
+  it('with ⌘ / Ctrl in every default of a command: the editor hands them up, and a text field lets them through', () => {
+    for (const mac of [true, false])
+      for (const c of commands) {
+        const chord = defaultFor(c, mac);
+        if (chord) expect(chord.mod).toBe(true);
+      }
+  });
+
+  it('a command with no target does not take its key: the event goes on, the page keeps it', () => {
+    const storage = fakeStorage();
+    const win = new EventTarget() as unknown as Window;
+    let offered = false;
+    const ctx = context(() => offered);
+    const page = listenShortcuts({ area: storage.area, onChanged: storage.onChanged, win, mac: true }, ACTIONS, ctx);
+    const press = () => {
+      const event = new KeyboardEvent('keydown', {
+        key: '1',
+        code: 'Digit1',
+        metaKey: true,
+        shiftKey: true,
+        cancelable: true,
+      });
+      win.dispatchEvent(event);
+      return event;
+    };
+    const before = press();
+    expect(before.defaultPrevented).toBe(false);
+    expect(ctx.command).not.toHaveBeenCalled();
+    expect(page.press(at(true, 'projects:files')!, true)).toBe(false);
+    offered = true;
+    const after = press();
+    expect(after.defaultPrevented).toBe(true);
+    expect(ctx.command).toHaveBeenCalledWith('projects:files');
+    page.stop();
+  });
+
+  it('the latest part to offer a command runs it; taken back, the earlier one does; none: false', () => {
+    const targets = createTargets();
+    const heard = vi.fn();
+    const unwatch = targets.watch(heard);
+    const shell = vi.fn();
+    const section = vi.fn();
+    expect(targets.run('scratch:new')).toBe(false);
+    const undoShell = targets.offer({ 'scratch:new': shell });
+    const undoSection = targets.offer({ 'scratch:new': section, 'projects:files': section });
+    expect(targets.run('scratch:new')).toBe(true);
+    expect(section).toHaveBeenCalledTimes(1);
+    undoSection();
+    undoSection();
+    expect(targets.offers('projects:files')).toBe(false);
+    targets.run('scratch:new');
+    expect(shell).toHaveBeenCalledTimes(1);
+    undoShell();
+    expect(targets.offers('scratch:new')).toBe(false);
+    expect(heard).toHaveBeenCalledTimes(4);
+    unwatch();
+  });
+
+  it('an intent asked for on one page is taken once by the part that carries it out, now or on arrival', () => {
+    ask('scratch:new');
+    expect(take('projects:files')).toBe(false);
+    expect(take('scratch:new')).toBe(true);
+    expect(take('scratch:new')).toBe(false);
+    const heard = vi.fn((id: string) => take(id));
+    const undo = onAsk(heard);
+    ask('scratch:new');
+    expect(heard).toHaveBeenCalledWith('scratch:new');
+    expect(take('scratch:new')).toBe(false);
+    undo();
+  });
+
+  it('a person’s stored keys survive: theirs holds over a new default, which then starts unbound and says who has it', () => {
+    // Recorded before D38: ⇧⌘1 for JSON, ⌥⇧⌘N for Base64, and Settings cleared — in the stored format of version 1.
+    const files: KeyChord = { key: '1', code: 'Digit1', mod: true, shift: true };
+    const scratch: KeyChord = { key: 'n', code: 'KeyN', mod: true, shift: true, alt: true };
+    const stored = normalizeShortcuts({
+      version: 1,
+      keys: { 'open:tools/json': files, 'open:tools/base64': scratch, 'open:settings': null },
+    });
+    const now = resolveBindings(ACTIONS, stored, true);
+    expect(now.bindings.get('open:tools/json')).toEqual(files);
+    expect(now.bindings.get('open:tools/base64')).toEqual(scratch);
+    expect(now.bindings.has('open:settings')).toBe(false);
+    expect(now.bindings.has('projects:files')).toBe(false);
+    expect(now.blocked.get('projects:files')).toEqual({ chord: at(true, 'projects:files'), by: 'open:tools/json' });
+    expect(now.blocked.get('scratch:new')?.by).toBe('open:tools/base64');
+    // The rest of the new defaults are given.
+    expect(now.bindings.get('projects:commit')?.code).toBe('Digit2');
+    // A command's own key, cleared or re-recorded, is stored by its id like any other.
+    const mine = withKey(withKey(stored, 'scratch:new', k('KeyM', { mod: true, alt: true })), 'projects:view', null);
+    expect(normalizeShortcuts(JSON.parse(JSON.stringify(mine))).keys).toMatchObject({
+      'scratch:new': { code: 'KeyM', mod: true, alt: true },
+      'projects:view': null,
+    });
   });
 });

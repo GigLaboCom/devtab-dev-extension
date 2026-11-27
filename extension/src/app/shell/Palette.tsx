@@ -11,12 +11,16 @@
  * behind is inert — no focus, no pointer, hidden from assistive technology; «Compare code»'s editor, in a frame behind
  * it, refuses to focus itself meanwhile (viewer/focusGuard.ts) —, Escape or a click outside closes it. Where focus goes
  * after is the shell's (`onClosed`): back where it was, or into the page that was opened. Nothing typed here is stored.
+ *
+ * A query also finds the sections' commands that have a target now (D38, `PaletteContext.commands`): choosing one
+ * closes the palette, focus goes back where it was, and then the command runs there — so a popup it opens, or a panel
+ * it focuses, keeps the focus.
  */
 import { FinderList } from '../finder/FinderList';
 import { useFinder } from '../finder/useFinder';
 import { keyLabel } from '@src/shared/keyLabels';
 import { Dialog, DialogContent, DialogTitle } from '@workspace/ui/dialog';
-import { SearchIcon } from 'lucide-react';
+import { SearchIcon, SquareChevronRightIcon } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FinderGroup } from '@src/shared/finder';
 import type { KeyChord } from '@src/shared/keys';
@@ -35,9 +39,11 @@ export interface PaletteProps {
   go: (hash: string) => void;
   /** The palette has closed: `went` — to a place it opened, or back where the user was. */
   onClosed: (went: boolean) => void;
-  /** The user's shortcut for a place (by its id), shown on its row. */
+  /** The user's shortcut for an action (by the action's id: `open:<place>`, a command's id), shown on its row. */
   keyOf?: (id: string) => KeyChord | undefined;
   mac?: boolean;
+  /** Runs a command row once the palette has closed. */
+  onCommand?: (id: string) => void;
 }
 
 type Offer = Promise<readonly FinderGroup[]> & { status?: string; value?: readonly FinderGroup[] };
@@ -66,8 +72,10 @@ const PaletteBody = ({
   leave,
   keyOf,
   mac = false,
+  command,
 }: Pick<PaletteProps, 'source' | 'context' | 'recogniser' | 'keyOf' | 'mac'> & {
   leave: (hash: string) => void;
+  command: (id: string) => void;
 }): ReactElement => {
   const id = useId();
   const listId = `${id}-results`;
@@ -75,7 +83,7 @@ const PaletteBody = ({
   const [query, setQuery] = useState('');
   const groups = useOffer(source, query, context);
   const results = useMemo(() => groups.flatMap(g => g.results), [groups]);
-  const finder = useFinder({ query, setQuery, results, recogniser, open: leave });
+  const finder = useFinder({ query, setQuery, results, recogniser, open: leave, command });
   // Opening the palette asks for the tools' `detect`, so a paste a moment later is recognised at once.
   useEffect(() => void recogniser.ready().catch(() => undefined), [recogniser]);
   const { current } = finder;
@@ -114,9 +122,15 @@ const PaletteBody = ({
         onTake={finder.take}
         hidden={!results.length}
         keyOf={result => {
-          const chord = result.kind === 'open' ? keyOf?.(result.destination.id) : undefined;
+          const chord =
+            result.kind === 'open'
+              ? keyOf?.(`open:${result.destination.id}`)
+              : result.kind === 'command'
+                ? keyOf?.(result.id)
+                : undefined;
           return chord && keyLabel(chord, mac);
         }}
+        commandIcon={SquareChevronRightIcon}
       />
       {nothing && (
         <p className="kit-palette-empty" role="status">
@@ -141,18 +155,27 @@ export const Palette = ({
   onClosed,
   keyOf,
   mac,
+  onCommand,
 }: PaletteProps): ReactElement => {
   const went = useRef(false);
+  const chosen = useRef<string | null>(null);
   const leave = (hash: string): void => {
     went.current = true;
     onOpenChange(false);
     go(hash);
   };
+  const command = (id: string): void => {
+    chosen.current = id;
+    onOpenChange(false);
+  };
   return (
     <Dialog
       open={open}
       onOpenChange={next => {
-        if (next) went.current = false;
+        if (next) {
+          went.current = false;
+          chosen.current = null;
+        }
         onOpenChange(next);
       }}>
       <DialogContent
@@ -168,8 +191,20 @@ export const Palette = ({
           e.preventDefault();
           onClosed(went.current);
           went.current = false;
+          const id = chosen.current;
+          chosen.current = null;
+          // After the dialog has gone and the page behind is no longer inert.
+          if (id) setTimeout(() => onCommand?.(id), 0);
         }}>
-        <PaletteBody source={source} context={context} recogniser={recogniser} leave={leave} keyOf={keyOf} mac={mac} />
+        <PaletteBody
+          source={source}
+          context={context}
+          recogniser={recogniser}
+          leave={leave}
+          command={command}
+          keyOf={keyOf}
+          mac={mac}
+        />
       </DialogContent>
     </Dialog>
   );

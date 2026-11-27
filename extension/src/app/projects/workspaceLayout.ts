@@ -25,6 +25,13 @@ export interface WorkspaceLayoutProps {
   memory: LayoutMemory;
   /** A view asked for from outside the panels (a search started, a file's history asked for); a new `n` each time. */
   reveal: { view: PanelView; n: number } | null;
+  /**
+   * A view's key pressed (D38), a new `n` each time: as an IDE's tool-window key — hidden, the view shows and takes the
+   * keyboard; showing while the keyboard is elsewhere, it takes the keyboard; holding the keyboard, its panel hides.
+   */
+  activate?: { view: PanelView; n: number } | null;
+  /** A view switch's tooltip with the view's key now. */
+  hintOf?: (view: PanelView, title: string) => { title: string; 'aria-keyshortcuts'?: string };
 }
 
 export type WorkspaceLayout = ComponentType<WorkspaceLayoutProps> & { readonly id: string };

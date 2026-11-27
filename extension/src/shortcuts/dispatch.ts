@@ -3,8 +3,10 @@
  * first paint): it follows the stored shortcuts live (store.ts), matches each key against them (bindings.ts) and runs
  * the action with what the page can do (actions.ts, `ShortcutContext`). A key typed into a field counts only with ⌘ /
  * Ctrl. A key pressed in «Compare code»'s editor never reaches this page — the editor keeps its keys — so the page asks
- * the editor to hand up the bound ⌘ / Ctrl chords (`frameKeys`) and passes them to `press`.
+ * the editor to hand up the bound ⌘ / Ctrl chords (`frameKeys`) and passes them to `press`. A command of a section
+ * that no part of the page offers now (actions.ts, `isAvailable`) does not take its key: the event goes on untouched.
  */
+import { isAvailable } from './actions';
 import { actionFor, DEFAULT_SHORTCUTS, resolveBindings } from './bindings';
 import { watchShortcuts } from './store';
 import { chordOf, isMac } from '@src/shared/keys';
@@ -43,8 +45,9 @@ export const listenShortcuts = (
   let unwatch: (() => void) | undefined;
   const press = (chord: KeyChord, typing: boolean): boolean => {
     const action = actionFor(chord, bindings, actions, typing);
-    action?.run(context);
-    return action !== undefined;
+    if (!action || !isAvailable(action, context)) return false;
+    action.run(context);
+    return true;
   };
   const onKey = (event: KeyboardEvent): void => {
     if (event.defaultPrevented || event.isComposing) return;
