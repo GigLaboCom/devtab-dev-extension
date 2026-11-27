@@ -88,3 +88,7 @@ The source is available under the [Fair Core License, Version 1.0, ALv2 Future L
 The name DevTab.Dev and its icons are not licensed: a build of your own needs a name and icons of its own
 (`extension/product.json`). The licences of the libraries and data that ship with the extension are in `licenses/`
 of a build.
+
+`pnpm validate:licences` (part of `pnpm check`) fails when a dependency is under a licence outside a permissive list:
+the installed npm packages, development tools included, against `scripts/licences-check.mjs`, and the editor module's
+Rust crates against `crates/deny.toml` (this half needs [cargo-deny](https://github.com/EmbarkStudios/cargo-deny)).

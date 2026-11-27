@@ -1,0 +1,43 @@
+# cargo-deny: licences, bans and sources of the Rust dependencies of the editor module, as it is built for the
+# browser. Run `pnpm validate:licences` (part of `pnpm check`), which also checks the npm packages.
+#
+# Advisories are not checked here yet: `cargo deny check advisories` needs the network, and each finding needs a
+# decision (see the developer documents).
+
+[graph]
+targets = ["wasm32-unknown-unknown"]
+all-features = false
+
+[licenses]
+# Permissive licences only. A copyleft dependency would put conditions on the module that ships.
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "0BSD",
+  "ISC",
+  "CC0-1.0",
+  "Unicode-3.0",
+  "Zlib",
+]
+confidence-threshold = 0.9
+unused-allowed-license = "allow"
+
+# The workspace's own crates are not published; their licence is the repository's LICENSE.md.
+[licenses.private]
+ignore = true
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# The editor's library, pinned by commit in Cargo.toml (a local checkout replaces it when vendor/ has one).
+allow-git = ["https://github.com/longbridge/gpui-kit"]
+unused-allowed-source = "allow"
