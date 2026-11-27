@@ -25,7 +25,7 @@ export const toolCheckModules = () =>
     .sort();
 
 /** What Chrome has recorded for the extension so far (chrome://extensions → Errors). */
-const recordedErrors = async ({ ctx, id }) => {
+export const recordedErrors = async ({ ctx, id }) => {
   const tab = await ctx.newPage();
   try {
     await tab.goto('chrome://extensions/');

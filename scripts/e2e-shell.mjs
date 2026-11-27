@@ -166,21 +166,33 @@ export const runShellChecks = async ({ ctx, id, check, shoot, report, sleep }) =
   await tool.close();
 
   // Opened and closed by its button, from the keyboard; remembered across reloads; opens by itself on a tool's page.
+  // The page is reloaded twice here, and a reload while the editor's module is still arriving aborts its load, which
+  // the editor reports as a failed start (seen at the end of a long run, when the module comes in slowly): each reload
+  // waits for the editor first.
+  const editorLoaded = p =>
+    p.waitForFunction(
+      () => document.querySelector('.kit-compare-counts')?.getAttribute('data-viewer-state') === 'ready',
+      null,
+      { timeout: 45_000 },
+    );
   const page = await open('#/compare');
   await page.getByRole('heading', { name: 'Compare code' }).waitFor();
   const atStart = await expanded(page);
   await toggle(page).focus();
   await page.keyboard.press(atStart ? 'Enter' : 'Space');
   const afterKey = await expanded(page);
+  await editorLoaded(page);
   await page.reload();
   await page.getByRole('heading', { name: 'Compare code' }).waitFor();
   const afterReload = await expanded(page);
   await toggle(page).focus();
   await page.keyboard.press('Enter');
   const closedAgain = await expanded(page);
+  await editorLoaded(page);
   await page.reload();
   await page.getByRole('heading', { name: 'Compare code' }).waitFor();
   const closedAfterReload = await expanded(page);
+  await editorLoaded(page);
   await page.evaluate(() => (location.hash = '#/tools/json'));
   await page.getByLabel('Input').waitFor();
   const openForTool = await expanded(page);
