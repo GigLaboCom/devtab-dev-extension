@@ -5,7 +5,8 @@
 // module (the frame's pixels: plain text has no colour, Python has); a rename whose extension changes the language;
 // Download — through the browser's file picker (played by the page) and as a download where the browser has none —
 // gives the scratch's file name, its language's extension and the editor's bytes; Delete asks, then the scratch and its
-// text go; at the limits — a text too long, one scratch too many — one plain line, and what was stored stays. Nothing
+// text go; at the limits — a text too long, one scratch too many (said in the language popup) — one plain line, and
+// what was stored stays. A new scratch is made through the language popup of «New scratch…» (D38). Nothing
 // cut off at 1440×900 and 800×700, light and dark, and not one console error or page error. Screenshots where --shots
 // says. Run by scripts/e2e-check.mjs (step `scratches`).
 
@@ -149,6 +150,14 @@ export const runScratchesChecks = async ({ ctx, id, check, shoot, report, sleep 
     await target.getByRole('option', { name: option, exact: true }).click();
     await target.getByRole('listbox').waitFor({ state: 'detached', timeout: 5_000 });
   };
+  /** «New scratch…»: the language popup (D38) — the language typed into its filter, Enter. */
+  const newScratch = async language => {
+    await group.getByRole('button', { name: 'New scratch…' }).click();
+    const popup = page.getByRole('dialog', { name: 'New scratch file' });
+    await popup.getByRole('combobox', { name: 'Filter languages' }).fill(language);
+    await popup.getByRole('option', { name: language }).first().waitFor({ timeout: 5_000 });
+    await page.keyboard.press('Enter');
+  };
   /** Waits until the scratch's stored text is `want` and the bar says it is saved. */
   const savedAs = async (scratch, want, timeout = 15_000) => {
     const until = Date.now() + timeout;
@@ -197,8 +206,7 @@ export const runScratchesChecks = async ({ ctx, id, check, shoot, report, sleep 
   );
 
   // ---- made in a language, typed into, saved by itself --------------------------------------------------------------
-  await choose('Language of the new scratch', 'Python');
-  await group.getByRole('button', { name: 'New scratch' }).click();
+  await newScratch('Python');
   await page.waitForFunction(() => /^#\/projects\/scratches\/s_[a-z2-7]{10}$/.test(location.hash), null, {
     timeout: 10_000,
   });
@@ -344,8 +352,7 @@ export const runScratchesChecks = async ({ ctx, id, check, shoot, report, sleep 
   // ---- the home with scratches; wide and narrow, light and dark ------------------------------------------------------
   await page.getByRole('link', { name: 'All projects' }).click();
   await group.getByRole('link').first().waitFor({ timeout: 10_000 });
-  await choose('Language of the new scratch', 'Rust');
-  await group.getByRole('button', { name: 'New scratch' }).click();
+  await newScratch('Rust');
   await page.getByRole('heading', { name: 'scratch.rs', level: 1 }).waitFor({ timeout: 10_000 });
   await frame.and(page.locator('[data-ready]')).waitFor({ timeout: 45_000 });
   await editorShows(0);
@@ -506,15 +513,18 @@ export const runScratchesChecks = async ({ ctx, id, check, shoot, report, sleep 
     .getByRole('link')
     .nth(MAX_COUNT - 1)
     .waitFor({ timeout: 10_000 });
-  await group.getByRole('button', { name: 'New scratch' }).click();
-  const countLine = await group.getByRole('status').innerText();
+  await newScratch('Plain text');
+  const tooMany = page.getByRole('dialog', { name: 'New scratch file' });
+  const countLine = await tooMany.getByRole('alert').innerText();
   const count = (await stored()).items.length;
   check(
-    `scratches: at ${MAX_COUNT} scratches a new one is refused in one plain line; none is made`,
+    `scratches: at ${MAX_COUNT} scratches the popup’s choice is refused in one plain line; none is made`,
     countLine === `${MAX_COUNT} scratches are kept at most. Delete one to make another.` && count === MAX_COUNT,
     `${countLine}; ${count} kept`,
   );
   await shoot(page, 'scratches-too-many-light.png');
+  await page.keyboard.press('Escape');
+  await tooMany.waitFor({ state: 'detached', timeout: 5_000 });
 
   await forget();
   check('scratches: no console error or page error', errors.length === 0, errors.join(' | '));

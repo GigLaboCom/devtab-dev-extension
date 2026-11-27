@@ -205,7 +205,8 @@ if (process.argv.includes('--json')) {
 // The tables, in the document's form (Markdown; the hand-written columns are left to the document).
 const keyName = chord => {
   const k = chord.code?.replace(/^Key|^Digit/, '') ?? chord.key;
-  return { Comma: ',', Period: '.', Slash: '/' }[k] ?? k.toUpperCase();
+  const named = { Comma: ',', Period: '.', Slash: '/', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' };
+  return named[k] ?? (k.length === 1 ? k.toUpperCase() : k);
 };
 const chordLabel = (chord, mac) => {
   if (!chord) return '—';
@@ -338,7 +339,7 @@ out.push(
       ],
       [
         'Язык нового скретча',
-        `${sc.language}, дальше — язык последнего созданного`,
+        `окошко выбора языка (D38): «New scratch…» или сочетание с любой нашей страницы; предложен и выбран ${sc.language}, дальше — язык последнего созданного; фильтр, ↑ / ↓, Enter, Escape`,
         `все языки редактора: ${sc.languages} и Plain text, список «Compare code»`,
         `\`${sc.key}.lastLanguage\``,
       ],

@@ -40,6 +40,9 @@
 //   4a. scratch files in «Projects» (scripts/e2e-scratches.mjs, step scratches): with no companion and no permission —
 //      made in a language, typed, read back after a reload, re-highlighted in another language, renamed, downloaded
 //      (picker and download), deleted, and the limits said;
+//   4a'. the keys of scratch files and of «Projects» (scripts/e2e-keys.mjs, step project-keys): "New scratch file" from another
+//      section, the start page, the palette and both editors opens the language popup; the open scratch's keys and the
+//      parts of a project by their keys; a key recorded again in Settings; the popup at the scratch limit;
 //   4b. «Projects» with a companion (scripts/e2e-projects.mjs, step projects): a browser of its own, the build's copy
 //      loaded by CDP, a fake Native Messaging host speaking the companion's contract — every state of the connection,
 //      the tree, a file, find, changes, diff, history, events, long answers, the permission removed and granted;
@@ -56,7 +59,7 @@
 //   pnpm test:e2e [-- <dist>] [--shots=<dir>] [--json=<file>] [--only=<step or tool>,…]
 //   --only  run only these after the extension has loaded: a tool's id (its module of scripts/e2e-tools/, e.g.
 //           `--only=jwt`), or a step — start, own-page, toolbar, compare (2–2c), tools (3: every tool and the JSON
-//           controls), shell, themes (4–6), projects-demo, scratches, projects, history. The console-error check runs over what
+//           controls), shell, themes (4–6), projects-demo, scratches, project-keys, projects, history. The console-error check runs over what
 //           ran.
 // Needs a build (pnpm build) and Playwright with Chrome for Testing: `pnpm e2e:setup` puts both under .state/
 // (Playwright is NOT a workspace dependency, as in the second sibling extension). Elsewhere: PLAYWRIGHT_DIR=<a
@@ -79,6 +82,7 @@ import { runShellChecks } from './e2e-shell.mjs';
 import { runProjectsDemoChecks } from './e2e-projects-demo.mjs';
 import { runProjectsChecks } from './e2e-projects.mjs';
 import { runScratchesChecks } from './e2e-scratches.mjs';
+import { runKeysChecks } from './e2e-keys.mjs';
 import { runGrammarChecks } from './e2e-grammars.mjs';
 
 /* global document, window, addEventListener, chrome, createImageBitmap, OffscreenCanvas, getComputedStyle, location -- page.evaluate callbacks run in the pages */
@@ -1097,6 +1101,7 @@ try {
 
   // Scratch files in «Projects», with no companion and no permission (scripts/e2e-scratches.mjs).
   if (want('scratches')) await runScratchesChecks({ ctx, id, check, shoot, report, sleep });
+  if (want('project-keys')) await runKeysChecks({ ctx, id, check, shoot, report, sleep });
   await noteErrors('scratches');
 
   // «Projects» with a companion (scripts/e2e-projects.mjs): in a browser of its own, so this one's profile stays as it is.
