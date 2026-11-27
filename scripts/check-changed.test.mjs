@@ -20,21 +20,27 @@ test('documents need nothing', () => {
 test('a section runs its own steps, its unit tests and the build, not the growth check', () => {
   const p = plan('extension/src/app/projects/ScratchView.tsx', 'extension/src/projects/scratch/store.ts');
   assert.deepEqual(p.full, []);
-  assert.deepEqual(p.e2e, ['scratches']);
+  assert.deepEqual(p.e2e, ['project-keys', 'scratches']);
   assert.deepEqual(p.packages, ['extension']);
   assert.equal(p.build, true);
   assert.equal(p.growth, false);
-  assert.deepEqual(commandsFor(p).at(-1), ['pnpm', ['test:e2e', '--', '--only=scratches']]);
+  assert.deepEqual(commandsFor(p).at(-1), ['pnpm', ['test:e2e', '--', '--only=project-keys,scratches']]);
 });
 
 test('the editor page runs every step that shows the editor', () => {
-  assert.deepEqual(plan('extension/src/viewer/main.ts').e2e, ['compare', 'projects', 'projects-demo', 'scratches']);
+  assert.deepEqual(plan('extension/src/viewer/main.ts').e2e, [
+    'compare',
+    'project-keys',
+    'projects',
+    'projects-demo',
+    'scratches',
+  ]);
 });
 
 test('what the start route reads also runs the growth check', () => {
   const p = plan('extension/src/shortcuts/actions.ts');
   assert.equal(p.growth, true);
-  assert.deepEqual(p.e2e, ['shell', 'start']);
+  assert.deepEqual(p.e2e, ['project-keys', 'shell', 'start']);
 });
 
 test('a tool runs its own module when it has one, the tools step otherwise', () => {
@@ -44,6 +50,7 @@ test('a tool runs its own module when it has one, the tools step otherwise', () 
 });
 
 test('a test file runs unit tests only', () => {
+  assert.deepEqual(plan('extension/src/shared/anything.test.ts').full, []);
   const p = plan('extension/src/app/route.test.ts');
   assert.deepEqual(p.e2e, []);
   assert.equal(p.build, false);

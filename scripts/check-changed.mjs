@@ -62,7 +62,7 @@ const E2E_HARNESS = /^scripts\/(e2e-check\.mjs|e2e-helpers\.mjs|e2e-setup\.sh)$/
 const SELF = /^scripts\/check-changed\./;
 
 /** Path → the end-to-end steps that exercise it (the names `pnpm test:e2e -- --only=` takes). */
-const EDITOR_USERS = ['compare', 'projects-demo', 'projects', 'scratches'];
+const EDITOR_USERS = ['compare', 'projects-demo', 'projects', 'scratches', 'project-keys'];
 const RULES = [
   [/^extension\/src\/[^/]+\.test\.ts$/, []],
   [/^extension\/src\/(viewer|highlighter)\//, EDITOR_USERS],
@@ -70,10 +70,10 @@ const RULES = [
   [/^extension\/src\/compare\//, ['compare', 'scratches']],
   [/^extension\/src\/app\/sections\/ComparePage/, ['compare']],
   [/^extension\/src\/app\/handoff\.ts$/, ['compare', 'history']],
-  [/^extension\/src\/projects\/scratch\//, ['scratches']],
-  [/^extension\/src\/app\/projects\/(Scratch|DeleteScratch|scratches)/, ['scratches']],
-  [/^extension\/src\/(projects|app\/projects)\//, ['projects-demo', 'projects', 'scratches']],
-  [/^extension\/src\/app\/sections\/ProjectsPage/, ['projects-demo', 'projects', 'scratches']],
+  [/^extension\/src\/projects\/scratch\//, ['scratches', 'project-keys']],
+  [/^extension\/src\/app\/projects\/(Scratch|DeleteScratch|LanguagePicker|scratches)/, ['scratches', 'project-keys']],
+  [/^extension\/src\/(projects|app\/projects)\//, ['projects-demo', 'projects', 'scratches', 'project-keys']],
+  [/^extension\/src\/app\/sections\/ProjectsPage/, ['projects-demo', 'projects', 'scratches', 'project-keys']],
   [/^extension\/src\/app\/sectionPermissions\.ts$/, ['projects-demo', 'projects', 'shell']],
   [/^extension\/src\/(start|newTab)\//, ['start', 'own-page']],
   [/^extension\/src\/app\/(start\/|useStart\.ts|sections\/StartPage)/, ['start', 'own-page']],
@@ -84,8 +84,8 @@ const RULES = [
   [/^extension\/src\/(edition|licence|plans)\//, ['history', 'licence', 'shell', 'scratches']],
   [/^extension\/src\/app\/(editionWait|useHostEdition)\.ts$/, ['history', 'licence', 'shell', 'scratches']],
   [/^packages\/licence\//, ['licence']],
-  [/^extension\/src\/(shell|shortcuts|options)\//, ['shell', 'start']],
-  [/^extension\/src\/shared\/(keys|keyLabels|destinations|pages)\.ts$/, ['shell', 'start']],
+  [/^extension\/src\/(shell|shortcuts|options)\//, ['shell', 'start', 'project-keys']],
+  [/^extension\/src\/shared\/(keys|keyLabels|destinations|pages|finder)\.ts$/, ['shell', 'start', 'project-keys']],
   [
     /^extension\/src\/app\/(shell\/|finder\/|settings\/|Shell\.tsx|shell\.css|route\.|destinationIcons|sections\/(Settings|Shortcut))/,
     ['shell'],
@@ -104,6 +104,7 @@ const RULES = [
   [/^scripts\/e2e-theme\.mjs$/, ['themes']],
   [/^scripts\/e2e-history\.mjs$/, ['history']],
   [/^scripts\/e2e-scratches\.mjs$/, ['scratches']],
+  [/^scripts\/e2e-keys\.mjs$/, ['project-keys']],
   [/^scripts\/e2e-projects-demo\.mjs$/, ['projects-demo']],
   [/^scripts\/e2e-projects(\.mjs|\/)/, ['projects']],
 ];
@@ -177,6 +178,13 @@ export const planFor = (files, options = {}) => {
     }
     if (PLAIN_SCRIPT.test(file)) continue;
     const tool = /^packages\/tools\/(logic|ui)\/([^/]+)\//.exec(file);
+    // A test file proves itself in the unit run of its package, whatever section it sits in.
+    if (isTest(file) && !tool && /^(extension|packages)\//.test(file)) {
+      plan.typeCheck = true;
+      const owner = pkgOf(file);
+      if (owner) packages.add(owner);
+      continue;
+    }
     const toolE2e = /^scripts\/e2e-tools\/([^/]+)\.mjs$/.exec(file);
     const rule = RULES.find(([pattern]) => pattern.test(file));
     if (!tool && !toolE2e && !rule) {
