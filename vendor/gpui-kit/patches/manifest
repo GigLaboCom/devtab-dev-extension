@@ -1,0 +1,13 @@
+# The gpui-kit base: a commit of upstream `main` with the commits of the pull requests below rebased on top, in this
+# order (../bump.sh builds that branch in the generated checkout and keeps it consistent; docs: editor-base.md).
+#
+# mode patch   crates/Cargo.toml pins upstream `main`; each pull request's rebased commits are exported as <file>.patch,
+#              which ../prepare.sh applies to a checkout that the [patch] section of crates/Cargo.toml builds from.
+# mode branch  crates/Cargo.toml pins the fork's branch (the `branch` line) at the commit that has exactly the tree
+#              bump.sh built; no patch is applied and there is no [patch] section. Needs the branch pushed first.
+#
+# One line per pull request: <number, or - for a patch of our own> <file>.patch; <file>.md beside it says what it is
+# and when it can be deleted. bump.sh drops the line of a pull request that was merged.
+mode patch
+branch https://github.com/glani/gpui-component land-next
+4006 tree-sitter-wasm.patch

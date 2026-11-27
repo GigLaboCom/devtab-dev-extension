@@ -1,7 +1,7 @@
 //! What the two editors read from the comparison: blank rows that keep them level and the markers of changed lines.
 //!
 //! Built on the controls of gpui-kit's line decorations: spacer rows, a gutter facing the center on the old side
-//! (`gutter_side(Side::Right)`), and line decorations with a gutter marker and a tinted background.
+//! (`gutter_side(Side::Right)`), and line decorations with a gutter icon and a tinted background.
 
 use std::{
     cell::{Cell, Ref, RefCell},
@@ -11,8 +11,8 @@ use std::{
 
 use gpui::App;
 use gpui_component::{
-    ActiveTheme as _,
-    input::{GutterMarker, LineDecoration, LineDecorationProvider, Spacer, SpacerProvider},
+    ActiveTheme as _, IconName, IconNamed as _,
+    input::{LineDecoration, LineDecorationProvider, Spacer, SpacerProvider},
 };
 
 use crate::{
@@ -68,7 +68,8 @@ impl SpacerProvider for DiffSpacers {
 }
 
 /// Markers of one side: removed lines in red on the old side, added lines in green on the new side, both halves of
-/// a modification in blue. A side shows nothing for the lines it does not have.
+/// a modification in blue; the gutter icon (minus, plus, asterisk) in the colours gpui-kit gave its diff markers. A
+/// side shows nothing for the lines it does not have.
 pub(crate) struct ChangedLines {
     pub model: Rc<DiffModel>,
     pub side: DiffSide,
@@ -79,12 +80,13 @@ impl LineDecorationProvider for ChangedLines {
         let theme = cx.theme();
         let mut out = Vec::new();
         for h in self.model.hunks().iter() {
-            let (marker, color) = match (h.kind, self.side) {
+            let (icon, icon_color, color) = match (h.kind, self.side) {
                 (HunkKind::Added, DiffSide::Old) | (HunkKind::Deleted, DiffSide::New) => continue,
-                (HunkKind::Added, DiffSide::New) => (GutterMarker::DiffAdded, theme.success),
-                (HunkKind::Deleted, DiffSide::Old) => (GutterMarker::DiffRemoved, theme.danger),
-                (HunkKind::Modified, _) => (GutterMarker::DiffChanged, theme.info),
+                (HunkKind::Added, DiffSide::New) => (IconName::Plus, theme.success, theme.success),
+                (HunkKind::Deleted, DiffSide::Old) => (IconName::Minus, theme.danger, theme.danger),
+                (HunkKind::Modified, _) => (IconName::Asterisk, theme.warning, theme.info),
             };
+            let icon = icon.path();
             let (start, lines) = match self.side {
                 DiffSide::Old => (h.old_start, h.old_lines),
                 DiffSide::New => (h.start, h.lines),
@@ -93,11 +95,15 @@ impl LineDecorationProvider for ChangedLines {
             for row in span.start.max(rows.start)..span.end.min(rows.end) {
                 out.push(
                     LineDecoration::new(row)
-                        .with_marker(marker.clone())
+                        .with_gutter_icon(icon.clone(), icon_color)
                         .with_background(color.opacity(0.12)),
                 );
             }
         }
         out
+    }
+
+    fn has_gutter_icons(&self) -> bool {
+        true
     }
 }

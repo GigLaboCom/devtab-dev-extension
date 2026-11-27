@@ -4,7 +4,8 @@
 #   review-view   the shared crate: comparison seams (LineDiffer, …) with no gpui, and the gpui view (feature `view`)
 #   review-wasm   the wasm entry point the extension loads: wasm-bindgen exports over review-view
 #
-# Cargo.lock started as gpui-kit's own lock file at the pinned revision (the versions it is tested with).
+# Cargo.lock starts as gpui-kit's own lock file at the pinned commit with the patches (the versions it is tested
+# with); cargo resolves the rest. ../vendor/gpui-kit/bump.sh remakes it that way on every bump.
 [workspace]
 members = ["review-view", "review-wasm"]
 resolver = "2"
@@ -15,17 +16,21 @@ edition = "2024"
 publish = false
 
 [workspace.dependencies]
-# gpui-kit: the fork glani/gpui-component, branch `land-next`, pinned by commit — the tip of `land-next` on
-# 2026-11-17 (gpui-kit v0.10.0). Pinned by `rev`, not by branch, so a build is reproducible.
-gpui-component = { git = "https://github.com/glani/gpui-component", rev = "0209cf10e0270aeaf381895608432c5b954dab8e" }
-gpui-kit-assets = { git = "https://github.com/glani/gpui-component", rev = "0209cf10e0270aeaf381895608432c5b954dab8e" }
-# The gpui snapshot that revision pins in its own [workspace.dependencies]; two exact gpui-pre versions cannot
-# resolve in one graph, so a mismatch fails loudly.
-gpui = { package = "gpui-pre", version = "=0.3.12" }
+# gpui-kit: a commit of upstream longbridge/gpui-kit `main` with our pull requests not yet merged rebased on top
+# (../vendor/gpui-kit/patches/manifest). Pinned by `rev`, never by branch, so a build is reproducible; "current" means
+# moving the pin often: ../vendor/gpui-kit/bump.sh rewrites the two lines below, the date line, the gpui-pre /
+# lsp-types versions and the checkout block further down (docs/extension-structure.md §11.8). Patch mode pins upstream
+# `main` and applies the pull requests as patches; branch mode pins the fork's branch that carries them.
+# Pinned: main as of 2026-11-26 (gpui-kit 0.11.0, commit of 2026-11-26).
+gpui-component = { git = "https://github.com/longbridge/gpui-kit", rev = "f807c1b2c49ef25ddfbe73e465e33b8a5fa5632e" }
+gpui-kit-assets = { git = "https://github.com/longbridge/gpui-kit", rev = "f807c1b2c49ef25ddfbe73e465e33b8a5fa5632e" }
+# The gpui snapshot that commit pins in its own [workspace.dependencies]; two exact gpui-pre versions cannot
+# resolve in one graph, so a mismatch fails loudly. bump.sh copies them from gpui-kit; check.sh compares.
+gpui = { package = "gpui-pre", version = "=0.3.14" }
 # The native platform, for review-view's `window` example only (feature `window-example`).
-gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", default-features = false, features = ["font-kit", "runtime_shaders"] }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.14", default-features = false, features = ["font-kit", "runtime_shaders"] }
 # Single-threaded: no `multithreaded` feature, so no SharedArrayBuffer and no cross-origin isolation on the page.
-gpui_web = { package = "gpui-pre-web", version = "=0.3.12", default-features = false }
+gpui_web = { package = "gpui-pre-web", version = "=0.3.14", default-features = false }
 
 # Line diff: Myers and Histogram (Apache-2.0). Without the unified-diff printer, which nothing here uses.
 imara-diff = { version = "0.2.0", default-features = false }
@@ -34,15 +39,17 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # A clock that works natively and in the browser (gpui uses the same crate on wasm).
 web-time = "1.1"
+# gpui-kit's own requirement (its highlighter's runtime): review-view checks grammar files against the same one.
+tree-sitter = "0.27.2"
 
-# gpui-kit with the fixes not yet on `land-next`: the pinned revision above plus the patches in
-# ../vendor/gpui-kit/patches/, prepared by ../vendor/gpui-kit/prepare.sh (crates/review-wasm/build.sh runs it; run it once
-# by hand before `cargo test` or `cargo run`). gpui-base and gpui-component-macros come along as path dependencies of
-# gpui-component. When the fixes reach `land-next`: move `rev` above to that commit and delete this section, the patches
-# and the script (docs/extension-structure.md §11.8).
-[patch."https://github.com/glani/gpui-component"]
+# ---- gpui-kit checkout: vendor/gpui-kit/bump.sh writes this block ----
+# Patch mode: the pinned commit of upstream main plus the patches of ../vendor/gpui-kit/patches/manifest, prepared by
+# ../vendor/gpui-kit/prepare.sh (crates/review-wasm/build.sh runs it; run it once by hand before `cargo test` or
+# `cargo run`). gpui-base and gpui-component-macros come along as path dependencies of gpui-component.
+[patch."https://github.com/longbridge/gpui-kit"]
 gpui-component = { path = "../vendor/gpui-kit/checkout/crates/component" }
 gpui-kit-assets = { path = "../vendor/gpui-kit/checkout/crates/assets" }
+# ---- end of the gpui-kit checkout block ----
 
 # As gpui-kit's own release profile.
 [profile.release]

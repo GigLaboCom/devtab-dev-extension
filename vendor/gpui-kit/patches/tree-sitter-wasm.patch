@@ -1,0 +1,836 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index e238e1257161bb0ff76ea83e6f88b30b324df001..062be36d5a7aed72bca6b523a1bb9b802a5acd02 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -223,6 +223,24 @@ jobs:
+       - name: Check GPUI Fast WebAssembly
+         run: cargo check -p gpui-kit --features gpui-fast --target wasm32-unknown-unknown --locked
+ 
++  tree-sitter-web:
++    name: Tree-sitter (WebAssembly)
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++      - uses: actions-rust-lang/setup-rust-toolchain@v1
++        with:
++          target: wasm32-unknown-unknown
++          components: llvm-tools
++          cache-save-if: ${{ github.ref == 'refs/heads/main' }}
++          cache-shared-key: tree-sitter-web
++      - name: Install system dependencies
++        run: script/bootstrap
++      - name: Check tree-sitter highlighting for WebAssembly
++        run: |
++          source script/wasm-cc-env
++          cargo check -p gpui-component --features tree-sitter-languages --target wasm32-unknown-unknown --locked
++
+   gpui-shell-core:
+     name: GPUI Shell Core
+     runs-on: ubuntu-latest
+diff --git a/Cargo.lock b/Cargo.lock
+index 066091f93d9e4146cf5f414896905d60ac1dd9ed..d29e64a6acbd1346e184b238370c2c5c2676072b 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -10755,13 +10755,12 @@ dependencies = [
+ 
+ [[package]]
+ name = "tree-sitter"
+-version = "0.26.13"
++version = "0.27.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "17ebdd3a5a7e28a1890b876fdbd0c3c0fe0a6336cffaa104f11b9f720c9daa29"
++checksum = "37b2bed8f39a73439f3b0b7ed8f452be5d2911b5e9da69d352ef113bb7448fb8"
+ dependencies = [
+  "cc",
+  "regex",
+- "regex-syntax",
+  "serde_json",
+  "streaming-iterator",
+  "tree-sitter-language",
+@@ -10949,9 +10948,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "tree-sitter-language"
+-version = "0.1.8"
++version = "0.1.9"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "ca0d1bf6fdd806e43ae5198f82f527056d359def39e54e67a0f478ac09dac081"
++checksum = "d0af592be68c579aa78a16846bd19422978c3c52e438523d45ff5d1bff1f9d4a"
+ 
+ [[package]]
+ name = "tree-sitter-lua"
+@@ -10975,9 +10974,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "tree-sitter-md"
+-version = "0.5.3"
++version = "0.5.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "2efd398be546456c814598ee56c0f51769a77241511b4a58077815d120afa882"
++checksum = "8ed661bfe3c264961425f77cd89ad2998bf5d629e71ce8bab1e5d7e940d6246e"
+ dependencies = [
+  "cc",
+  "tree-sitter-language",
+@@ -10985,9 +10984,8 @@ dependencies = [
+ 
+ [[package]]
+ name = "tree-sitter-navi"
+-version = "0.2.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "62c777d08084bb1a049365dc69e0afecce54468ceaa01b503da0f22d685c61e6"
++version = "0.2.4"
++source = "git+https://github.com/glani/tree-sitter-navi?branch=tree-sitter-0.27#8414d8f8700dba0be67be817dea734e07c83931f"
+ dependencies = [
+  "cc",
+  "tree-sitter",
+diff --git a/Cargo.toml b/Cargo.toml
+index 24e64faf92bef05ae55483befd7723bfec1163e7..f0a60026016e57ac57682dd38789f93418a0b3fa 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -195,3 +195,6 @@ consts = "consts"
+ 
+ [workspace.metadata.cargo-machete]
+ ignored = ["log", "anyhow", "serde"]
++
++[patch.crates-io]
++tree-sitter-navi = { git = "https://github.com/glani/tree-sitter-navi", branch = "tree-sitter-0.27" }
+diff --git a/crates/component/Cargo.toml b/crates/component/Cargo.toml
+index 9ab6e1e0156b22ae44d1badd39cb8c6bf67494a1..9ef6ea12941a57f9c2a5cd76638a7720b19cd02a 100644
+--- a/crates/component/Cargo.toml
++++ b/crates/component/Cargo.toml
+@@ -165,17 +165,8 @@ two-face = { workspace = true, optional = true }
+ # Cross-platform time APIs (zero-cost on native, uses web APIs on WASM)
+ instant.workspace = true
+ 
+-# Native-only dependencies (not available on WASM)
+-[target.'cfg(not(target_family = "wasm"))'.dependencies]
+-smol.workspace = true
+-cpal = { version = "0.15.3", optional = true }
+-tree-sitter = { version = "0.26.13", optional = true }
++tree-sitter = { version = "0.27.2", optional = true }
+ tree-sitter-astro-next = { version="0.1.1", optional = true }
+-tree-sitter-bash = { version = "0.23.3", optional = true }
+-tree-sitter-c = { version = "0.24.1", optional = true }
+-tree-sitter-c-sharp = { version = "0.23.1", optional = true }
+-tree-sitter-cmake = { version = "0.7.1", optional = true }
+-tree-sitter-cpp = { version = "0.23.4", optional = true }
+ tree-sitter-css = { version = "0.23.2", optional = true }
+ tree-sitter-diff = { version = "0.1.0", optional = true }
+ tree-sitter-elixir = { version = "0.3", optional = true }
+@@ -188,23 +179,33 @@ tree-sitter-javascript = { version = "0.23.1", optional = true }
+ tree-sitter-jsdoc = { version = "0.23.2", optional = true }
+ tree-sitter-json = { version = "0.24.8", optional = true }
+ tree-sitter-kotlin-sg = { version = "0.4.0", optional = true }
+-tree-sitter-lua = { version = "0.4.1", optional = true }
+ tree-sitter-make = { version = "1.1.1", optional = true }
+-tree-sitter-md = { version = "0.5.1", optional = true }
++tree-sitter-md = { version = "0.5.4", optional = true }
+ tree-sitter-php = { version = "0.24.2", optional = true }
+ tree-sitter-proto = { version = "0.2.0", optional = true }
+ tree-sitter-python = { version = "0.23.6", optional = true }
+ tree-sitter-ruby = { version = "0.23.1", optional = true }
+ tree-sitter-rust = { version = "0.24.0", optional = true }
+ tree-sitter-scala = { version = "0.23.4", optional = true }
+-tree-sitter-sequel = { version = "0.3.8", optional = true }
+ tree-sitter-svelte-next = { version = "0.1.1", optional = true }
+-tree-sitter-swift = { version = "0.7.0", optional = true }
+ tree-sitter-toml-ng = { version = "0.7.0", optional = true }
+ tree-sitter-typescript = { version = "0.23.2", optional = true }
+ tree-sitter-yaml = { version = "0.7.1", optional = true }
+ tree-sitter-zig = { version = "1.1.2", optional = true }
+ 
++# Native-only dependencies (not available on WASM)
++[target.'cfg(not(target_family = "wasm"))'.dependencies]
++smol.workspace = true
++cpal = { version = "0.15.3", optional = true }
++tree-sitter-bash = { version = "0.23.3", optional = true }
++tree-sitter-c = { version = "0.24.1", optional = true }
++tree-sitter-c-sharp = { version = "0.23.1", optional = true }
++tree-sitter-cmake = { version = "0.7.1", optional = true }
++tree-sitter-cpp = { version = "0.23.4", optional = true }
++tree-sitter-lua = { version = "0.4.1", optional = true }
++tree-sitter-sequel = { version = "0.3.8", optional = true }
++tree-sitter-swift = { version = "0.7.0", optional = true }
++
+ [target.'cfg(target_os = "macos")'.dependencies]
+ core-text = "=21.0.0"
+ # Native menu (NativeMenu) — drives AppKit NSMenu via objc2.
+diff --git a/crates/component/src/diff/state.rs b/crates/component/src/diff/state.rs
+index 760c4364f8777550db8acbd7c8e523b866441575..cc92dea9e5a16b6d1a35ebe723016f06d2447d38 100644
+--- a/crates/component/src/diff/state.rs
++++ b/crates/component/src/diff/state.rs
+@@ -7,9 +7,9 @@ use std::{
+ };
+ 
+ use gpui::{
+-    App, AppContext as _, Context, ElementId, EventEmitter, FocusHandle, Focusable, HighlightStyle,
+-    ListAlignment, ListOffset, ListState, Pixels, ScrollHandle, SharedString, Size, Subscription,
+-    Task, Window, WindowId, point, px,
++    App, Context, ElementId, EventEmitter, FocusHandle, Focusable, HighlightStyle, ListAlignment,
++    ListOffset, ListState, Pixels, ScrollHandle, SharedString, Size, Subscription, Task, Window,
++    WindowId, point, px,
+ };
+ use gpui_base::{TextSelection, TextSelectionContentKey, TextSelectionEvent, TextSelectionHandle};
+ 
+@@ -1506,17 +1506,20 @@ impl DiffState {
+             for (ix, file) in pending {
+                 let mut moved = highlighters.take();
+                 let custom = custom.clone();
+-                let (presentation, returned) = cx
+-                    .background_spawn(async move {
+-                        let presentation = FilePresentation::prepare(
+-                            &file,
+-                            options,
+-                            moved.get_or_insert_default(),
+-                            custom.as_ref(),
+-                        );
+-                        (presentation, moved)
+-                    })
+-                    .await;
++                let prepare = async move {
++                    let presentation = FilePresentation::prepare(
++                        &file,
++                        options,
++                        moved.get_or_insert_default(),
++                        custom.as_ref(),
++                    );
++                    (presentation, moved)
++                };
++                #[cfg(all(target_family = "wasm", feature = "tree-sitter"))]
++                let prepared = cx.foreground_executor().spawn(prepare);
++                #[cfg(not(all(target_family = "wasm", feature = "tree-sitter")))]
++                let prepared = cx.background_executor().spawn(prepare);
++                let (presentation, returned) = prepared.await;
+                 highlighters = returned;
+                 let current = this.update(cx, |state, cx| {
+                     if state.presentation_generation != generation {
+diff --git a/crates/component/src/highlighter/highlighter.rs b/crates/component/src/highlighter/highlighter.rs
+index 59c28420e73babc0b8c785b46761321ccde12d6f..d41930d6952a07ed3f33514fb07efd8ba541e326 100644
+--- a/crates/component/src/highlighter/highlighter.rs
++++ b/crates/component/src/highlighter/highlighter.rs
+@@ -5,9 +5,10 @@ use crate::highlighter::LanguageRegistry;
+ use anyhow::{Context, Result, anyhow};
+ use gpui::{HighlightStyle, SharedString};
+ use gpui_base::input::RopeExt as _;
++use instant::Instant;
+ use ropey::{ChunkCursor, Rope};
+ use std::sync::{Arc, OnceLock, mpsc};
+-use std::time::{Duration, Instant};
++use std::time::Duration;
+ use std::{
+     collections::{BTreeSet, HashMap},
+     ops::{ControlFlow, Range},
+@@ -851,7 +852,7 @@ impl SyntaxHighlighter {
+ 
+             if language_name.is_none() {
+                 language_name = query_match
+-                    .captures
++                    .captures()
+                     .iter()
+                     .find(|cap| Some(cap.index) == data.language_capture_index)
+                     .and_then(|capture| {
+@@ -875,7 +876,7 @@ impl SyntaxHighlighter {
+             };
+ 
+             let mut ranges = query_match
+-                .captures
++                .captures()
+                 .iter()
+                 .filter(|cap| Some(cap.index) == data.content_capture_index)
+                 .map(|capture| capture.node.range())
+@@ -1086,7 +1087,7 @@ impl SyntaxHighlighter {
+                     .iter()
+                     .any(|prop| prop.key.as_ref() == "highlight.allow-overlap");
+ 
+-                for cap in m.captures {
++                for cap in m.captures() {
+                     let node_range = cap.node.start_byte()..cap.node.end_byte();
+ 
+                     if !allow_overlapping_captures && node_range.start < last_end {
+@@ -1112,7 +1113,7 @@ impl SyntaxHighlighter {
+         let mut matches = query_cursor.matches(query, root_node, TextProvider(source));
+ 
+         while let Some(query_match) = matches.next() {
+-            for cap in query_match.captures {
++            for cap in query_match.captures() {
+                 let node = cap.node;
+ 
+                 let Some(highlight_name) = query.capture_names().get(cap.index as usize) else {
+diff --git a/crates/component/src/highlighter/languages.rs b/crates/component/src/highlighter/languages.rs
+index cecbb9b0da2eb3b08dae9a1b855f52320d339cb0..4ce9670ff3418b6597353636f32f63a1b332bc07 100644
+--- a/crates/component/src/highlighter/languages.rs
++++ b/crates/component/src/highlighter/languages.rs
+@@ -8,15 +8,15 @@ pub enum Language {
+     Plain,
+     #[cfg(feature = "tree-sitter-astro")]
+     Astro,
+-    #[cfg(feature = "tree-sitter-bash")]
++    #[cfg(all(feature = "tree-sitter-bash", not(target_family = "wasm")))]
+     Bash,
+-    #[cfg(feature = "tree-sitter-c")]
++    #[cfg(all(feature = "tree-sitter-c", not(target_family = "wasm")))]
+     C,
+-    #[cfg(feature = "tree-sitter-cmake")]
++    #[cfg(all(feature = "tree-sitter-cmake", not(target_family = "wasm")))]
+     CMake,
+-    #[cfg(feature = "tree-sitter-csharp")]
++    #[cfg(all(feature = "tree-sitter-csharp", not(target_family = "wasm")))]
+     CSharp,
+-    #[cfg(feature = "tree-sitter-cpp")]
++    #[cfg(all(feature = "tree-sitter-cpp", not(target_family = "wasm")))]
+     Cpp,
+     #[cfg(feature = "tree-sitter-css")]
+     Css,
+@@ -42,7 +42,7 @@ pub enum Language {
+     JsDoc,
+     #[cfg(feature = "tree-sitter-kotlin")]
+     Kotlin,
+-    #[cfg(feature = "tree-sitter-lua")]
++    #[cfg(all(feature = "tree-sitter-lua", not(target_family = "wasm")))]
+     Lua,
+     #[cfg(feature = "tree-sitter-make")]
+     Make,
+@@ -62,11 +62,11 @@ pub enum Language {
+     Rust,
+     #[cfg(feature = "tree-sitter-scala")]
+     Scala,
+-    #[cfg(feature = "tree-sitter-sql")]
++    #[cfg(all(feature = "tree-sitter-sql", not(target_family = "wasm")))]
+     Sql,
+     #[cfg(feature = "tree-sitter-svelte")]
+     Svelte,
+-    #[cfg(feature = "tree-sitter-swift")]
++    #[cfg(all(feature = "tree-sitter-swift", not(target_family = "wasm")))]
+     Swift,
+     #[cfg(feature = "tree-sitter-toml")]
+     Toml,
+@@ -97,15 +97,15 @@ impl Language {
+             Self::Plain => "text",
+             #[cfg(feature = "tree-sitter-astro")]
+             Self::Astro => "astro",
+-            #[cfg(feature = "tree-sitter-bash")]
++            #[cfg(all(feature = "tree-sitter-bash", not(target_family = "wasm")))]
+             Self::Bash => "bash",
+-            #[cfg(feature = "tree-sitter-c")]
++            #[cfg(all(feature = "tree-sitter-c", not(target_family = "wasm")))]
+             Self::C => "c",
+-            #[cfg(feature = "tree-sitter-cmake")]
++            #[cfg(all(feature = "tree-sitter-cmake", not(target_family = "wasm")))]
+             Self::CMake => "cmake",
+-            #[cfg(feature = "tree-sitter-csharp")]
++            #[cfg(all(feature = "tree-sitter-csharp", not(target_family = "wasm")))]
+             Self::CSharp => "csharp",
+-            #[cfg(feature = "tree-sitter-cpp")]
++            #[cfg(all(feature = "tree-sitter-cpp", not(target_family = "wasm")))]
+             Self::Cpp => "cpp",
+             #[cfg(feature = "tree-sitter-css")]
+             Self::Css => "css",
+@@ -131,7 +131,7 @@ impl Language {
+             Self::JsDoc => "jsdoc",
+             #[cfg(feature = "tree-sitter-kotlin")]
+             Self::Kotlin => "kotlin",
+-            #[cfg(feature = "tree-sitter-lua")]
++            #[cfg(all(feature = "tree-sitter-lua", not(target_family = "wasm")))]
+             Self::Lua => "lua",
+             #[cfg(feature = "tree-sitter-make")]
+             Self::Make => "make",
+@@ -151,11 +151,11 @@ impl Language {
+             Self::Rust => "rust",
+             #[cfg(feature = "tree-sitter-scala")]
+             Self::Scala => "scala",
+-            #[cfg(feature = "tree-sitter-sql")]
++            #[cfg(all(feature = "tree-sitter-sql", not(target_family = "wasm")))]
+             Self::Sql => "sql",
+             #[cfg(feature = "tree-sitter-svelte")]
+             Self::Svelte => "svelte",
+-            #[cfg(feature = "tree-sitter-swift")]
++            #[cfg(all(feature = "tree-sitter-swift", not(target_family = "wasm")))]
+             Self::Swift => "swift",
+             #[cfg(feature = "tree-sitter-toml")]
+             Self::Toml => "toml",
+@@ -181,15 +181,15 @@ impl Language {
+             "json" | "jsonc" => Some(Self::Json),
+             #[cfg(feature = "tree-sitter-astro")]
+             "astro" => Some(Self::Astro),
+-            #[cfg(feature = "tree-sitter-bash")]
++            #[cfg(all(feature = "tree-sitter-bash", not(target_family = "wasm")))]
+             "bash" | "sh" => Some(Self::Bash),
+-            #[cfg(feature = "tree-sitter-c")]
++            #[cfg(all(feature = "tree-sitter-c", not(target_family = "wasm")))]
+             "c" => Some(Self::C),
+-            #[cfg(feature = "tree-sitter-cmake")]
++            #[cfg(all(feature = "tree-sitter-cmake", not(target_family = "wasm")))]
+             "cmake" => Some(Self::CMake),
+-            #[cfg(feature = "tree-sitter-cpp")]
++            #[cfg(all(feature = "tree-sitter-cpp", not(target_family = "wasm")))]
+             "cpp" | "c++" => Some(Self::Cpp),
+-            #[cfg(feature = "tree-sitter-csharp")]
++            #[cfg(all(feature = "tree-sitter-csharp", not(target_family = "wasm")))]
+             "csharp" | "cs" => Some(Self::CSharp),
+             #[cfg(feature = "tree-sitter-css")]
+             "css" | "scss" => Some(Self::Css),
+@@ -215,7 +215,7 @@ impl Language {
+             "jsdoc" => Some(Self::JsDoc),
+             #[cfg(feature = "tree-sitter-kotlin")]
+             "kt" | "kts" | "ktm" | "kotlin" => Some(Self::Kotlin),
+-            #[cfg(feature = "tree-sitter-lua")]
++            #[cfg(all(feature = "tree-sitter-lua", not(target_family = "wasm")))]
+             "lua" => Some(Self::Lua),
+             #[cfg(feature = "tree-sitter-make")]
+             "make" | "makefile" => Some(Self::Make),
+@@ -235,11 +235,11 @@ impl Language {
+             "rust" | "rs" => Some(Self::Rust),
+             #[cfg(feature = "tree-sitter-scala")]
+             "scala" => Some(Self::Scala),
+-            #[cfg(feature = "tree-sitter-sql")]
++            #[cfg(all(feature = "tree-sitter-sql", not(target_family = "wasm")))]
+             "sql" => Some(Self::Sql),
+             #[cfg(feature = "tree-sitter-svelte")]
+             "svelte" => Some(Self::Svelte),
+-            #[cfg(feature = "tree-sitter-swift")]
++            #[cfg(all(feature = "tree-sitter-swift", not(target_family = "wasm")))]
+             "swift" => Some(Self::Swift),
+             #[cfg(feature = "tree-sitter-toml")]
+             "toml" => Some(Self::Toml),
+@@ -290,7 +290,7 @@ impl Language {
+                 languages.push("css");
+                 #[cfg(feature = "tree-sitter-html")]
+                 languages.push("html");
+-                #[cfg(feature = "tree-sitter-sql")]
++                #[cfg(all(feature = "tree-sitter-sql", not(target_family = "wasm")))]
+                 languages.push("sql");
+                 #[cfg(feature = "tree-sitter-typescript")]
+                 languages.push("typescript");
+@@ -311,7 +311,7 @@ impl Language {
+                 languages.push("css");
+                 #[cfg(feature = "tree-sitter-html")]
+                 languages.push("html");
+-                #[cfg(feature = "tree-sitter-sql")]
++                #[cfg(all(feature = "tree-sitter-sql", not(target_family = "wasm")))]
+                 languages.push("sql");
+                 languages.push("typescript");
+                 #[cfg(feature = "tree-sitter-javascript")]
+@@ -419,14 +419,14 @@ impl Language {
+                 "",
+                 "",
+             ),
+-            #[cfg(feature = "tree-sitter-c")]
++            #[cfg(all(feature = "tree-sitter-c", not(target_family = "wasm")))]
+             Self::C => (
+                 tree_sitter_c::LANGUAGE,
+                 tree_sitter_c::HIGHLIGHT_QUERY,
+                 "",
+                 "",
+             ),
+-            #[cfg(feature = "tree-sitter-cpp")]
++            #[cfg(all(feature = "tree-sitter-cpp", not(target_family = "wasm")))]
+             Self::Cpp => (
+                 tree_sitter_cpp::LANGUAGE,
+                 tree_sitter_cpp::HIGHLIGHT_QUERY,
+@@ -475,7 +475,7 @@ impl Language {
+                 "",
+                 tree_sitter_ruby::LOCALS_QUERY,
+             ),
+-            #[cfg(feature = "tree-sitter-bash")]
++            #[cfg(all(feature = "tree-sitter-bash", not(target_family = "wasm")))]
+             Self::Bash => (
+                 tree_sitter_bash::LANGUAGE,
+                 tree_sitter_bash::HIGHLIGHT_QUERY,
+@@ -496,7 +496,7 @@ impl Language {
+                 "",
+                 "",
+             ),
+-            #[cfg(feature = "tree-sitter-swift")]
++            #[cfg(all(feature = "tree-sitter-swift", not(target_family = "wasm")))]
+             Self::Swift => (tree_sitter_swift::LANGUAGE, "", "", ""),
+             #[cfg(feature = "tree-sitter-scala")]
+             Self::Scala => (
+@@ -505,14 +505,14 @@ impl Language {
+                 "",
+                 tree_sitter_scala::LOCALS_QUERY,
+             ),
+-            #[cfg(feature = "tree-sitter-sql")]
++            #[cfg(all(feature = "tree-sitter-sql", not(target_family = "wasm")))]
+             Self::Sql => (
+                 tree_sitter_sequel::LANGUAGE,
+                 tree_sitter_sequel::HIGHLIGHTS_QUERY,
+                 "",
+                 "",
+             ),
+-            #[cfg(feature = "tree-sitter-csharp")]
++            #[cfg(all(feature = "tree-sitter-csharp", not(target_family = "wasm")))]
+             Self::CSharp => (tree_sitter_c_sharp::LANGUAGE, "", "", ""),
+             #[cfg(feature = "tree-sitter-graphql")]
+             Self::GraphQL => (tree_sitter_graphql::LANGUAGE, "", "", ""),
+@@ -525,7 +525,7 @@ impl Language {
+                 "",
+                 "",
+             ),
+-            #[cfg(feature = "tree-sitter-cmake")]
++            #[cfg(all(feature = "tree-sitter-cmake", not(target_family = "wasm")))]
+             Self::CMake => (tree_sitter_cmake::LANGUAGE, "", "", ""),
+             #[cfg(feature = "tree-sitter-typescript")]
+             Self::TypeScript => (
+@@ -590,7 +590,7 @@ impl Language {
+                 "",
+                 "",
+             ),
+-            #[cfg(feature = "tree-sitter-lua")]
++            #[cfg(all(feature = "tree-sitter-lua", not(target_family = "wasm")))]
+             Self::Lua => (
+                 tree_sitter_lua::LANGUAGE,
+                 include_str!("languages/lua/highlights.scm"),
+@@ -640,17 +640,17 @@ mod tests {
+         assert_eq!(Language::Rust.name(), "rust");
+         #[cfg(feature = "tree-sitter-go")]
+         assert_eq!(Language::Go.name(), "go");
+-        #[cfg(feature = "tree-sitter-c")]
++        #[cfg(all(feature = "tree-sitter-c", not(target_family = "wasm")))]
+         assert_eq!(Language::C.name(), "c");
+-        #[cfg(feature = "tree-sitter-cpp")]
++        #[cfg(all(feature = "tree-sitter-cpp", not(target_family = "wasm")))]
+         assert_eq!(Language::Cpp.name(), "cpp");
+-        #[cfg(feature = "tree-sitter-sql")]
++        #[cfg(all(feature = "tree-sitter-sql", not(target_family = "wasm")))]
+         assert_eq!(Language::Sql.name(), "sql");
+         #[cfg(feature = "tree-sitter-javascript")]
+         assert_eq!(Language::JavaScript.name(), "javascript");
+         #[cfg(feature = "tree-sitter-zig")]
+         assert_eq!(Language::Zig.name(), "zig");
+-        #[cfg(feature = "tree-sitter-csharp")]
++        #[cfg(all(feature = "tree-sitter-csharp", not(target_family = "wasm")))]
+         assert_eq!(Language::CSharp.name(), "csharp");
+         #[cfg(feature = "tree-sitter-typescript")]
+         assert_eq!(Language::TypeScript.name(), "typescript");
+diff --git a/crates/component/src/highlighter/registry.rs b/crates/component/src/highlighter/registry.rs
+index fc4cd2a7767f88497b14b27c4286cf426b72b007..1464ab921bc5ff890a76d04e665dfdc6af75adf9 100644
+--- a/crates/component/src/highlighter/registry.rs
++++ b/crates/component/src/highlighter/registry.rs
+@@ -543,9 +543,8 @@ pub struct LanguageRegistry {
+ }
+ 
+ impl LanguageRegistry {
+-    /// Returns the singleton instance of the `LanguageRegistry` with default languages and themes.
+-    pub fn singleton() -> &'static LazyLock<LanguageRegistry> {
+-        static INSTANCE: LazyLock<LanguageRegistry> = LazyLock::new(|| LanguageRegistry {
++    fn with_default_languages() -> Self {
++        Self {
+             languages: Mutex::new(
+                 languages::Language::all()
+                     .map(|language| (language.name().into(), language.config()))
+@@ -553,10 +552,29 @@ impl LanguageRegistry {
+             ),
+             parser_factories: Mutex::new(HashMap::new()),
+             generation: AtomicU64::new(0),
+-        });
++        }
++    }
++
++    /// Returns the singleton instance of the `LanguageRegistry` with default languages and themes.
++    #[cfg(not(target_family = "wasm"))]
++    pub fn singleton() -> &'static LazyLock<LanguageRegistry> {
++        static INSTANCE: LazyLock<LanguageRegistry> =
++            LazyLock::new(LanguageRegistry::with_default_languages);
+         &INSTANCE
+     }
+ 
++    #[cfg(target_family = "wasm")]
++    pub fn singleton() -> &'static LazyLock<LanguageRegistry> {
++        thread_local! {
++            static INSTANCE: &'static LazyLock<LanguageRegistry> = {
++                let registry: LazyLock<LanguageRegistry> =
++                    LazyLock::new(LanguageRegistry::with_default_languages);
++                Box::leak(Box::new(registry))
++            };
++        }
++        INSTANCE.with(|registry| *registry)
++    }
++
+     /// Registers a new language configuration to the registry.
+     pub fn register(&self, lang: &str, config: &GrammarConfig) {
+         self.languages
+diff --git a/crates/component/src/input/syntax_context.rs b/crates/component/src/input/syntax_context.rs
+index 61f7dbce96cdf4dc4d012ac449eab7d28c0738a4..23739760a0e462474357ff81b6808b675c2d974a 100644
+--- a/crates/component/src/input/syntax_context.rs
++++ b/crates/component/src/input/syntax_context.rs
+@@ -84,7 +84,7 @@ impl SyntaxContextProvider for TreeSitterSyntaxContext {
+             .as_ref()
+             .is_none_or(|(cached_text, _)| cached_text != text)
+         {
+-            let start = std::time::Instant::now();
++            let start = instant::Instant::now();
+             let mut progress = |_: &tree_sitter::ParseState| -> ControlFlow<()> {
+                 if start.elapsed() > Self::PARSE_BUDGET {
+                     ControlFlow::Break(())
+@@ -198,7 +198,7 @@ mod tests {
+         }
+     }
+ 
+-    #[cfg(feature = "tree-sitter-cmake")]
++    #[cfg(all(feature = "tree-sitter-cmake", not(target_family = "wasm")))]
+     #[test]
+     fn closed_bracket_comment_is_not_a_line_comment() {
+         use gpui_base::input::{Rope, SyntaxContext};
+diff --git a/crates/story-web/Cargo.toml b/crates/story-web/Cargo.toml
+index 6d3152e3649529edee6d9c16b7bb40f6d76ac330..73cfd1e633786a8dcfcdf874bc73db8b8cacf768 100644
+--- a/crates/story-web/Cargo.toml
++++ b/crates/story-web/Cargo.toml
+@@ -24,3 +24,4 @@ workspace = true
+ 
+ [features]
+ gpui-fast = ["gpui-kit/gpui-fast"]
++tree-sitter = ["gpui-component-story/tree-sitter"]
+diff --git a/crates/story-web/README.md b/crates/story-web/README.md
+index 2cb2e2229f4eea9488dccba1b964096014c5e03d..483e925e772de6a688f3bace34f17ccca6c54feb 100644
+--- a/crates/story-web/README.md
++++ b/crates/story-web/README.md
+@@ -36,6 +36,18 @@ This will:
+ 2. Generate JavaScript bindings
+ 3. Start Vite dev server on http://localhost:3000
+ 
++### Highlight with tree-sitter
++
++The Editor story highlights with `syntect` in the browser. To build the gallery with the
++tree-sitter grammars instead, pass the `tree-sitter` feature:
++
++```bash
++FEATURES=tree-sitter make dev
++```
++
++The grammars are C, so this needs a clang that targets wasm32 and `llvm-ar`; see
++`script/wasm-cc-env` and the WebAssembly guide.
++
+ ## Production Build
+ 
+ ### Build for Production
+diff --git a/crates/story-web/scripts/build-wasm.sh b/crates/story-web/scripts/build-wasm.sh
+index 929667528460a0a8acd8930d39bb72984874c400..99a992da39bcf09223dcf4f035c0398114a38d6b 100755
+--- a/crates/story-web/scripts/build-wasm.sh
++++ b/crates/story-web/scripts/build-wasm.sh
+@@ -20,12 +20,21 @@ if [[ "$1" == "--release" ]]; then
+     echo -e "${YELLOW}Building in release mode${NC}"
+ fi
+ 
++FEATURE_FLAGS=()
++if [[ -n "${FEATURES:-}" ]]; then
++    FEATURE_FLAGS=(--features "$FEATURES")
++    echo -e "${YELLOW}Building with features: $FEATURES${NC}"
++fi
++
+ # Step 1: Build WASM
+ echo -e "${GREEN}Step 1: Building WASM...${NC}"
+ cd "$PROJECT_ROOT"
++if [[ ",${FEATURES:-}," == *",tree-sitter,"* ]]; then
++    source ../../script/wasm-cc-env
++fi
+ # ButtonStory's large render tree needs more than wasm-ld's default 1 MiB
+ # stack in debug builds. Apply this at the final link, for both build modes.
+-cargo rustc -p gpui-component-story-web --target wasm32-unknown-unknown $RELEASE_FLAG -- \
++cargo rustc -p gpui-component-story-web --target wasm32-unknown-unknown $RELEASE_FLAG "${FEATURE_FLAGS[@]}" -- \
+     -C link-arg=-zstack-size=8388608
+ 
+ # Determine the build directory
+diff --git a/crates/story/src/stories/editor_story.rs b/crates/story/src/stories/editor_story.rs
+index b40bc2e23eb53e4a6244fdec524a355510a03512..547debb3472585cc294e6e6c07d3407bf44bb4f2 100644
+--- a/crates/story/src/stories/editor_story.rs
++++ b/crates/story/src/stories/editor_story.rs
+@@ -151,7 +151,7 @@ impl EditorStory {
+         // WASM ships without tree-sitter grammars, so it swaps in the `syntect`
+         // adapter below. Native keeps the built-in tree-sitter highlighter,
+         // which parses incrementally on a background thread.
+-        #[cfg(target_family = "wasm")]
++        #[cfg(all(target_family = "wasm", not(feature = "tree-sitter")))]
+         {
+             editor_state.update(cx, |state, cx| {
+                 state.set_highlighter_factory(
+@@ -539,7 +539,7 @@ impl CompletionProvider for StoryCompletions {
+ 
+ /// A minimal [`InputHighlighter`] built on `syntect`, for WASM builds, which
+ /// ship without tree-sitter grammars.
+-#[cfg(target_family = "wasm")]
++#[cfg(all(target_family = "wasm", not(feature = "tree-sitter")))]
+ mod syntect_highlighter {
+     use std::{collections::HashMap, ops::Range, sync::LazyLock};
+ 
+diff --git a/examples/editor/Cargo.toml b/examples/editor/Cargo.toml
+index 7f9840f6d9f3b027cf092a13f544647e62f012f4..46a2bd0ad54446426b4d99190a62228bd27ca793 100644
+--- a/examples/editor/Cargo.toml
++++ b/examples/editor/Cargo.toml
+@@ -13,7 +13,7 @@ jiff = "1.0"
+ lsp-types.workspace = true
+ serde_json.workspace = true
+ smol.workspace = true
+-tree-sitter-navi = "0.2.3"
++tree-sitter-navi = "0.2.4"
+ 
+ [lints]
+ workspace = true
+diff --git a/script/wasm-cc-env b/script/wasm-cc-env
+new file mode 100644
+index 0000000000000000000000000000000000000000..0b4a48e0600e5ff67196e3ecb04e7d920174ba78
+--- /dev/null
++++ b/script/wasm-cc-env
+@@ -0,0 +1,55 @@
++wasm_cc_env() {
++    if [ -z "${CC_wasm32_unknown_unknown:-}" ]; then
++        if ! command -v clang >/dev/null 2>&1; then
++            echo "wasm-cc-env: clang not found (Xcode Command Line Tools on macOS, the clang package on Linux)" >&2
++            return 1
++        fi
++        if ! clang --print-targets 2>/dev/null | grep -q wasm32; then
++            echo "wasm-cc-env: $(command -v clang) has no wasm32 target" >&2
++            return 1
++        fi
++        export CC_wasm32_unknown_unknown=clang
++    fi
++
++    if [ -z "${AR_wasm32_unknown_unknown:-}" ]; then
++        local host llvm_ar
++        host=$(rustc -vV | sed -n 's/^host: //p')
++        llvm_ar="$(rustc --print sysroot)/lib/rustlib/$host/bin/llvm-ar"
++        if [ ! -x "$llvm_ar" ]; then
++            llvm_ar=$(command -v llvm-ar 2>/dev/null)
++        fi
++        if [ -z "$llvm_ar" ]; then
++            echo "wasm-cc-env: llvm-ar not found; run \`rustup component add llvm-tools\`" >&2
++            return 1
++        fi
++        export AR_wasm32_unknown_unknown="$llvm_ar"
++    fi
++
++    if ! command -v jq >/dev/null 2>&1; then
++        echo "wasm-cc-env: jq not found" >&2
++        return 1
++    fi
++    local metadata manifest headers
++    metadata=$(cargo metadata --format-version 1 --locked --filter-platform wasm32-unknown-unknown) || {
++        echo "wasm-cc-env: \`cargo metadata --locked\` failed; run it from the workspace, with Cargo.lock up to date" >&2
++        return 1
++    }
++    manifest=$(printf '%s' "$metadata" |
++        jq -r 'first(.packages[] | select(.name == "tree-sitter-language") | .manifest_path) // empty')
++    if [ -z "$manifest" ]; then
++        echo "wasm-cc-env: tree-sitter-language is not a dependency of this workspace on wasm32-unknown-unknown" >&2
++        return 1
++    fi
++    headers="${manifest%/Cargo.toml}/wasm/include"
++    case " ${CFLAGS_wasm32_unknown_unknown:-} " in
++    *" -I$headers "*) ;;
++    *) export CFLAGS_wasm32_unknown_unknown="${CFLAGS_wasm32_unknown_unknown:+$CFLAGS_wasm32_unknown_unknown }-I$headers" ;;
++    esac
++}
++
++if wasm_cc_env; then
++    unset -f wasm_cc_env
++else
++    unset -f wasm_cc_env
++    return 1
++fi
+diff --git a/website/component/editor.md b/website/component/editor.md
+index 2b0dc6e9116b12e59f0f78f5a0e9cc2165b689b1..a7eb835e014d56106c2eac18edca45a705884cce 100644
+--- a/website/component/editor.md
++++ b/website/component/editor.md
+@@ -122,6 +122,10 @@ gpui-kit = { version = "{{gpui_kit_version}}", features = ["syntect"] }
+ 
+ With both enabled, `tree-sitter` is used.
+ 
++Both build for WebAssembly. There the `tree-sitter` grammars need a C toolchain
++that targets wasm32, and eight of them are not available yet; see
++[WebAssembly](../docs/webassembly.md#syntax-highlighting).
++
+ ## Editor options
+ 
+ ```rust
+diff --git a/website/docs/webassembly.md b/website/docs/webassembly.md
+index ed54421c17d42306b414a51b11fd44e14b26eb8d..1f9c9294ae52c699d5fc0aa84bc5d68f0a53b5e6 100644
+--- a/website/docs/webassembly.md
++++ b/website/docs/webassembly.md
+@@ -79,6 +79,35 @@ cx.refresh_windows();
+ 
+ Use a raw supported font file such as the TTF in GPUI Web's `examples/hello_web/dynamic_fonts.rs`, not a font-service CSS response that may refer to WOFF2 subsets. That example uses `cx.on_missing_glyphs(...) -> Subscription` to request a font when needed, retains the subscription and download task, checks for a successful HTTP status and nonempty body, then calls `add_fonts` and `refresh_windows`. Font parsing is checked by `add_fonts`; an HTTP 200 alone does not establish that the response is a usable font. Missing-glyph reports are deduplicated and bounded; a dropped report does not schedule its own retry. The gallery currently **does not** download fonts this way; it embeds subsets and uses Canvas fallback. GPUI Web applies Canvas fallback before reporting missing glyphs, so CJK it draws successfully through Canvas will **not** trigger `on_missing_glyphs`. For high-quality CJK typography, decide which font to fetch from your content or language selection, show a loading or failure state, and test layout after installation. A font downloaded from another origin must also satisfy that host's browser CORS policy.
+ 
++## Syntax highlighting
++
++Both highlighters of the [Editor](../component/editor.md) build for the browser. `syntect` needs nothing beyond the Rust target. The `tree-sitter` features use the same grammars and highlight queries as a native build, so code is marked the same way on both. The grammars are C, and building them for `wasm32-unknown-unknown` needs:
++
++- a clang with the WebAssembly target: the Xcode Command Line Tools on macOS, the `clang` package on Linux;
++- `llvm-ar`, from `rustup component add llvm-tools`. The system `ar` on macOS writes archives that the WebAssembly linker cannot read;
++- the libc headers that the `tree-sitter-language` crate ships for WebAssembly. Most grammar crates do not add them themselves.
++
++[`script/wasm-cc-env`](https://github.com/longbridge/gpui-kit/blob/main/script/wasm-cc-env) sets the three variables the `cc` crate reads for that target — `CC_wasm32_unknown_unknown`, `AR_wasm32_unknown_unknown` and `CFLAGS_wasm32_unknown_unknown` — leaving any you have already set. Source it from inside the workspace you build, so the headers match its `Cargo.lock`:
++
++```sh
++source script/wasm-cc-env
++cargo build --target wasm32-unknown-unknown --release
++```
++
++To try it in the gallery, build it with its `tree-sitter` feature from `crates/story-web`: `FEATURES=tree-sitter make dev`. The published gallery highlights with `syntect`.
++
++Eight languages are not available on WebAssembly yet, because their grammar crates do not build for that target. Their features are accepted there and add no language, so `tree-sitter-languages` still builds; text in those languages is shown without highlighting.
++
++| Feature | Why the grammar does not build for WebAssembly |
++| --- | --- |
++| `tree-sitter-c`, `tree-sitter-csharp`, `tree-sitter-cmake`, `tree-sitter-lua`, `tree-sitter-sql` | The crate's build script compiles libc stubs that `tree-sitter-language` turned into an `#error` for tree-sitter 0.26. |
++| `tree-sitter-bash`, `tree-sitter-swift` | The scanner calls `isdigit` or `exit`, which tree-sitter does not provide to scanners on WebAssembly. |
++| `tree-sitter-cpp` | The scanner needs `wchar_t` and `static_assert`, which the WebAssembly headers do not declare where it includes them. |
++
++On WebAssembly a tree-sitter language belongs to the thread that created it, so `LanguageRegistry::singleton()` returns the registry of the current thread. Register a custom language on the thread that highlights; in a single-threaded build such as the gallery there is only one. Code folding is off in the browser with either highlighter.
++
++Every grammar adds its parse tables to the module. In a release build of the gallery, the 27 languages that build for WebAssembly make the `.wasm` file 21.7 MB larger than with `syntect`, and 1.9 MB larger after gzip: 51.5 MB (10.9 MB gzipped) against 29.8 MB (9.0 MB gzipped). Enable the languages an application needs rather than `tree-sitter-languages`.
++
+ ## A smaller GPUI Base example
+ 
+ The [GPUI Base WASM showcase](https://github.com/longbridge/gpui-kit/tree/main/crates/base/examples/wasm) compiles the same [showcase views](https://github.com/longbridge/gpui-kit/tree/main/crates/base/examples/showcase) used by its native example. To run it independently from the repository root, install the matching `wasm-bindgen-cli` if you have not already done so:
+diff --git a/website/zh-CN/component/editor.md b/website/zh-CN/component/editor.md
+index e66716f35dbe8b51bbce99f749144fa6244030ab..1c379b181be3a4d96e279ae1e760fb5f28644e90 100644
+--- a/website/zh-CN/component/editor.md
++++ b/website/zh-CN/component/editor.md
+@@ -102,6 +102,8 @@ gpui-kit = { version = "{{gpui_kit_version}}", features = ["syntect"] }
+ 
+ 两者同时启用时使用 `tree-sitter`。
+ 
++两者都可以构建到 WebAssembly。在该目标上，`tree-sitter` 的 grammar 需要支持 wasm32 的 C 工具链，并且其中八种暂时无法使用，详见 [WebAssembly](../docs/webassembly.md#语法高亮)。
++
+ ## 编辑器选项
+ 
+ ```rust
+diff --git a/website/zh-CN/docs/webassembly.md b/website/zh-CN/docs/webassembly.md
+index 3e0da95e67f634842d64762f703a4ddbe4eceba5..e2bbc93943116f685fb2015c2e61f5e6b1ab72ee 100644
+--- a/website/zh-CN/docs/webassembly.md
++++ b/website/zh-CN/docs/webassembly.md
+@@ -79,6 +79,35 @@ cx.refresh_windows();
+ 
+ 使用 GPUI Web `examples/hello_web/dynamic_fonts.rs` 所示的原始 TTF 等受支持字体文件，不要把字体服务的 CSS 响应直接传给文本系统；CSS 可能引用 WOFF2 子集。该示例通过 `cx.on_missing_glyphs(...) -> Subscription` 在缺字时请求字体，保留订阅与下载 task，检查 HTTP 状态是否成功、响应体是否非空，再调用 `add_fonts` 与 `refresh_windows`。字体是否能解析由 `add_fonts` 检查；仅有 HTTP 200 不能证明响应是可用字体。缺字报告会去重，队列有长度限制；报告丢弃后不会自动安排重试。当前画廊**没有**按需下载字体，而是打包子集并使用 Canvas 回退。GPUI Web 先应用 Canvas 回退，再报告缺字；成功由 Canvas 绘制的中日韩文字**不会**触发 `on_missing_glyphs`。如果需要准确的中日韩排版，应根据内容或语言选择决定要下载哪种字体，提供加载和失败状态，并在安装后检查布局。跨域字体下载还必须符合对方服务器的 CORS 策略。
+ 
++## 语法高亮
++
++[编辑器](../component/editor.md)的两种高亮引擎都可以构建到浏览器中。`syntect` 除 Rust 目标外不需要其他工具。`tree-sitter` 系列 feature 使用与原生构建相同的 grammar 和高亮查询，因此两端对代码的标记一致。grammar 用 C 编写，为 `wasm32-unknown-unknown` 构建时需要：
++
++- 支持 WebAssembly 目标的 clang：macOS 上来自 Xcode Command Line Tools，Linux 上来自 `clang` 软件包；
++- `llvm-ar`，通过 `rustup component add llvm-tools` 安装。macOS 系统自带的 `ar` 生成的归档文件，WebAssembly 链接器无法读取；
++- `tree-sitter-language` crate 为 WebAssembly 提供的 libc 头文件。大多数 grammar crate 不会自行添加这些头文件。
++
++[`script/wasm-cc-env`](https://github.com/longbridge/gpui-kit/blob/main/script/wasm-cc-env) 会设置 `cc` crate 针对该目标读取的三个变量：`CC_wasm32_unknown_unknown`、`AR_wasm32_unknown_unknown` 和 `CFLAGS_wasm32_unknown_unknown`；已经设置的变量保持不变。请在要构建的 workspace 内 `source` 它，使头文件与该 workspace 的 `Cargo.lock` 一致：
++
++```sh
++source script/wasm-cc-env
++cargo build --target wasm32-unknown-unknown --release
++```
++
++如需在画廊中试用，在 `crates/story-web` 中启用它的 `tree-sitter` feature 构建：`FEATURES=tree-sitter make dev`。已发布的画廊仍使用 `syntect` 高亮。
++
++有八种语言目前无法在 WebAssembly 上使用，原因是它们的 grammar crate 无法为该目标构建。在 WebAssembly 上可以启用这些 feature，但不会添加对应语言，所以 `tree-sitter-languages` 仍能构建；这些语言的文本显示为无高亮的纯文本。
++
++| Feature | grammar 无法为 WebAssembly 构建的原因 |
++| --- | --- |
++| `tree-sitter-c`、`tree-sitter-csharp`、`tree-sitter-cmake`、`tree-sitter-lua`、`tree-sitter-sql` | crate 的构建脚本会编译 libc 桩文件，而 `tree-sitter-language` 已把这些文件改为面向 tree-sitter 0.26 的 `#error`。 |
++| `tree-sitter-bash`、`tree-sitter-swift` | 扫描器调用了 `isdigit` 或 `exit`，tree-sitter 在 WebAssembly 上不向扫描器提供这些函数。 |
++| `tree-sitter-cpp` | 扫描器需要 `wchar_t` 和 `static_assert`，而 WebAssembly 头文件在它包含的位置没有声明这两者。 |
++
++在 WebAssembly 上，tree-sitter 语言属于创建它的线程，因此 `LanguageRegistry::singleton()` 返回当前线程的注册表。请在执行高亮的线程上注册自定义语言；像画廊这样的单线程构建只有一个线程。无论使用哪种高亮引擎，浏览器中都不支持代码折叠。
++
++每个 grammar 都会把自己的解析表加入模块。在画廊的 release 构建中，与 `syntect` 相比，可为 WebAssembly 构建的 27 种语言使 `.wasm` 文件增大 21.7 MB，gzip 后增大 1.9 MB：前者为 51.5 MB（gzip 后 10.9 MB），后者为 29.8 MB（gzip 后 9.0 MB）。应用应只启用需要的语言，而不是 `tree-sitter-languages`。
++
+ ## 更小的 GPUI Base 示例
+ 
+ [GPUI Base WASM 示例](https://github.com/longbridge/gpui-kit/tree/main/crates/base/examples/wasm)与原生示例共用同一套[展示视图](https://github.com/longbridge/gpui-kit/tree/main/crates/base/examples/showcase)。从仓库根目录单独运行时，如果尚未安装匹配版本的 `wasm-bindgen-cli`，请一并安装：
