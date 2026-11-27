@@ -7,20 +7,32 @@
  *                    no permission or no companion → the demo's invented projects (./demo) under its «Example»
  *                    notice; the companion connected (or winning its port back) → the companion (./companion)
  *   Autosave         when an edit is written (./autosave.ts): a pause after the last change, at once on leaving
+ *   WorkspaceLayout  how an open project's parts are arranged (src/app/projects/workspaceLayout.ts, D35): the side
+ *                    panel with Files and Commit, the editor, History and Find in files below (`SidePanels`)
+ *   LayoutMemory     where that arrangement remembers its panels (./layoutMemory.ts): chrome.storage.local with a
+ *                    localStorage copy for the first render
  */
 import { AUTOSAVE_DELAY_MS } from './autosave';
 import { companionBackend } from './companion/backend';
 import { nativeLink } from './companion/link';
 import { createConnection } from './connection';
 import { demoBackend } from './demo/backend';
+import { chromeLayoutMemory } from './layoutMemory';
 import { chromePermission } from './permission';
+import { SidePanels } from '../app/projects/SidePanels';
+import type { WorkspaceLayout } from '../app/projects/workspaceLayout';
 import type { ConnectionState, ProjectBackend, ProjectBackendFactory } from './backend';
 import type { CompanionConnection } from './connection';
+import type { LayoutMemory } from './layoutMemory';
 
 export interface ProjectsBehaviors {
   backend: ProjectBackendFactory;
   /** How long an edit waits for the typing to pause before it is written. */
   autosaveDelayMs: number;
+  /** How an open project's parts are arranged. */
+  layout: WorkspaceLayout;
+  /** Where the arrangement remembers its panels. */
+  layoutMemory: LayoutMemory;
 }
 
 /** The states in which the page shows the companion's projects; in every other one the demo's. */
@@ -83,4 +95,6 @@ const chosen: ProjectBackendFactory = Object.assign(
 export const projectsBehaviors = (): ProjectsBehaviors => ({
   backend: chosen,
   autosaveDelayMs: AUTOSAVE_DELAY_MS,
+  layout: SidePanels,
+  layoutMemory: chromeLayoutMemory(),
 });
