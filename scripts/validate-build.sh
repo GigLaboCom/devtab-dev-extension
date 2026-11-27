@@ -15,12 +15,18 @@
 #       (extension/src/toolbar/index.ts, read by scripts/toolbar-button.mjs): `action.default_popup` is its popup page or
 #       absent, and the shipped pages are exactly these — without a popup no popup page ships and no script nothing
 #       loads; no side panel, other overrides, content scripts, web-accessible resources…
-#   10  permissions: `storage` plus exactly what the start page's parts declare (required and optional — read from
-#       their definitions by scripts/start-parts.mjs; an optional one is never required), no host permissions — in particular no
-#       `nativeMessaging` while the Projects section runs on its demo (no companion yet)
+#   10  permissions: `storage` plus exactly what the start page's parts and the main page's sections declare (required
+#       and optional — read from their definitions by scripts/permissions.mjs; an optional one is never required), no
+#       host permissions; `nativeMessaging` only in `optional_permissions` and only as the Projects section declares it
+#       (extension/src/projects/permission.ts)
 #   11  no remote hosts in the built JS beyond a short allowlist (Chrome Web Store: no remotely hosted code)
 #   12  CSP exactly the one manifest.config.ts declares (spikes/extension-e2e's minimum + the iframe pair); no inline
-#       scripts or styles; a service worker that loads no DOM code; no Native Messaging code
+#       scripts or styles; a service worker that loads no DOM code; Native Messaging code (`connectNative`,
+#       `nativeMessaging`) only in the Projects page's chunk and what it imports statically (found by its marker
+#       DEVTAB_PROJECTS_CHUNK), none reachable from the service worker, the start route, the popup or the editor page,
+#       and no `sendNativeMessage` at all — hygiene that keeps the code in one place, not a boundary: the permission
+#       holds for the whole origin, and the companion's supervisor is what protects (the companion's specification
+#       §8.7, S17)
 #   13  the editor module: exactly one .wasm — the one packages/review-wasm/pkg holds (sha256) — loaded by the editor
 #       page only; the main page's chunks stay free of it (D3: the wasm loads lazily, the tools never wait for it).
 #       Which module is the highlighter's choice (extension/src/highlighter as written, or the DEVTAB_VARIANT the build
@@ -67,14 +73,17 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 PRODUCT_JSON="$ROOT/extension/product.json"
 # The expected name and description: the one place they live.
 EXPECTED_NAME="$(jq -r '.name' "$PRODUCT_JSON")"
-# Manifest permissions: `storage` (the page's own) plus what the start page's parts declare as required; optional
-# permissions: exactly what the parts declare as optional (each with an install warning, asked for when the user turns
-# its part on). The parts' definitions (extension/src/start/parts, with the reason for each permission) are the one
-# source; scripts/start-parts.mjs reads them. A manifest permission no part declares, or a declared one the manifest
-# lacks, fails Check 10.
-START_PARTS_JSON="$(node "$ROOT/scripts/start-parts.mjs")" || { echo -e "${RED}ERROR: scripts/start-parts.mjs failed${NC}"; exit 1; }
-ALLOWED_PERMISSIONS="storage $(jq -r '.required | join(" ")' <<<"$START_PARTS_JSON")"
-ALLOWED_OPTIONAL_PERMISSIONS="$(jq -r '.optional | join(" ")' <<<"$START_PARTS_JSON")"
+# Manifest permissions: `storage` (the page's own) plus what the start page's parts and the main page's sections declare
+# as required; optional permissions: exactly what they declare as optional (asked for when the user turns a part on, or
+# connects the companion in the Projects section). The definitions (extension/src/start/parts and
+# extension/src/app/sectionPermissions.ts, with the reason for each permission) are the one source;
+# scripts/permissions.mjs reads them. A manifest permission nothing declares, or a declared one the manifest lacks,
+# fails Check 10.
+PERMISSIONS_JSON="$(node "$ROOT/scripts/permissions.mjs")" || { echo -e "${RED}ERROR: scripts/permissions.mjs failed${NC}"; exit 1; }
+ALLOWED_PERMISSIONS="storage $(jq -r '.required | join(" ")' <<<"$PERMISSIONS_JSON")"
+ALLOWED_OPTIONAL_PERMISSIONS="$(jq -r '.optional | join(" ")' <<<"$PERMISSIONS_JSON")"
+# Who may declare `nativeMessaging`: the Projects section, as optional (Check 10).
+NATIVE_DECLARED="$(jq -r '[.sources[] | select(.name == "nativeMessaging") | "\(.kind):\(.id):\(.optional)"] | join(" ")' <<<"$PERMISSIONS_JSON")"
 # The toolbar button the build must carry: the definition chosen in extension/src/toolbar/index.ts — its popup page, or
 # none (a click goes to the service worker). Checks 9 and 16.
 TOOLBAR_JSON="$(node "$ROOT/scripts/toolbar-button.mjs")" || { echo -e "${RED}ERROR: scripts/toolbar-button.mjs failed${NC}"; exit 1; }
@@ -449,6 +458,22 @@ walk_chunks() {
             | sed -E 's/^new URL\([[:space:]]*["'"'"']([^"'"'"']+)["'"'"'].*$/\1/')
     done
 }
+static_chunks() {  # like walk_chunks, but static imports only: `import(` (a lazy chunk) is not followed
+    local -a queue=("$@")
+    local -A seen=()
+    local f ref
+    while [ ${#queue[@]} -gt 0 ]; do
+        f="${queue[0]}"; queue=("${queue[@]:1}")
+        [ -n "${seen[$f]:-}" ] && continue
+        seen[$f]=1
+        [ -f "$f" ] || continue
+        printf '%s\n' "$f"
+        while IFS= read -r ref; do
+            queue+=("$(norm "$(dirname "$f")/$ref")")
+        done < <(grep -oE '(from|import)[[:space:]]*["'"'"']\.{1,2}/[^"'"'"']+\.js["'"'"']' "$f" \
+            | sed -E 's/^.*["'"'"'](\.{1,2}\/[^"'"'"']+)["'"'"']$/\1/')
+    done
+}
 # The scripts a page loads (its <script src> and modulepreload <link>s), as absolute paths.
 page_scripts() {
     local html="$1" ref
@@ -551,16 +576,26 @@ for perm in $ALLOWED_OPTIONAL_PERMISSIONS; do
     jq -e --arg p "$perm" '(.optional_permissions // []) | index($p)' "$MANIFEST" > /dev/null \
         || MISSING_DECLARED+="$perm (optional) "
 done
-if [ ${#BAD_PERMS[@]} -gt 0 ]; then
+# `nativeMessaging`: optional only, and only as the Projects section declares it (the companion's specification §8.7).
+NATIVE_ERRORS=()
+jq -e '(.permissions // []) | index("nativeMessaging")' "$MANIFEST" > /dev/null \
+    && NATIVE_ERRORS+=("required permissions that must stay optional: nativeMessaging")
+if jq -e '(.optional_permissions // []) | index("nativeMessaging")' "$MANIFEST" > /dev/null \
+    && [ "$NATIVE_DECLARED" != "section:projects:true" ]; then
+    NATIVE_ERRORS+=("nativeMessaging is optional in the manifest but declared by '${NATIVE_DECLARED:-nothing}', not by the Projects section alone (section:projects:true)")
+fi
+if [ ${#NATIVE_ERRORS[@]} -gt 0 ]; then
+    fail "nativeMessaging: ${NATIVE_ERRORS[*]}"
+elif [ ${#BAD_PERMS[@]} -gt 0 ]; then
     fail "permissions outside the allowed set {$ALLOWED_PERMISSIONS}: ${BAD_PERMS[*]}"
 elif [ ${#REQUIRED_OPTIONAL[@]} -gt 0 ]; then
     fail "required permissions that must stay optional (they warn at install): ${REQUIRED_OPTIONAL[*]}"
 elif [ ${#BAD_OPTIONAL[@]} -gt 0 ]; then
-    fail "optional permissions no start-page part declares (allowed {$ALLOWED_OPTIONAL_PERMISSIONS}): ${BAD_OPTIONAL[*]}"
+    fail "optional permissions no part or section declares (allowed {$ALLOWED_OPTIONAL_PERMISSIONS}): ${BAD_OPTIONAL[*]}"
 elif [ -n "$MISSING_DECLARED" ]; then
-    fail "permissions the start page's parts declare but the manifest lacks: $MISSING_DECLARED"
+    fail "permissions the parts or sections declare but the manifest lacks: $MISSING_DECLARED"
 else
-    pass "permissions within {$ALLOWED_PERMISSIONS}, optional within {$ALLOWED_OPTIONAL_PERMISSIONS}"
+    pass "permissions within {$ALLOWED_PERMISSIONS}, optional within {$ALLOWED_OPTIONAL_PERMISSIONS}; nativeMessaging optional, the Projects section's"
 fi
 BAD_HOSTS=()
 while IFS= read -r host; do
@@ -594,8 +629,8 @@ else
     pass "no unexpected remote hosts in built JS; no remote src/href in HTML"
 fi
 
-# Check 12: CSP, inline code, the service worker, no Native Messaging yet
-echo "Check 12: CSP, no inline scripts or styles, a DOM-free service worker, no Native Messaging..."
+# Check 12: CSP, inline code, the service worker, Native Messaging only in the Projects page's chunk
+echo "Check 12: CSP, no inline scripts or styles, a DOM-free service worker, Native Messaging only in the Projects chunk..."
 BUILD_ERRORS=()
 EXPECTED_CSP="$(cd "$ROOT/extension" && node --input-type=module -e '
   const src = (await import("node:fs")).readFileSync("manifest.config.ts", "utf8");
@@ -643,14 +678,42 @@ if [ -n "$SW" ] && [ -f "$INSPECT_DIR/$SW" ]; then
         fi
     done < <(walk_chunks "$(norm "$INSPECT_DIR/$SW")")
 fi
-# The Projects section runs on its demo: no Native Messaging code may ship before the permission and the companion exist.
-NM_REFS=$(grep -rlE 'connectNative|sendNativeMessage|nativeMessaging' "$INSPECT_DIR" --include='*.js' --include='*.mjs' 2>/dev/null || true)
-[ -z "$NM_REFS" ] || BUILD_ERRORS+=("Native Messaging code shipped: $(echo "$NM_REFS" | tr '\n' ' ')")
+# Native Messaging code lives in the Projects page's chunk and what it loads — hygiene, not a boundary (S17): the
+# permission holds for the whole origin. The chunk is the one that carries the page's marker (ProjectsPage.tsx).
+NM_REFS=$(grep -rlE 'connectNative|sendNativeMessage|nativeMessaging' "$INSPECT_DIR" --include='*.js' --include='*.mjs' 2>/dev/null | sort || true)
+SEND_REFS=$(grep -rlE 'sendNativeMessage' "$INSPECT_DIR" --include='*.js' --include='*.mjs' 2>/dev/null || true)
+[ -z "$SEND_REFS" ] || BUILD_ERRORS+=("sendNativeMessage is used (the page holds a port; nothing sends one-off messages): $(echo "$SEND_REFS" | tr '\n' ' ')")
+mapfile -t PROJECTS_CHUNK < <(grep -rlF 'DEVTAB_PROJECTS_CHUNK' "$INSPECT_DIR" --include='*.js' 2>/dev/null | sort)
+if [ ${#PROJECTS_CHUNK[@]} -ne 1 ]; then
+    BUILD_ERRORS+=("the Projects page's chunk (marker DEVTAB_PROJECTS_CHUNK) is not exactly one file: ${#PROJECTS_CHUNK[@]} found")
+elif [ -n "$NM_REFS" ]; then
+    # Static imports only: through the shared chunks the page imports, `import(…)` reaches every lazy chunk of the
+    # app (the tools among them), so walk_chunks would let any of them through.
+    PROJECTS_REACH="$(static_chunks "$(norm "${PROJECTS_CHUNK[0]}")" | sort -u)"
+    # What may never reach Native Messaging code: the service worker, the start route (static imports, as Check 15
+    # counts it), the popup and the editor page (everything they load).
+    FORBIDDEN_REACH="$({
+        [ -n "$SW" ] && [ -f "$INSPECT_DIR/$SW" ] && walk_chunks "$(norm "$INSPECT_DIR/$SW")" | sed 's/$/	the service worker/'
+        [ -f "$INSPECT_DIR/$APP_PAGE" ] && static_chunks $(page_scripts "$INSPECT_DIR/$APP_PAGE") | sed 's/$/	the start route/'
+        [ -n "$TOOLBAR_POPUP" ] && [ -f "$INSPECT_DIR/$TOOLBAR_POPUP" ] \
+            && walk_chunks $(page_scripts "$INSPECT_DIR/$TOOLBAR_POPUP") | sed 's/$/	the popup/'
+        [ -f "$INSPECT_DIR/$VIEWER_PAGE" ] && walk_chunks $(page_scripts "$INSPECT_DIR/$VIEWER_PAGE") | sed 's/$/	the editor page/'
+    } | sort -u)"
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        f="$(norm "$f")"
+        grep -qxF "$f" <<<"$PROJECTS_REACH" \
+            || BUILD_ERRORS+=("Native Messaging code outside the Projects page's chunk: ${f#"$INSPECT_DIR"/}")
+        while IFS=$'\t' read -r reached from; do
+            [ "$reached" = "$f" ] && BUILD_ERRORS+=("Native Messaging code reachable from $from: ${f#"$INSPECT_DIR"/}")
+        done <<<"$FORBIDDEN_REACH"
+    done <<<"$NM_REFS"
+fi
 if [ ${#BUILD_ERRORS[@]} -gt 0 ]; then
     fail "build invariants:"
     printf '  - %s\n' "${BUILD_ERRORS[@]}"
 else
-    pass "CSP as declared (default-src 'none' + the iframe pair); no inline scripts/styles; DOM-free service worker; no Native Messaging code"
+    pass "CSP as declared (default-src 'none' + the iframe pair); no inline scripts/styles; DOM-free service worker; Native Messaging code only in the Projects chunk: $(echo "$NM_REFS" | sed "s#^$INSPECT_DIR/##" | tr '\n' ' ')"
 fi
 
 # Check 13: the editor module — one .wasm, the expected one, loaded by the editor page only
@@ -753,22 +816,6 @@ fi
 # Check 15: the start route's initial load — what a new tab loads before its first paint
 echo "Check 15: Start route initial load (budget $START_ROUTE_BUDGET bytes, no lazy chunk)..."
 START_ERRORS=()
-static_chunks() {  # like walk_chunks, but static imports only: `import(` (a lazy chunk) is not followed
-    local -a queue=("$@")
-    local -A seen=()
-    local f ref
-    while [ ${#queue[@]} -gt 0 ]; do
-        f="${queue[0]}"; queue=("${queue[@]:1}")
-        [ -n "${seen[$f]:-}" ] && continue
-        seen[$f]=1
-        [ -f "$f" ] || continue
-        printf '%s\n' "$f"
-        while IFS= read -r ref; do
-            queue+=("$(norm "$(dirname "$f")/$ref")")
-        done < <(grep -oE '(from|import)[[:space:]]*["'"'"']\.{1,2}/[^"'"'"']+\.js["'"'"']' "$f" \
-            | sed -E 's/^.*["'"'"'](\.{1,2}\/[^"'"'"']+)["'"'"']$/\1/')
-    done
-}
 if [ -f "$INSPECT_DIR/$APP_PAGE" ]; then
     mapfile -t START_JS < <(static_chunks $(page_scripts "$INSPECT_DIR/$APP_PAGE") | sort -u)
     mapfile -t START_OTHER < <(grep -oE '<(script|link)[^>]*(src|href)="[^"]+\.(js|css)"' "$INSPECT_DIR/$APP_PAGE" \

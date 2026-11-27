@@ -146,6 +146,7 @@ const ROOT_FILES = [
   'extension/src/shell/behaviors.ts',
   'extension/src/compare/behaviors.ts',
   'extension/src/history/behaviors.ts',
+  'extension/src/projects/behaviors.ts',
 ];
 const picks = ROOT_FILES.map(file => ({
   file,
@@ -165,6 +166,12 @@ const budgets = {
   fieldReady: budget('scripts/e2e-start.mjs', 'READY_BUDGET'),
   popupPaint: budget('scripts/e2e-toolbar.mjs', 'POPUP_PAINT_BUDGET'),
   perTool: budget('scripts/start-route-growth.mjs', 'PER_TOOL_LIMIT'),
+  companionRetry: budget('extension/src/projects/connection.ts', 'RETRY_MS'),
+  companionHandshake: budget('extension/src/projects/companion/client.ts', 'HANDSHAKE_MS'),
+  companionReconnect: (/RECONNECT_MS[^=]*=\s*\[([^\]]*)\]/.exec(src('extension/src/projects/connection.ts'))?.[1] ?? '')
+    .split(',')
+    .map(v => Number(v.trim().replaceAll('_', '')))
+    .filter(v => !Number.isNaN(v)),
 };
 
 const state = (() => {
@@ -405,6 +412,21 @@ out.push(
         'Файл одной стороны «Compare code»',
         `${code.compare.maxBytes / 1024 / 1024} МБ`,
         '`extension/src/compare/files.ts`',
+      ],
+      [
+        'Projects: повтор, пока компаньон «не запущен»',
+        `раз в ${budgets.companionRetry / 1000} с`,
+        '`extension/src/projects/connection.ts`',
+      ],
+      [
+        'Projects: новые попытки после обрыва порта',
+        `через ${budgets.companionReconnect.join(', ')} мс, затем «не запущен»`,
+        '`extension/src/projects/connection.ts`',
+      ],
+      [
+        'Projects: рукопожатие с компаньоном',
+        `≤ ${budgets.companionHandshake / 1000} с`,
+        '`extension/src/projects/companion/client.ts`',
       ],
       [
         'Подпись / текст записи истории',

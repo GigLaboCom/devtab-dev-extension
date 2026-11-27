@@ -11,7 +11,8 @@
 //     hands it to Chrome's search API — the tab goes to the search engine's address, answered here, so the check
 //     needs no network — and nothing leaves the page while typing;
 //   - a shortcut added on the page is there in the next new tab;
-//   - the manifest holds exactly what the start page's parts declare (scripts/start-parts.mjs reads the definitions);
+//   - the manifest holds exactly what the start page's parts and the sections declare (scripts/permissions.mjs reads
+//     the definitions);
 //   - each switch of Settings → Start page hides its part; with web search off Enter does nothing else; most visited,
 //     recently opened and recently closed ask Chrome for their permissions (headless: the prompt stays open, nothing is
 //     granted); switched on without their permissions they read nothing and say why; the rows follow the stored order,
@@ -106,13 +107,14 @@ export const runStartChecks = async ({ ctx, sw, id, dist, check, shoot, report, 
 
   // The manifest.
   const manifest = JSON.parse(readFileSync(join(dist, 'manifest.json'), 'utf8'));
-  // What the start page's parts declare, read from their definitions (the manifest is derived from them).
+  // What the start page's parts and the main page's sections declare, read from their definitions (the manifest is
+  // derived from them).
   const declared = JSON.parse(
-    execFileSync('node', [join(dirname(fileURLToPath(import.meta.url)), 'start-parts.mjs')]).toString(),
+    execFileSync('node', [join(dirname(fileURLToPath(import.meta.url)), 'permissions.mjs')]).toString(),
   );
   const same = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
   check(
-    'the manifest holds exactly what the start page’s parts declare; nothing optional is required',
+    'the manifest holds exactly what the start page’s parts and the sections declare; nothing optional is required',
     same(manifest.permissions, ['storage', ...declared.required]) &&
       same(manifest.optional_permissions, declared.optional) &&
       !manifest.permissions.some(p => declared.optional.includes(p)),

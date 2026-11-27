@@ -60,7 +60,7 @@ export const runAssemblyChecks = async ({
   sleep,
   report,
 }) => {
-  const { parts } = JSON.parse(execFileSync('node', [join(HERE, 'start-parts.mjs')]).toString());
+  const { parts } = JSON.parse(execFileSync('node', [join(HERE, 'permissions.mjs')]).toString());
   const graph = chunkGraph(dist);
 
   // Layout shifts from before the first script; a paste at the first moment, when the address asks for it.

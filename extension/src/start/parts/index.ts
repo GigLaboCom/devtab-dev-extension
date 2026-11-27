@@ -5,7 +5,7 @@
  * the part is on. Adding a part: its definition and its code next to these, and one entry here
  * (docs/replaceable-behaviors.md, «Как добавить часть стартовой страницы»).
  *
- * Only relative imports of plain modules: manifest.config.ts and scripts/start-parts.mjs load this file outside the
+ * Only relative imports of plain modules: manifest.config.ts and scripts/permissions.mjs load this file outside the
  * app to read the permissions the parts declare.
  */
 import { fuzzyMatchingPart } from './fuzzyMatching';

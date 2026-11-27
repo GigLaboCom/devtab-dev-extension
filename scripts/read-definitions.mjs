@@ -1,6 +1,6 @@
 // Reads the extension's definitions outside the app, as the build sees them: bundles an entry (plain modules, relative
-// imports only) with the esbuild that Vite brings and imports the result. scripts/start-parts.mjs (the start page's
-// parts) and scripts/toolbar-button.mjs (the toolbar button) print what theirs declare for scripts/validate-build.sh and
+// imports only) with the esbuild that Vite brings and imports the result. scripts/permissions.mjs (the start page's
+// parts and the sections' permissions) and scripts/toolbar-button.mjs (the toolbar button) print what theirs declare for scripts/validate-build.sh and
 // the e2e checks, so the definitions stay the one source of what the manifest and the build hold.
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';

@@ -1,6 +1,7 @@
 import { licenceOrigin } from './build/licenceOrigin';
 import pkg from './package.json';
 import product from './product.json';
+import { declaredSectionPermissions } from './src/app/sectionPermissions';
 import { newTab } from './src/newTab';
 import { overridesOf } from './src/newTab/override';
 import { optionsPage } from './src/options';
@@ -76,6 +77,12 @@ const START_PERMISSIONS = declaredPermissions(partDefinitions()) as {
   required: chrome.runtime.ManifestPermissions[];
   optional: chrome.runtime.ManifestPermissions[];
 };
+/** What the main page's sections need (src/app/sectionPermissions.ts): the Projects section's `nativeMessaging`. */
+const SECTION_PERMISSIONS = declaredSectionPermissions() as {
+  required: chrome.runtime.ManifestPermissions[];
+  optional: chrome.runtime.ManifestPermissions[];
+};
+const unique = <T>(names: readonly T[]): T[] => [...new Set(names)];
 
 export default defineManifest({
   manifest_version: 3,
@@ -106,17 +113,20 @@ export default defineManifest({
   // chrome.management.getPermissionWarningsByManifest, docs/research/new-tab-probe.md). A permission without a warning
   // that a default-on part needs is required (`search`, web search); one with a warning is optional, requested when the
   // user switches its part on and removed when no switched-on part needs it (`topSites`, `history`, `sessions` + `tabs`,
-  // `favicon`). scripts/validate-build.sh reads the same definitions (scripts/start-parts.mjs) and refuses a manifest
-  // with a permission no part declares or without one a part declares.
+  // `favicon`). scripts/validate-build.sh reads the same definitions (scripts/permissions.mjs) and refuses a manifest
+  // with a permission no part or section declares or without one they declare.
   // The New Tab override itself, when the build has it, shows "Replace the page you see when opening a new tab" at
   // install; a build without it shows no warning at all.
-  // Not requested: nativeMessaging (live review is a stub until the companion exists; it will likely be OPTIONAL,
-  // asked on entering live review — spikes/extension-e2e finding 8), clipboardRead / clipboardWrite (navigator.clipboard
+  // The main page's sections declare theirs the same way (src/app/sectionPermissions.ts): the Projects section's
+  // `nativeMessaging`, OPTIONAL — no install warning; asked for only when the person presses «Connect the companion»
+  // (src/projects/permission.ts; the companion's specification §8.3, Р3). The page of that section is the only place that
+  // opens the port; scripts/validate-build.sh refuses it as required, undeclared, or in code outside that page's chunk.
+  // Not requested: clipboardRead / clipboardWrite (navigator.clipboard
   // writeText works on an extension page from a click; «Compare code»'s Paste reads after Chrome's own prompt, and the
   // keyboard's paste needs nothing — src/compare/clipboard.ts), host permissions, scripting, sidePanel, contextMenus.
   // `tabs` is only ever optional (tabs.create for the toolbar button needs none).
-  permissions: ['storage', ...START_PERMISSIONS.required],
-  optional_permissions: START_PERMISSIONS.optional,
+  permissions: unique(['storage', ...START_PERMISSIONS.required, ...SECTION_PERMISSIONS.required]),
+  optional_permissions: unique([...START_PERMISSIONS.optional, ...SECTION_PERMISSIONS.optional]),
   // D16, when the build overrides it (src/newTab/index.ts): every new tab is the main page (not in incognito — Chrome's
   // rule). A new tab opens it with no hash: the start page, or the last opened tool (public/route-boot.js). Without it
   // the key is absent and the start page opens by its address from the toolbar.

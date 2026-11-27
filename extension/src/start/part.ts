@@ -18,7 +18,7 @@
  * The field itself is not a part: the page always has it.
  *
  * Only relative imports of plain modules, here and in every part's modules (definitions and code): manifest.config.ts
- * and scripts/start-parts.mjs load the definitions outside the app.
+ * and scripts/permissions.mjs load the definitions outside the app.
  */
 import { letterIcons, waitingIcons } from './siteIcons';
 import { strictMatcher } from '../shared/finder';
