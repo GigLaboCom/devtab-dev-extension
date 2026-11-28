@@ -6,10 +6,11 @@
 //
 // Steered through a folder (DEVTAB_FAKE_HOST_DIR, set by the wrapper the e2e writes):
 //   mode.json      read at start: { "mode": "normal" | "empty" | "fresh" | "version" | "not-running", "hostile", "big",
-//                  "methods": "all" | "stage3", "confirm", "identity" } (./companion.mjs)
+//                  "methods": "all" | "stage3" | "stage6", "confirm", "identity" } (./companion.mjs)
 //   cmd-<n>.json   commands, taken once by the running host: { "event": { name, project, data } },
 //                  { "addFile": { project, path, text } }, { "changeOnDisk": { project, path, text } },
 //                  { "failNext": { method, code, data, stream, hang } }, { "confirm": answer }, { "identity": … },
+//                  { "gap": { project, from, to, paths } } (the companion was not running: `history.gap`),
 //                  { "exit": true } (the port is lost without a word)
 //   log.jsonl      what happened: start (with the caller's origin), each frame in (type, id, method; the parameters of a
 //                  commit, a rollback, a save — a text by its length — and of adding a project), stdin's end, exit
@@ -61,7 +62,15 @@ process.stdin.on('data', data => {
     }
     buffer = buffer.subarray(4 + length);
     // What a commit, a rollback and a save were asked: the e2e checks the selection and the paths sent.
-    const asked = ['git.commit', 'git.rollback', 'file.save', 'project.requestAdd', 'file.read'].includes(frame?.method)
+    const asked = [
+      'git.commit',
+      'git.rollback',
+      'file.save',
+      'project.requestAdd',
+      'file.read',
+      'history.restore',
+      'history.project',
+    ].includes(frame?.method)
       ? { params: { ...frame.params, ...(frame.params?.text !== undefined && { text: frame.params.text.length }) } }
       : {};
     log({ event: 'in', type: frame?.type, id: frame?.id, method: frame?.method, ...asked });
@@ -99,6 +108,7 @@ setInterval(() => {
     }
     if (command.confirm) companion.setConfirm(command.confirm);
     if ('identity' in command) companion.setIdentity(command.identity);
+    if (command.gap) companion.gap(command.gap.project, command.gap.from, command.gap.to, command.gap.paths);
     if (command.event) {
       const { name: event, project, data } = command.event;
       log({ event: 'emit', name: event, sent: companion.emit(event, project, data, send) });

@@ -8,8 +8,9 @@
 //   reconnecting → back; the server restarted; the repository's strings (HTML, a terminal's escape sequences) drawn as
 //   text (З3, S17); the address never triggers an action (F6); then stages 4–6 (./e2e-projects/writes.mjs: trusted
 //   folders, adding, classes, saving, conflicts, the write policy's refusals, committing, its errors, undo, rollback,
-//   and an older companion with every write inactive); the permission removed → the page closes its port; «Connect the
-//   companion» → connected again.
+//   and an older companion with every write inactive) and stage 7 (./e2e-projects/history.mjs: the history, restore and
+//   its undo, the gap, deleted files, clearing, «Open in Compare code» saving back, an older companion); the permission
+//   removed → the page closes its port; «Connect the companion» → connected again.
 //
 // The browser is its own: Chrome for Testing without a window and a throwaway profile under .state/e2e/, the extension
 // loaded by CDP (Extensions.loadUnpacked) from a copy of the build. The host's manifest goes only into that profile's
@@ -28,6 +29,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HOSTILE_STRINGS, METHODS } from './e2e-projects/companion.mjs';
+import { runCompanionHistory } from './e2e-projects/history.mjs';
 import { runCompanionWrites } from './e2e-projects/writes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -470,6 +472,9 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
 
     // ---- stages 4–6: classes, adding, writing files, committing (rows 4.5, 5.4, 6.5) ------------------------------------
     await runCompanionWrites({ page, check, shoot, sleep, command, logOf, setMode, waitState });
+
+    // ---- stage 7: the local history, restore, clearing, «Open in Compare code» (row 7.5) ---------------------------
+    await runCompanionHistory({ page, check, shoot, sleep, command, logOf, setMode, waitState });
 
     // ---- the permission removed: the page closes its port ------------------------------------------------------------------
     const live = logOf()

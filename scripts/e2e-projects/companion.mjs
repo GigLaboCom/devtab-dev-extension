@@ -11,7 +11,8 @@
 // `vectors` is the vectors folder as { 'tree.list.json': [...], … } (the caller reads it: Node from disk, the tests
 // with Vite's glob). `mode`: 'normal' | 'empty' (no project added) | 'fresh' (`devtab init` never ran: no project, no
 // trusted folder, no environment) | 'version' (no API version in common) | 'not-running' (the relay cannot reach the
-// supervisor). `methods: 'stage3'` is a companion of stage 3: it reads and offers nothing else. `hostile` adds a second
+// supervisor). `methods: 'stage3'` is a companion of stage 3: it reads and offers nothing else; `'stage6'` one of stage
+// 6: everything but restoring from the history and clearing it (stage 7's `HISTORY_METHODS`). `hostile` adds a second
 // project whose names, branch, history labels and lines carry HTML and terminal escape sequences; `big` adds to it a
 // folder of 5001 long names (5000 listed) and a 2 MiB file, both answered in chunks. `replay` answers every vector's
 // request word for word, a request asked again with the vector's next answer (the vectors' own sequence). `send(frame)`
@@ -21,7 +22,8 @@
 // outside a trusted folder ('unavailable': no window, the command instead; 'yes'; 'no'; 'busy'; 'requests-off';
 // 'rate-limited'); `failNext(method, error, stream)` — the next call of a method fails as given, after its streamed
 // output (a hook that fails, a lock, a signing failure, too little disk, …); `identity` — git's name and e-mail, or none;
-// `changeOnDisk(project, path, text)` — someone else's edit.
+// `changeOnDisk(project, path, text)` — someone else's edit; `gap(project, from, to, paths)` — the companion was not
+// running for a while (a stretch in the history, the event `history.gap`). `now` is the clock of new history points.
 
 const PROJECT = 'p_abcdefgh23';
 const HOSTILE = 'p_hostile001';
@@ -65,8 +67,11 @@ export const WRITE_METHODS = [
   'git.messages',
 ];
 
+/** What stage 7 added: restoring a point of the history, and asking the person to clear it. */
+export const HISTORY_METHODS = ['history.restore', 'history.requestPurge'];
+
 /** Methods whose answer depends on what happened before: never replayed from a vector outside `replay`. */
-const STATEFUL = new Set([...WRITE_METHODS, 'git.identity', 'file.delete']);
+const STATEFUL = new Set([...WRITE_METHODS, ...HISTORY_METHODS, 'git.identity', 'file.delete']);
 
 /** The trusted folder of the scripted repository, as an absolute path typed on the page would be inside it. */
 export const TRUSTED_ROOT = '/srv/fixtures/fx';
@@ -82,6 +87,8 @@ export const HOSTILE_STRINGS = {
 
 const encoder = new TextEncoder();
 const bytes = text => encoder.encode(text).length;
+/** A path as the companion's points carry it: its UTF-8 bytes in hex. */
+const hexOf = path => [...encoder.encode(path)].map(b => b.toString(16).padStart(2, '0')).join('');
 const copy = value => JSON.parse(JSON.stringify(value));
 const canonical = value =>
   Array.isArray(value)
@@ -105,6 +112,9 @@ const fnv = text => {
 };
 
 const error = (code, message, data) => Object.assign(new Error(message), { code, data });
+
+/** Points newest first; of two at one time, by the point (as the companion orders them). */
+const newestFirst = points => [...points].sort((a, b) => b.timeMs - a.timeMs || (a.point < b.point ? -1 : 1));
 
 /** The hunks of a text from `a` to `b`, by lines (a longest common subsequence): 0-based starts, as `git.hunks` has. */
 export const lineHunks = (a, b) => {
@@ -222,6 +232,7 @@ export const createCompanion = ({
   replay = false,
   confirm: confirmed = 'unavailable',
   identity: who = { name: 'Fixture Person', email: 'person@example.invalid' },
+  now = Date.now,
 } = {}) => {
   // ---- the vectors: requests answered word for word ----------------------------------------------------------------
   const replies = new Map();
@@ -245,7 +256,11 @@ export const createCompanion = ({
     limits: { maxRequestBytes: 8_388_608, maxTextBytes: MAX_TEXT_BYTES },
   };
   const welcome =
-    offered === 'stage3' ? { ...copy(helloed), methods: helloed.methods.filter(m => METHODS.includes(m)) } : helloed;
+    offered === 'stage3'
+      ? { ...copy(helloed), methods: helloed.methods.filter(m => METHODS.includes(m)) }
+      : offered === 'stage6'
+        ? { ...copy(helloed), methods: helloed.methods.filter(m => !HISTORY_METHODS.includes(m)) }
+        : helloed;
   const offers = method => welcome.methods.includes(method);
 
   // The versions of texts the vectors name: a text the vectors saw keeps its real hash, any other gets a stand-in.
@@ -328,8 +343,39 @@ export const createCompanion = ({
     commits: [],
     messages: [],
     status: vector('git.status.json')?.result,
-    points: [...(vector('history.file.json')?.result?.points ?? []).map(p => ({ ...p, path: 'docs/readme.md' }))],
-    contents: new Map([[vector('history.file.json')?.result?.points?.[0]?.point, '# Readme\n\nchanged on disk\n']]),
+    points: [
+      // The vectors' points of docs/readme.md; the server's, whose time the vectors leave out (0), as the newest.
+      ...(vector('history.file.json')?.result?.points ?? []).map(p => ({
+        ...p,
+        path: 'docs/readme.md',
+        timeMs: p.timeMs || 1767484800000,
+      })),
+      // A file that is gone: the server's last «Saved» of it, and the companion's note that it went while away.
+      {
+        label: 'Deleted while away',
+        path: 'gone.txt',
+        point: `c:none@1767398400000:${hexOf('gone.txt')}`,
+        size: 0,
+        source: 'companion',
+        timeMs: 1767398400000,
+      },
+      {
+        label: 'Saved',
+        path: 'gone.txt',
+        point: `s:${fnv('gone.txt').slice(0, 12)}@1767312000000:${hexOf('gone.txt')}`,
+        size: 27,
+        source: 'server',
+        timeMs: 1767312000000,
+      },
+    ],
+    contents: new Map([
+      [vector('history.file.json')?.result?.points?.[0]?.point, '# Readme\n\nchanged on disk\n'],
+      ...(vector('history.file.json')?.result?.points ?? [])
+        .filter(p => p.source === 'commit')
+        .map(p => [p.point, '# Readme\n']),
+      [`s:${fnv('gone.txt').slice(0, 12)}@1767312000000:${hexOf('gone.txt')}`, 'This file will be deleted.\n'],
+    ]),
+    gaps: [],
   });
   for (const f of vector('git.status.json')?.result?.files ?? []) {
     const text = repoFiles.get(f.path)?.text;
@@ -370,6 +416,7 @@ export const createCompanion = ({
         },
       ],
       contents: new Map([['g:0000000000000000000000000000000000000001@1767225600000:6e6f7465732e747874', 'plain\n']]),
+      gaps: [],
     });
   }
 
@@ -545,19 +592,31 @@ export const createCompanion = ({
     tell('files.changed', p.id, { more: false, paths });
   };
   const sha = () => fnv(`commit ${++commits}`).slice(0, 40);
+  /** The time of a new point: the clock's, never before the newest point of the project. */
+  const timeOf = p => Math.max(now(), ...p.points.map(pt => pt.timeMs + 1));
   /** The server's «Saved» point of each write, as its history keeps it. */
   const saved = (p, path, text) => {
-    const timeMs = 1_767_225_600_000 + p.points.length * 1000;
-    const point = `s:${fnv(`${path}:${p.points.length}`).slice(0, 12)}@${timeMs}:${[...encoder.encode(path)].map(b => b.toString(16).padStart(2, '0')).join('')}`;
+    const timeMs = timeOf(p);
+    const point = `s:${fnv(`${path}:${p.points.length}`).slice(0, 12)}@${timeMs}:${hexOf(path)}`;
     p.points.unshift({ label: 'Saved', path, point, size: bytes(text), source: 'server', timeMs });
     p.contents.set(point, text);
+    return point;
+  };
+  /** A copy of the companion's own (`Before …`): the text it keeps, or none (`c:none`). */
+  const kept = (p, path, label, text) => {
+    const timeMs = timeOf(p);
+    const id = text === null ? 'none' : fnv(`${path}:${label}:${p.points.length}:${text}`);
+    const point = `c:${id}@${timeMs}:${hexOf(path)}`;
+    p.points.unshift({ label, path, point, size: text === null ? 0 : bytes(text), source: 'companion', timeMs });
+    if (text !== null) p.contents.set(point, text);
+    return point;
   };
 
   const methods = {
     'companion.state': () =>
       (mode !== 'fresh' && vector('companion.state.json')?.result) || {
         companion: '0.1.0',
-        deletePolicy: 'trash',
+        deletePolicy: 'unavailable',
         env: { capturedAt: null, path: [] },
         paused: false,
         problems: [],
@@ -574,7 +633,7 @@ export const createCompanion = ({
           branch: p.summary.branch,
           class: 'view',
           detached: false,
-          historyGaps: [],
+          historyGaps: p.gaps.map(g => ({ ...g })),
           hooks: [],
           hooksPath: false,
           location: null,
@@ -663,7 +722,15 @@ export const createCompanion = ({
     'git.status': ({ project: id }) => {
       const p = projectOf(id);
       if (p.status && !changed) return copy(p.status);
-      return { branch: p.summary.branch, files: statusOf(p), headSha: p.headSha };
+      // Whether HEAD can be undone, by the rule `git.undoCommit` follows here (a commit of this page, still HEAD).
+      const undoable = isMine(p) && p.commits.at(-1)?.sha === p.headSha;
+      return {
+        branch: p.summary.branch,
+        files: statusOf(p),
+        headSha: p.headSha,
+        headUndoReason: undoable ? null : isMine(p) ? 'pushed' : 'not-mine',
+        headUndoable: undoable,
+      };
     },
     'git.identity': () => ({
       email: identity?.email ?? null,
@@ -702,6 +769,8 @@ export const createCompanion = ({
       if (file?.binary || file?.tooLarge)
         return { chunkable: false, diskHash: null, headHash, hunks: [], reason: 'binary' };
       if (!file) return { chunkable: false, diskHash: null, headHash, hunks: [], reason: 'deleted' };
+      if (head === undefined)
+        return { chunkable: false, diskHash: hashOf(file.text), headHash, hunks: [], reason: 'new-file' };
       if (file.encoding && file.encoding !== 'utf-8')
         return { chunkable: false, diskHash: hashOf(file.text), headHash, hunks: [], reason: 'not-utf8' };
       return {
@@ -712,21 +781,34 @@ export const createCompanion = ({
         reason: null,
       };
     },
+    // A file's points: of a regular file, or of one that is gone (its points stay); never of a link (S6).
     'history.file': ({ project: id, path }) => {
       const p = projectOf(id);
       checkPath(path);
       const file = p.files.get(path);
-      if (!file || file.link) throw error('not-found', 'no such file or folder in the project');
+      const points = p.points.filter(pt => pt.path === path);
+      if (file?.link || (!file && !points.length)) throw error('not-found', 'no such file or folder in the project');
       return {
-        gaps: [],
-        points: p.points
-          .filter(pt => pt.path === path)
-          .map(pt => Object.fromEntries(Object.entries(pt).filter(([k]) => k !== 'path'))),
+        gaps: p.gaps.map(({ from, to }) => ({ from, to })),
+        points: newestFirst(points).map(pt => Object.fromEntries(Object.entries(pt).filter(([k]) => k !== 'path'))),
       };
     },
-    'history.project': ({ project: id, limit }) => {
+    // Newest first, page by page: the cursor is the place after the last point given (stable as new points arrive).
+    'history.project': ({ project: id, limit, cursor, since }) => {
       const p = projectOf(id);
-      return { deleted: [], next: null, points: p.points.slice(0, Math.min(limit ?? 500, 500)).map(copy) };
+      const size = Math.min(Math.max(1, limit ?? 500), 500);
+      let all = newestFirst(p.points).filter(pt => since == null || pt.timeMs >= since);
+      if (cursor) {
+        const [time, point] = [Number(cursor.slice(0, cursor.indexOf(':'))), cursor.slice(cursor.indexOf(':') + 1)];
+        all = all.filter(pt => pt.timeMs < time || (pt.timeMs === time && pt.point > point));
+      }
+      const page = all.slice(0, size);
+      const deleted = [...new Set(p.points.map(pt => pt.path))].filter(path => !p.files.has(path)).sort();
+      return {
+        deleted,
+        next: all.length > size ? `${page.at(-1).timeMs}:${page.at(-1).point}` : null,
+        points: page.map(copy),
+      };
     },
     'history.content': ({ project: id, point }) => {
       const p = projectOf(id);
@@ -767,6 +849,7 @@ export const createCompanion = ({
         messages: [],
         points: [],
         contents: new Map(),
+        gaps: [],
       });
       changed = true;
       tell('projects.changed', null, {});
@@ -832,6 +915,11 @@ export const createCompanion = ({
         throw error('not-encodable', 'the text has characters its encoding cannot hold; nothing was written', {
           encoding: 'windows-1252',
         });
+      // The companion keeps what is there before the first write of an editing session.
+      if (!p.sessions?.has(path)) {
+        kept(p, path, 'Before edit', file.text);
+        (p.sessions ??= new Set()).add(path);
+      }
       p.files.set(path, { ...file, text: text.replace(/\r\n?/g, '\n') });
       saved(p, path, text);
       wrote(p, [path]);
@@ -842,6 +930,7 @@ export const createCompanion = ({
       writable(p, path);
       if (exists(p, path)) throw error('exists', 'a file or folder with that name exists already');
       for (const key of [...p.files.keys()]) if (path.startsWith(key) && key.endsWith('/')) p.files.delete(key);
+      kept(p, path, 'Before create', null);
       p.files.set(path, { text });
       saved(p, path, text);
       wrote(p, [path]);
@@ -1000,6 +1089,7 @@ export const createCompanion = ({
       for (const path of paths) {
         if (!p.head.has(path)) continue;
         const head = p.head.get(path);
+        if (textFile(p.files.get(path))) kept(p, path, 'Before rollback', p.files.get(path).text);
         p.files.set(
           path,
           typeof head === 'string' ? { ...(p.files.get(path) ?? {}), text: head } : { binary: true, size: head.size },
@@ -1009,6 +1099,35 @@ export const createCompanion = ({
       wrote(p, rolledBack);
       tell('git.changed', id, {});
       return { rolledBack, trashed: [] };
+    },
+    // Stage 7: a point's version written over the file (or the file created again), after a copy «Before restore».
+    'history.restore': ({ project: id, path, point, currentHash = null }) => {
+      const p = projectOf(id);
+      writable(p, path);
+      const own = p.points.find(pt => pt.point === point && pt.path === path);
+      if (!own || !p.contents.has(point)) throw error('not-found', "the point is not one of this file's");
+      const file = p.files.get(path);
+      if (file?.binary) throw error('binary', 'the file is binary', { size: file.size });
+      const now = textFile(file) ? hashOf(file.text) : null;
+      if ((currentHash ?? null) !== now)
+        throw error('conflict', 'the file changed on disk since it was read; nothing was written', {
+          currentHash: now,
+        });
+      const before = file ? kept(p, path, 'Before restore', file.text) : null;
+      const text = p.contents.get(point);
+      p.files.set(path, { ...(file ?? {}), text });
+      saved(p, path, text);
+      wrote(p, [path]);
+      return { before, hash: hashOf(text), protected: protectedRule(path), restored: point };
+    },
+    // Asks the person (the companion's window, or the command for the terminal); «yes» deletes the project's history.
+    'history.requestPurge': async ({ project: id }, { cancelled }) => {
+      const p = projectOf(id);
+      await askPerson(`devtab history purge ${shellWord(p.summary.displayPath)}`, cancelled);
+      p.points = [];
+      p.contents = new Map();
+      changed = true;
+      return {};
     },
     'git.undoCommit': ({ project: id, headSha }) => {
       const p = projectOf(id);
@@ -1128,6 +1247,18 @@ export const createCompanion = ({
       if (text === null) p.files.delete(path);
       else p.files.set(path, { ...(p.files.get(path) ?? {}), text });
       tell('files.changed', id, { more: false, paths: [path] });
+    },
+    /**
+     * The companion was not running from `from` to `to` and found `paths` files changed meanwhile: a stretch in the
+     * project's history (`history.file.gaps`, `project.state.historyGaps`) and the event `history.gap`.
+     */
+    gap(id, from, to, paths = 0) {
+      const p = projects.get(id);
+      if (!p) return;
+      changed = true;
+      p.gaps.push({ from, to });
+      if (p.state) p.state = { ...p.state, historyGaps: p.gaps.map(g => ({ ...g })) };
+      tell('history.gap', id, { from, paths, to });
     },
     /** The next call of `method` fails with `code` and `data`, after the streamed parts `stream` (texts). */
     failNext(method, code, data, options = {}) {

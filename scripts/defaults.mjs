@@ -206,6 +206,9 @@ const budgets = {
   companionRetry: budget('extension/src/projects/connection.ts', 'RETRY_MS'),
   companionHandshake: budget('extension/src/projects/companion/client.ts', 'HANDSHAKE_MS'),
   companionWaitSaid: budget('extension/src/app/projects/PathDialog.tsx', 'WAIT_SAID_AFTER_MS'),
+  historyPage: budget('extension/src/app/projects/HistoryPanel.tsx', 'HISTORY_PAGE'),
+  historyGaps: budget('extension/src/app/projects/HistoryPanel.tsx', 'GAPS_SHOWN'),
+  lastSeenKey: /LAST_SEEN_PREFIX = '([^']+)'/.exec(src('extension/src/projects/lastSeen.ts'))?.[1] ?? '',
   companionReconnect: (/RECONNECT_MS[^=]*=\s*\[([^\]]*)\]/.exec(src('extension/src/projects/connection.ts'))?.[1] ?? '')
     .split(',')
     .map(v => Number(v.trim().replaceAll('_', '')))
@@ -673,6 +676,21 @@ out.push(
         'Projects: «Подтвердите в окне компаньона» — после ожидания',
         `${budgets.companionWaitSaid} мс (ответ сразу — без этой строки)`,
         '`extension/src/app/projects/PathDialog.tsx`',
+      ],
+      [
+        'Projects: история проекта — точек за раз («Show more» — ещё столько же)',
+        `${budgets.historyPage}`,
+        '`extension/src/app/projects/HistoryPanel.tsx`',
+      ],
+      [
+        'Projects: разрывы истории («компаньон не работал с … по …») — показано не больше',
+        `${budgets.historyGaps}, новейшие`,
+        '`extension/src/app/projects/HistoryPanel.tsx`',
+      ],
+      [
+        'Projects: последний визит проекта («Since your last visit»)',
+        `пишется при уходе из проекта (другой проект, раздел, вкладка скрыта или закрыта); ключ \`${budgets.lastSeenKey}<id>\` в chrome.storage.local`,
+        '`extension/src/projects/lastSeen.ts`',
       ],
       [
         'Подпись / текст записи истории',

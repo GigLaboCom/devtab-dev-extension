@@ -3,6 +3,7 @@ export declare const MAX_FRAME_BYTES: number;
 export declare const MAX_TEXT_BYTES: number;
 export declare const METHODS: string[];
 export declare const WRITE_METHODS: string[];
+export declare const HISTORY_METHODS: string[];
 export declare const TRUSTED_ROOT: string;
 export declare const HOSTILE_STRINGS: Record<'name' | 'branch' | 'file' | 'label' | 'line', string>;
 
@@ -27,6 +28,7 @@ export interface ScriptedCompanion {
   ): void;
   setConfirm(answer: Confirm): void;
   setIdentity(identity: { name: string; email: string } | null): void;
+  gap(project: string, from: number, to: number, paths?: number): void;
 }
 
 export declare const createCompanion: (options?: {
@@ -36,8 +38,9 @@ export declare const createCompanion: (options?: {
   big?: boolean;
   wait?: (ms: number) => Promise<void>;
   maxFrameBytes?: number;
-  methods?: 'all' | 'stage3';
+  methods?: 'all' | 'stage3' | 'stage6';
   replay?: boolean;
   confirm?: Confirm;
   identity?: { name: string; email: string } | null;
+  now?: () => number;
 }) => ScriptedCompanion;
