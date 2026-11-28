@@ -6,6 +6,8 @@
  *   ProjectBackend   where the projects come from (./backend.ts), chosen by the connection's state (./connection.ts):
  *                    no permission or no companion → the demo's invented projects (./demo) under its «Example»
  *                    notice; the companion connected (or winning its port back) → the companion (./companion)
+ *   CompanionInstall this installation's number said in every `hello` (./companionInstall.ts, D42): made once, kept
+ *                    as a plain string in chrome.storage.local, so the companion finds the browser profile by it
  *   Autosave         when an edit is written (./autosave.ts): a pause after the last change, at once on leaving
  *   WorkspaceLayout  how an open project's parts are arranged (src/app/projects/workspaceLayout.ts, D35): the side
  *                    panel with Files and Commit, the editor, History and Find in files below (`SidePanels`)
@@ -27,6 +29,7 @@
 import { AUTOSAVE_DELAY_MS } from './autosave';
 import { companionBackend } from './companion/backend';
 import { nativeLink } from './companion/link';
+import { chromeCompanionInstall } from './companionInstall';
 import { createConnection } from './connection';
 import { demoBackend } from './demo/backend';
 import { chromeLastSeen } from './lastSeen';
@@ -131,6 +134,7 @@ const chosen: ProjectBackendFactory = Object.assign(
         permission: chromePermission(),
         openLink: nativeLink,
         extension: extensionVersion(),
+        install: chromeCompanionInstall(),
         reload: () => location.reload(),
       }),
       demoBackend(),

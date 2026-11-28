@@ -17,6 +17,8 @@ export type Confirm = 'unavailable' | 'yes' | 'no' | 'busy' | 'requests-off' | '
 export interface ScriptedCompanion {
   welcome: Frame;
   subscribed: Set<string>;
+  /** What each `hello` said in `install`, oldest first; null: none, or not in the contract's shape. */
+  installs: (string | null)[];
   handle(frame: unknown, send: (frame: Frame) => void): Promise<void>;
   emit(name: string, project: string | null, data: unknown, send: (frame: Frame) => void): boolean;
   addFile(project: string, path: string, text: string): void;

@@ -33,6 +33,9 @@
 // `requestOpen(token, send)` sends `open.requested` (only after the page told `page.activity`), `changeOpenedOnDisk(file,
 // text)` is someone else's edit, `replaceOpened(file)` replaces it (read only from then on), `expireTokens()` lets the
 // waiting tokens run out.
+//
+// `installs` is what each `hello` said in `install` (step O3), oldest first: the number as the companion would keep it,
+// or null — none sent, or not in the contract's shape (the companion ignores such a one).
 
 import { OPEN_FILE_METHODS, openFileMethods } from './openFileMethods.mjs';
 
@@ -569,6 +572,8 @@ export const createCompanion = ({
   let commits = 0;
   // Emitting needs a way out: the last `send` the companion was handed (the port of the call or command).
   let lastSend = null;
+  /** `hello.install` of each handshake (null: none, or malformed). */
+  const installs = [];
   const tell = (name, project, data) => {
     if (!lastSend) return;
     if (project !== null && !subscribed.has(project)) return;
@@ -1230,10 +1235,14 @@ export const createCompanion = ({
     welcome,
     projects,
     subscribed,
+    installs,
     /** Answers one frame of the extension; frames go out through `send`. */
     async handle(frame, send) {
       lastSend = send;
       if (frame?.type === 'hello') {
+        installs.push(
+          typeof frame.install === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(frame.install) ? frame.install : null,
+        );
         if (mode === 'not-running')
           return send({
             type: 'error',
