@@ -69,5 +69,12 @@ export const browserTextSource = (
     return readEntries(files.map(file => ({ name: file.name, file, handle: null, directory: false, text: null })));
   },
   drop: entries => readEntries(entries),
-  handed: () => handedTexts().map(({ text, name }) => ({ text, fileName: name, handle: null, bom: false })),
+  handed: () =>
+    handedTexts().map(({ text, name, origin }) => ({
+      text,
+      fileName: name,
+      handle: null,
+      bom: false,
+      ...(origin && { project: origin }),
+    })),
 });

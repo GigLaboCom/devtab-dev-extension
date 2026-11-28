@@ -13,6 +13,7 @@
  *   from outside makes it read-only again. Whether a side is modified comes from the editor.
  */
 import type { SideText } from './files';
+import type { ProjectFileOrigin } from './handoff';
 import type { DiffShown, Side } from '@extension/review-wasm';
 
 export type { Side } from '@extension/review-wasm';
@@ -34,6 +35,8 @@ export interface SideMeta {
   /** Edited since it was loaded or saved (the editor says). */
   modified: boolean;
   empty: boolean;
+  /** The project's file the side is (handed over by the Projects section): Save writes it back there. */
+  project: ProjectFileOrigin | null;
 }
 
 export interface Counts {
@@ -66,6 +69,7 @@ const emptySide: SideMeta = {
   editable: false,
   modified: false,
   empty: true,
+  project: null,
 };
 
 export const initialState = (language: string): CompareState => ({
@@ -114,7 +118,14 @@ export type CompareEvent =
   | { type: 'swapped' }
   | { type: 'editable'; side: Side; editable: boolean }
   | { type: 'shown'; shown: DiffShown }
-  | { type: 'saved'; side: Side; fileName: string | null; handle: FileSystemFileHandle | null }
+  | {
+      type: 'saved';
+      side: Side;
+      fileName: string | null;
+      handle: FileSystemFileHandle | null;
+      /** Saved somewhere else than its project's file (Save as): the side is that file now, no longer the project's. */
+      leftProject?: boolean;
+    }
   | { type: 'language'; language: string }
   | { type: 'viewer'; viewer: CompareState['viewer'] }
   | { type: 'notice'; notice: Notice | null };
@@ -151,6 +162,7 @@ export const reduce = (state: CompareState, event: CompareEvent): CompareState =
             editable: false,
             modified: false,
             empty: text.text.length === 0,
+            project: text.project ?? null,
           },
         };
       }
@@ -192,6 +204,7 @@ export const reduce = (state: CompareState, event: CompareEvent): CompareState =
             origin: event.fileName ? 'file' : meta.origin,
             fileName: event.fileName ?? meta.fileName,
             handle: event.handle ?? meta.handle,
+            project: event.leftProject ? null : meta.project,
           },
         },
       };

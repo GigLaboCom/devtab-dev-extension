@@ -257,9 +257,16 @@ export const projectBackendContract = (name: string, make: () => ProjectBackendH
       });
       const { points } = await backend.call('history.file', { project: mine.id, path });
       const withFirst = [];
-      for (const point of points)
-        if ((await backend.call('history.content', { project: mine.id, point: point.point })).text === 'first\n')
-          withFirst.push(point);
+      // A moment noted without its text (`Before create`) has no content: `not-found`.
+      for (const point of points) {
+        const content = await backend
+          .call('history.content', { project: mine.id, point: point.point })
+          .catch((error: unknown) => {
+            if (isCompanionError(error, 'not-found')) return null;
+            throw error;
+          });
+        if (content?.text === 'first\n') withFirst.push(point);
+      }
       expect(withFirst.length).toBeGreaterThan(0);
       await rejects(
         backend.call('history.restore', { project: mine.id, path, point: withFirst[0]!.point, currentHash: first }),

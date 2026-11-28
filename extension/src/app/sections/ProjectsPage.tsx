@@ -37,6 +37,7 @@ import { ScratchView } from '../projects/ScratchView';
 import { SearchPanel } from '../projects/SearchPanel';
 import { TEXT, scratchRefusal } from '../projects/text';
 import { TrustedFolders } from '../projects/TrustedFolders';
+import { useLastVisit } from '../projects/useLastVisit';
 import { useWorkspace } from '../projects/useWorkspace';
 import { go, routeHash } from '../route';
 import { hintOf, useOffer } from '../shell/sectionKeys';
@@ -103,6 +104,8 @@ const Workspace = ({
   onProjectChanged(): void;
 }): ReactElement => {
   const workspace = useWorkspace(backend, project, path, onProjectChanged, generation);
+  // When the person last left this project: the history's «Since your last visit» (§7.5).
+  const lastVisit = useLastVisit(behaviors.lastSeen, project.id, backend.capabilities().demo);
   const [quickOpen, setQuickOpen] = useState(false);
   // A panel's view asked for from a part (a search started, a file's history asked for).
   const [reveal, setReveal] = useState<{ view: PanelView; n: number } | null>(null);
@@ -165,7 +168,7 @@ const Workspace = ({
               }}
             />
           ),
-          history: <HistoryPanel key={historyAsked} workspace={workspace} />,
+          history: <HistoryPanel key={historyAsked} workspace={workspace} lastVisit={lastVisit} />,
           find: <SearchPanel workspace={workspace} />,
         }}
       />

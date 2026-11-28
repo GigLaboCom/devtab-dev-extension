@@ -94,7 +94,7 @@
  *   in the bottom panel:       .kit-projects-search (-form, .kit-projects-results >
  *                              .kit-projects-result-file, .kit-projects-result-line (-number, -text), .kit-projects-match)
  *                              or .kit-projects-history (-bar, .kit-projects-points > .kit-projects-point[data-source]
- *                              with -time, -label, -path, -actions)
+ *                              [data-text=none] with -time, -label, -path, -actions; -more, -deleted with -title)
  * The editor's indent indicator (D39: a project's file, a scratch, each side of «Compare code»):
  *   .kit-indent-indicator      the button in an editor's bar: .kit-indent-value ("Spaces: 4"), .kit-indent-source (where
  *                              it comes from)
@@ -1951,8 +1951,34 @@
 
   .kit-projects-point-actions {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: calc(var(--spacing) * 1);
+    min-width: 0;
     margin-inline-start: auto;
+  }
+
+  /* A moment the companion noted without keeping its text: listed, quieter, nothing to open. */
+  .kit-projects-point[data-text='none'] > .kit-projects-point-label {
+    color: var(--muted-foreground);
+    font-weight: var(--font-weight-normal);
+  }
+
+  .kit-projects-history-more {
+    align-self: flex-start;
+  }
+
+  .kit-projects-history-deleted {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 1);
+  }
+
+  .kit-projects-history-title {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-medium);
   }
 
   /* The language popup (D38): the palette's frame, narrower — a list of short names, as IDEs' small popups. */

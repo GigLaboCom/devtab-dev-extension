@@ -326,7 +326,7 @@ describe('compareBehaviors', () => {
   it('assembles one implementation per seam and the toolbar list', () => {
     const behaviors = compareBehaviors(window);
     expect(Object.keys(behaviors).sort()).toEqual(
-      ['actions', 'clipboard', 'confirmDiscard', 'examples', 'saver', 'texts'].sort(),
+      ['actions', 'clipboard', 'confirmDiscard', 'examples', 'projectSaver', 'saver', 'texts'].sort(),
     );
     expect(behaviors.actions.length).toBeGreaterThan(0);
   });

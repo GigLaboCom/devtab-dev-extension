@@ -28,6 +28,7 @@ import {
 import type { Clipboard } from './clipboard';
 import type { ExampleSource } from './examples';
 import type { SideText } from './files';
+import type { ProjectFileOrigin } from './handoff';
 import type { SideSaver } from './sideSaver';
 import type { Arrival, CompareState, Side, Tone } from './state';
 import type { TextSource } from './textSource';
@@ -43,8 +44,11 @@ export interface ComparePort {
   setEditable(side: Side, editable: boolean): void;
   clear(side: Side): Promise<void>;
   swap(): void;
-  /** The text was saved for the side, under this name and (with File System Access) this handle. */
-  saved(side: Side, text: string, fileName: string, handle: FileSystemFileHandle | null): void;
+  /**
+   * The text was saved for the side, under this name and (with File System Access) this handle; `leftProject`: a side
+   * of a project's file saved somewhere else (Save as), so it is that file now.
+   */
+  saved(side: Side, text: string, fileName: string, handle: FileSystemFileHandle | null, leftProject?: boolean): void;
   say(text: string, tone?: Tone): void;
 }
 
@@ -53,6 +57,12 @@ export interface ActionBehaviors {
   texts: TextSource;
   clipboard: Clipboard;
   saver: SideSaver;
+  /**
+   * How a side that is a project's file is saved (the Projects section's «Open in Compare code»): the same seam, one
+   * saver per handed file, so its next Save starts from the version the last one wrote. Absent: such a side saves as
+   * any other.
+   */
+  projectSaver?: (origin: ProjectFileOrigin) => SideSaver;
   examples: ExampleSource;
 }
 
@@ -95,9 +105,15 @@ const save =
       suggestedName: suggestedName(meta, side, extensionOf(state.language)),
       handle: meta.handle,
     };
-    const result = await (as ? behaviors.saver.saveAs(request) : behaviors.saver.save(request));
+    // A side that is a project's file saves back into the project; Save as goes where the person chooses, as any side's.
+    const project = !as && meta.project && behaviors.projectSaver ? behaviors.projectSaver(meta.project) : null;
+    const result = await (project
+      ? project.save(request)
+      : as
+        ? behaviors.saver.saveAs(request)
+        : behaviors.saver.save(request));
     if (result.status === 'saved') {
-      page.saved(side, text, result.fileName, result.handle);
+      page.saved(side, text, result.fileName, result.handle, ...(as && meta.project !== null ? [true] : []));
       page.say(
         result.how === 'download'
           ? `Downloaded the ${SIDE_WORD[side]} side as ${result.fileName}.`

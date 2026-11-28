@@ -301,11 +301,16 @@ export const ComparePage = ({ behaviors, frameKeys, editorSettings, keys }: Comp
                 ? 'The pasted text'
                 : 'The dropped text'),
         );
+        const projectSide = arrivals.find(a => a.text.project);
         say(
           origin === 'handed' && arrivals.length === 2 && arrivals.every(a => !a.text.fileName)
             ? 'Comparing the pasted texts: the original on the left, the changed text on the right.'
             : arrivals.length === 2
-              ? `Comparing ${named[0]} (original) with ${named[1]} (changed).`
+              ? `Comparing ${named[0]} (original) with ${named[1]} (changed).${
+                  projectSide
+                    ? ` The ${sideWord(projectSide.side)} side is the project’s file: edit it, then Save writes it back.`
+                    : ''
+                }`
               : `${named[0]} is on the ${sideWord(first.side)} side.`,
           'success',
         );
@@ -356,8 +361,8 @@ export const ComparePage = ({ behaviors, frameKeys, editorSettings, keys }: Comp
         indentRef.current.swap();
         say('Swapped the sides.');
       },
-      saved(side: Side, text: string, fileName: string, handle: FileSystemFileHandle | null) {
-        dispatch({ type: 'saved', side, fileName, handle });
+      saved(side: Side, text: string, fileName: string, handle: FileSystemFileHandle | null, leftProject?: boolean) {
+        dispatch({ type: 'saved', side, fileName, handle, ...(leftProject && { leftProject }) });
         request(id => ({ type: 'viewer/mark-saved', id, side, text }));
       },
       say,
@@ -634,6 +639,14 @@ export const ComparePage = ({ behaviors, frameKeys, editorSettings, keys }: Comp
                   {sideName(meta)}
                 </span>
                 {meta.origin === 'example' && <span className="kit-compare-badge">Example</span>}
+                {meta.project && (
+                  <span
+                    className="kit-compare-badge"
+                    data-badge="project"
+                    title={`Save writes it back to ${meta.project.path} in its project.`}>
+                    Project file
+                  </span>
+                )}
                 {meta.editable && (
                   <span className="kit-compare-badge" data-badge="editing">
                     Editing

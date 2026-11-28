@@ -69,7 +69,7 @@ export const FileActions = ({ workspace }: { workspace: Workspace }): ReactEleme
   };
 
   // Deleting: offered by a companion with a Trash; otherwise the button says why when pressed.
-  const trash = can('file.delete');
+  const trash = workspace.trash;
   const deleteReason = !mine ? TEXT.writeReadOnly : !path ? TEXT.noOpenFile : null;
 
   return (

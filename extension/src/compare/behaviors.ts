@@ -7,7 +7,10 @@
  *   Clipboard        Paste and Copy of a side (clipboard.ts)
  *   ExampleSource    what the page shows when nothing is loaded (examples.ts)
  *   SideSaver        how a side is saved: File System Access where the browser has it, a download otherwise
- *                    (sideSaver.ts)
+ *                    (sideSaver.ts); a side that is a project's file (handed over by the Projects section with its
+ *                    `origin`, handoff.ts): the same seam's `projectSaver` through the Projects section's backend
+ *                    (src/projects/compareSaver.ts) — loaded when such a side is first saved, so this chunk carries no
+ *                    code of the companion (Check 12 of scripts/validate-build.sh)
  *   ConfirmDiscard   how the page asks before new text replaces unsaved edits (below)
  *   CompareAction    the toolbar: the list of actions (actions.ts)
  */
@@ -17,7 +20,8 @@ import { bundledExamples } from './examples';
 import { chooseSaver } from './sideSaver';
 import { browserTextSource } from './textSource';
 import type { ActionBehaviors, CompareAction } from './actions';
-import type { SavePicker } from './sideSaver';
+import type { ProjectFileOrigin } from './handoff';
+import type { SavePicker, SideSaver } from './sideSaver';
 import type { OpenPicker } from './textSource';
 
 /** Seam `ConfirmDiscard`: true when the user agrees to lose a side's unsaved edits. */
@@ -29,6 +33,29 @@ export const windowConfirm =
   question =>
     Promise.resolve(win.confirm(question));
 
+/**
+ * The saver of the sides that are a project's file: one per handed file (the same origin keeps its saver, so the next
+ * Save starts from the version the last one wrote), its implementation loaded on the first Save.
+ */
+export const lazyProjectSavers = (
+  load: () => Promise<(origin: ProjectFileOrigin) => SideSaver>,
+): ((origin: ProjectFileOrigin) => SideSaver) => {
+  const kept = new WeakMap<ProjectFileOrigin, SideSaver>();
+  return origin => {
+    const known = kept.get(origin);
+    if (known) return known;
+    let made: Promise<SideSaver> | null = null;
+    const saver = (): Promise<SideSaver> => (made ??= load().then(make => make(origin)));
+    const lazy: SideSaver = {
+      name: 'project',
+      save: request => saver().then(s => s.save(request)),
+      saveAs: request => saver().then(s => s.saveAs(request)),
+    };
+    kept.set(origin, lazy);
+    return lazy;
+  };
+};
+
 export interface CompareBehaviors extends ActionBehaviors {
   confirmDiscard: ConfirmDiscard;
   actions: readonly CompareAction[];
@@ -39,6 +66,7 @@ export const compareBehaviors = (win: Window & OpenPicker & SavePicker): Compare
   clipboard: navigatorClipboard(win.navigator.clipboard),
   examples: bundledExamples(),
   saver: chooseSaver(win),
+  projectSaver: lazyProjectSavers(() => import('../projects/compareSaver').then(m => m.compareProjectSaver)),
   confirmDiscard: windowConfirm(win),
   actions: compareActions,
 });

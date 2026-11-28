@@ -197,15 +197,25 @@ export const CommitPanel = ({ workspace, keys }: CommitPanelProps): ReactElement
   }, 0);
   const hooksShown = (state?.hooks ?? []).some(h => h === 'pre-commit' || h === 'commit-msg');
   const canCommit = mine && !busy && checkedFiles.length > 0 && message.trim().length > 0 && !!identity?.email;
-  // The last commit may be undone when it waits to be pushed (a companion that lists those), or when this page made it
-  // and it is still HEAD; the companion has the last word, and once it says no, the action goes for that HEAD.
+  // The last commit may be undone when the companion says so beforehand (`git.status.headUndoable`, stage 7); an older
+  // companion does not, and the page guesses: it waits to be pushed (a companion that lists those), or this page made
+  // it and it is still HEAD. Either way the companion has the last word, and once it says no, the action goes for that
+  // HEAD (a HEAD that moved, another git operation running).
   const head = status?.headSha ?? null;
   const waitingToPush = outgoing ? outgoing.commits.length > 0 : false;
+  const told = typeof status?.headUndoable === 'boolean';
   const undoable =
     can('git.undoCommit') &&
     head !== null &&
     !notUndoable.has(head) &&
-    (waitingToPush || lastCommit === head || (!outgoing && !!state?.upstream && (state.ahead ?? 0) > 0));
+    (told
+      ? status!.headUndoable
+      : waitingToPush || lastCommit === head || (!outgoing && !!state?.upstream && (state.ahead ?? 0) > 0));
+  // Why not, said quietly where the person would look for it: after a commit made here, or with commits not pushed.
+  const undoReason =
+    told && !undoable && mine && can('git.undoCommit') && (lastCommit === head || (state?.ahead ?? 0) > 0)
+      ? headUndoText(status!.headUndoReason ?? null)
+      : null;
   const branchLine = `${
     state?.branch
       ? TEXT.branchLine(printable(state.branch), state.upstream == null ? null : printable(state.upstream), state.ahead)
@@ -317,24 +327,31 @@ export const CommitPanel = ({ workspace, keys }: CommitPanelProps): ReactElement
       if (isCompanionError(error, 'stale-selection')) workspace.refresh();
     }
   };
-  // «Undo rollback»: each file's «Before rollback» point, restored (§6.8).
+  // «Undo rollback»: each file's «Before rollback» point (the newest), restored (§6.8); a refusal stops and is said.
   const undoRollback = async (): Promise<void> => {
-    for (const path of rolledBack) {
-      const [{ points }, file] = await Promise.all([
-        backend.call('history.file', { project: project.id, path }),
-        backend.call('file.read', { project: project.id, path }).catch(() => null),
-      ]);
-      const before = points.find(p => p.label === 'Before rollback');
-      if (before)
-        await backend.call('history.restore', {
-          project: project.id,
-          path,
-          point: before.point,
-          currentHash: file?.hash ?? null,
-        });
+    const left = [...rolledBack];
+    try {
+      while (left.length) {
+        const path = left[0]!;
+        const [{ points }, file] = await Promise.all([
+          backend.call('history.file', { project: project.id, path }),
+          backend.call('file.read', { project: project.id, path }).catch(() => null),
+        ]);
+        const before = points.find(p => p.label === 'Before rollback');
+        if (before)
+          await backend.call('history.restore', {
+            project: project.id,
+            path,
+            point: before.point,
+            currentHash: file?.hash ?? null,
+          });
+        left.shift();
+      }
+      setNote(null);
+    } catch (error) {
+      setNote({ tone: 'error', kind: 'undo-rollback', said: errorText(error, 'restore', project.id) });
     }
-    setRolledBack([]);
-    setNote(null);
+    setRolledBack(left);
     workspace.refresh();
   };
 
@@ -507,7 +524,8 @@ export const CommitPanel = ({ workspace, keys }: CommitPanelProps): ReactElement
       {selected && hunks && (
         <div className="kit-projects-chunks" role="group" aria-label={TEXT.chunksOf(selected)}>
           <div className="kit-projects-change-group-title">{TEXT.chunksOf(selected)}</div>
-          {!hunks.chunkable || wholeOnly(fileOf(selected)) ? (
+          {/* A companion of stage 7 says a new file is whole itself (`reason: new-file`); for an older one the page does. */}
+          {!hunks.chunkable || (!told && wholeOnly(fileOf(selected))) ? (
             <p className="kit-projects-tree-note">
               {hunks.reason === 'conflicted' ? TEXT.conflicted : TEXT.wholeFileOnly}
             </p>
@@ -637,6 +655,11 @@ export const CommitPanel = ({ workspace, keys }: CommitPanelProps): ReactElement
               )}
             </SaidNote>
           )}
+          {undoReason && (
+            <p className="kit-projects-note" data-undo-reason={status?.headUndoReason ?? ''}>
+              {undoReason}
+            </p>
+          )}
           {(undoable || rolledBack.length > 0) && (
             <div className="kit-projects-commit-actions">
               {undoable && !busy && (
@@ -667,7 +690,7 @@ export const CommitPanel = ({ workspace, keys }: CommitPanelProps): ReactElement
 
       <RollbackDialog
         paths={rollbackPaths}
-        trash={can('file.delete')}
+        trash={workspace.trash}
         open={rollbackOpen}
         onOpenChange={setRollbackOpen}
         onRollback={deleteAdded => void rollback(deleteAdded)}
@@ -676,6 +699,14 @@ export const CommitPanel = ({ workspace, keys }: CommitPanelProps): ReactElement
     </section>
   );
 };
+
+/** Why HEAD cannot be undone, in the page's words (`git.status.headUndoReason`); null: nothing worth saying. */
+const headUndoText = (reason: string | null): string | null =>
+  reason === null || reason === 'not-mine'
+    ? null
+    : reason === 'unknown'
+      ? TEXT.headUndo.unknown
+      : (TEXT.errors.undoUnavailable[reason] ?? TEXT.errors.undoUnavailableOther);
 
 /** A new file is committed whole (the companion takes no chunks of it). */
 const wholeOnly = (file: StatusFile | undefined): boolean => file?.change === 'untracked' || file?.change === 'added';

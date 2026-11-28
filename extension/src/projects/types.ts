@@ -5,8 +5,8 @@
  * Two sources. The methods, events and error codes the companion offers today come from its contract — the copy in
  * ./api/ and the types made from its schemas (./api/types.gen.ts, scripts/contract-sync.mjs); the companion's contract
  * is the source of truth for them, and the demo answers in the same shapes. The methods the companion does not offer
- * yet (the commits to push, push, restoring from the history and purging it) are written here by hand after the
- * specification's tables, until a newer contract brings them.
+ * yet (the commits to push and push) are written here by hand after the specification's tables, until a newer contract
+ * brings them.
  *
  * Paths are relative POSIX paths inside the project (`""` is the root); no answer carries an absolute path or the
  * home directory — a project's root is its `displayPath` (`~/…`).
@@ -26,7 +26,10 @@ export type ProjectClass = Contract.ProjectClass;
 /** How the project got its class: a command in the terminal, the companion's window, or a trusted folder. */
 export type Via = Contract.Via;
 
-/** An opaque point of the local history (the companion's: `s:<id>@<ms>:<path>`, `g:<sha>@<ms>:<path>`). */
+/**
+ * An opaque point of the local history: passed back as it came (`history.content`, `diff.sides`, `history.restore`),
+ * never taken apart.
+ */
 export type HistoryPoint = string;
 
 // ---- from the contract ------------------------------------------------------------------------------------------
@@ -56,6 +59,9 @@ export type FileHunks = Contract.GitHunks;
 export type PointSource = Contract.PointSource;
 export type FilePoint = Contract.HistoryPoint;
 export type ProjectPoint = Contract.ProjectPoint;
+/** A stretch of time in which the companion did not watch the project (`history.file.gaps`, `historyGaps`). */
+export type HistoryGap = Contract.Gap;
+export type Restored = Contract.Restored;
 
 export type TrustedLocation = Contract.LocationSummary;
 export type CommitSelection = Contract.Selected;
@@ -108,11 +114,6 @@ export interface Methods extends Contract.ContractMethods {
     PushResult,
     OutputLine
   >;
-  'history.restore': Of<
-    InProject<{ path: string; point: HistoryPoint; currentHash: string | null }>,
-    { restored: HistoryPoint; before: HistoryPoint | null }
-  >;
-  'history.requestPurge': Of<InProject, object>;
 }
 
 export type Method = keyof Methods;
@@ -122,7 +123,7 @@ export type StreamOf<M extends Method> = Methods[M]['stream'];
 
 /**
  * The methods that write: only in a project of class «mine». A backend offers each on its own (the companion lists in
- * its `welcome` what it can do: no `file.delete` without a Trash, no push and no restore before its later stages).
+ * its `welcome` what it can do: no `file.delete` without a Trash, no push yet, no restore before its stage 7).
  */
 export const WRITE_METHODS: readonly Method[] = [
   'project.setView',
@@ -145,9 +146,8 @@ type EventOf<N extends string, D> = { name: N; project: ProjectId | null; data: 
 
 export type CompanionEvent =
   | { [N in keyof Contract.ContractEvents]: EventOf<N, Contract.ContractEvents[N]> }[keyof Contract.ContractEvents]
-  // Not in the contract yet: the companion's own history and pause (its later stages).
+  // Not in the contract yet: new points of the history (the demo's; the companion leaves it for later) and the pause.
   | EventOf<'history.appeared', { paths: string[] }>
-  | EventOf<'history.gap', { from: number; to: number; paths: number }>
   | EventOf<'companion.paused', Record<string, never>>
   | EventOf<'companion.resumed', Record<string, never>>;
 

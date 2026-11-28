@@ -129,6 +129,11 @@ describe('reading', () => {
       reason: 'renamed',
     });
     expect((await backend.call('git.hunks', { project: TIDES, path: 'tide/stations.csv' })).reason).toBe('conflicted');
+    // Not in HEAD: whole, by the companion's own reason.
+    expect(await backend.call('git.hunks', { project: LEDGER, path: 'src/routes/invoices.ts' })).toMatchObject({
+      chunkable: false,
+      reason: 'new-file',
+    });
     const diff = await backend.call('diff.sides', { project: LEDGER, path: 'src/server.ts', base: 'HEAD' });
     expect(diff.hunks.map(h => h.start)).toEqual(server.hunks.map(h => h.start));
     expect(diff.old.text).toContain("from '@/currency'");
@@ -179,7 +184,8 @@ describe('reading', () => {
   it('the history of a file, newest first; the project’s with deleted files', async () => {
     const backend = open();
     const { points } = await backend.call('history.file', { project: LEDGER, path: 'src/server.ts' });
-    expect(points.map(p => p.label)).toEqual(['Saved', 'Saved', 'Before edit', 'Commit']);
+    expect(points.map(p => p.label)).toEqual(['Saved', 'Saved', 'Before edit', 'Answer 404 with a formatted zero']);
+    expect(points.at(-1)!.source).toBe('commit');
     // In the contract's shape: no field it does not name.
     for (const point of points)
       expect(Object.keys(point).sort()).toEqual(['label', 'point', 'size', 'source', 'timeMs']);
@@ -187,6 +193,10 @@ describe('reading', () => {
     expect(project.points).toHaveLength(3);
     expect(project.next).toBe('3');
     expect(project.deleted).toEqual(['src/legacy/report.ts']);
+    // The stretch the companion did not watch: in the file's history and in the project's state.
+    const gaps = (await backend.call('history.file', { project: LEDGER, path: 'README.md' })).gaps;
+    expect(gaps).toHaveLength(1);
+    expect((await backend.call('project.state', { project: LEDGER })).historyGaps).toEqual(gaps);
   });
 
   it('commits waiting for a push, with or without an upstream', async () => {
@@ -262,6 +272,57 @@ describe('writing in memory', () => {
     expect(deleted).toContain('stages/one.txt');
   });
 
+  it('restores as the companion of stage 7: the point restored, the copy before, the new hash; a deleted file again', async () => {
+    const backend = open();
+    const { hash } = await backend.call('file.read', { project: LEDGER, path: 'README.md' });
+    const { points } = await backend.call('history.file', { project: LEDGER, path: 'README.md' });
+    const away = points.find(p => p.label === 'Changed while away')!;
+    expect(away.source).toBe('companion');
+    const done = await backend.call('history.restore', {
+      project: LEDGER,
+      path: 'README.md',
+      point: away.point,
+      currentHash: hash,
+    });
+    expect(done.restored).toBe(away.point);
+    expect(done.hash).toBe((await backend.call('file.read', { project: LEDGER, path: 'README.md' })).hash);
+    expect(done.protected).toBeNull();
+    expect((await backend.call('history.content', { project: LEDGER, point: done.before! })).text).toContain(
+      'ledger-api',
+    );
+    const report = (await backend.call('history.file', { project: LEDGER, path: 'src/legacy/report.ts' })).points[0]!;
+    const back = await backend.call('history.restore', {
+      project: LEDGER,
+      path: 'src/legacy/report.ts',
+      point: report.point,
+      currentHash: null,
+    });
+    expect(back.before).toBeNull();
+    expect((await backend.call('file.read', { project: LEDGER, path: 'src/legacy/report.ts' })).text).toContain(
+      'monthly report',
+    );
+  });
+
+  it('a moment noted without its text (Before create) has no content; clearing answers with the command', async () => {
+    const backend = open();
+    await backend.call('file.create', { project: GARDEN, path: 'new.txt', text: 'x\n' });
+    const { points } = await backend.call('history.file', { project: GARDEN, path: 'new.txt' });
+    expect(points.map(p => [p.label, p.source, p.size])).toEqual([
+      ['Saved', 'server', 2],
+      ['Before create', 'companion', 0],
+    ]);
+    expect(await codeOf(backend.call('history.content', { project: GARDEN, point: points[1]!.point }))).toBe(
+      'not-found',
+    );
+    expect(
+      await codeOf(backend.call('diff.sides', { project: GARDEN, path: 'new.txt', base: { point: points[1]!.point } })),
+    ).toBe('not-found');
+    expect(await dataOf(backend.call('history.requestPurge', { project: GARDEN }))).toEqual({
+      reason: 'no-window',
+      command: 'devtab history purge ~/self/games/pixel-garden',
+    });
+  });
+
   it('commits checked chunks only: the rest stays a change', async () => {
     const backend = open();
     const status = await backend.call('git.status', { project: LEDGER });
@@ -311,6 +372,17 @@ describe('writing in memory', () => {
 
   it('undoes the last commit of the seed, refuses a pushed one and the first one', async () => {
     const backend = open();
+    // Said beforehand in the status, by the same check (as the companion of stage 7 does).
+    expect(await backend.call('git.status', { project: LEDGER })).toMatchObject({
+      headUndoable: true,
+      headUndoReason: null,
+    });
+    expect(await backend.call('git.status', { project: 'p_demo0settl' })).toMatchObject({
+      headUndoable: false,
+      headUndoReason: 'pushed',
+    });
+    expect((await backend.call('git.status', { project: GARDEN })).headUndoReason).toBe('root');
+    expect((await backend.call('git.status', { project: NOTES })).headUndoReason).toBe('not-mine');
     const { headSha } = await backend.call('git.status', { project: LEDGER });
     const undone = await backend.call('git.undoCommit', { project: LEDGER, headSha: headSha! });
     expect(undone).toEqual({ message: 'Answer 404 with a formatted zero', paths: ['src/server.ts'] });

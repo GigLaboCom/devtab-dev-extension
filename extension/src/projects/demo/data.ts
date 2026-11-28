@@ -3,7 +3,8 @@
  * a name that never resolves), the code and the "secret" (obviously fake). Two trusted folders with names, four
  * projects in them at different depths and one outside every folder (read only); a tree with ignored entries, a file
  * with secrets, files that run code, a binary and a too-large file; changed, new, deleted and renamed files; a short
- * local history; commits waiting to be pushed. Times are minutes before the page opened the section.
+ * local history with a stretch the companion did not watch and a deleted file; commits waiting to be pushed. Times are
+ * minutes before the page opened the section.
  */
 import type { ProjectClass, TrustedLocation, Via } from '../types';
 
@@ -25,7 +26,14 @@ export interface DemoPointSeed {
   readonly label: string;
   readonly source: 'server' | 'companion' | 'commit';
   readonly ago: number;
-  readonly text: string;
+  /** Null: the companion noted the moment and kept no text (`Before create`, `Deleted while away`). */
+  readonly text: string | null;
+}
+
+/** A stretch the companion did not watch the project, in minutes before the page opened the section. */
+export interface DemoGapSeed {
+  readonly fromAgo: number;
+  readonly toAgo: number;
 }
 
 export interface DemoProjectSeed {
@@ -54,6 +62,7 @@ export interface DemoProjectSeed {
   readonly conflicted?: readonly string[];
   readonly commits: readonly DemoCommitSeed[];
   readonly history: readonly DemoPointSeed[];
+  readonly gaps?: readonly DemoGapSeed[];
   readonly messages: readonly string[];
 }
 
@@ -68,6 +77,9 @@ export const DEMO_LOCATIONS: readonly TrustedLocation[] = [
 
 const HOUR = 60;
 const DAY = 24 * HOUR;
+
+/** The demo's last visit of a project (the history's «Since your last visit»): this many minutes before it began. */
+export const DEMO_LAST_VISIT_MINUTES = 3 * HOUR;
 
 // ---- ledger-api: the richest project ----------------------------------------------------------------------------
 
@@ -369,14 +381,24 @@ export const DEMO_PROJECTS: readonly DemoProjectSeed[] = [
       },
     ],
     history: [
-      { path: 'src/server.ts', label: 'Commit', source: 'commit', ago: DAY, text: SERVER_HEAD },
+      {
+        path: 'src/server.ts',
+        label: 'Answer 404 with a formatted zero',
+        source: 'commit',
+        ago: DAY,
+        text: SERVER_HEAD,
+      },
+      { path: 'README.md', label: 'Changed while away', source: 'companion', ago: 17 * HOUR, text: README_HEAD },
       { path: 'src/server.ts', label: 'Before edit', source: 'companion', ago: 95, text: SERVER_HEAD },
       { path: 'src/server.ts', label: 'Saved', source: 'server', ago: 80, text: SERVER_EARLIER },
       { path: 'src/server.ts', label: 'Saved', source: 'server', ago: 25, text: SERVER_DISK },
       { path: 'README.md', label: 'External change', source: 'server', ago: 40, text: README_DISK },
       { path: 'src/legacy/report.ts', label: 'Deleted', source: 'server', ago: 70, text: REPORT },
       { path: 'src/routes/invoices.ts', label: 'Saved', source: 'server', ago: 30, text: INVOICES },
+      { path: 'src/routes/invoices.ts', label: 'Before create', source: 'companion', ago: 31, text: null },
     ],
+    // The companion was stopped overnight: on its return it noted what changed (README.md) as «Changed while away».
+    gaps: [{ fromAgo: 20 * HOUR, toAgo: 17 * HOUR }],
     messages: ['Answer 404 with a formatted zero', 'Format amounts with their currency', 'Add the accounts endpoint'],
   },
   {

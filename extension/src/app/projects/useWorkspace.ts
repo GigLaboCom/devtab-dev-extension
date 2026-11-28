@@ -52,6 +52,11 @@ export interface Workspace {
   refresh(): void;
   /** Whether the backend offers the method: an action whose method it does not offer is inactive, with why. */
   can(method: Method): boolean;
+  /**
+   * Whether deleting goes to the Trash: the companion offers `file.delete` and its `companion.state.deletePolicy` is
+   * not `unavailable` (an older companion says `trash` without one; for it the offer alone decides).
+   */
+  trash: boolean;
   /** Something failed: said once, in the page's status line. */
   error: string | null;
   setError(message: string | null): void;
@@ -75,6 +80,7 @@ export const useWorkspace = (
   const [reveal, setReveal] = useState<Reveal | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [root, setRoot] = useState<readonly TreeEntry[] | null>(null);
+  const [deletePolicy, setDeletePolicy] = useState<string | null>(null);
   const counter = useRef(0);
   const nextView = useRef<{ path: string; view: EditorView; reveal?: Omit<Reveal, 'n'> } | null>(null);
   const changedRef = useRef(onProjectChanged);
@@ -127,6 +133,20 @@ export const useWorkspace = (
     };
   }, [backend, project.id]);
 
+  // Where deletions go: read once per connection, only from a backend that can delete at all.
+  const deletes = backend.capabilities().methods.includes('file.delete');
+  useEffect(() => {
+    if (!deletes || !backend.capabilities().methods.includes('companion.state')) return setDeletePolicy(null);
+    let live = true;
+    backend.call('companion.state', {}).then(
+      s => live && setDeletePolicy(s.deletePolicy ?? null),
+      () => live && setDeletePolicy(null),
+    );
+    return () => {
+      live = false;
+    };
+  }, [backend, deletes, generation]);
+
   // The connection came back: every part reads again (the backend says the subscriptions again itself).
   useEffect(() => {
     if (generation) setVersion(v => v + 1);
@@ -160,6 +180,7 @@ export const useWorkspace = (
     revealHunk: index => setReveal({ hunk: index, n: ++counter.current }),
     refresh,
     can: method => backend.capabilities().methods.includes(method),
+    trash: deletes && deletePolicy !== 'unavailable',
     error,
     setError,
     root,

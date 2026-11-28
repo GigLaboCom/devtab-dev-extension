@@ -5,10 +5,27 @@
  * default TextSource's `handed`) or the tab closes. The same tab keeps the same document across the hash change.
  */
 
+/**
+ * A text that is a project's file as the Projects section showed it (its «Open in Compare code», the companion's
+ * specification §7.6): Save writes the side back into the project — `file.save` from `baseHash`, through the backend
+ * the section had (`backend`), so a file changed on disk meanwhile is not overwritten. Data only: which file, which
+ * version; how it is saved is the composition root's (behaviors.ts).
+ */
+export interface ProjectFileOrigin {
+  project: string;
+  path: string;
+  /** The version of the file the text is (`file.read.hash`). */
+  baseHash: string;
+  /** Which of the section's backends has the project: the companion's, or the demo's invented one. */
+  backend: 'companion' | 'demo';
+}
+
 /** A handed text: its content and, when the sender gave one, a name (a file's, which tells the language). */
 export interface HandedCompareText {
   text: string;
   name: string | null;
+  /** The project's file the text is, when it is one: Save writes it back there. */
+  origin?: ProjectFileOrigin;
 }
 
 let pending: readonly HandedCompareText[] | null = null;

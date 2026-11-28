@@ -89,7 +89,8 @@ interface Point {
   label: string;
   source: FilePoint['source'];
   timeMs: number;
-  text: string;
+  /** Null: a moment noted without its text (`Before create`, `Deleted while away`), as the companion's `c:none`. */
+  text: string | null;
   session?: string;
 }
 
@@ -108,6 +109,8 @@ interface Project {
   upstream: string | null;
   behind: number;
   points: Point[];
+  /** The stretches the companion did not watch the project. */
+  gaps: { from: number; to: number }[];
   messages: string[];
   /** Editing sessions seen, and the hash each last saved. */
   sessions: Map<string, string>;
@@ -244,6 +247,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       upstream: seed.upstream,
       behind: seed.behind,
       points,
+      gaps: (seed.gaps ?? []).map(g => ({ from: ago(g.fromAgo), to: ago(g.toAgo) })),
       messages: [...seed.messages],
       sessions: new Map(),
     });
@@ -295,13 +299,13 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
         : baseName(path) === rule,
     );
 
-  const point = (p: Project, path: string, label: string, text: string, extra: Partial<Point> = {}): Point => {
+  const point = (p: Project, path: string, label: string, text: string | null, extra: Partial<Point> = {}): Point => {
     const timeMs = now();
     const made: Point = {
       point: `c:${textHash(`${p.seed.id}:${path}:${label}:${p.points.length}`).slice(5)}@${timeMs}`,
       path,
       label,
-      source: label.startsWith('Before') ? 'companion' : label === 'Commit' ? 'commit' : 'server',
+      source: label.startsWith('Before') ? 'companion' : 'server',
       timeMs,
       text,
       ...extra,
@@ -447,7 +451,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
         detached: false,
         hooks: [...p.seed.hooks],
         hooksPath: p.seed.hooks.length > 0 && [...p.disk.keys()].some(path => path.startsWith('.husky/')),
-        historyGaps: [],
+        historyGaps: p.gaps.map(g => ({ ...g })),
       };
     },
     'locations.list': () =>
@@ -612,9 +616,27 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       }
       return { files, matches, truncated };
     },
+    // Whether HEAD can be undone, by the check `git.undoCommit` makes (as the companion says it beforehand).
     'git.status': ({ project }): GitStatus => {
       const p = projectOf(project);
-      return { headSha: headSha(p), branch: p.seed.branch, files: statusFiles(p) };
+      const last = p.commits.at(-1);
+      const reason =
+        p.class !== 'mine'
+          ? 'not-mine'
+          : !last
+            ? 'root'
+            : last.pushed
+              ? 'pushed'
+              : p.commits.length === 1
+                ? 'root'
+                : null;
+      return {
+        headSha: headSha(p),
+        branch: p.seed.branch,
+        files: statusFiles(p),
+        headUndoable: reason === null,
+        headUndoReason: reason,
+      };
     },
     'git.identity': ({ project }) => {
       projectOf(project);
@@ -631,9 +653,9 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       const status = statusFiles(p).find(f => f.path === path);
       let old: DemoFile | undefined;
       if (typeof base === 'object' && 'point' in base) {
-        const found = p.points.find(pt => pt.point === base.point);
-        if (!found) fail('not-found', 'no such point of the history');
-        old = found!.text;
+        const found = p.points.find(pt => pt.point === base.point && pt.path === path);
+        if (!found || found.text === null) fail('not-found', 'no such point of the history');
+        old = found!.text!;
       } else old = headFor(p, path);
       const binary = [old, onDisk].some(f => f !== undefined && typeof f !== 'string');
       const oldText = old === undefined || binary ? '' : textOf(old, path);
@@ -666,7 +688,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       const onDisk = p.disk.get(path);
       const headHash = inHead === undefined ? null : hashOf(inHead);
       const diskHash = onDisk === undefined ? null : hashOf(onDisk);
-      const whole = (reason: 'binary' | 'conflicted' | 'renamed') => ({
+      const whole = (reason: 'binary' | 'conflicted' | 'renamed' | 'new-file') => ({
         hunks: [],
         headHash,
         diskHash,
@@ -676,6 +698,8 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       if (status?.change === 'conflicted') return whole('conflicted');
       if (status?.change === 'renamed') return whole('renamed');
       if ([inHead, onDisk].some(f => f !== undefined && typeof f !== 'string')) return whole('binary');
+      // Not in HEAD: committed whole, as the companion says it.
+      if (inHead === undefined && onDisk !== undefined) return whole('new-file');
       const hunks: ChunkHunk[] = lineHunks(
         (inHead as string | undefined) ?? '',
         (onDisk as string | undefined) ?? '',
@@ -731,6 +755,8 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       const p = projectOf(project);
       writable(p, path);
       if (p.disk.has(path) || filesUnder(p.disk, path).length) fail('exists', `${path} exists`);
+      // As the companion: the moment before, noted without a text (there was none), then the server's «Saved».
+      point(p, path, 'Before create', null);
       setDisk(p, path, text);
       point(p, path, 'Saved', text);
       changed(project, [path]);
@@ -873,9 +899,10 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       };
       p.commits.push(commit);
       p.messages = [commit.message, ...p.messages.filter(m => m !== commit.message)].slice(0, 20);
+      // The commit in each file's history, by its summary, as the companion lists commits.
       for (const { path } of selection) {
         const file = p.head.get(path);
-        if (isText(file)) point(p, path, 'Commit', file);
+        if (isText(file)) point(p, path, summary, file, { source: 'commit' });
       }
       emit({ name: 'git.changed', project, data: {} });
       const skipped = runHooks ? [] : p.seed.hooks.filter(h => h === 'pre-commit' || h === 'commit-msg');
@@ -977,7 +1004,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       checkPath(path);
       return {
         points: newestFirst(p.points.filter(pt => pt.path === path)).map(toFilePoint),
-        gaps: [],
+        gaps: p.gaps.map(g => ({ ...g })),
       };
     },
     'history.project': ({ project, since, cursor, limit }) => {
@@ -998,32 +1025,41 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
     'history.content': ({ project, point: wanted }) => {
       const p = projectOf(project);
       const found = p.points.find(pt => pt.point === wanted);
-      if (!found) return fail('not-found', 'no such point of the history');
+      if (!found || found.text === null) return fail('not-found', 'no such point of the history');
       return { text: found.text, secret: isSecretPath(found.path) };
     },
     'history.restore': ({ project, path, point: wanted, currentHash }) => {
       const p = projectOf(project);
       writable(p, path);
       const found = p.points.find(pt => pt.point === wanted && pt.path === path);
-      if (!found) return fail('not-found', 'no such point of the history');
+      if (!found || found.text === null) return fail('not-found', 'no such point of the history');
       const current = p.disk.get(path);
       const hash = current === undefined ? null : hashOf(current);
-      if (hash !== currentHash) fail('conflict', `${path} changed on disk`, { currentHash: hash });
+      if (hash !== (currentHash ?? null)) fail('conflict', `${path} changed on disk`, { currentHash: hash });
       const before = isText(current) ? point(p, path, 'Before restore', current) : null;
       setDisk(p, path, found.text);
-      const restored = point(p, path, 'Saved', found.text);
+      point(p, path, 'Saved', found.text);
       changed(project, [path]);
-      return { restored: restored.point, before: before?.point ?? null };
+      return {
+        restored: found.point,
+        before: before?.point ?? null,
+        hash: textHash(found.text),
+        protected: protectedRule(path) ?? null,
+      };
     },
-    'history.requestPurge': () =>
-      fail('confirmation-unavailable', 'the demo keeps no history to purge: that is the companion’s'),
+    // The demo has no window to ask in: it answers as a companion without its window does, with the command.
+    'history.requestPurge': ({ project }) =>
+      fail('confirmation-unavailable', 'the companion cannot show its window; run the command in a terminal instead', {
+        reason: 'no-window',
+        command: `devtab history purge ${shellWord(projectOf(project).seed.displayPath)}`,
+      }),
   };
 
   const toFilePoint = (pt: Point): FilePoint => ({
     point: pt.point,
     label: pt.label,
     source: pt.source,
-    size: sizeOf(pt.text),
+    size: pt.text === null ? 0 : sizeOf(pt.text),
     timeMs: pt.timeMs,
   });
 

@@ -416,6 +416,21 @@ describe('the Commit window', () => {
   });
 });
 
+describe('whether the last commit can be undone (said beforehand)', () => {
+  it('the first commit of a branch: no «Undo last commit», one quiet line why', async () => {
+    show({ section: 'projects', project: 'p_demo0garden' });
+    await showView(/^Commit/);
+    const panel = await screen.findByRole('region', { name: 'Commit' });
+    const line = await waitFor(() => {
+      const found = panel.querySelector('[data-undo-reason]');
+      if (!found) throw new Error('not said yet');
+      return found;
+    });
+    expect(line.textContent).toBe('The first commit of a branch is not undone from the page.');
+    expect(within(panel).queryByRole('button', { name: 'Undo last commit' })).toBeNull();
+  });
+});
+
 describe('find and history', () => {
   it('finds in files, ignored folders only when asked; a match opens its file at its line', async () => {
     show({ section: 'projects', project: LEDGER });
@@ -445,7 +460,7 @@ describe('find and history', () => {
       'Saved',
       'Saved',
       'Before edit',
-      'Commit',
+      'Answer 404 with a formatted zero',
     ]);
     fireEvent.click(within(rows[3]!).getByRole('button', { name: 'Restore…' }));
     const dialog = await screen.findByRole('dialog', { name: 'Restore this version?' });

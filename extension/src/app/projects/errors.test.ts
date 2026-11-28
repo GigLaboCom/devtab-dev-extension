@@ -88,6 +88,24 @@ describe('errorText', () => {
     expect(said('cancelled', {}, 'commit').text).toBe(TEXT.commitCancelled);
   });
 
+  it('restoring a version and clearing the history (row 7.5): their own words where the code reads differently', () => {
+    expect(said('conflict', { currentHash: 'f'.repeat(64) }, 'restore').text).toBe(TEXT.history.restoreConflict);
+    expect(said('not-found', {}, 'restore').text).toBe(TEXT.history.pointGone);
+    expect(said('not-encodable', { encoding: 'utf-16le' }, 'restore').text).toBe(
+      TEXT.history.restoreNotEncodable('utf-16le'),
+    );
+    for (const code of ['secret-file', 'not-mine', 'disk-low', 'rate-limited', 'outside-project'])
+      expect(said(code, {}, 'restore').text).toBe(said(code, {}, 'save').text);
+    expect(said('protected-path', { rule: 'symlink' }, 'restore').text).toBe(TEXT.errors.protectedSymlink);
+    expect(
+      said('confirmation-unavailable', { reason: 'no-window', command: 'devtab history purge ~/fx/repo' }, 'purge'),
+    ).toEqual({ text: TEXT.history.purgeNoWindow, command: 'devtab history purge ~/fx/repo' });
+    expect(said('confirmation-unavailable', { reason: 'requests-off', command: 'x' }, 'purge').text).toBe(
+      TEXT.errors.requestsOff,
+    );
+    expect(said('confirmation-declined', {}, 'purge').text).toBe(TEXT.errors.confirmationDeclined);
+  });
+
   it('an error of the page itself, and a code no contract has yet', () => {
     expect(errorText(new Error('boom'), 'read').text).toBe(TEXT.failed('boom'));
     expect(said('brand-new-code').text).toBe(TEXT.errors.other('brand-new-code'));

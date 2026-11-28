@@ -419,6 +419,51 @@ export const TEXT = {
     confirmationRequired: 'The companion waits for you to confirm in its window.',
     other: (code: string) => `The companion refused (${code}).`,
   },
+
+  // ---- stage 7: the local history on the companion's data (§7.5, §7.6), and what its newer answers let the page say
+  // (whether HEAD can be undone). Working texts: the owner approves them. ------------------------------------------
+  history: {
+    notOffered: 'This companion does not keep a history yet.',
+    // A companion of stage 6 or older: the feeds read, restoring and clearing are not there (no request is sent).
+    readOnlyCompanion: 'This companion cannot restore versions or clear the history yet.',
+    viewProject: 'The project is read only: versions can be compared, not restored.',
+    sinceVisit: 'Since your last visit',
+    sinceVisitCount: (files: number) => `Since your last visit (${files})`,
+    sinceVisitEmpty: 'Nothing changed since your last visit.',
+    sinceVisitFrom: (when: string) => `Changes since ${when}, when you last left this project.`,
+    gap: (from: string, to: string) =>
+      `The history may be incomplete: the companion was not running from ${from} to ${to}.`, // spec §7.5
+    showMore: 'Show more',
+    deletedTitle: 'Deleted files',
+    deletedOf: (path: string) => `History of ${path}, deleted`,
+    deletedSubject: (path: string) => `${path} is deleted. Restoring a version creates it again.`,
+    backToOpenFile: 'Back to the open file',
+    sourceCommit: 'Commit',
+    noContent: 'No version kept', // spec: «версия не сохранена»
+    noContentTitle: 'The companion noted this moment but kept no text of it.',
+    openInCompare: 'Open in Compare code',
+    restoreDeletedBody: (path: string, when: string) =>
+      `${path} was deleted. It will be created again from its version of ${when}.`,
+    restoredDeleted: 'Restored: the file is back.',
+    undone: 'The restore is undone.',
+    clear: 'Clear history…',
+    cleared: 'The local history of this project is cleared.',
+    purgeNoWindow:
+      'Clearing the history needs your confirmation, and the companion cannot ask in a window yet. Run this in Terminal:',
+    restoreConflict: 'The file changed since this was asked. Nothing was written; look at it again.',
+    pointGone: 'This version is not there any more, or it is not one of this file’s.',
+    restoreNotEncodable: (encoding: string) =>
+      `This version cannot be written in the file’s encoding (${encoding}). Nothing was written.`,
+    // «Compare code» saving a side that came from a project.
+    compareNotConnected: 'Not saved: the companion that has this project is not connected.',
+    compareConflict:
+      'Not saved: the file changed on disk since it was opened here. Open it from Projects again to compare.',
+    compareFailed: (text: string) => `Not saved: ${text}`,
+  },
+  // Why the last commit cannot be undone, as the companion says beforehand (`git.status.headUndoReason`).
+  headUndo: {
+    unknown: 'The companion could not check whether the last commit can be undone.',
+  },
 } as const;
 
 /** What a scratch store's refusal says (D34): what was not kept, and what the person can do. */

@@ -23,7 +23,18 @@ export interface Said {
 
 /** What the person was doing: some codes read differently by it. */
 export type ErrorContext =
-  'read' | 'save' | 'write' | 'add' | 'class' | 'remove' | 'commit' | 'rollback' | 'undo' | 'capture';
+  | 'read'
+  | 'save'
+  | 'write'
+  | 'add'
+  | 'class'
+  | 'remove'
+  | 'commit'
+  | 'rollback'
+  | 'undo'
+  | 'capture'
+  | 'restore'
+  | 'purge';
 
 const str = (value: unknown): string | null => (typeof value === 'string' && value.length > 0 ? value : null);
 const num = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null);
@@ -51,7 +62,7 @@ export const errorText = (error: unknown, context: ErrorContext, project?: strin
     case 'invalid-path':
       return { text: E.invalidPath };
     case 'not-found':
-      return { text: context === 'add' ? E.addNotFound : E.notFound };
+      return { text: context === 'add' ? E.addNotFound : context === 'restore' ? TEXT.history.pointGone : E.notFound };
     case 'outside-project':
       return { text: E.outsideProject };
     case 'protected-path':
@@ -85,7 +96,7 @@ export const errorText = (error: unknown, context: ErrorContext, project?: strin
     case 'too-many-files':
       return { text: E.tooManyFiles(num(data.size) ?? 0, num(data.limit) ?? 2000) };
     case 'conflict':
-      return { text: TEXT.conflictNotice };
+      return { text: context === 'restore' ? TEXT.history.restoreConflict : TEXT.conflictNotice };
     case 'exists':
       return { text: E.exists };
     case 'stale-selection': {
@@ -137,7 +148,12 @@ export const errorText = (error: unknown, context: ErrorContext, project?: strin
       return { text: E.confirmationDeclined };
     case 'confirmation-unavailable':
       return {
-        text: str(data.reason) === 'requests-off' ? E.requestsOff : E.noWindow,
+        text:
+          str(data.reason) === 'requests-off'
+            ? E.requestsOff
+            : context === 'purge'
+              ? TEXT.history.purgeNoWindow
+              : E.noWindow,
         ...(command && { command: printable(command) }),
       };
     case 'confirmation-busy':
@@ -157,8 +173,10 @@ export const errorText = (error: unknown, context: ErrorContext, project?: strin
       return { text: E.trashUnavailable };
     case 'disk-low':
       return { text: E.diskLow(formatSize(num(data.freeBytes) ?? 0), formatSize(num(data.floorBytes) ?? 0)) };
-    case 'not-encodable':
-      return { text: E.notEncodable(printable(str(data.encoding) ?? 'its encoding')) };
+    case 'not-encodable': {
+      const encoding = printable(str(data.encoding) ?? 'its encoding');
+      return { text: context === 'restore' ? TEXT.history.restoreNotEncodable(encoding) : E.notEncodable(encoding) };
+    }
     case 'not-running':
       return { text: E.notRunning };
     case 'unsupported-version':

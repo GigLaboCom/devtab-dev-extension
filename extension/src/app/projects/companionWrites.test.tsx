@@ -295,6 +295,18 @@ describe('committing (row 6.5)', () => {
     );
   });
 
+  it('«Undo last commit» as the companion says beforehand (headUndoable): offered for a HEAD this page did not make', async () => {
+    make();
+    show({ section: 'projects', project: PROJECT });
+    const panel = await commitView();
+    // The vectors' repository: HEAD is a commit no remote branch has — the companion says it can be undone.
+    expect(await within(panel).findByRole('button', { name: 'Undo last commit' })).toBeTruthy();
+    // Read only: the companion says no (`not-mine`); the action goes, and the class already says why.
+    fireEvent.click(screen.getByRole('button', { name: 'Make read only' }));
+    await waitFor(() => expect(within(panel).queryByRole('button', { name: 'Undo last commit' })).toBeNull());
+    expect(panel.querySelector('[data-undo-reason]')).toBeNull();
+  });
+
   it('a hook that cannot find a program: its output, what to do, the commands; capture again needs the terminal', async () => {
     make();
     show({ section: 'projects', project: PROJECT });

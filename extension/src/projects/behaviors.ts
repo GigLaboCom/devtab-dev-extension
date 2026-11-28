@@ -16,12 +16,15 @@
  *   SideSaver        how a scratch is downloaded: «Compare code»'s seam (../compare/sideSaver.ts) — Save as through the
  *                    browser's file picker, a download where it has none; and how a project's file is saved: the same
  *                    seam's `projectSaver` (./projectSaver.ts) — `file.save` from the version the edit started from
+ *   LastSeen         where the person's last visit of a project is remembered (./lastSeen.ts, §7.5): one time per
+ *                    project in chrome.storage.local, the page's memory where it has none
  */
 import { AUTOSAVE_DELAY_MS } from './autosave';
 import { companionBackend } from './companion/backend';
 import { nativeLink } from './companion/link';
 import { createConnection } from './connection';
 import { demoBackend } from './demo/backend';
+import { chromeLastSeen } from './lastSeen';
 import { chromeLayoutMemory } from './layoutMemory';
 import { chromePermission } from './permission';
 import { projectSaver } from './projectSaver';
@@ -32,6 +35,7 @@ import type { WorkspaceLayout } from '../app/projects/workspaceLayout';
 import type { SideSaver } from '../compare/sideSaver';
 import type { ConnectionState, ProjectBackend, ProjectBackendFactory } from './backend';
 import type { CompanionConnection } from './connection';
+import type { LastSeen } from './lastSeen';
 import type { LayoutMemory } from './layoutMemory';
 import type { ProjectSaverFactory } from './projectSaver';
 import type { ScratchStore } from './scratch/store';
@@ -50,6 +54,8 @@ export interface ProjectsBehaviors {
   scratchSaver: SideSaver;
   /** How a project's file is saved (row 5.4). */
   fileSaver: ProjectSaverFactory;
+  /** Where the last visit of each project is remembered (row 7.5); absent: nothing is, and no «since» is offered. */
+  lastSeen?: LastSeen;
 }
 
 /** The states in which the page shows the companion's projects; in every other one the demo's. */
@@ -117,4 +123,5 @@ export const projectsBehaviors = (): ProjectsBehaviors => ({
   scratchStore: chromeScratches(),
   scratchSaver: chooseSaver(window),
   fileSaver: projectSaver,
+  lastSeen: chromeLastSeen(),
 });
