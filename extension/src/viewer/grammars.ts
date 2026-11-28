@@ -161,6 +161,7 @@ export const withGrammars = (controller: ReviewController, loader: GrammarLoader
   setMode: mode => controller.setMode(mode),
   revealLine: (line, column) => controller.revealLine(line, column),
   revealHunk: index => controller.revealHunk(index),
+  setEditorSettings: (settings, side) => controller.setEditorSettings(settings, side),
   setLanguage: language => controller.setLanguage(loader.use(language)),
   setSide: request => controller.setSide(request),
   swap: () => controller.swap(),

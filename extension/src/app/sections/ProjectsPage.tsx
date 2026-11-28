@@ -44,6 +44,7 @@ import { onAsk, take } from '@src/shortcuts/intent';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Route } from '../route';
 import type { SectionKeys } from '../shell/sectionKeys';
+import type { EditorSettingsBehaviors } from '@src/editorSettings/behaviors';
 import type { ConnectionStatus, ProjectBackend } from '@src/projects/backend';
 import type { ProjectsBehaviors } from '@src/projects/behaviors';
 import type { PanelView } from '@src/projects/layout';
@@ -62,6 +63,8 @@ export interface ProjectsPageProps {
   scratches?: boolean;
   /** The user's shortcuts as the section gets them (the shell's); absent: no keys. */
   keys?: SectionKeys;
+  /** The editor's settings (the shell's composition root, D39); absent: the editors keep their own defaults. */
+  editorSettings?: EditorSettingsBehaviors;
 }
 
 /** The command that opens the language popup for a new scratch (src/shortcuts/actions.ts). */
@@ -82,6 +85,7 @@ const Workspace = ({
   behaviors,
   frameKeys,
   keys,
+  editorSettings,
   generation,
   onProjectChanged,
 }: {
@@ -92,6 +96,7 @@ const Workspace = ({
   behaviors: ProjectsBehaviors;
   frameKeys?: FrameKeys;
   keys?: SectionKeys;
+  editorSettings?: EditorSettingsBehaviors;
   /** Bumped when the connection comes back: everything is read again. */
   generation: number;
   onProjectChanged(): void;
@@ -150,6 +155,7 @@ const Workspace = ({
               workspace={workspace}
               frameKeys={frameKeys}
               keys={keys}
+              editorSettings={editorSettings}
               autosaveDelayMs={behaviors.autosaveDelayMs}
               onShowHistory={() => {
                 setHistoryAsked(n => n + 1);
@@ -172,6 +178,7 @@ export const ProjectsPage = ({
   frameKeys,
   scratches = true,
   keys,
+  editorSettings,
 }: ProjectsPageProps): ReactElement | null => {
   // One backend for the page's life in the section, holding the one port; let go when the section closes (§8.2).
   // Made in an effect, not during render: what the effect's cleanup disposed is never used again.
@@ -188,6 +195,7 @@ export const ProjectsPage = ({
       frameKeys={frameKeys}
       scratches={scratches}
       keys={keys}
+      editorSettings={editorSettings}
       backend={backend}
     />
   ) : null;
@@ -199,6 +207,7 @@ const Projects = ({
   frameKeys,
   scratches,
   keys,
+  editorSettings,
   backend,
 }: ProjectsPageProps & { backend: ProjectBackend }): ReactElement => {
   const [status, setStatus] = useState<ConnectionStatus>(() => backend.status());
@@ -302,6 +311,7 @@ const Projects = ({
           saver={behaviors.scratchSaver}
           frameKeys={frameKeys}
           keys={keys}
+          editorSettings={editorSettings}
           autosaveDelayMs={behaviors.autosaveDelayMs}
           focus={made.current === scratch}
         />
@@ -315,6 +325,7 @@ const Projects = ({
           behaviors={behaviors}
           frameKeys={frameKeys}
           keys={keys}
+          editorSettings={editorSettings}
           generation={generation}
           onProjectChanged={reload}
         />
@@ -365,14 +376,25 @@ const ProjectsSection = ({
   frameKeys,
   scratches,
   keys,
+  editorSettings,
 }: {
   route: Route;
   frameKeys?: FrameKeys;
   scratches?: boolean;
   keys?: SectionKeys;
+  editorSettings?: EditorSettingsBehaviors;
 }): ReactElement => {
   const behaviors = useMemo(() => projectsBehaviors(), []);
-  return <ProjectsPage route={route} behaviors={behaviors} frameKeys={frameKeys} scratches={scratches} keys={keys} />;
+  return (
+    <ProjectsPage
+      route={route}
+      behaviors={behaviors}
+      frameKeys={frameKeys}
+      scratches={scratches}
+      keys={keys}
+      editorSettings={editorSettings}
+    />
+  );
 };
 
 export default ProjectsSection;

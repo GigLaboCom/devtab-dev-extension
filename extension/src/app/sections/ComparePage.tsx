@@ -7,11 +7,19 @@
  * (compare/state.ts), and its toolbar is the list of compare/actions.ts. Nothing opened or typed here is stored; the
  * only writes are the user's Save and Save as. The editor keeps the keys pressed in it, so it hands up the page's
  * shortcuts and the frame's (`frameKeys`: ⌘K for the shell's palette).
+ *
+ * Indentation (D39): each side opens with what applies to its own text (../editor/useEditorIndent.ts — detected from
+ * it, the language's values, the settings), and each side's bar has its indent indicator: what applies there and the
+ * person's choice for that side's text, which lasts until another text replaces it (a swap carries it along).
  */
+import { IndentIndicator } from '../editor/IndentIndicator';
+import { useEditorIndent } from '../editor/useEditorIndent';
+import { routeHash } from '../route';
+import { useOffer } from '../shell/sectionKeys';
 import { createDebug } from '@extension/logger';
 import { sideWord } from '@src/compare/actions';
 import { collectDrop } from '@src/compare/files';
-import { LANGUAGES, languageOfFile } from '@src/compare/languages';
+import { LANGUAGES, labelOf, languageOfFile } from '@src/compare/languages';
 import {
   SIDES,
   initialState,
@@ -30,10 +38,12 @@ import { Label } from '@workspace/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@workspace/ui/tooltip';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import type { SectionKeys } from '../shell/sectionKeys';
 import type { ActionContext, CompareAction, ComparePort } from '@src/compare/actions';
 import type { CompareBehaviors } from '@src/compare/behaviors';
 import type { SideText } from '@src/compare/files';
 import type { Arrival, CompareState, Side, Tone } from '@src/compare/state';
+import type { EditorSettingsBehaviors } from '@src/editorSettings/behaviors';
 import type { FrameKeys } from '@src/shared/keys';
 import type { DroppedEntry, KeyChord, ToViewer } from '@src/shared/viewerProtocol';
 import type { DragEvent, ReactElement } from 'react';
@@ -94,9 +104,13 @@ export interface ComparePageProps {
   behaviors: CompareBehaviors;
   /** The shortcuts of the frame around the page (the shell's palette), handed up from the editor as well. */
   frameKeys?: FrameKeys;
+  /** The editor's settings (D39); absent: the editors keep their own defaults and there are no indicators. */
+  editorSettings?: EditorSettingsBehaviors;
+  /** The user's shortcuts as the section gets them (the shell's); absent: no keys. */
+  keys?: SectionKeys;
 }
 
-export const ComparePage = ({ behaviors, frameKeys }: ComparePageProps): ReactElement => {
+export const ComparePage = ({ behaviors, frameKeys, editorSettings, keys }: ComparePageProps): ReactElement => {
   const [state, dispatch] = useReducer(reduce, DEFAULT_LANGUAGE, initialState);
   const frameKeysRef = useRef(frameKeys);
   frameKeysRef.current = frameKeys;
@@ -159,6 +173,11 @@ export const ComparePage = ({ behaviors, frameKeys }: ComparePageProps): ReactEl
     (text: string, tone: Tone = 'info') => dispatch({ type: 'notice', notice: { tone, text } }),
     [],
   );
+  const indent = useEditorIndent(editorSettings, post, DEFAULT_LANGUAGE);
+  const indentRef = useRef(indent);
+  indentRef.current = indent;
+  // The side whose indicator a shortcut opened.
+  const [indentOpen, setIndentOpen] = useState<Side | null>(null);
 
   // ---- the example ---------------------------------------------------------------------------------------------
   // Bumped whenever the user's own text arrives, so an example still loading does not land over it.
@@ -179,6 +198,7 @@ export const ComparePage = ({ behaviors, frameKeys }: ComparePageProps): ReactEl
       if (ticket !== generation.current) return;
       if (!pair) {
         dispatch({ type: 'language', language });
+        indentRef.current.setLanguage(language);
         request(id => ({ type: 'viewer/set-language', id, language }));
         return;
       }
@@ -191,10 +211,17 @@ export const ComparePage = ({ behaviors, frameKeys }: ComparePageProps): ReactEl
         names: { old: pair.before.name, new: pair.after.name },
         empty: { old: !pair.before.text, new: !pair.after.text },
       });
+      const editor = indentRef.current.open({ old: pair.before.text, new: pair.after.text }, language);
       request(id => ({
         type: 'viewer/compare',
         id,
-        request: { path: pair.after.name, language, oldText: pair.before.text, newText: pair.after.text },
+        request: {
+          path: pair.after.name,
+          language,
+          oldText: pair.before.text,
+          newText: pair.after.text,
+          ...(editor && { editor }),
+        },
       }));
     },
     [behaviors.examples, post, request, say],
@@ -245,10 +272,13 @@ export const ComparePage = ({ behaviors, frameKeys }: ComparePageProps): ReactEl
         const first = arrivals[0]!;
         if (arrivals.length === 2 || before.sides[other(first.side)].origin === 'example') {
           // Both sides change: the other side's example goes too.
+          const oldText = textOf('old') ?? '';
+          const newText = textOf('new') ?? '';
+          const editor = indentRef.current.open({ old: oldText, new: newText }, language);
           request(id => ({
             type: 'viewer/compare',
             id,
-            request: { path: pathOf(after), language, oldText: textOf('old') ?? '', newText: textOf('new') ?? '' },
+            request: { path: pathOf(after), language, oldText, newText, ...(editor && { editor }) },
           }));
         } else {
           if (language !== before.language) request(id => ({ type: 'viewer/set-language', id, language }));
@@ -257,6 +287,9 @@ export const ComparePage = ({ behaviors, frameKeys }: ComparePageProps): ReactEl
             id,
             request: { side: first.side, text: first.text.text, path: pathOf(after) },
           }));
+          // After the text: its indentation is detected and sent as a change of that side.
+          indentRef.current.setLanguage(language);
+          indentRef.current.replaceSide(first.side, first.text.text);
         }
         const named = arrivals.map(
           a =>
@@ -294,22 +327,32 @@ export const ComparePage = ({ behaviors, frameKeys }: ComparePageProps): ReactEl
         const before = stateRef.current;
         if (before.sides[side].editable) post({ type: 'viewer/set-editable', side, editable: false, focus: false });
         dispatch({ type: 'cleared', side });
-        if (before.sides[other(side)].origin === 'example')
+        if (before.sides[other(side)].origin === 'example') {
+          const editor = indentRef.current.open({ old: '', new: '' }, before.language);
           request(id => ({
             type: 'viewer/compare',
             id,
-            request: { path: 'untitled', language: before.language, oldText: '', newText: '' },
+            request: {
+              path: 'untitled',
+              language: before.language,
+              oldText: '',
+              newText: '',
+              ...(editor && { editor }),
+            },
           }));
-        else
+        } else {
           request(id => ({
             type: 'viewer/set-side',
             id,
             request: { side, text: '', path: pathOf(reduce(before, { type: 'cleared', side })) },
           }));
+          indentRef.current.replaceSide(side, '');
+        }
       },
       swap() {
         dispatch({ type: 'swapped' });
         request(id => ({ type: 'viewer/swap', id }));
+        indentRef.current.swap();
         say('Swapped the sides.');
       },
       saved(side: Side, text: string, fileName: string, handle: FileSystemFileHandle | null) {
@@ -500,8 +543,11 @@ export const ComparePage = ({ behaviors, frameKeys }: ComparePageProps): ReactEl
     else {
       dispatch({ type: 'language', language });
       request(id => ({ type: 'viewer/set-language', id, language }));
+      indent.setLanguage(language);
     }
   };
+  // The indent indicator of the side used last (D39), by its shortcut.
+  useOffer(keys, { 'editor:indentation': indent.enabled && (() => setIndentOpen(lastSide.current)) });
 
   // ---- rendering ------------------------------------------------------------------------------------------------
   const { counts, notice } = state;
@@ -596,6 +642,19 @@ export const ComparePage = ({ behaviors, frameKeys }: ComparePageProps): ReactEl
                   <span className="kit-compare-badge" data-badge="modified" title="Edited, not saved">
                     Edited
                   </span>
+                )}
+                {indent.enabled && (
+                  <IndentIndicator
+                    effective={indent.effective[side]}
+                    choice={indent.choice[side]}
+                    languageLabel={labelOf(state.language)}
+                    onChoose={choice => indent.choose(side, choice)}
+                    side={sideWord(side)}
+                    compact
+                    open={indentOpen === side}
+                    onOpenChange={open => setIndentOpen(open ? side : null)}
+                    settingsHref={routeHash({ section: 'settings' })}
+                  />
                 )}
                 <div className="kit-compare-side-actions">
                   {sideActions.map(action => (

@@ -10,6 +10,8 @@
  *               optional permission asks Chrome for it straight from the click (Chrome refuses a request without one);
  *               switching it off gives back what no other switched-on part needs. This page names no part.
  *   Appearance  the theme (the only place it is chosen; not set = System, which follows the system live)
+ *   Editor      how the editors indent and show code, generally and by language (app/settings/EditorSettingsGroup.tsx,
+ *               D39) — in every edition; drawn where the page is given the editor's settings (the shell gives them)
  *   Shortcuts   the user's keyboard shortcuts for every action (ShortcutSettings.tsx)
  *   Pro         the licence and the Pro plans (app/settings/ProSettings.tsx) — only where the build follows a licence
  *               (`history.licence`, source `licensed`); a build whose edition is fixed has no such group
@@ -26,6 +28,7 @@
  */
 import { ShortcutSettings } from './ShortcutSettings';
 import { HistorySettings } from '../history/HistorySettings';
+import { EditorSettingsGroup } from '../settings/EditorSettingsGroup';
 import { ProSettings } from '../settings/ProSettings';
 import { yourDataTexts } from '../settings/proTexts';
 import { ThemePicker } from '../ThemePicker';
@@ -47,6 +50,7 @@ import type { PlansChoice } from '../settings/PlansPart';
 import type { Shortcuts } from '../shell/useShortcuts';
 import type { PermissionsApi } from '../useStart';
 import type { ThemePref } from '@extension/theme';
+import type { EditorSettingsBehaviors } from '@src/editorSettings/behaviors';
 import type { HistoryHost } from '@src/history/behaviors';
 import type { NewTabOverride } from '@src/newTab/override';
 import type { StartPart } from '@src/start/part';
@@ -73,6 +77,8 @@ export interface SettingsProps {
   shortcuts?: Shortcuts;
   /** The shell's own choices (the breadcrumb); absent where the page is drawn without the shell. */
   shell?: ShellChoices;
+  /** The editor's settings (the shell's composition root); absent: no Editor group. */
+  editorSettings?: EditorSettingsBehaviors;
 }
 
 export interface ShellChoices {
@@ -110,6 +116,7 @@ export const SettingsPage = ({
   plans,
   shortcuts,
   shell,
+  editorSettings,
 }: SettingsProps): ReactElement => {
   const [asking, setAsking] = useState<Asking>(null);
   // What the edition in force offers, followed while the page is open.
@@ -316,6 +323,8 @@ export const SettingsPage = ({
           )}
         </section>
 
+        {editorSettings && <EditorSettingsGroup behaviors={editorSettings} />}
+
         {shortcuts && <ShortcutSettings shortcuts={shortcuts} fixed={FIXED} mac={isMac()} />}
 
         <ProSettings host={history} {...(plans && { plans })} />
@@ -330,9 +339,9 @@ export const SettingsPage = ({
           </h2>
           <div className="kit-settings-hint kit-settings-prose">
             <p>
-              Stored in this browser’s extension storage: these settings, your start page shortcuts, your keyboard
-              shortcuts, which sidebar groups you opened or closed, and which tools and sections you opened last (for
-              the Tools tiles, “Last opened tool” and the search’s recent places).
+              Stored in this browser’s extension storage: these settings (the editor’s among them), your start page
+              shortcuts, your keyboard shortcuts, which sidebar groups you opened or closed, and which tools and
+              sections you opened last (for the Tools tiles, “Last opened tool” and the search’s recent places).
               {included &&
                 ' While History is on, the tools keep what you type, paste or open in them, with their results, in this browser’s storage — not in incognito windows, never secrets without a master password — until it is deleted (see History above).'}{' '}
               Never stored: what you type or paste into the start page’s field or the search. {nothingSent}, which goes

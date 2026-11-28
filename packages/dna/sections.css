@@ -13,7 +13,9 @@
  *                              .kit-settings-text (.kit-settings-label, .kit-settings-hint, .kit-settings-note) on the
  *                              left, .kit-settings-controls on the right (move buttons, the switch);
  *                              .kit-settings-intro, .kit-settings-subtitle, .kit-settings-actions, .kit-settings-prose,
- *                              .kit-settings-theme, .kit-settings-buttons (buttons under a row's words)
+ *                              .kit-settings-theme, .kit-settings-buttons (buttons under a row's words); Settings →
+ *                              Editor (D39): .kit-editor-settings-select (a value's Select), .kit-editor-language (a
+ *                              language's row) > .kit-editor-language-controls of .kit-editor-language-select
  *         .kit-compare         «Compare code»: .kit-compare-bar (.kit-compare-title, .kit-compare-notice[data-tone],
  *                              .kit-compare-tools, .kit-compare-counts with .kit-compare-added / -removed);
  *                              .kit-compare-sides > .kit-compare-side (.kit-compare-side-role, .kit-compare-side-name
@@ -82,6 +84,12 @@
  *                              .kit-projects-result-file, .kit-projects-result-line (-number, -text), .kit-projects-match)
  *                              or .kit-projects-history (-bar, .kit-projects-points > .kit-projects-point[data-source]
  *                              with -time, -label, -path, -actions)
+ * The editor's indent indicator (D39: a project's file, a scratch, each side of «Compare code»):
+ *   .kit-indent-indicator      the button in an editor's bar: .kit-indent-value ("Spaces: 4"), .kit-indent-source (where
+ *                              it comes from)
+ *   .kit-indent-popup          its popover: .kit-indent-field (.kit-indent-label and a segmented choice),
+ *                              .kit-indent-actions
+ *
  *   .kit-projects-picker       the language popup (D38) on the palette's frame (shell.css .kit-palette): its title
  *                              .kit-projects-picker-title, .kit-projects-picker-list, .kit-projects-picker-problem
  *   .kit-projects-quick        quick open's dialog (.kit-projects-quick-list); .kit-projects-push (.kit-projects-commit-row,
@@ -1919,5 +1927,66 @@
 
   .kit-projects-commit-summary {
     font-family: var(--font-sans);
+  }
+
+  /* Settings → Editor (D39): a value's Select at the right of its row; a language's row of three Selects and a reset. */
+  .kit-editor-settings-select {
+    min-width: calc(var(--spacing) * 36);
+  }
+
+  /* Denser than a value's row: a list of languages, each a line of three Selects. */
+  .kit-editor-language {
+    padding-block: calc(var(--spacing) * 2);
+  }
+
+  .kit-editor-language-controls {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: calc(var(--spacing) * 2);
+  }
+
+  .kit-editor-language-select {
+    min-width: calc(var(--spacing) * 32);
+  }
+
+  /* The indent indicator (D39): a small ghost button in an editor's bar — the value, then where it comes from. */
+  .kit-indent-indicator {
+    flex-shrink: 0;
+    gap: calc(var(--spacing) * 1.5);
+    font-size: var(--text-xs);
+  }
+
+  .kit-indent-value {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .kit-indent-source {
+    color: var(--muted-foreground);
+  }
+
+  .kit-indent-popup {
+    width: calc(var(--spacing) * 72);
+  }
+
+  .kit-indent-field {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: calc(var(--spacing) * 2);
+  }
+
+  .kit-indent-label {
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+  }
+
+  .kit-indent-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: calc(var(--spacing) * 2);
+    padding-block-start: calc(var(--spacing) * 1);
   }
 }

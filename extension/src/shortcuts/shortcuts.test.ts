@@ -372,9 +372,9 @@ describe('the commands of a section (D38)', () => {
 
   it('every command is an entry of the registry, after the places, in groups of their own', () => {
     expect(commands.map(c => c.id)).toEqual(COMMANDS.map(c => c.id));
-    expect([...new Set(commands.map(c => c.group))]).toEqual(['Scratch files', 'Projects']);
+    expect([...new Set(commands.map(c => c.group))]).toEqual(['Scratch files', 'Projects', 'Editor']);
     const groups = [...new Set(ACTIONS.map(a => a.group))];
-    expect(groups.slice(-2)).toEqual(['Scratch files', 'Projects']);
+    expect(groups.slice(-3)).toEqual(['Scratch files', 'Projects', 'Editor']);
     for (const c of commands) expect(c.keywords?.length).toBeGreaterThan(0);
     // Each default named here belongs to a command.
     expect(Object.keys(COMMAND_DEFAULTS).every(id => COMMANDS.some(c => c.id === id))).toBe(true);
@@ -402,6 +402,7 @@ describe('the commands of a section (D38)', () => {
       'projects:next-change': '⌥⇧⌘↓',
       'projects:previous-change': '⌥⇧⌘↑',
       'projects:view': '⌥⇧⌘D',
+      'editor:indentation': null,
       'open:projects': '⌥⇧⌘L',
     });
     expect(shown(false)).toEqual({
@@ -418,6 +419,7 @@ describe('the commands of a section (D38)', () => {
       'projects:next-change': 'Ctrl+F7',
       'projects:previous-change': 'Ctrl+Shift+F7',
       'projects:view': null,
+      'editor:indentation': null,
       'open:projects': 'Ctrl+Shift+L',
     });
   });

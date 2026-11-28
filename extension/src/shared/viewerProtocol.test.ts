@@ -59,6 +59,21 @@ describe('viewer protocol', () => {
     expect(isToViewer({ type: 'viewer/reveal-hunk', index: '0' })).toBe(false);
   });
 
+  it('editor settings travel inside a replacing request and as their own message (D39)', () => {
+    const file = { path: 'main.go', language: 'go', text: '\tx\n', readOnly: false };
+    const editor = { indentStyle: 'tab', indentSize: 4 };
+    expect(isToViewer({ type: 'viewer/show-file', id: 1, request: { ...file, editor } })).toBe(true);
+    expect(isToViewer({ type: 'viewer/show-file', id: 1, request: { ...file, editor: 'tabs' } })).toBe(false);
+    expect(isToViewer({ type: 'viewer/compare', id: 2, request: { ...texts, editor: { old: editor } } })).toBe(true);
+    expect(isToViewer({ type: 'viewer/compare', id: 2, request: { ...texts, editor: { old: 4 } } })).toBe(false);
+    const payload = { ...texts, hunks: [], editor: { new: editor } };
+    expect(isToViewer({ type: 'viewer/show-diff', id: 3, payload })).toBe(true);
+    expect(isToViewer({ type: 'viewer/set-editor-settings', settings: editor })).toBe(true);
+    expect(isToViewer({ type: 'viewer/set-editor-settings', side: 'old', settings: { softWrap: true } })).toBe(true);
+    expect(isToViewer({ type: 'viewer/set-editor-settings', side: 'left', settings: editor })).toBe(false);
+    expect(isToViewer({ type: 'viewer/set-editor-settings' })).toBe(false);
+  });
+
   it('the main page takes ready, results (of a request, or of an edit without an id), texts, errors and the canvas’s events', () => {
     expect(isFromViewer({ type: 'viewer/ready' })).toBe(true);
     expect(isFromViewer({ type: 'viewer/shown', id: 3, shown })).toBe(true);

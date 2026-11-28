@@ -7,7 +7,9 @@
  * compares — on a request, and by itself after the user's edits — and answers with what it showed. Every request that
  * changes what is shown carries an id that comes back with its result, so the main page takes only the answer to its
  * latest request; a result of the user's edit carries none (`cause: 'edit'`). The theme does not travel here — both
- * pages follow chrome.storage themselves (D9).
+ * pages follow chrome.storage themselves (D9). How each editor indents and shows its text (D39) does: the main page
+ * resolves it (src/editorSettings/) and sends it inside a request that replaces what is shown (`editor`), and as
+ * `viewer/set-editor-settings` for a change while it is open.
  *
  * The editor page also hands up what happens on its canvas that belongs to the main page: a drag of files entering it
  * (the main page then covers the editor with its drop targets), a drop that reached it anyway, the main page's
@@ -18,6 +20,7 @@ import type {
   CompareRequest,
   DiffPayload,
   DiffShown,
+  EditorSettings,
   FileRequest,
   Side,
   SideRequest,
@@ -54,7 +57,9 @@ export type ToViewer =
   | { type: 'viewer/show-file'; id: number; request: FileRequest }
   | { type: 'viewer/set-mode'; id: number; mode: ViewMode }
   | { type: 'viewer/reveal-line'; line: number; column?: number }
-  | { type: 'viewer/reveal-hunk'; index: number };
+  | { type: 'viewer/reveal-hunk'; index: number }
+  /** How a side's editor (both without `side`) indents and shows its text from now on; no answer. */
+  | { type: 'viewer/set-editor-settings'; side?: Side; settings: EditorSettings };
 
 /** Editor page → main page. `id` is the request's; an error without one is the editor's own (it could not start). */
 export type FromViewer =
@@ -81,6 +86,10 @@ const isObject = (data: unknown): data is Record<string, unknown> => typeof data
 const isSide = (value: unknown): value is Side => value === 'old' || value === 'new';
 const isId = (value: unknown): value is number => typeof value === 'number';
 const isIndex = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 0;
+/** Settings the module may be given: an object, if present (the module checks its fields and bounds). */
+const isSettings = (value: unknown): boolean => value === undefined || isObject(value);
+const isSideSettings = (value: unknown): boolean =>
+  value === undefined || (isObject(value) && isSettings(value.old) && isSettings(value.new));
 const isChord = (value: unknown): value is KeyChord =>
   isObject(value) &&
   typeof value.key === 'string' &&
@@ -95,7 +104,8 @@ export const isToViewer = (data: unknown): data is ToViewer => {
         isId(data.id) &&
         isObject(data.request) &&
         typeof data.request.oldText === 'string' &&
-        typeof data.request.newText === 'string'
+        typeof data.request.newText === 'string' &&
+        isSideSettings(data.request.editor)
       );
     case 'viewer/set-side':
       return (
@@ -121,7 +131,8 @@ export const isToViewer = (data: unknown): data is ToViewer => {
         isObject(data.payload) &&
         typeof data.payload.oldText === 'string' &&
         typeof data.payload.newText === 'string' &&
-        Array.isArray(data.payload.hunks)
+        Array.isArray(data.payload.hunks) &&
+        isSideSettings(data.payload.editor)
       );
     case 'viewer/show-file':
       return (
@@ -129,7 +140,8 @@ export const isToViewer = (data: unknown): data is ToViewer => {
         isObject(data.request) &&
         typeof data.request.path === 'string' &&
         typeof data.request.text === 'string' &&
-        typeof data.request.readOnly === 'boolean'
+        typeof data.request.readOnly === 'boolean' &&
+        isSettings(data.request.editor)
       );
     case 'viewer/set-mode':
       return isId(data.id) && (data.mode === 'file' || data.mode === 'diff');
@@ -137,6 +149,8 @@ export const isToViewer = (data: unknown): data is ToViewer => {
       return isIndex(data.line) && (data.column === undefined || isIndex(data.column));
     case 'viewer/reveal-hunk':
       return isIndex(data.index);
+    case 'viewer/set-editor-settings':
+      return (data.side === undefined || isSide(data.side)) && isObject(data.settings);
     default:
       return false;
   }

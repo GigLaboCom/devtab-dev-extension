@@ -23,6 +23,7 @@ import { useShortcuts } from './shell/useShortcuts';
 import { useHostEdition } from './useHostEdition';
 import product from '../../product.json';
 import { compareBehaviors } from '@src/compare/behaviors';
+import { editorSettingsBehaviors } from '@src/editorSettings/behaviors';
 import { DESTINATIONS, SECTION_DESTINATIONS, SETTINGS_DESTINATION } from '@src/shared/destinations';
 import { shellBehaviors } from '@src/shell/behaviors';
 import { trailOf } from '@src/shell/trail';
@@ -167,17 +168,34 @@ const Part = ({
   });
   // «Compare code»'s composition root (compare/behaviors.ts): in this lazy chunk, so a new tab never loads it.
   const compare = useMemo(() => compareBehaviors(window), []);
+  // The editor's settings (editorSettings/behaviors.ts, D39): one for the page, every editor and Settings → Editor.
+  const editorSettings = useMemo(() => editorSettingsBehaviors(), []);
   return (
     <>
-      {route.section === 'compare' && <ComparePage behaviors={compare} frameKeys={frameKeys} />}
+      {route.section === 'compare' && (
+        <ComparePage behaviors={compare} frameKeys={frameKeys} editorSettings={editorSettings} keys={sectionKeys} />
+      )}
       {route.section === 'tools' && <ToolsPage toolId={route.tool} history={host} />}
       {route.section === 'projects' && (
         <Suspense fallback={null}>
-          <ProjectsSection route={route} frameKeys={frameKeys} scratches={scratches} keys={sectionKeys} />
+          <ProjectsSection
+            route={route}
+            frameKeys={frameKeys}
+            scratches={scratches}
+            keys={sectionKeys}
+            editorSettings={editorSettings}
+          />
         </Suspense>
       )}
       {route.section === 'settings' && (
-        <SettingsPage {...settings} theme={theme} history={host} shortcuts={shortcuts} shell={shell} />
+        <SettingsPage
+          {...settings}
+          theme={theme}
+          history={host}
+          shortcuts={shortcuts}
+          shell={shell}
+          editorSettings={editorSettings}
+        />
       )}
       {route.section === 'history' && <HistoryPage host={host} />}
     </>

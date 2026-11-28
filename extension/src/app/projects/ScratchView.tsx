@@ -14,14 +14,20 @@
  * Keys (D38): while the scratch is open the view offers download, rename, change language (the page's language popup,
  * ./LanguagePicker.tsx, the scratch's language chosen) and delete (it asks first); ⌘S stays "save now". Each control's
  * tooltip says its key now.
+ *
+ * Indentation (D39): the scratch opens with what applies to its text (detected from it, its language's values, the
+ * settings); a new language brings that language's values; the indent indicator in the editor's bar shows them and
+ * changes them for this scratch while it is open.
  */
 import { DeleteScratchDialog } from './DeleteScratchDialog';
 import { LanguagePicker } from './LanguagePicker';
 import { TEXT, printable, scratchRefusal } from './text';
 import { useEditorFrame } from './useEditorFrame';
+import { IndentIndicator } from '../editor/IndentIndicator';
+import { useEditorIndent } from '../editor/useEditorIndent';
 import { go, routeHash } from '../route';
 import { hintOf, useOffer } from '../shell/sectionKeys';
-import { LANGUAGES } from '@src/compare/languages';
+import { LANGUAGES, labelOf } from '@src/compare/languages';
 import { createAutosave } from '@src/projects/autosave';
 import { fileName } from '@src/projects/scratch/store';
 import { VIEWER_PAGE } from '@src/shared/pages';
@@ -34,6 +40,7 @@ import { DownloadIcon, Trash2Icon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SectionKeys } from '../shell/sectionKeys';
 import type { SideSaver } from '@src/compare/sideSaver';
+import type { EditorSettingsBehaviors } from '@src/editorSettings/behaviors';
 import type { Autosave, SaveState } from '@src/projects/autosave';
 import type { ScratchInfo, ScratchRefusal, ScratchStore } from '@src/projects/scratch/store';
 import type { FrameKeys, KeyChord } from '@src/shared/keys';
@@ -58,6 +65,8 @@ export interface ScratchViewProps {
   autosaveDelayMs?: number;
   /** Give the editor the keyboard once the text is in (a scratch just made). */
   focus?: boolean;
+  /** The editor's settings (D39); absent: the editor keeps its own defaults and there is no indicator. */
+  editorSettings?: EditorSettingsBehaviors;
 }
 
 type Loaded = { kind: 'loading' } | { kind: 'missing' } | { kind: 'open'; info: ScratchInfo };
@@ -73,6 +82,7 @@ export const ScratchView = ({
   keys,
   autosaveDelayMs,
   focus,
+  editorSettings,
 }: ScratchViewProps): ReactElement => {
   const [loaded, setLoaded] = useState<Loaded>({ kind: 'loading' });
   const [saveState, setSaveState] = useState<SaveState>({ kind: 'saved' });
@@ -113,6 +123,10 @@ export const ScratchView = ({
   });
   const { request, post, read } = editor;
   readRef.current = read;
+  const indent = useEditorIndent(editorSettings, post);
+  const indentRef = useRef(indent);
+  indentRef.current = indent;
+  const [indentOpen, setIndentOpen] = useState(false);
 
   /** Leaves the scratch: what waits is written now. */
   const leave = useCallback(async () => {
@@ -134,10 +148,17 @@ export const ScratchView = ({
         if (!info || text === null) return setLoaded({ kind: 'missing' });
         setLoaded({ kind: 'open', info });
         // No path: the bar above names the scratch, and a rename or a new language would leave a path stale.
+        const editorSettings = indentRef.current.open({ new: text }, info.language)?.new;
         request(n => ({
           type: 'viewer/show-file',
           id: n,
-          request: { path: '', language: info.language, text, readOnly: false },
+          request: {
+            path: '',
+            language: info.language,
+            text,
+            readOnly: false,
+            ...(editorSettings && { editor: editorSettings }),
+          },
         }));
         if (focus) post({ type: 'viewer/set-editable', side: 'new', editable: true, focus: true });
         autosave.current = createAutosave({
@@ -205,6 +226,7 @@ export const ScratchView = ({
     }
     setNote(null);
     setLoaded({ kind: 'open', info: result.value });
+    indent.setLanguage(result.value.language);
     if (result.value.language !== before.language)
       request(n => ({ type: 'viewer/set-language', id: n, language: result.value.language }));
   };
@@ -213,6 +235,7 @@ export const ScratchView = ({
     if (!info || language === info.language) return;
     // The editor first: the highlighting follows the choice at once, whatever the storage answers.
     request(n => ({ type: 'viewer/set-language', id: n, language }));
+    indent.setLanguage(language);
     setLoaded({ kind: 'open', info: { ...info, language } });
     applied(await store.setLanguage(id, language), { ...info, language });
   };
@@ -266,6 +289,7 @@ export const ScratchView = ({
     'scratch:rename': !!info && !renaming && startRename,
     'scratch:language': !!info && (() => setPicking(true)),
     'scratch:delete': !!info && (() => setDeleting(info)),
+    'editor:indentation': !!info && indent.enabled && (() => setIndentOpen(true)),
   });
 
   const state = refused ? 'refused' : saveState.kind;
@@ -364,6 +388,17 @@ export const ScratchView = ({
           <div className="kit-projects-editor-bar">
             <span className="kit-projects-editor-path">{info ? printable(fileName(info)) : ''}</span>
             <span className="kit-projects-editor-tools">
+              {info && indent.enabled && (
+                <IndentIndicator
+                  effective={indent.effective.new}
+                  choice={indent.choice.new}
+                  languageLabel={labelOf(info.language)}
+                  onChoose={choice => indent.choose('both', choice)}
+                  open={indentOpen}
+                  onOpenChange={setIndentOpen}
+                  settingsHref={routeHash({ section: 'settings' })}
+                />
+              )}
               {info && (
                 <span className="kit-projects-save" data-state={state} role="status">
                   {refused ? scratchRefusal(refused) : saveText(saveState)}

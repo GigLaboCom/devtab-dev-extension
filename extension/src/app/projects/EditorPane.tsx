@@ -9,11 +9,18 @@
  * Keys (D38): while a diff with changes is shown the part offers "next change" and "previous change" (the editor
  * brings the hunk into view, `viewer/reveal-hunk`; past the last one it starts again at the first, as the IDEs' diff
  * viewers do), and while the file / diff switch is there, "switch file and diff".
+ *
+ * Indentation (D39): each text is opened with what applies to it (../editor/useEditorIndent.ts — detected from its
+ * content, its language's values, the settings), and the indent indicator in the bar shows it and changes it for this
+ * file; the choice holds across the file and diff views of the same path and is forgotten when another file opens.
  */
 import { TEXT, formatSize, formatTime, printable } from './text';
 import { useEditorFrame } from './useEditorFrame';
+import { IndentIndicator } from '../editor/IndentIndicator';
+import { useEditorIndent } from '../editor/useEditorIndent';
+import { routeHash } from '../route';
 import { hintOf, useOffer } from '../shell/sectionKeys';
-import { languageOfFile } from '@src/compare/languages';
+import { labelOf, languageOfFile } from '@src/compare/languages';
 import { createAutosave } from '@src/projects/autosave';
 import { toLineHunks } from '@src/projects/hunks';
 import { isCompanionError } from '@src/projects/types';
@@ -25,6 +32,7 @@ import { HistoryIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SectionKeys } from '../shell/sectionKeys';
 import type { EditorView, Workspace } from './useWorkspace';
+import type { EditorSettingsBehaviors } from '@src/editorSettings/behaviors';
 import type { Autosave, SaveState } from '@src/projects/autosave';
 import type { FrameKeys, KeyChord } from '@src/shared/keys';
 import type { ReactElement } from 'react';
@@ -47,6 +55,8 @@ export interface EditorPaneProps {
   autosaveDelayMs?: number;
   /** Asks for the open file's history (the panel holding it opens); without it the editor offers none. */
   onShowHistory?: () => void;
+  /** The editor's settings (D39); absent: the editor keeps its own defaults and there is no indicator. */
+  editorSettings?: EditorSettingsBehaviors;
 }
 
 const saveText = (state: SaveState): string => {
@@ -81,6 +91,7 @@ export const EditorPane = ({
   keys,
   autosaveDelayMs,
   onShowHistory,
+  editorSettings,
 }: EditorPaneProps): ReactElement => {
   const { backend, project, path, view, reveal, changed } = workspace;
   const [content, setContent] = useState<Content>({ kind: 'none' });
@@ -109,6 +120,18 @@ export const EditorPane = ({
     onError: message => workspace.setError(message),
   });
   const { request, post, read } = editor;
+  const indent = useEditorIndent(editorSettings, post);
+  const indentRef = useRef(indent);
+  indentRef.current = indent;
+  // The path the indentation was last opened for: the same file in another view keeps the person's choice.
+  const indentPath = useRef<string | null>(null);
+  /** What a text opened for `target` carries: detected, resolved; the choice kept for the same path. */
+  const openIndent = useCallback((texts: { old?: string; new: string }, target: string) => {
+    const keep = indentPath.current === target;
+    indentPath.current = target;
+    return indentRef.current.open(texts, languageOf(target), keep);
+  }, []);
+  const [indentOpen, setIndentOpen] = useState(false);
 
   const postReveal = useCallback(() => {
     const wanted = pendingReveal.current;
@@ -154,12 +177,20 @@ export const EditorPane = ({
         request(id => ({ type: 'viewer/set-mode', id, mode: 'file' }));
         post({ type: 'viewer/set-editable', side: 'old', editable: false, focus: false });
         post({ type: 'viewer/set-editable', side: 'new', editable: readOnly === null, focus: false });
-      } else
+      } else {
+        const editorSettings = openIndent({ new: file.text }, target)?.new;
         request(id => ({
           type: 'viewer/show-file',
           id,
-          request: { path: target, language, text: file.text, readOnly: readOnly !== null },
+          request: {
+            path: target,
+            language,
+            text: file.text,
+            readOnly: readOnly !== null,
+            ...(editorSettings && { editor: editorSettings }),
+          },
         }));
+      }
       diskInDiff.current = null;
       setContent({ kind: 'file', readOnly, runsCode: !!file.protected });
       setSaveState({ kind: 'saved' });
@@ -188,7 +219,7 @@ export const EditorPane = ({
     },
     // `workspace.refresh` is stable; the rest is what a file is opened with.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [autosaveDelayMs, backend, post, project.class, project.id, read, request],
+    [autosaveDelayMs, backend, openIndent, post, project.class, project.id, read, request],
   );
 
   const load = useCallback(
@@ -207,10 +238,17 @@ export const EditorPane = ({
             [wanted.a, wanted.b].map(p => backend.call('history.content', { project: project.id, point: p.point })),
           );
           if (!ticket()) return;
+          const editorSettings = openIndent({ old: a!.text, new: b!.text }, target);
           request(id => ({
             type: 'viewer/compare',
             id,
-            request: { path: target, language, oldText: a!.text, newText: b!.text },
+            request: {
+              path: target,
+              language,
+              oldText: a!.text,
+              newText: b!.text,
+              ...(editorSettings && { editor: editorSettings }),
+            },
           }));
           setContent({
             kind: 'diff',
@@ -230,10 +268,18 @@ export const EditorPane = ({
           const oldText = sides.old.text ?? '';
           const newText = sides.new.text ?? '';
           diskInDiff.current = sides.new.exists ? newText : null;
+          const editorSettings = openIndent({ old: oldText, new: newText }, target);
           request(id => ({
             type: 'viewer/show-diff',
             id,
-            payload: { path: target, language, oldText, newText, hunks: toLineHunks(oldText, sides.hunks) },
+            payload: {
+              path: target,
+              language,
+              oldText,
+              newText,
+              hunks: toLineHunks(oldText, sides.hunks),
+              ...(editorSettings && { editor: editorSettings }),
+            },
           }));
           setContent({
             kind: 'diff',
@@ -259,7 +305,7 @@ export const EditorPane = ({
         loading.current = false;
       }
     },
-    [backend, leave, postReveal, project.id, request, showFile],
+    [backend, leave, openIndent, postReveal, project.id, request, showFile],
   );
 
   const key = viewKey(view);
@@ -283,10 +329,17 @@ export const EditorPane = ({
         const current = autosave.current;
         if (!live || !current || file.hash === current.baseHash) return;
         if (current.state.kind === 'saved' && editor.shown?.sides.new.modified !== true) {
+          const editorSettings = openIndent({ new: file.text }, path)?.new;
           request(id => ({
             type: 'viewer/show-file',
             id,
-            request: { path, language: languageOf(path), text: file.text, readOnly: false },
+            request: {
+              path,
+              language: languageOf(path),
+              text: file.text,
+              readOnly: false,
+              ...(editorSettings && { editor: editorSettings }),
+            },
           }));
           current.takeDisk(file.text, file.hash);
           setNote(TEXT.updatedFromDisk);
@@ -323,10 +376,17 @@ export const EditorPane = ({
     const mine = back ? await read('new') : null;
     await autosave.current?.keepMine();
     if (back && path && mine !== null) {
+      const editorSettings = openIndent({ new: mine }, path)?.new;
       request(id => ({
         type: 'viewer/show-file',
         id,
-        request: { path, language: languageOf(path), text: mine, readOnly: false },
+        request: {
+          path,
+          language: languageOf(path),
+          text: mine,
+          readOnly: false,
+          ...(editorSettings && { editor: editorSettings }),
+        },
       }));
       setContent({ kind: 'file', readOnly: null, runsCode: false });
     }
@@ -334,10 +394,17 @@ export const EditorPane = ({
   const applyExternal = async (): Promise<void> => {
     if (!path) return;
     const file = await backend.call('file.read', { project: project.id, path });
+    const editorSettings = openIndent({ new: file.text }, path)?.new;
     request(id => ({
       type: 'viewer/show-file',
       id,
-      request: { path, language: languageOf(path), text: file.text, readOnly: false },
+      request: {
+        path,
+        language: languageOf(path),
+        text: file.text,
+        readOnly: false,
+        ...(editorSettings && { editor: editorSettings }),
+      },
     }));
     autosave.current?.takeDisk(file.text, file.hash);
     setContent({ kind: 'file', readOnly: null, runsCode: !!file.protected });
@@ -345,10 +412,17 @@ export const EditorPane = ({
   const showComparison = async (): Promise<void> => {
     if (!path) return;
     const [mine, file] = await Promise.all([read('new'), backend.call('file.read', { project: project.id, path })]);
+    const editorSettings = openIndent({ old: file.text, new: mine }, path);
     request(id => ({
       type: 'viewer/compare',
       id,
-      request: { path, language: languageOf(path), oldText: file.text, newText: mine },
+      request: {
+        path,
+        language: languageOf(path),
+        oldText: file.text,
+        newText: mine,
+        ...(editorSettings && { editor: editorSettings }),
+      },
     }));
     // «Mine» stays editable: single changes can be carried over by hand before keeping it.
     post({ type: 'viewer/set-editable', side: 'new', editable: true, focus: false });
@@ -372,7 +446,10 @@ export const EditorPane = ({
     post({ type: 'viewer/reveal-hunk', index: hunk.current });
   };
   const switchable = !!path && fileOrDiff;
+  const indicated =
+    indent.enabled && !!path && (content.kind === 'file' || content.kind === 'diff' || content.kind === 'compare');
   useOffer(keys, {
+    'editor:indentation': indicated && (() => setIndentOpen(true)),
     'projects:next-change': changes > 0 && step(1),
     'projects:previous-change': changes > 0 && step(-1),
     'projects:view': switchable && (() => workspace.setView({ kind: view.kind === 'diff' ? 'file' : 'diff' })),
@@ -394,6 +471,17 @@ export const EditorPane = ({
         )}
         {note && <span className="kit-projects-note">{note}</span>}
         <span className="kit-projects-editor-tools">
+          {indicated && path && (
+            <IndentIndicator
+              effective={indent.effective.new}
+              choice={indent.choice.new}
+              languageLabel={labelOf(languageOf(path))}
+              onChoose={choice => indent.choose('both', choice)}
+              open={indentOpen}
+              onOpenChange={setIndentOpen}
+              settingsHref={routeHash({ section: 'settings' })}
+            />
+          )}
           {content.kind === 'file' && !content.readOnly && (
             <span className="kit-projects-save" data-state={saveState.kind} role="status">
               {saveText(saveState)}

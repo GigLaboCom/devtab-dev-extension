@@ -1,7 +1,8 @@
 /**
  * The editor page (in the main page's iframe): runs the wasm editor, hands it what the main page sends (two texts, one
  * side, the language, a swap, which side the user may edit; for the Projects section, two texts with their hunks, one
- * file alone, the file or its diff, a line or a hunk to bring into view) and reads a side back when asked; the module compares —
+ * file alone, the file or its diff, a line or a hunk to bring into view; how each editor indents and shows its text) and
+ * reads a side back when asked; the module compares —
  * on a request, and by itself after the user's edits. It follows the theme through chrome.storage itself. Only
  * messages from the extension's own parent page are taken; every answer to a request carries the request's id.
  *
@@ -106,6 +107,8 @@ const main = async (): Promise<void> => {
         return c.revealLine(message.line, message.column);
       case 'viewer/reveal-hunk':
         return c.revealHunk(message.index);
+      case 'viewer/set-editor-settings':
+        return c.setEditorSettings(message.settings, message.side);
     }
   };
 
@@ -142,7 +145,9 @@ const main = async (): Promise<void> => {
 
   // The keys that belong to the main page, and Tab out of the editor. Captured before gpui-web's own listener.
   const mac = isMac();
-  let escapedAt = 0;
+  // When Escape was last pressed; never at first. (0 would count as "just now" for a Tab in the page's first two
+  // seconds, whose event times start at 0: Tab then left a side being edited instead of indenting.)
+  let escapedAt = -Infinity;
   window.addEventListener(
     'keydown',
     event => {
@@ -163,7 +168,7 @@ const main = async (): Promise<void> => {
       if (side && editable[side] && event.timeStamp - escapedAt > 2000) return;
       event.preventDefault();
       event.stopPropagation();
-      escapedAt = 0;
+      escapedAt = -Infinity;
       const backwards = event.shiftKey;
       if (side === 'old' && !backwards) controller.focusSide('new');
       else if (side === 'new' && backwards) controller.focusSide('old');

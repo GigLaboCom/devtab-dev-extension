@@ -17,7 +17,7 @@
  * Besides the places there are the commands of a section (`command`: a new scratch file, the open scratch's download,
  * rename, language and delete, the Projects section's panels, quick open and changes — D38): such an action has a
  * target only while a part of the page offers it (the shell's `ShortcutTargets`, shortcuts/targets.ts) — a project
- * open, a scratch open, an edition with scratch files. Without one the action does not take its key: the key goes on to
+ * open, a scratch open, an edition with scratch files; the indent indicator of an open editor (D39). Without one the action does not take its key: the key goes on to
  * the page, and the editor is not asked to hand it up. Why each default: docs/research/hotkeys.md §9.
  */
 import { FIND_SHORTCUT } from '@src/shared/keys';
@@ -105,6 +105,7 @@ interface CommandDefinition {
 
 export const SCRATCH_GROUP = 'Scratch files';
 export const PROJECTS_GROUP = 'Projects';
+export const EDITOR_GROUP = 'Editor';
 
 export const COMMANDS: readonly CommandDefinition[] = [
   { id: 'scratch:new', title: 'New scratch file', group: SCRATCH_GROUP, keywords: ['scratch', 'new file', 'note'] },
@@ -120,6 +121,14 @@ export const COMMANDS: readonly CommandDefinition[] = [
   { id: 'projects:next-change', title: 'Next change', group: PROJECTS_GROUP, keywords: ['diff', 'hunk'] },
   { id: 'projects:previous-change', title: 'Previous change', group: PROJECTS_GROUP, keywords: ['diff', 'hunk'] },
   { id: 'projects:view', title: 'Switch file and diff', group: PROJECTS_GROUP, keywords: ['diff', 'mode'] },
+  // D39: the indent indicator of the editor that has the keyboard (or was used last); no default key — neither IDE
+  // has one for its indicator.
+  {
+    id: 'editor:indentation',
+    title: 'Indentation of this file',
+    group: EDITOR_GROUP,
+    keywords: ['indent', 'tabs', 'spaces', 'tab size'],
+  },
 ];
 
 /**
