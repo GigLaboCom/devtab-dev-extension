@@ -116,6 +116,11 @@ const code = await load(
   import * as EDITOR from ${at('extension/src/editorSettings/model.ts')};
   import { DETECT_MAX_LINES, DETECT_MAX_CHARS, DETECT_MIN_LINES, DETECT_MAX_INDENT } from ${at('extension/src/editorSettings/detect.ts')};
   import { EDITOR_SETTINGS_KEY } from ${at('extension/src/editorSettings/storage.ts')};
+  import * as PROFILES from ${at('extension/src/editorSettings/profiles.ts')};
+  import { EDITOR_PROFILES_KEY } from ${at('extension/src/editorSettings/profilesStore.ts')};
+  import * as EC_PARSE from ${at('extension/src/editorSettings/editorconfig/parse.ts')};
+  import * as EC_GLOB from ${at('extension/src/editorSettings/editorconfig/glob.ts')};
+  import { DEPTH_MAX as EC_DEPTH_MAX, LOOKUP_BUDGET as EC_LOOKUP_BUDGET } from ${at('extension/src/editorSettings/editorconfig/editorConfigReader.ts')};
   const actions = shortcutActions(DESTINATIONS, suggestedKeys(TOOL_CATALOGUE));
   const resolved = mac => {
     const r = resolveBindings(actions, DEFAULT_SHORTCUTS, mac);
@@ -145,7 +150,18 @@ const code = await load(
       languages: Object.entries(EDITOR.BUILT_IN_LANGUAGES).map(([id, values]) => ({ label: labelOf(id), values })),
       limits: { indent: [EDITOR.INDENT_SIZE_MIN, EDITOR.INDENT_SIZE_MAX], font: [EDITOR.FONT_SIZE_MIN, EDITOR.FONT_SIZE_MAX],
         languages: EDITOR.LANGUAGES_MAX, chars: EDITOR.RECORD_MAX_CHARS },
-      detect: { DETECT_MAX_LINES, DETECT_MAX_CHARS, DETECT_MIN_LINES, DETECT_MAX_INDENT } },
+      detect: { DETECT_MAX_LINES, DETECT_MAX_CHARS, DETECT_MIN_LINES, DETECT_MAX_INDENT },
+      // Which edition has profiles and reads a project's .editorconfig: what each names (nothing is read to ask).
+      profiles: { key: EDITOR_PROFILES_KEY, version: PROFILES.EDITOR_PROFILES_VERSION, max: PROFILES.PROFILES_MAX, nameMax: PROFILES.PROFILE_NAME_MAX,
+        projectsMax: PROFILES.PROJECTS_MAX, chars: PROFILES.PROFILES_RECORD_MAX_CHARS, fileMax: PROFILES.PROFILE_FILE_MAX_BYTES,
+        format: PROFILES.PROFILE_FILE_FORMAT, defaultName: PROFILES.DEFAULT_PROFILE_NAME,
+        inPro: editionFor({ kind: 'fixed', edition: 'pro' }).editorProfiles({ area: {}, onChanged: {}, areaName: 'local' }).included,
+        inFree: editionFor({ kind: 'fixed', edition: 'free' }).editorProfiles({ area: {}, onChanged: {}, areaName: 'local' }).included },
+      editorconfig: { fileMax: EC_PARSE.FILE_MAX_BYTES, sections: EC_PARSE.SECTIONS_MAX, lines: EC_PARSE.LINES_MAX, name: EC_PARSE.NAME_MAX,
+        key: EC_PARSE.KEY_MAX, value: EC_PARSE.VALUE_MAX, range: EC_GLOB.RANGE_MAX, nesting: EC_GLOB.NESTING_MAX, depth: EC_DEPTH_MAX,
+        matchBudget: EC_GLOB.MATCH_BUDGET, lookupBudget: EC_LOOKUP_BUDGET,
+        inPro: editionFor({ kind: 'fixed', edition: 'pro' }).projectEditorSettings.included,
+        inFree: editionFor({ kind: 'fixed', edition: 'free' }).projectEditorSettings.included } },
     roots: { toolbarButton: toolbarButton.id, newTab: newTab.id, optionsPage: optionsPage.id, pageOpener: pageOpener.id ?? null, editionSource: editionSource.id, planSource: planSource.id, licence: licence.id },
   };
 `,
@@ -457,12 +473,41 @@ out.push(
         'пробелы или табуляция, размер 2 / 4 / 8; живёт, пока файл открыт',
         'не хранится',
       ],
-      ['Издание', 'всё — в обоих изданиях (D39, D40)', '—', '—'],
+      [
+        'Профили (Pro)',
+        `один — ${ed.profiles.defaultName}`,
+        `до ${ed.profiles.max} вместе с ${ed.profiles.defaultName}; имя — до ${ed.profiles.nameMax} знаков, без управляющих, не повторяется (без учёта регистра); ${ed.profiles.defaultName} не переименовывается и не удаляется; запись — до ${ed.profiles.chars.toLocaleString('ru-RU')} знаков JSON`,
+        `\`${ed.profiles.key}\` (версия ${ed.profiles.version})`,
+      ],
+      [
+        'Активный профиль (Pro)',
+        ed.profiles.defaultName,
+        `один общий; проект может назвать свой (в поповере индикатора его файла), проектов со своим — до ${ed.profiles.projectsMax}, уходит самый старый выбор; скретчи и «Compare code» — общий; новый профиль — копия активного и становится активным`,
+        `\`${ed.profiles.key}.active\`, \`${ed.profiles.key}.projects\``,
+      ],
+      [
+        'Выгрузка и загрузка профиля (Pro)',
+        `файл JSON \`{format: "${ed.profiles.format}", version: 1, profile}\``,
+        `файл — до ${(ed.profiles.fileMax / 1024).toLocaleString('ru-RU')} КиБ; проверяется и нормализуется как хранимое, лишнее отбрасывается; совпало имя — «имя (2)»`,
+        'файл человека',
+      ],
+      [
+        '`.editorconfig` проекта (Pro)',
+        'читается и решает отступ',
+        `только \`indent_style\`, \`indent_size\`, \`tab_width\` (1…16); от папки файла до корня проекта, корень — \`root = true\`, папок — до ${ed.editorconfig.depth}; файл — до ${(ed.editorconfig.fileMax / 1024).toLocaleString('ru-RU')} КиБ, секций — до ${ed.editorconfig.sections}, строк — до ${ed.editorconfig.lines.toLocaleString('ru-RU')}; имя секции, ключ, значение — до ${ed.editorconfig.name} / ${ed.editorconfig.key} / ${ed.editorconfig.value} знаков; \`{n..m}\` — до ${ed.editorconfig.range} чисел; вложенность \`{}\` — до ${ed.editorconfig.nesting}; шагов сопоставления — до ${ed.editorconfig.matchBudget.toLocaleString('ru-RU')} на секцию и ${ed.editorconfig.lookupBudget.toLocaleString('ru-RU')} на файл; сверх пределов — «настроек проекта нет» и строка в поповере`,
+        'не хранится (кэш по папке, пока открыт проект; сбрасывается событием `files.changed`)',
+      ],
+      [
+        'Издание',
+        `Free: набор Default, языки, узнавание, индикатор; Pro — ещё профили (${yes(ed.profiles.inPro)} в Pro, ${yes(ed.profiles.inFree)} во Free) и \`.editorconfig\` (${yes(ed.editorconfig.inPro)} в Pro, ${yes(ed.editorconfig.inFree)} во Free)`,
+        'во Free — по одной тихой строке: в Settings → Editor и в поповере файла проекта (D40)',
+        '—',
+      ],
     ],
   ),
 );
 out.push(
-  `\nХранится в \`chrome.storage.local\`, одна запись \`${ed.key}\` (набор Default, версия ${ed.version}); профили (этап 2, Pro) — отдельная запись. Порядок слоёв: выбор в индикаторе → \`.editorconfig\` (этап 3) → узнанный отступ → язык → общее → встроенное.`,
+  `\nХранится в \`chrome.storage.local\`: набор Default — запись \`${ed.key}\` (версия ${ed.version}, читают оба издания), остальные профили — запись \`${ed.profiles.key}\` (версия ${ed.profiles.version}, читает только Pro; когда Pro кончается, она не читается и не удаляется). Порядок слоёв: выбор в индикаторе → \`.editorconfig\` проекта (Pro, по свойству) → узнанный отступ → язык профиля → общее профиля → встроенное.`,
 );
 h('Сочетания клавиш (сочетания приложения, по умолчанию)');
 out.push(

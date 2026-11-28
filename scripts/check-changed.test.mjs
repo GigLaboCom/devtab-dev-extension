@@ -47,6 +47,24 @@ test('the editor’s settings run every step with an editor and their own; Setti
   assert.equal(plan('extension/src/editorSettings/resolve.ts').growth, false);
 });
 
+test('profiles and a project’s .editorconfig (D39): the edition, its host and the demo’s data run the editor’s step too', () => {
+  const editors = ['compare', 'editor-settings', 'project-keys', 'projects', 'projects-demo', 'scratches'];
+  assert.deepEqual(plan('extension/src/editorSettings/editorconfig/glob.ts').e2e, editors);
+  assert.deepEqual(plan('extension/src/app/settings/EditorSettingsProfiles.tsx').e2e, ['editor-settings', 'shell']);
+  assert.ok(plan('extension/src/edition/free.ts').e2e.includes('editor-settings'));
+  assert.ok(plan('extension/src/app/useHostEdition.ts').e2e.includes('editor-settings'));
+  assert.ok(!plan('extension/src/licence/client.ts').e2e.includes('editor-settings'));
+  assert.deepEqual(plan('extension/src/history/behaviors.ts').e2e, ['editor-settings', 'history']);
+  assert.deepEqual(plan('extension/src/history/idbStore.ts').e2e, ['history']);
+  assert.deepEqual(plan('extension/src/projects/demo/data.ts').e2e, [
+    'editor-settings',
+    'project-keys',
+    'projects',
+    'projects-demo',
+    'scratches',
+  ]);
+});
+
 test('what the start route reads also runs the growth check', () => {
   const p = plan('extension/src/shortcuts/actions.ts');
   assert.equal(p.growth, true);
@@ -76,7 +94,7 @@ test('an e2e script runs its step with a build and no unit tests', () => {
 
 test('the licence step runs apart from the others', () => {
   const all = lines('extension/src/edition/pro.ts');
-  assert.ok(all.includes('pnpm test:e2e -- --only=history,scratches,shell'));
+  assert.ok(all.includes('pnpm test:e2e -- --only=editor-settings,history,scratches,shell'));
   assert.ok(all.includes('pnpm test:e2e -- --only=licence'));
 });
 
