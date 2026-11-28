@@ -7,10 +7,10 @@
 //! - `run(options_json)` — start: an empty view, drawn in the given theme;
 //! - `set_theme(dark, name, theme_set_json)` — switch the theme at run time; called after `run()` but before gpui has
 //!   finished launching (the browser's graphics start asynchronously), it is kept and applied at launch;
-//! - `compare_texts(request_json)` — `{path, language, oldText, newText, options?}`: the view compares the two texts
-//!   (`options` name built-in variants, e.g. `{"lineDiffer": "myers"}`) and shows them;
-//! - `show_diff(payload_json)` — `{path, language, oldText, newText, hunks, diagnostics?}`: hunks computed elsewhere
-//!   (OpenIDEA's `vcs_line_hunks` in live review), shown as given;
+//! - `compare_texts(request_json)` — `{path, language, oldText, newText, options?, editor?}`: the view compares the two
+//!   texts (`options` name built-in variants, e.g. `{"lineDiffer": "myers"}`) and shows them;
+//! - `show_diff(payload_json)` — `{path, language, oldText, newText, hunks, diagnostics?, editor?}`: hunks computed
+//!   elsewhere (OpenIDEA's `vcs_line_hunks` in live review), shown as given;
 //! - `set_side(request_json)` — `{side, text, path?}`: one side's new text (`side` is `old` or `new`), compared with the
 //!   other side as it is now;
 //! - `set_language(language)` — highlight both sides as another language;
@@ -19,8 +19,13 @@
 //! - `side_text(side)` — a side's text as it is now, edits included;
 //! - `mark_saved(side, text)` — the host saved `text` for the side: no longer modified;
 //! - `focused_side()` / `focus_side(side)` — which side has the keyboard; give it to one;
-//! - `show_file(request_json)` — `{path, language, text, readOnly}`: one file alone (the new side; editable unless
-//!   `readOnly`), its old side the same text — edits then show in the diff layout;
+//! - `show_file(request_json)` — `{path, language, text, readOnly, editor?}`: one file alone (the new side; editable
+//!   unless `readOnly`), its old side the same text — edits then show in the diff layout;
+//! - `set_editor_settings(settings_json, side?)` — how a side's editor (both without `side`) indents and shows its text
+//!   from now on: `{indentStyle?, indentSize?, softWrap?, whitespace?, indentGuides?, lineNumbers?, fontSize?}`, a field
+//!   left out stays as it is (review-view's `editor_settings`). The requests that replace what is shown take the same
+//!   values as `editor` — `show_file` one set for its file, `compare_texts` and `show_diff` `{old?, new?}` — so a text
+//!   opens with its indentation, not a frame later;
 //! - `set_mode(mode)` — `file` (the new side alone) or `diff` (both sides compared): the texts and edits stay;
 //! - `reveal_line(line, column?)` — bring a 0-based line of the new side into view: the caret at the UTF-16 column, or
 //!   the line selected without one; `reveal_hunk(index)` — the `index`-th hunk of what is shown, selected;
@@ -49,7 +54,8 @@ use gpui_component::{
     theme::{Theme, ThemeMode, ThemeRegistry, ThemeSet},
 };
 use review_view::{
-    CompareOptions, DiffDocument, DiffSide, FileDocument, Layout, LineHunk, ReviewEvent, ReviewView, Shown, Texts,
+    CompareOptions, DiffDocument, DiffSide, EditorSettings, FileDocument, Layout, LineHunk, ReviewEvent, ReviewView,
+    Shown, SideEditorSettings, Texts,
 };
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
@@ -117,6 +123,8 @@ struct CompareRequest {
     texts: TextsPayload,
     #[serde(default)]
     options: Option<CompareOptions>,
+    #[serde(default)]
+    editor: Option<SideEditorSettings>,
 }
 
 /// `show_diff`: two texts and their hunks.
@@ -128,6 +136,8 @@ struct DiffPayload {
     hunks: Vec<LineHunk>,
     #[serde(default)]
     diagnostics: Vec<DiagnosticPayload>,
+    #[serde(default)]
+    editor: Option<SideEditorSettings>,
 }
 
 /// LSP positions (0-based line, UTF-16 column) on the new side.
@@ -172,6 +182,8 @@ struct FilePayload {
     text: String,
     #[serde(default)]
     read_only: bool,
+    #[serde(default)]
+    editor: Option<EditorSettings>,
 }
 
 impl From<FilePayload> for FileDocument {
@@ -181,6 +193,21 @@ impl From<FilePayload> for FileDocument {
             language: p.language,
             text: p.text,
             read_only: p.read_only,
+        }
+    }
+}
+
+/// Puts the settings a replacing request carries into the editors, before the texts arrive.
+fn apply_sides(
+    view: &mut ReviewView,
+    editor: Option<&SideEditorSettings>,
+    window: &mut Window,
+    cx: &mut Context<ReviewView>,
+) {
+    let Some(editor) = editor else { return };
+    for (side, settings) in [(DiffSide::Old, &editor.old), (DiffSide::New, &editor.new)] {
+        if let Some(settings) = settings {
+            view.set_editor_settings(Some(side), settings, window, cx);
         }
     }
 }
@@ -327,6 +354,7 @@ pub fn compare_texts(request_json: String) -> Result<(), JsValue> {
         serde_json::from_str(&request_json).map_err(|err| JsValue::from_str(&format!("compare_texts: {err}")))?;
     let options = request.options.unwrap_or_default();
     let shown = with_view("compare_texts", |view, window, cx| {
+        apply_sides(view, request.editor.as_ref(), window, cx);
         view.compare(request.texts.into(), &options, window, cx)
             .map_err(|err| err.to_string())
     })?;
@@ -338,12 +366,16 @@ pub fn compare_texts(request_json: String) -> Result<(), JsValue> {
 pub fn show_diff(payload_json: String) -> Result<(), JsValue> {
     let payload: DiffPayload =
         serde_json::from_str(&payload_json).map_err(|err| JsValue::from_str(&format!("show_diff: {err}")))?;
+    let editor = payload.editor;
     let document = DiffDocument {
         texts: payload.texts.into(),
         hunks: payload.hunks,
         diagnostics: payload.diagnostics.into_iter().map(Into::into).collect(),
     };
-    let shown = with_view("show_diff", |view, window, cx| Ok(view.show(document, window, cx)))?;
+    let shown = with_view("show_diff", |view, window, cx| {
+        apply_sides(view, editor.as_ref(), window, cx);
+        Ok(view.show(document, window, cx))
+    })?;
     notify_host("shown", &shown_detail(&shown));
     Ok(())
 }
@@ -417,7 +449,11 @@ pub fn focus_side(side: String) -> Result<(), JsValue> {
 pub fn show_file(request_json: String) -> Result<(), JsValue> {
     let request: FilePayload =
         serde_json::from_str(&request_json).map_err(|err| JsValue::from_str(&format!("show_file: {err}")))?;
+    let editor = request.editor.clone();
     let shown = with_view("show_file", |view, window, cx| {
+        if let Some(settings) = &editor {
+            view.set_editor_settings(None, settings, window, cx);
+        }
         Ok(view.show_file(request.into(), window, cx))
     })?;
     notify_host("shown", &shown_detail(&shown));
@@ -428,9 +464,20 @@ pub fn show_file(request_json: String) -> Result<(), JsValue> {
 pub fn set_mode(mode: String) -> Result<(), JsValue> {
     let layout = Layout::from_name(&mode)
         .ok_or_else(|| JsValue::from_str(&format!("set_mode: unknown mode \"{mode}\"; the modes are file, diff")))?;
-    let shown = with_view("set_mode", |view, _, cx| Ok(view.set_layout(layout, cx)))?;
+    let shown = with_view("set_mode", |view, window, cx| Ok(view.set_layout(layout, window, cx)))?;
     notify_host("shown", &shown_detail(&shown));
     Ok(())
+}
+
+#[wasm_bindgen]
+pub fn set_editor_settings(settings_json: String, side: Option<String>) -> Result<(), JsValue> {
+    let settings: EditorSettings = serde_json::from_str(&settings_json)
+        .map_err(|err| JsValue::from_str(&format!("set_editor_settings: {err}")))?;
+    let side = side.map(|name| side_named("set_editor_settings", &name)).transpose()?;
+    with_view("set_editor_settings", |view, window, cx| {
+        view.set_editor_settings(side, &settings, window, cx);
+        Ok(())
+    })
 }
 
 #[wasm_bindgen]

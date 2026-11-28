@@ -2,6 +2,7 @@ import type {
   CompareRequest,
   DiffPayload,
   DiffShown,
+  EditorSettings,
   FileRequest,
   ReviewEvent,
   ReviewModule,
@@ -33,6 +34,11 @@ export interface ReviewController {
   revealLine: (line: number, column?: number) => void;
   /** Bring a hunk of what is shown into view, its lines selected; an index past the hunks is refused (`onError`). */
   revealHunk: (index: number) => void;
+  /**
+   * How a side's editor (both without `side`) indents and shows its text from now on; what `settings` leaves out
+   * stays. Waits like the rest; a replacing request carries its own (`editor`), so one sent before it is dropped.
+   */
+  setEditorSettings: (settings: EditorSettings, side?: Side) => void;
   /** One side's new text, compared with the other side as it is now; waits after a waiting `compare`. */
   setSide: (request: SideRequest) => void;
   /** Highlight both sides as another language. */
@@ -152,6 +158,9 @@ export const createReviewController = (module: ReviewModule, hooks: ControllerHo
     },
     revealHunk(index) {
       whenReady(() => module.reveal_hunk(index));
+    },
+    setEditorSettings(settings, side) {
+      whenReady(() => module.set_editor_settings(JSON.stringify(settings), side));
     },
     setSide(request) {
       whenReady(() => module.set_side(JSON.stringify(request)));

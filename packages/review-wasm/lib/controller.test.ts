@@ -36,12 +36,13 @@ const fakeModule = () => {
     focused_side: () => focused,
     focus_side: side => void (focused = side),
     show_file: json => {
-      const { path, readOnly } = JSON.parse(json) as FileRequest;
-      calls.push(`file ${path}${readOnly ? ' read-only' : ''}`);
+      const { path, readOnly, editor } = JSON.parse(json) as FileRequest;
+      calls.push(`file ${path}${readOnly ? ' read-only' : ''}${editor ? ` ${JSON.stringify(editor)}` : ''}`);
     },
     set_mode: mode => void calls.push(`mode ${mode}`),
     reveal_line: (line, column) => void calls.push(`line ${line}${column === null ? '' : `:${column}`}`),
     reveal_hunk: index => void calls.push(`hunk ${index}`),
+    set_editor_settings: (json, side) => void calls.push(`settings ${side ?? 'both'} ${json}`),
   };
   return { module, calls };
 };
@@ -115,6 +116,27 @@ describe('createReviewController', () => {
     const d = createReviewController(fakeModule().module, { onEvent: e => events.push(e) });
     d.onModuleEvent('shown', JSON.stringify({ path: 'a', changes: 0, added: 0, removed: 0, mode: 'file' }));
     expect(events[0]?.name === 'shown' && events[0].shown.mode).toBe('file');
+  });
+
+  it('sends editor settings in order after a replacement; one sent before the replacement goes with what waited', () => {
+    const { module, calls } = fakeModule();
+    const c = createReviewController(module);
+    c.setEditorSettings({ indentSize: 8 });
+    c.showFile({
+      path: 'main.go',
+      language: 'go',
+      text: '\tx\n',
+      readOnly: false,
+      editor: { indentStyle: 'tab', indentSize: 4 },
+    });
+    c.setEditorSettings({ indentStyle: 'space' }, 'new');
+    c.onModuleEvent('first-frame', '');
+    expect(calls).toEqual([
+      'file main.go {"indentStyle":"tab","indentSize":4}',
+      'settings new {"indentStyle":"space"}',
+    ]);
+    c.setEditorSettings({ softWrap: true, fontSize: null });
+    expect(calls.at(-1)).toBe('settings both {"softWrap":true,"fontSize":null}');
   });
 
   it('lets a request made while the first frame is reported win over the one that waited', () => {

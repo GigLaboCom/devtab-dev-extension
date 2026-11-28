@@ -22,6 +22,7 @@ import init, {
   reveal_line,
   run,
   set_editable,
+  set_editor_settings,
   set_language,
   set_mode,
   set_side,
@@ -62,6 +63,7 @@ export const startReview = async (
       set_mode,
       reveal_line,
       reveal_hunk,
+      set_editor_settings,
     },
     hooks,
   );

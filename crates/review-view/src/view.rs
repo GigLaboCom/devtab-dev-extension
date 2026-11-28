@@ -14,6 +14,11 @@
 //! ([`ReviewView::set_layout`]); a file's old side holds the text as it was shown, so the diff layout then shows the
 //! edits made since. The host may bring a line or a hunk of the new side into view ([`ReviewView::reveal_line`],
 //! [`ReviewView::reveal_hunk`]); the editor scrolls once it has laid the text out.
+//!
+//! How each editor indents and shows its text — the indent, wrapping, visible whitespace, indent guides, line numbers
+//! and the code font size — is the host's to say ([`ReviewView::set_editor_settings`], [`crate::editor_settings`]):
+//! each side keeps what it was told until told otherwise, a swap carries it with the texts, and only one file alone
+//! wraps (side by side a wrapped row would have no row level with it on the other side).
 
 use std::{ops::Range, rc::Rc, sync::Arc, time::Duration};
 
@@ -24,7 +29,7 @@ use gpui::{
 use gpui_component::{
     ActiveTheme as _, Rope, RopeExt as _, Side, h_flex,
     highlighter::Diagnostic,
-    input::{Editor, EditorState, InputEvent, LineDecorationCollection},
+    input::{Editor, EditorState, InputEvent, LineDecorationCollection, TabSize},
     scroll::ScrollbarPlacement,
     theme::Theme,
     v_flex,
@@ -35,6 +40,7 @@ use crate::{
     alignment::DiffSide,
     compare::{CompareOptions, Comparison, UnknownVariant},
     diff_view::{ChangedLines, DiffModel, DiffSpacers},
+    editor_settings::{EditorLook, EditorSettings, IndentStyle, font_size_after},
     hunks::{DiffStats, LineHunk},
     line_differ::LineDiffer,
     sides::{SideState, Sides},
@@ -193,6 +199,12 @@ pub struct ReviewView {
     hunks: Vec<LineHunk>,
     /// What to bring into view after the next frame.
     pending_reveal: Option<Reveal>,
+    /// What each editor shows (old side first), as the host last said.
+    looks: [EditorLook; 2],
+    /// Whether each editor wraps now: its look's wish, in the file layout only.
+    wrapping: [bool; 2],
+    /// The code font size; `None`: the theme's.
+    font_size: Option<f32>,
     _collections: [LineDecorationCollection; 2],
     _subscriptions: Vec<Subscription>,
 }
@@ -277,6 +289,9 @@ impl ReviewView {
             layout: Layout::default(),
             hunks: Vec::new(),
             pending_reveal: None,
+            looks: [EditorLook::default(); 2],
+            wrapping: [false; 2],
+            font_size: None,
             _collections: [old_collection, new_collection],
             _subscriptions: subscriptions,
         }
@@ -308,6 +323,7 @@ impl ReviewView {
         self.set_language_of_editors(language, cx);
         self.load(DiffSide::Old, old_text, window, cx);
         self.load(DiffSide::New, new_text, window, cx);
+        self.apply_looks(window, cx);
         Ok(self.recompare(ShownCause::Request, cx))
     }
 
@@ -344,6 +360,9 @@ impl ReviewView {
     pub fn swap(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Shown {
         let [old, new] = DiffSide::BOTH.map(|side| self.text(side, cx));
         self.sides.swap();
+        // How each text is indented goes with it.
+        self.looks.swap(0, 1);
+        self.apply_looks(window, cx);
         for (side, text) in [(DiffSide::Old, new), (DiffSide::New, old)] {
             let editable = self.sides.editable(side);
             self.editor(side).update(cx, |state, cx| {
@@ -413,6 +432,7 @@ impl ReviewView {
         } = document;
         self.set_language_of_editors(language, cx);
         self.layout = Layout::Diff;
+        self.apply_looks(window, cx);
         let stats = DiffStats::of(&hunks);
         self.hunks = hunks.clone();
         self.model.set(hunks, &old_text, &new_text);
@@ -466,12 +486,13 @@ impl ReviewView {
         self.load(DiffSide::New, text, window, cx);
         self.set_editable(DiffSide::Old, false, false, window, cx);
         self.set_editable(DiffSide::New, !read_only, false, window, cx);
+        self.apply_looks(window, cx);
         self.recompare(ShownCause::Request, cx)
     }
 
     /// Lays the texts out as one file or as both sides compared. The texts, the edits and the hunks stay; switching to
     /// the diff layout puts the old side level with the new one.
-    pub fn set_layout(&mut self, layout: Layout, cx: &mut Context<Self>) -> Shown {
+    pub fn set_layout(&mut self, layout: Layout, window: &mut Window, cx: &mut Context<Self>) -> Shown {
         if layout == Layout::Diff && self.layout == Layout::File {
             let y = self.editor(DiffSide::New).read(cx).scroll_offset().y;
             self.editor(DiffSide::Old).update(cx, |state, cx| {
@@ -481,6 +502,7 @@ impl ReviewView {
             });
         }
         self.layout = layout;
+        self.apply_looks(window, cx);
         let [old_text, new_text] = DiffSide::BOTH.map(|side| self.text(side, cx));
         self.model.set(self.drawn_hunks(), &old_text, &new_text);
         self.refresh_sides(cx);
@@ -500,6 +522,61 @@ impl ReviewView {
             ],
             layout,
         }
+    }
+
+    /// How a side's editor (or, with `side` `None`, both) indents and shows its text from now on: what `settings`
+    /// names changes, the rest stays (bounds: [`crate::editor_settings`]). The code font size is one for the view.
+    pub fn set_editor_settings(
+        &mut self,
+        side: Option<DiffSide>,
+        settings: &EditorSettings,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        for each in DiffSide::BOTH {
+            if side.is_none_or(|side| side == each) {
+                self.looks[each.index()] = self.looks[each.index()].merged(settings);
+            }
+        }
+        self.font_size = font_size_after(self.font_size, settings);
+        self.apply_looks(window, cx);
+    }
+
+    /// What a side's editor shows now.
+    pub fn editor_look(&self, side: DiffSide) -> EditorLook {
+        self.looks[side.index()]
+    }
+
+    /// The code font size; `None`: the theme's.
+    pub fn font_size(&self) -> Option<f32> {
+        self.font_size
+    }
+
+    /// Puts each side's look into its editor; wrapping only in the file layout, and only when it changes (turning it on
+    /// lays the text out again).
+    fn apply_looks(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        for side in DiffSide::BOTH {
+            let look = self.looks[side.index()];
+            let wrap = look.soft_wrap && self.layout == Layout::File;
+            let rewrap = self.wrapping[side.index()] != wrap;
+            self.wrapping[side.index()] = wrap;
+            self.editor(side).update(cx, |state, cx| {
+                state.set_tab_size(
+                    TabSize {
+                        tab_size: look.indent_size,
+                        hard_tabs: look.indent_style == IndentStyle::Tab,
+                    },
+                    cx,
+                );
+                if rewrap {
+                    state.set_soft_wrap(wrap, window, cx);
+                }
+                state.set_show_whitespaces(look.whitespace, window, cx);
+                state.set_indent_guides(look.indent_guides, window, cx);
+                state.set_line_number(look.line_numbers, window, cx);
+            });
+        }
+        cx.notify();
     }
 
     /// How the texts are laid out now.
@@ -709,12 +786,14 @@ fn summary(language: &str, stats: &DiffStats, layout: Layout) -> String {
     format!("{language} · {changes}")
 }
 
-fn editor_pane(state: &Entity<EditorState>, editable: bool) -> impl IntoElement {
-    div()
-        .flex_1()
-        .min_w_0()
-        .h_full()
-        .child(Editor::new(state).readonly(!editable).bordered(false).size_full())
+fn editor_pane(state: &Entity<EditorState>, editable: bool, font_size: Option<f32>) -> impl IntoElement {
+    let editor = Editor::new(state).readonly(!editable).bordered(false).size_full();
+    // A text size set on the editor refines over the theme's code size (gpui-kit's Editor): rows and the gutter follow.
+    let editor = match font_size {
+        Some(size) => editor.text_size(px(size)),
+        None => editor,
+    };
+    div().flex_1().min_w_0().h_full().child(editor)
 }
 
 impl Render for ReviewView {
@@ -738,6 +817,7 @@ impl Render for ReviewView {
             Layout::File => h_flex().flex_1().min_h_0().child(editor_pane(
                 self.editor(DiffSide::New),
                 self.sides.editable(DiffSide::New),
+                self.font_size,
             )),
             Layout::Diff => h_flex()
                 .flex_1()
@@ -745,11 +825,13 @@ impl Render for ReviewView {
                 .child(editor_pane(
                     self.editor(DiffSide::Old),
                     self.sides.editable(DiffSide::Old),
+                    self.font_size,
                 ))
                 .child(div().w_px().h_full().bg(cx.theme().border))
                 .child(editor_pane(
                     self.editor(DiffSide::New),
                     self.sides.editable(DiffSide::New),
+                    self.font_size,
                 )),
         };
         v_flex()
@@ -1034,10 +1116,14 @@ mod editing_tests {
             (Layout::File, 1, true)
         );
         // The diff layout: the text as shown on the left, the edit on the right; and back.
-        let diff = o.view.update(o.cx, |view, cx| view.set_layout(Layout::Diff, cx));
+        let diff = o
+            .view
+            .update_in(o.cx, |view, window, cx| view.set_layout(Layout::Diff, window, cx));
         assert_eq!((diff.layout, diff.stats.changes), (Layout::Diff, 1));
         assert_eq!([o.text(DiffSide::Old), o.text(DiffSide::New)], ["a\nb\n", "xa\nb\n"]);
-        let file = o.view.update(o.cx, |view, cx| view.set_layout(Layout::File, cx));
+        let file = o
+            .view
+            .update_in(o.cx, |view, window, cx| view.set_layout(Layout::File, window, cx));
         assert_eq!((file.layout, file.sides[1].modified), (Layout::File, true));
         // A read-only file refuses typing.
         let shown = show_file(&mut o, "c\n", true);
@@ -1076,6 +1162,132 @@ mod editing_tests {
             reveal(&mut o, &|view, cx| view.reveal_line(1, None, cx)),
             (Some(Reveal::Line { line: 1, column: None }), 2..3)
         );
+    }
+
+    fn settings(json: &str) -> EditorSettings {
+        serde_json::from_str(json).unwrap()
+    }
+
+    #[gpui::test]
+    fn tab_inserts_what_the_host_said_on_each_side(cx: &mut TestAppContext) {
+        let mut o = open(cx);
+        // Before the host says anything: gpui-kit's two spaces.
+        show_file(&mut o, "a\n", false);
+        o.focus(DiffSide::New);
+        o.cx.simulate_keystrokes("tab");
+        assert_eq!(o.text(DiffSide::New), "  a\n");
+        // Hard tabs on the new side: one tab character.
+        show_file(&mut o, "b\n", false);
+        o.view.update_in(o.cx, |view, window, cx| {
+            view.set_editor_settings(Some(DiffSide::New), &settings(r#"{"indentStyle": "tab"}"#), window, cx)
+        });
+        o.focus(DiffSide::New);
+        o.cx.simulate_keystrokes("tab");
+        assert_eq!(o.text(DiffSide::New), "\tb\n");
+        // Spaces by eight, then tabs again: each change holds from the next key on.
+        o.view.update_in(o.cx, |view, window, cx| {
+            view.set_editor_settings(
+                None,
+                &settings(r#"{"indentStyle": "space", "indentSize": 8}"#),
+                window,
+                cx,
+            )
+        });
+        o.cx.simulate_keystrokes("tab");
+        assert_eq!(o.text(DiffSide::New), "\t        b\n");
+        o.view.update_in(o.cx, |view, window, cx| {
+            view.set_editor_settings(
+                None,
+                &settings(r#"{"indentStyle": "tab", "indentSize": 4}"#),
+                window,
+                cx,
+            )
+        });
+        o.cx.simulate_keystrokes("tab");
+        assert_eq!(o.text(DiffSide::New), "\t        \tb\n");
+        // Both sides, four spaces: the old side made editable indents by four as well.
+        o.compare("c\n", "d\n");
+        o.view.update_in(o.cx, |view, window, cx| {
+            view.set_editor_settings(
+                None,
+                &settings(r#"{"indentStyle": "space", "indentSize": 4}"#),
+                window,
+                cx,
+            )
+        });
+        o.editable(DiffSide::Old, true);
+        o.cx.simulate_keystrokes("tab");
+        assert_eq!(o.text(DiffSide::Old), "    c\n");
+        let looks = o
+            .view
+            .read_with(o.cx, |view, _| DiffSide::BOTH.map(|side| view.editor_look(side)));
+        assert!(
+            looks
+                .iter()
+                .all(|look| look.indent_size == 4 && look.indent_style == IndentStyle::Space)
+        );
+    }
+
+    #[gpui::test]
+    fn settings_stay_through_new_texts_and_a_swap_carries_them(cx: &mut TestAppContext) {
+        let mut o = open(cx);
+        o.view.update_in(o.cx, |view, window, cx| {
+            view.set_editor_settings(
+                Some(DiffSide::Old),
+                &settings(r#"{"indentStyle": "tab", "indentSize": 8}"#),
+                window,
+                cx,
+            );
+            view.set_editor_settings(Some(DiffSide::New), &settings(r#"{"indentSize": 3}"#), window, cx);
+        });
+        o.compare("x\n", "y\n");
+        let look = |o: &mut Opened<'_>, side| o.view.read_with(o.cx, |view, _| view.editor_look(side));
+        assert_eq!(
+            (
+                look(&mut o, DiffSide::Old).indent_style,
+                look(&mut o, DiffSide::Old).indent_size
+            ),
+            (IndentStyle::Tab, 8)
+        );
+        o.view.update_in(o.cx, |view, window, cx| view.swap(window, cx));
+        assert_eq!(
+            (
+                look(&mut o, DiffSide::New).indent_style,
+                look(&mut o, DiffSide::New).indent_size
+            ),
+            (IndentStyle::Tab, 8)
+        );
+        assert_eq!(look(&mut o, DiffSide::Old).indent_size, 3);
+    }
+
+    #[gpui::test]
+    fn only_a_file_alone_wraps_and_the_font_size_is_the_views(cx: &mut TestAppContext) {
+        let mut o = open(cx);
+        o.view.update_in(o.cx, |view, window, cx| {
+            view.set_editor_settings(None, &settings(r#"{"softWrap": true, "fontSize": 18}"#), window, cx)
+        });
+        show_file(&mut o, "a long line\n", false);
+        assert_eq!(o.view.read_with(o.cx, |view, _| view.wrapping), [true, true]);
+        o.view
+            .update_in(o.cx, |view, window, cx| view.set_layout(Layout::Diff, window, cx));
+        assert_eq!(o.view.read_with(o.cx, |view, _| view.wrapping), [false, false]);
+        assert!(
+            o.view
+                .read_with(o.cx, |view, _| view.editor_look(DiffSide::New).soft_wrap)
+        );
+        o.view
+            .update_in(o.cx, |view, window, cx| view.set_layout(Layout::File, window, cx));
+        assert_eq!(o.view.read_with(o.cx, |view, _| view.wrapping), [true, true]);
+        o.draw();
+        // The font size belongs to the view, not to the theme: a theme change leaves it as it is.
+        assert_eq!(o.view.read_with(o.cx, |view, _| view.font_size()), Some(18.0));
+        o.cx.update(|_, cx| Theme::update(cx, |theme| theme.mono_font_size = px(11.)));
+        o.draw();
+        assert_eq!(o.view.read_with(o.cx, |view, _| view.font_size()), Some(18.0));
+        o.view.update_in(o.cx, |view, window, cx| {
+            view.set_editor_settings(None, &settings(r#"{"fontSize": null}"#), window, cx)
+        });
+        assert_eq!(o.view.read_with(o.cx, |view, _| view.font_size()), None);
     }
 
     /// A grammar that arrives after its text is shown (feature `grammar-files`): the view highlights again when the

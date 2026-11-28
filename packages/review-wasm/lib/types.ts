@@ -2,7 +2,8 @@
  * The editor module's data contract (crates/review-wasm/src/lib.rs over crates/review-view). Three routes into the
  * view: `compare_texts` takes two texts and the module compares them (the comparison lives in Rust, D13);
  * `show_diff` takes hunks computed elsewhere — the companion's in the Projects section (D8, D29); `show_file` shows one
- * file alone, read-only or editable (`set_mode` switches between it and the diff of its edits).
+ * file alone, read-only or editable (`set_mode` switches between it and the diff of its edits). How each editor indents
+ * and shows its text is `EditorSettings` — inside a replacing request, and `set_editor_settings` while it is open.
  */
 
 export type HunkKind = 'added' | 'modified' | 'deleted';
@@ -50,15 +51,45 @@ export interface CompareOptions {
   lineDiffer?: string;
 }
 
+/**
+ * How an editor indents and shows its text (crates/review-view/src/editor_settings.rs). Every field is optional: one
+ * left out leaves the editor as it is. The module keeps the indent size within 1…16 and the font size within 8…32 px
+ * whatever it is sent.
+ */
+export interface EditorSettings {
+  /** What Tab inserts and what one indent level is: spaces, or one tab character. */
+  indentStyle?: 'space' | 'tab';
+  /** Spaces per level, and the width a tab is drawn at (one number: gpui-kit has no separate tab width). */
+  indentSize?: number;
+  /** Long lines wrap — one file alone only; side by side the rows stay level and nothing wraps. */
+  softWrap?: boolean;
+  /** Spaces and tabs drawn visibly. */
+  whitespace?: boolean;
+  indentGuides?: boolean;
+  lineNumbers?: boolean;
+  /** The code font size in px for the whole view; null: the theme's. */
+  fontSize?: number | null;
+}
+
+/** Each side's settings in a request with two texts: each text has its own indentation. */
+export interface SideEditorSettings {
+  old?: EditorSettings;
+  new?: EditorSettings;
+}
+
 /** `compare_texts(request_json)`: the module compares the two texts. */
 export interface CompareRequest extends Texts {
   options?: CompareOptions;
+  /** Put into the editors before the texts: each text opens with its indentation. */
+  editor?: SideEditorSettings;
 }
 
 /** `show_diff(payload_json)`: hunks computed elsewhere, shown as given. */
 export interface DiffPayload extends Texts {
   hunks: LineHunk[];
   diagnostics?: DiagnosticPayload[];
+  /** Put into the editors before the texts. */
+  editor?: SideEditorSettings;
 }
 
 /** `show_file(request_json)`: one file alone — the new side, editable unless `readOnly`. */
@@ -69,6 +100,8 @@ export interface FileRequest {
   language: string;
   text: string;
   readOnly: boolean;
+  /** Put into both editors before the text (the old side holds the same text). */
+  editor?: EditorSettings;
 }
 
 /** How the view lays its texts out: `file` — the new side alone; `diff` — both sides compared. */
@@ -154,6 +187,7 @@ export interface ReviewModule {
   set_mode: (mode: ViewMode) => void;
   reveal_line: (line: number, column?: number | null) => void;
   reveal_hunk: (index: number) => void;
+  set_editor_settings: (settingsJson: string, side: Side | undefined) => void;
 }
 
 /**
