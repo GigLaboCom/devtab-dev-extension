@@ -15,10 +15,12 @@
 //                  { "gap": { project, from, to, paths } } (the companion was not running: `history.gap`),
 //                  { "openFile": { …file, "emit": true|false } } (a file opened from the system; `emit` sends
 //                  `open.requested` if the page told `page.activity`), { "changeOpenedOnDisk": { file, text } },
-//                  { "replaceOpened": { file } }, { "expireTokens": true },
+//                  { "replaceOpened": { file } }, { "openedPoint": { file, label, text, content } } (a copy in an
+//                  opened file's history), { "expireTokens": true },
 //                  { "exit": true } (the port is lost without a word)
 //   log.jsonl      what happened: start (with the caller's origin), each frame in (type, id, method; the parameters of a
-//                  commit, a rollback, a save — a text by its length — and of adding a project), stdin's end, exit
+//                  commit, a rollback, a save — a text by its length — and of adding a project; `install` of a `hello`),
+//                  stdin's end, exit
 // Nothing else is read or written; the host never touches the network.
 import { appendFileSync, existsSync, readFileSync, readdirSync, renameSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -77,11 +79,14 @@ process.stdin.on('data', data => {
       'history.project',
       'openFile.claim',
       'openFile.save',
+      'openFile.restore',
       'page.activity',
     ].includes(frame?.method)
       ? { params: { ...frame.params, ...(frame.params?.text !== undefined && { text: frame.params.text.length }) } }
       : {};
-    log({ event: 'in', type: frame?.type, id: frame?.id, method: frame?.method, ...asked });
+    // The installation's number a `hello` said (step O3): the e2e checks it is made once and kept.
+    const said = frame?.type === 'hello' ? { install: frame.install ?? null } : {};
+    log({ event: 'in', type: frame?.type, id: frame?.id, method: frame?.method, ...asked, ...said });
     void companion.handle(frame, send).then(() => {
       // As the relay does: after its last word about the connection it exits.
       if (frame?.type === 'hello' && options.mode !== undefined && ['not-running', 'version'].includes(options.mode))
@@ -126,6 +131,10 @@ setInterval(() => {
     if (command.changeOpenedOnDisk)
       companion.changeOpenedOnDisk(command.changeOpenedOnDisk.file, command.changeOpenedOnDisk.text);
     if (command.replaceOpened) companion.replaceOpened(command.replaceOpened.file);
+    if (command.openedPoint) {
+      const { file, ...spec } = command.openedPoint;
+      companion.openedPoint(file, spec);
+    }
     if (command.expireTokens) companion.expireTokens();
     if (command.event) {
       const { name: event, project, data } = command.event;

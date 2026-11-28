@@ -3,12 +3,15 @@
  * `openFiles: true`: the «Files» group (absent with nothing to show, marks, Forget, the settings, the command only in
  * Pro), a file arriving by the event and by the address (the token leaves the address at once), a file of an added
  * project, an expired token, a file that waits for the permission, a companion without the methods (nothing sent),
- * the page's activity, Pro editing with a conflict and the free edition's read-only file with «Copy to a scratch». The
- * editor page is played by a fake.
+ * the page's activity, Pro editing with a conflict and the free edition's read-only file with «Copy to a scratch». And
+ * the file's history (the companion's copies): one feed, a copy without its text, comparisons in the editor, «Open in
+ * Compare code», a restore and its undo, read only and the free edition, the refusals. The editor page is played by a
+ * fake.
  */
 import { SidePanels } from './SidePanels';
 import { useRoute } from '../route';
 import { ProjectsPage } from '../sections/ProjectsPage';
+import { takeHandedTexts } from '@src/compare/handoff';
 import { chosenBackend } from '@src/projects/behaviors';
 import { fakeCompanion } from '@src/projects/companion/fakeLink';
 import { createConnection } from '@src/projects/connection';
@@ -392,5 +395,241 @@ describe('the free edition', () => {
     expect(scratches.map(s => [s.name, s.language])).toEqual([['todo', 'markdown']]);
     expect(await made.scratches.read(scratches[0]!.id)).toBe('# Todo\n');
     expect(made.sent('openFile.save')).toEqual([]);
+  });
+});
+
+describe('the history of an opened file', () => {
+  const HOUR = 3_600_000;
+
+  /** A file arrived by the event, its editor up; its copies are added to the scripted companion's history. */
+  const arrive = async (
+    spec: Parameters<ReturnType<typeof fakeCompanion>['companion']['offerFile']>[0] = {},
+    edition: OpenFilesEdition = 'edit',
+  ) => {
+    const editor = fakeEditor();
+    const made = open('#/projects', {}, edition);
+    await connected();
+    const { token, file } = made.fake.companion.offerFile({ name: 'todo.md', text: 'now\n', ...spec });
+    made.fake.emit('open.requested', null, { token });
+    await screen.findByRole('heading', { name: spec.name ?? 'todo.md', level: 1 });
+    await editor.attach();
+    await waitFor(() => expect(editor.last('viewer/show-file')).toBeTruthy());
+    const t = Date.now();
+    made.fake.companion.openedPoint(file!, { label: 'Before save', text: 'first\n', timeMs: t - 2 * HOUR });
+    made.fake.companion.openedPoint(file!, { label: 'Before restore', content: false, timeMs: t - HOUR });
+    made.fake.companion.openedPoint(file!, { label: 'Before save', text: 'second\n', timeMs: t - HOUR / 2 });
+    return { editor, made, file: file! };
+  };
+
+  const showHistory = async () => {
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Show history' }));
+    });
+    const panel = await screen.findByRole('region', { name: 'History' });
+    await waitFor(() => expect(within(panel).getAllByRole('listitem')).toHaveLength(3));
+    return panel;
+  };
+
+  const rows = (panel: HTMLElement) => within(panel).getAllByRole('listitem');
+
+  it('the editor’s history button shows one feed, «This file»: newest first, time and size; a copy without text offers nothing', async () => {
+    const { made } = await arrive();
+    const panel = await showHistory();
+    expect(within(panel).getByRole('heading', { name: 'This file' })).toBeTruthy();
+    // No project's feeds here.
+    expect(within(panel).queryByRole('radio')).toBeNull();
+    expect(within(panel).queryByText('Project')).toBeNull();
+    expect(within(panel).queryByText(/Since your last visit/)).toBeNull();
+    const [newest, without, oldest] = rows(panel);
+    expect(newest!.textContent).toContain('Before save');
+    expect(newest!.textContent).toContain('7 B');
+    expect(oldest!.textContent).toContain('6 B');
+    expect(without!.getAttribute('data-text')).toBe('none');
+    expect(without!.textContent).toContain('No version kept');
+    expect(within(without!).queryByRole('button')).toBeNull();
+    expect(within(without!).getByRole('checkbox').hasAttribute('disabled')).toBe(true);
+    expect(within(newest!).getByRole('button', { name: 'Restore…' }).hasAttribute('disabled')).toBe(false);
+    expect(made.sent('openFile.history')).toHaveLength(1);
+  });
+
+  it('a copy is compared with the file on disk, two copies with each other, in the editor; «Back to the file»', async () => {
+    const { editor, made } = await arrive();
+    const panel = await showHistory();
+    await act(async () => {
+      fireEvent.click(within(rows(panel)[2]!).getByRole('button', { name: 'Compare with current' }));
+    });
+    await waitFor(() =>
+      expect(editor.last('viewer/compare')?.request).toMatchObject({ oldText: 'first\n', newText: 'now\n' }),
+    );
+    expect(screen.getByText(/^Before save .* ↔ Current$/)).toBeTruthy();
+    expect(screen.queryByText('Saved')).toBeNull();
+    fireEvent.click(within(rows(panel)[0]!).getByRole('checkbox'));
+    fireEvent.click(within(rows(panel)[2]!).getByRole('checkbox'));
+    await act(async () => {
+      fireEvent.click(within(panel).getByRole('button', { name: 'Compare the two selected' }));
+    });
+    await waitFor(() =>
+      expect(editor.last('viewer/compare')?.request).toMatchObject({ oldText: 'first\n', newText: 'second\n' }),
+    );
+    const shows = editor.inbox.filter(m => m.type === 'viewer/show-file').length;
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Back to the file' }));
+    });
+    await waitFor(() => expect(editor.inbox.filter(m => m.type === 'viewer/show-file')).toHaveLength(shows + 1));
+    expect(editor.last('viewer/show-file')?.request).toMatchObject({ text: 'now\n', readOnly: false });
+    await screen.findByText('Saved');
+    expect(made.sent('openFile.historyContent').length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('restore asks with the comparison shown, writes from the version asked over, shows the file again; undo restores what it replaced', async () => {
+    const { editor, made, file } = await arrive();
+    const panel = await showHistory();
+    await act(async () => {
+      fireEvent.click(within(rows(panel)[0]!).getByRole('button', { name: 'Restore…' }));
+    });
+    const dialog = await screen.findByRole('dialog', { name: 'Restore this version?' });
+    expect(dialog.textContent).toContain('todo.md will be replaced by its version of');
+    expect(editor.last('viewer/compare')?.request).toMatchObject({ oldText: 'second\n', newText: 'now\n' });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Restore' }));
+    });
+    await within(panel).findByText('Restored. The version it replaced is in the history.');
+    expect(made.fake.companion.opened.files.get(file)!.text).toBe('second\n');
+    await waitFor(() => expect(editor.last('viewer/show-file')?.request).toMatchObject({ text: 'second\n' }));
+    // The copy of what it replaced is in the feed.
+    await waitFor(() => expect(rows(panel)).toHaveLength(4));
+    expect(rows(panel)[0]!.textContent).toContain('Before restore');
+    const restore = made.sent('openFile.restore')[0]!.params;
+    await act(async () => {
+      fireEvent.click(within(panel).getByRole('button', { name: 'Undo restore' }));
+    });
+    await within(panel).findByText('The restore is undone.');
+    expect(made.fake.companion.opened.files.get(file)!.text).toBe('now\n');
+    const undo = made.sent('openFile.restore')[1]!.params;
+    expect(undo.point).not.toBe(restore.point);
+    await waitFor(() => expect(editor.last('viewer/show-file')?.request).toMatchObject({ text: 'now\n' }));
+  });
+
+  it('read only (a secret): the history is shown and compared, restoring inactive with the same quiet reason; the comparison marked', async () => {
+    const { editor, made } = await arrive({ name: 'id_ed25519', reason: 'secret', text: 'key\n' });
+    const panel = await showHistory();
+    const reason = 'Read only: this file holds secrets.';
+    expect(within(panel).getByText(reason).getAttribute('data-history')).toBe('quiet');
+    const restore = within(rows(panel)[0]!).getByRole('button', { name: 'Restore…' });
+    expect(restore.hasAttribute('disabled')).toBe(true);
+    expect(restore.getAttribute('title')).toBe(reason);
+    await act(async () => {
+      fireEvent.click(within(rows(panel)[0]!).getByRole('button', { name: 'Compare with current' }));
+    });
+    await waitFor(() => expect(editor.last('viewer/compare')).toBeTruthy());
+    expect(screen.getByText('Secret: read only').getAttribute('data-mark')).toBe('secret');
+    // «Open in Compare code»: the current side does not save back.
+    await act(async () => {
+      fireEvent.click(within(rows(panel)[0]!).getByRole('button', { name: 'Open in Compare code' }));
+    });
+    await waitFor(() => expect(window.location.hash).toBe('#/compare'));
+    const handed = takeHandedTexts();
+    expect(handed.map(h => h.text)).toEqual(['second\n', 'key\n']);
+    expect(handed[1]!.origin).toBeUndefined();
+    expect(made.sent('openFile.restore')).toEqual([]);
+  });
+
+  it('the free edition: the history is shown and compared, restoring inactive with the free line', async () => {
+    const { editor, made } = await arrive({}, 'read');
+    const panel = await showHistory();
+    const line = 'Editing files opened from your computer is part of Pro.';
+    expect(within(panel).getByText(line).getAttribute('data-history')).toBe('quiet');
+    expect(within(rows(panel)[0]!).getByRole('button', { name: 'Restore…' }).getAttribute('title')).toBe(line);
+    await act(async () => {
+      fireEvent.click(within(rows(panel)[2]!).getByRole('button', { name: 'Compare with current' }));
+    });
+    await waitFor(() => expect(editor.last('viewer/compare')?.request).toMatchObject({ oldText: 'first\n' }));
+    expect(made.sent('openFile.restore')).toEqual([]);
+    expect(made.sent('openFile.save')).toEqual([]);
+  });
+
+  it('«Open in Compare code» hands the copy and the current file, whose side saves back as the opened file', async () => {
+    const { made, file } = await arrive();
+    const panel = await showHistory();
+    await act(async () => {
+      fireEvent.click(within(rows(panel)[2]!).getByRole('button', { name: 'Open in Compare code' }));
+    });
+    await waitFor(() => expect(window.location.hash).toBe('#/compare'));
+    const [kept, current] = takeHandedTexts();
+    expect(kept).toMatchObject({ text: 'first\n', name: expect.stringMatching(/^todo\.md \(Before save .*\)$/) });
+    expect(current).toMatchObject({
+      text: 'now\n',
+      name: 'todo.md',
+      origin: { file, name: 'todo.md', displayPath: '~/notes/todo.md', backend: 'companion' },
+    });
+    const read = made.sent('openFile.read').length;
+    expect(read).toBeGreaterThan(0);
+  });
+
+  it('a file replaced on disk: restoring inactive with its reason; shown again after a comparison, it stays read only', async () => {
+    const { editor, made, file } = await arrive();
+    made.fake.companion.replaceOpened(file);
+    editor.type('mine\n');
+    await screen.findByText(/^Read only: the file was replaced/, { selector: '[data-read-only]' });
+    const panel = await showHistory();
+    const restore = within(rows(panel)[0]!).getByRole('button', { name: 'Restore…' });
+    expect(restore.hasAttribute('disabled')).toBe(true);
+    expect(restore.getAttribute('title')).toMatch(/^Read only: the file was replaced/);
+    const saves = made.sent('openFile.save').length;
+    await act(async () => {
+      fireEvent.click(within(rows(panel)[0]!).getByRole('button', { name: 'Compare with current' }));
+    });
+    await waitFor(() => expect(editor.last('viewer/compare')).toBeTruthy());
+    const shows = editor.inbox.filter(m => m.type === 'viewer/show-file').length;
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Back to the file' }));
+    });
+    await waitFor(() => expect(editor.inbox.filter(m => m.type === 'viewer/show-file')).toHaveLength(shows + 1));
+    expect(editor.last('viewer/show-file')?.request.readOnly).toBe(true);
+    editor.type('more\n');
+    await new Promise(resolve => setTimeout(resolve, 80));
+    expect(made.sent('openFile.save')).toHaveLength(saves);
+    expect(made.sent('openFile.restore')).toEqual([]);
+  });
+
+  it('refusals in the page’s words: paused, a conflict, read only now, too large, the file forgotten', async () => {
+    const { made, file } = await arrive();
+    const panel = await showHistory();
+    const restoreFirst = async () => {
+      await act(async () => {
+        fireEvent.click(within(rows(panel)[0]!).getByRole('button', { name: 'Restore…' }));
+      });
+      const dialog = await screen.findByRole('dialog', { name: 'Restore this version?' });
+      await act(async () => {
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Restore' }));
+      });
+    };
+    made.fake.companion.failNext('openFile.restore', 'paused');
+    await restoreFirst();
+    await within(panel).findByText('The companion has paused writing. To resume, run:');
+    made.fake.companion.failNext('openFile.restore', 'conflict', { currentHash: 'x' });
+    await restoreFirst();
+    await within(panel).findByText('The file changed since this was asked. Nothing was written; look at it again.');
+    made.fake.companion.failNext('openFile.restore', 'not-editable', { reason: 'replaced' });
+    await restoreFirst();
+    await within(panel).findByText(/^Read only: the file was replaced, moved or became a link/);
+    made.fake.companion.failNext('openFile.historyContent', 'too-large', { size: 9_000_000, limit: 5_242_880 });
+    await act(async () => {
+      fireEvent.click(within(rows(panel)[0]!).getByRole('button', { name: 'Open in Compare code' }));
+    });
+    await within(panel).findByText('The text is larger than the companion takes (5.0 MB).');
+    // A copy the companion no longer has, of a file it still has.
+    made.fake.companion.failNext('openFile.historyContent', 'not-found');
+    await act(async () => {
+      fireEvent.click(within(rows(panel)[0]!).getByRole('button', { name: 'Open in Compare code' }));
+    });
+    await within(panel).findByText('This version is not there any more, or it is not one of this file’s.');
+    // Forgotten meanwhile (another tab, the terminal): the file is not there.
+    made.fake.companion.opened.files.delete(file);
+    await act(async () => {
+      fireEvent.click(within(rows(panel)[0]!).getByRole('button', { name: 'Open in Compare code' }));
+    });
+    await within(panel).findByText('This file is not in the list any more. Open it again from your computer.');
+    expect(window.location.hash).toMatch(/^#\/projects\/files\//);
   });
 });

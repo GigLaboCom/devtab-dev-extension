@@ -5,10 +5,12 @@
  */
 import { companionBackend } from './companion/backend';
 import { fakeCompanion } from './companion/fakeLink';
+import { memoryCompanionInstall } from './companionInstall';
 import { RETRY_MS, createConnection } from './connection';
 import { isCompanionError } from './types';
 import { describe, expect, it, vi } from 'vitest';
 import type { Timers } from './companion/client';
+import type { CompanionInstall } from './companionInstall';
 import type { ConnectionDeps } from './connection';
 import type { PermissionGate } from './permission';
 
@@ -72,6 +74,7 @@ const setup = (
     mode?: 'normal' | 'empty' | 'fresh' | 'version' | 'not-running';
     methods?: 'all' | 'stage3';
     companion?: { contentFlag?: boolean; limits?: Record<string, number> };
+    install?: CompanionInstall;
   } = {},
 ) => {
   const permission = fakePermission(options.granted ?? true, options.answer ?? true);
@@ -87,6 +90,7 @@ const setup = (
     permission: permission.gate,
     openLink: events => links.open(events),
     extension: '1.2.3',
+    ...(options.install && { install: options.install }),
     reload,
     timers: clock.timers,
   };
@@ -221,6 +225,51 @@ describe('the connection', () => {
     connection.dispose();
     expect(fake.ports[0]!.closedByPage).toBe(true);
     expect(permission.listeners()).toBe(0);
+  });
+});
+
+describe('the installation’s number in `hello` (D42, the companion’s step O3)', () => {
+  const helloOf = (port: { sent: unknown[] }): Record<string, unknown> => port.sent[0] as Record<string, unknown>;
+
+  it('said in every handshake, the same one; made at the first connection', async () => {
+    const install = memoryCompanionInstall();
+    const { connection, fake, clock } = setup({ install });
+    expect(install.kept.value).toBeUndefined();
+    await connection.start();
+    const number = install.kept.value as string;
+    expect(helloOf(fake.ports[0]!)).toEqual({ type: 'hello', extension: '1.2.3', api: [1], install: number });
+    fake.ports[0]!.lose();
+    await settle();
+    clock.fire();
+    await settle();
+    expect(connection.status().state).toBe('ready');
+    expect(helloOf(fake.ports[1]!).install).toBe(number);
+    expect(fake.companion.installs).toEqual([number, number]);
+  });
+
+  it('no storage, a malformed number, a storage that fails: the handshake goes without it, no error', async () => {
+    const cases: CompanionInstall[] = [
+      { get: () => Promise.resolve(null) },
+      { get: () => Promise.reject(new Error('storage')) },
+      {
+        get: () => {
+          throw new Error('storage');
+        },
+      },
+    ];
+    for (const install of cases) {
+      const { connection, fake } = setup({ install });
+      await connection.start();
+      expect(connection.status().state).toBe('ready');
+      expect(helloOf(fake.ports[0]!)).not.toHaveProperty('install');
+      expect(fake.companion.installs).toEqual([null]);
+    }
+  });
+
+  it('a page without the seam says none', async () => {
+    const { connection, fake } = setup();
+    await connection.start();
+    expect(helloOf(fake.ports[0]!)).toEqual({ type: 'hello', extension: '1.2.3', api: [1] });
   });
 });
 

@@ -5,11 +5,15 @@
 // the page's activity told; a file arriving by the event `open.requested` (its own address, the editor, saved by itself);
 // a conflict and «Keep mine»; read-only reasons (a secret) and «runs on its own»; the group with its marks, the command
 // (Pro) and «Forget»; a file arriving by the address (the token gone from the address and from the history); an
-// expired token; a file inside an added project opening as the project's. `runOpenedFilesFree` repeats the arrival
-// in the free build (DEVTAB_VARIANT=edition:fixedFree), loaded next to the store build in the same browser: the file
-// read only with one quiet line, «Copy to a scratch», no command. Screenshots light and dark, wide and narrow. The strip
-// of the editor's buttons over an opened file (../e2e-editor-strip.mjs): every button against its key on an editable
-// one, only what makes sense on a read-only one, Save greyed with the page's own reason.
+// expired token; a file inside an added project opening as the project's. The file's history (the companion's copies,
+// `openFile.history`): one feed with a copy kept without its text, a copy compared with the file and two copies with
+// each other in the editor, a restore asked with the comparison shown and undone, «Open in Compare code» whose current
+// side saves back through `openFile.save` on a port of its own, and the restore inactive once the file was replaced.
+// `runOpenedFilesFree` repeats the arrival in the free build (DEVTAB_VARIANT=edition:fixedFree), loaded next to the
+// store build in the same browser: the file read only with one quiet line, «Copy to a scratch», no command, its history
+// shown and compared with the restore inactive. Screenshots light and dark, wide and narrow.
+// The strip of the editor's buttons over an opened file (../e2e-editor-strip.mjs): every button against its key on an
+// editable one, only what makes sense on a read-only one, Save greyed with the page's own reason.
 
 /* global document, location, chrome -- page.evaluate callbacks run in the page */
 
@@ -171,6 +175,92 @@ export const runCompanionOpenedFiles = async ({
     conflict.replace(/\s+/g, ' '),
   );
 
+  // ---- its history: one feed, a copy without its text, comparisons, a restore and its undo -------------------------
+  const history = page.getByRole('region', { name: 'History' });
+  const points = history.locator('.kit-projects-point');
+  const title = page.locator('.kit-projects-editor .kit-projects-editor-title');
+  const waitMode = mode =>
+    page.waitForFunction(m => document.querySelector('iframe.kit-projects-frame')?.dataset.mode === m, mode, {
+      timeout: 20_000,
+    });
+  await sleep(700);
+  command({ openedPoint: { file: fileId, label: 'Before restore', content: false, timeMs: Date.now() - 60_000 } });
+  await sleep(300);
+  mark = logOf().length;
+  await page.getByRole('button', { name: 'Show history', exact: true }).click();
+  await points.nth(1).waitFor({ timeout: 10_000 });
+  const feed = await points.allInnerTexts();
+  const withoutText = await history.locator('.kit-projects-point[data-text="none"]').innerText();
+  check(
+    'open files: the editor’s history button opens one feed «This file» (openFile.history) — the companion’s copies, newest first, with time and size; a copy without its text says «No version kept» and offers nothing',
+    calls(mark, 'openFile.history').length >= 1 &&
+      (await history.getByRole('heading', { name: 'This file' }).count()) === 1 &&
+      (await history.getByText('Project', { exact: true }).count()) === 0 &&
+      feed.length >= 3 &&
+      feed.filter(r => r.includes('Before save')).length >= 2 &&
+      withoutText.includes('No version kept') &&
+      // Its checkbox is a button of role checkbox, inactive; no button to act on.
+      (await history.locator('.kit-projects-point[data-text="none"]').getByRole('button').count()) === 0 &&
+      (await history.locator('.kit-projects-point[data-text="none"]').getByRole('checkbox').isDisabled()),
+    `${feed.map(r => r.replace(/\s+/g, ' ')).join(' | ')}; history calls ${calls(mark, 'openFile.history').length}, heading ${await history.getByRole('heading', { name: 'This file' }).count()}`,
+  );
+  await shots('history');
+  const keptRow = history.locator('.kit-projects-point:not([data-text])');
+  await keptRow.last().getByRole('button', { name: 'Compare with current' }).click();
+  await waitMode('diff');
+  const compareTitle = await title.innerText();
+  await shots('history-compare');
+  await keptRow.nth(0).getByRole('checkbox').click();
+  await keptRow.last().getByRole('checkbox').click();
+  await history.getByRole('button', { name: 'Compare the two selected' }).click();
+  await page.waitForFunction(
+    () => !document.querySelector('.kit-projects-editor-title')?.textContent?.includes('Current'),
+    null,
+    {
+      timeout: 10_000,
+    },
+  );
+  const pointsTitle = await title.innerText();
+  check(
+    'open files: a copy compared with the current file, two copies with each other, in the file’s editor (openFile.historyContent)',
+    compareTitle.startsWith('Before save') &&
+      compareTitle.endsWith('↔ Current') &&
+      pointsTitle.split('↔').length === 2 &&
+      calls(mark, 'openFile.historyContent').length >= 3,
+    `${compareTitle} / ${pointsTitle}`,
+  );
+  await page.getByRole('button', { name: 'Back to the file' }).click();
+  await waitSave('saved');
+  mark = logOf().length;
+  await keptRow.last().getByRole('button', { name: 'Restore…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Restore this version?' });
+  await dialog.waitFor({ timeout: 10_000 });
+  await waitMode('diff');
+  const body = await dialog.innerText();
+  await shots('history-restore');
+  await dialog.getByRole('button', { name: 'Restore', exact: true }).click();
+  await history.getByText('Restored. The version it replaced is in the history.').waitFor({ timeout: 10_000 });
+  await waitSave('saved');
+  const restore = calls(mark, 'openFile.restore').at(-1);
+  await shots('history-restored');
+  check(
+    'open files: a restore asks with the comparison shown, writes from the version read (openFile.restore {currentHash}), and the file shows again',
+    body.includes('todo.md will be replaced by its version of') &&
+      restore?.params?.file === fileId &&
+      typeof restore?.params?.currentHash === 'string' &&
+      calls(mark, 'openFile.read').length >= 2,
+    `${body.replace(/\s+/g, ' ')}; ${JSON.stringify(restore?.params)}`,
+  );
+  mark = logOf().length;
+  await history.getByRole('button', { name: 'Undo restore' }).click();
+  await history.getByText('The restore is undone.').waitFor({ timeout: 10_000 });
+  const undo = calls(mark, 'openFile.restore').at(-1);
+  check(
+    'open files: «Undo restore» restores the companion’s copy of what was replaced (the answer’s `before`), from the version the restore wrote',
+    undo?.params?.file === fileId && undo?.params?.point !== restore?.params?.point,
+    JSON.stringify(undo?.params),
+  );
+
   // ---- replaced since it was opened: the save refused, read only from then on ---------------------------------------
   await sleep(700);
   command({ replaceOpened: { file: fileId } });
@@ -187,6 +277,16 @@ export const runCompanionOpenedFiles = async ({
     replaced,
   );
   await shots('replaced');
+  if (!(await history.isVisible())) await page.getByRole('button', { name: 'Show history', exact: true }).click();
+  await points.first().waitFor({ timeout: 10_000 });
+  const replacedRestore = keptRow.first().getByRole('button', { name: 'Restore…' });
+  check(
+    'open files: once the file was replaced the history is still shown, and restoring is inactive with the same quiet reason',
+    (await replacedRestore.isDisabled()) &&
+      (await replacedRestore.getAttribute('title'))?.startsWith('Read only: the file was replaced') &&
+      (await history.locator('[data-history="quiet"]').innerText()).startsWith('Read only: the file was replaced'),
+  );
+  await shots('history-replaced');
 
   // ---- read-only reasons and the mark «runs on its own» ------------------------------------------------------------
   command({
@@ -317,6 +417,72 @@ export const runCompanionOpenedFiles = async ({
   await page.waitForFunction(h => location.hash === h, `#/projects/${PROJECT}/src%2Fapp.txt`, { timeout: 15_000 });
   check('open files: a file inside an added project opens as that project’s file', true);
   await go('#/projects');
+
+  // ---- «Open in Compare code»: the copy and the current file, whose side saves back through the companion -----------
+  // Last: leaving the section lets the port go, and the fake host of the next port knows none of the files above.
+  command({ openFile: { name: 'plan.md', displayPath: '~/notes/plan.md', text: '# Plan\n\n- now\n', emit: true } });
+  await fileOpened('plan.md');
+  const planId = await page.evaluate(() => decodeURIComponent(location.hash.split('/')[3]));
+  command({
+    openedPoint: { file: planId, label: 'Before save', text: '# Plan\n\n- before\n', timeMs: Date.now() - 60_000 },
+  });
+  await sleep(300);
+  await page.getByRole('button', { name: 'Show history', exact: true }).click();
+  await keptRow.first().waitFor({ timeout: 10_000 });
+  const hostsBefore = new Set(
+    logOf()
+      .filter(r => r.event === 'start')
+      .map(r => r.pid),
+  );
+  mark = logOf().length;
+  await keptRow.first().getByRole('button', { name: 'Open in Compare code' }).click();
+  await page.waitForFunction(() => location.hash === '#/compare', null, { timeout: 10_000 });
+  await page.waitForFunction(
+    () => {
+      const el = document.querySelector('.kit-compare-counts');
+      return el?.dataset.viewerState === 'ready' && Number(el.dataset.shown) > 0;
+    },
+    null,
+    { timeout: 45_000 },
+  );
+  const side = name => page.locator(`.kit-compare-side[data-side="${name}"]`);
+  const names = [
+    await side('old').locator('.kit-compare-side-name').innerText(),
+    await side('new').locator('.kit-compare-side-name').innerText(),
+  ];
+  const badge = await side('new').locator('[data-badge="opened-file"]').innerText();
+  await side('new').locator('[data-action="edit"]').click();
+  await sleep(300);
+  const compareFrame = page.locator('iframe.kit-compare-frame');
+  const compareBox = await compareFrame.boundingBox();
+  await page.mouse.click(compareBox.x + compareBox.width * 0.75, compareBox.y + 24);
+  for (const key of ['End', 'Z']) await page.keyboard.press(key);
+  await side('new').locator('[data-badge="modified"]').waitFor({ timeout: 10_000 });
+  await side('new').locator('[data-action="save"]').click();
+  await page
+    .locator('.kit-compare-notice[data-tone="error"], .kit-compare-notice', { hasText: 'Not saved' })
+    .first()
+    .waitFor({
+      timeout: 20_000,
+    });
+  const saved = calls(mark, 'openFile.save').at(-1);
+  const notice = await page.locator('.kit-compare-notice').innerText();
+  await shoot(page, 'open-files-history-compare-code-light-wide.png');
+  // The fake host keeps its opened files in the memory of each process: the fresh host of that Save has none, so it
+  // answers `not-found`, which the page says in its words. The saving itself (the method, the file, the version, a port
+  // of its own) is what is checked here; a Save that writes is checked in the unit tests (projects/compareSaver.test.ts).
+  check(
+    'open files: «Open in Compare code» — the copy on the left, the current file on the right as the opened file; Save sends openFile.save {file, baseHash} on a port of its own',
+    names[0].startsWith('plan.md (Before save') &&
+      names[1] === 'plan.md' &&
+      badge === 'Opened file' &&
+      saved?.params?.file === planId &&
+      typeof saved?.params?.baseHash === 'string' &&
+      !hostsBefore.has(saved?.pid) &&
+      notice.startsWith('Not saved'),
+    `${names.join(' ↔ ')}; ${JSON.stringify(saved?.params)}; ${notice}`,
+  );
+  await go('#/projects');
 };
 
 /**
@@ -409,6 +575,35 @@ export const runOpenedFilesFree = async ({
       line,
     );
     await shots('free-editor');
+    // Its history: shown and compared, the restore inactive with the free line.
+    const freeFile = await page.evaluate(() => decodeURIComponent(location.hash.split('/')[3]));
+    command({
+      openedPoint: { file: freeFile, label: 'Before save', text: '# Todo\n\n- zero\n', timeMs: Date.now() - 60_000 },
+    });
+    await sleep(300);
+    await page.getByRole('button', { name: 'Show history', exact: true }).click();
+    const freeHistory = page.getByRole('region', { name: 'History' });
+    await freeHistory.locator('.kit-projects-point').first().waitFor({ timeout: 10_000 });
+    const freeRestore = freeHistory.getByRole('button', { name: 'Restore…' });
+    const freeQuiet = await freeHistory.locator('[data-history="quiet"]').innerText();
+    await freeHistory.getByRole('button', { name: 'Compare with current' }).click();
+    await page.waitForFunction(
+      () => document.querySelector('iframe.kit-projects-frame')?.dataset.mode === 'diff',
+      null,
+      {
+        timeout: 20_000,
+      },
+    );
+    check(
+      'open files (free): the history is shown and compared; restoring is inactive with the free line',
+      (await freeRestore.isDisabled()) &&
+        (await freeRestore.getAttribute('title')) === 'Editing files opened from your computer is part of Pro.' &&
+        freeQuiet === 'Editing files opened from your computer is part of Pro.',
+      freeQuiet,
+    );
+    await shots('free-history');
+    await page.getByRole('button', { name: 'Back to the file' }).click();
+    await sleep(500);
     await page.getByRole('button', { name: 'Copy to a scratch' }).click();
     await page.waitForFunction(() => location.hash.startsWith('#/projects/scratches/'), null, { timeout: 15_000 });
     await page.getByRole('heading', { name: 'todo.md', level: 1 }).waitFor({ timeout: 15_000 });

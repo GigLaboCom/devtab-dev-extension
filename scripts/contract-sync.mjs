@@ -14,7 +14,8 @@
 //
 // The types come from a small generator below, not a dependency: the schemas are schemars' output and use a handful of
 // JSON Schema's words (type, properties, required, items, enum, const, oneOf, anyOf, $ref into $defs, nullable type
-// lists). A word it does not know stops it, so a richer schema is noticed rather than typed loosely.
+// lists; a string's length and pattern are checked by the companion and do not change a type). A word it does not know
+// stops it, so a richer schema is noticed rather than typed loosely.
 import { createHash } from 'node:crypto';
 import { cpSync, existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -68,6 +69,9 @@ const KNOWN = new Set([
   'anyOf',
   'format',
   'minimum',
+  'minLength',
+  'maxLength',
+  'pattern',
   'default',
 ]);
 

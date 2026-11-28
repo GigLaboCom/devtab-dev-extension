@@ -516,6 +516,8 @@ export const TEXT = {
     waitingCompanion: 'A file waits to open here once the companion is connected.',
     notOffered: 'This companion cannot open files from your computer yet.',
     expired: 'The link to this file has expired or was already used. Open the file again from your computer.',
+    // Its history (the companion's copies of it; the rest of the panel's words are the History panel's above).
+    historyNoRestore: 'This companion cannot restore versions of this file yet.',
   },
 } as const;
 

@@ -25,6 +25,7 @@ import { CompanionError } from './types';
 import type { ConnectionStatus } from './backend';
 import type { CompanionClient, CompanionEventFrame, Handshake, Timers, Welcome } from './companion/client';
 import type { OpenLink } from './companion/link';
+import type { CompanionInstall } from './companionInstall';
 import type { PermissionGate } from './permission';
 
 /** How often `not-running` tries again (§8.5). */
@@ -37,6 +38,8 @@ export interface ConnectionDeps {
   openLink: OpenLink;
   /** The extension's version, said in `hello`. */
   extension: string;
+  /** This installation's number, said in every `hello` (./companionInstall.ts); absent or null: said without it. */
+  install?: CompanionInstall;
   /** Reloads the section's page (after a grant, when `connectNative` has not appeared). */
   reload(): void;
   retryMs?: number;
@@ -138,15 +141,28 @@ export const createConnection = (deps: ConnectionDeps): CompanionConnection => {
     return { state: 'not-running', connecting: false, detail: reason.message, retryAt: now() + retryMs };
   };
 
+  /** The number for `hello`, made at the first connection; any failure of its storage only leaves it out. */
+  const installNumber = async (): Promise<string | null> => {
+    try {
+      return (await deps.install?.get()) ?? null;
+    } catch {
+      return null;
+    }
+  };
+
   const connect = (): Promise<void> => {
     if (attempt) return attempt;
     stopTimer();
     const mine = ++generation;
     set({ ...current, connecting: true });
     attempt = (async () => {
+      const install = await installNumber();
+      // Left, or the permission removed, while the storage answered: no port is opened for nothing.
+      if (disposed || mine !== generation) return;
       const { handshake, client: next } = await openClient({
         openLink: deps.openLink,
         extension: deps.extension,
+        ...(install !== null && { install }),
         timers,
       });
       if (disposed || mine !== generation) {

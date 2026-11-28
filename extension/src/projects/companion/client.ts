@@ -76,6 +76,8 @@ export interface ClientOptions {
   openLink: OpenLink;
   /** The extension's version, for `hello`. */
   extension: string;
+  /** This installation's number for `hello.install` (../companionInstall.ts); absent: the handshake goes without it. */
+  install?: string;
   api?: readonly number[];
   handshakeMs?: number;
   timers?: Timers;
@@ -319,5 +321,10 @@ export const openClient = (options: ClientOptions): Promise<{ handshake: Handsha
       finish({ kind: 'closed', reason: { kind: 'closed', message: 'the companion did not answer in time' } }, null);
     }, options.handshakeMs ?? HANDSHAKE_MS);
 
-    link.send({ type: 'hello', extension: options.extension, api: [...(options.api ?? API_VERSIONS)] });
+    link.send({
+      type: 'hello',
+      extension: options.extension,
+      api: [...(options.api ?? API_VERSIONS)],
+      ...(options.install !== undefined && { install: options.install }),
+    });
   });

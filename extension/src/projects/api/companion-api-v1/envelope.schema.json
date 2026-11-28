@@ -5,7 +5,7 @@
     "oneOf": [
       {
         "additionalProperties": false,
-        "description": "The first frame of every connection: the extension's version and the API versions it speaks.",
+        "description": "The first frame of every connection: the extension's version and the API versions it speaks. `install`: the\npage's install number, a random string (16 to 64 characters `A–Z a–z 0–9 - _`) the page keeps in its own\n`chrome.storage.local`; the companion looks for it in the extension's own settings folder of each browser\nprofile to tell which profile holds this installation. Optional: older pages omit it; a malformed one is\nignored.",
         "properties": {
           "api": {
             "items": {
@@ -17,6 +17,15 @@
           },
           "extension": {
             "type": "string"
+          },
+          "install": {
+            "maxLength": 64,
+            "minLength": 16,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "type": {
             "const": "hello",

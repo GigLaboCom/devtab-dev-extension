@@ -28,7 +28,7 @@ import {
 import type { Clipboard } from './clipboard';
 import type { ExampleSource } from './examples';
 import type { SideText } from './files';
-import type { ProjectFileOrigin } from './handoff';
+import type { CompanionFileOrigin } from './handoff';
 import type { SideSaver } from './sideSaver';
 import type { Arrival, CompareState, Side, Tone } from './state';
 import type { TextSource } from './textSource';
@@ -62,7 +62,7 @@ export interface ActionBehaviors {
    * saver per handed file, so its next Save starts from the version the last one wrote. Absent: such a side saves as
    * any other.
    */
-  projectSaver?: (origin: ProjectFileOrigin) => SideSaver;
+  projectSaver?: (origin: CompanionFileOrigin) => SideSaver;
   examples: ExampleSource;
 }
 

@@ -17,6 +17,8 @@ export type Confirm = 'unavailable' | 'yes' | 'no' | 'busy' | 'requests-off' | '
 export interface ScriptedCompanion {
   welcome: Frame;
   subscribed: Set<string>;
+  /** What each `hello` said in `install`, oldest first; null: none, or not in the contract's shape. */
+  installs: (string | null)[];
   handle(frame: unknown, send: (frame: Frame) => void): Promise<void>;
   emit(name: string, project: string | null, data: unknown, send: (frame: Frame) => void): boolean;
   addFile(project: string, path: string, text: string): void;
@@ -34,6 +36,11 @@ export interface ScriptedCompanion {
   offerFile(spec: OfferedFile): { token: string; file: string | null };
   changeOpenedOnDisk(file: string, text: string): void;
   replaceOpened(file: string): void;
+  /** A copy in an opened file's history, as the companion kept it (`content: false`: noted without its text). */
+  openedPoint(
+    file: string,
+    spec?: { label?: string; text?: string; content?: boolean; timeMs?: number },
+  ): string | null;
   requestOpen(token: string, send: (frame: Frame) => void): boolean;
   expireTokens(): void;
   opened: {

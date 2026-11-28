@@ -1,16 +1,24 @@
 /**
  * «Compare code» saving a side that is a project's file (./compareSaver.ts): through a connection of its own for each
  * Save, from the version the side came with and then from the one it wrote; a file changed on disk meanwhile is not
- * overwritten; a side whose backend is not the one connected now is not written; refusals in the page's words. And the
- * last visit of a project (./lastSeen.ts), and «Compare code»'s lazy saver of such sides.
+ * overwritten; a side whose backend is not the one connected now is not written; refusals in the page's words. The
+ * same for a file opened from the computer, through the companion's `openFile.save`. And the last visit of a project
+ * (./lastSeen.ts), and «Compare code»'s lazy saver of such sides.
  */
+import { chosenBackend } from './behaviors';
+import { fakeCompanion } from './companion/fakeLink';
 import { compareProjectSaver } from './compareSaver';
+import { createConnection } from './connection';
 import { demoBackend } from './demo/backend';
 import { LAST_SEEN_PREFIX, memoryLastSeen, storedLastSeen } from './lastSeen';
+import { companionOpenedFiles } from './openFiles/companion';
+import { extensionOwnTab } from './openFiles/ownTab';
+import { openedFileSaver } from './openFiles/saver';
+import { memoryOpenFilesSettings } from './openFiles/settings';
 import { TEXT } from '../app/projects/text';
 import { lazyProjectSavers } from '../compare/behaviors';
 import { describe, expect, it, vi } from 'vitest';
-import type { ProjectFileOrigin } from '../compare/handoff';
+import type { OpenedFileOrigin, ProjectFileOrigin } from '../compare/handoff';
 import type { SaveRequest, SideSaver } from '../compare/sideSaver';
 import type { ProjectBackend, ProjectBackendFactory } from './backend';
 import type { DemoBackend } from './demo/backend';
@@ -75,6 +83,87 @@ describe('compareProjectSaver', () => {
       message: TEXT.history.compareNotConnected,
     });
     expect(await elsewhere.saveAs(request('x\n'))).toEqual({ status: 'cancelled' });
+  });
+});
+
+describe('compareProjectSaver — a file opened from the computer', () => {
+  it('saves through `openFile.save` from the version it came with, then from the one it wrote; a conflict is not overwritten', async () => {
+    let clock = 1_800_000_000_000;
+    const fake = fakeCompanion({ openFiles: true, now: () => clock });
+    const { file } = fake.companion.offerFile({ name: 'todo.md', text: 'one\n', claimed: true });
+    const made: ProjectBackend[] = [];
+    const factory: ProjectBackendFactory = Object.assign(
+      () => {
+        const backend = chosenBackend(
+          createConnection({
+            permission: {
+              contains: () => Promise.resolve(true),
+              request: () => Promise.resolve(true),
+              usable: () => true,
+              onAdded: () => () => undefined,
+              onRemoved: () => () => undefined,
+            },
+            openLink: fake.openLink,
+            extension: '1',
+            reload: vi.fn(),
+          }),
+          demoBackend({ wait: () => Promise.resolve() }),
+        );
+        made.push(backend);
+        return backend;
+      },
+      { id: 'test' },
+    );
+    const openFiles = {
+      files: companionOpenedFiles,
+      saver: openedFileSaver,
+      settings: memoryOpenFilesSettings(),
+      tab: extensionOwnTab(),
+    };
+    const first = factory();
+    await first.connect();
+    const baseHash = (await companionOpenedFiles(first).read(file!)).hash;
+    first.dispose();
+    const origin: OpenedFileOrigin = {
+      file: file!,
+      name: 'todo.md',
+      displayPath: '~/notes/todo.md',
+      baseHash,
+      backend: 'companion',
+    };
+    const saver = compareProjectSaver(origin, factory, openFiles);
+    expect(await saver.save(request('two\n'))).toMatchObject({ status: 'saved', fileName: 'todo.md' });
+    clock += 1000;
+    expect(await saver.save(request('three\n'))).toMatchObject({ status: 'saved' });
+    expect(fake.companion.opened.files.get(file!)!.text).toBe('three\n');
+    clock += 1000;
+    fake.companion.changeOpenedOnDisk(file!, 'theirs\n');
+    expect(await saver.save(request('mine\n'))).toMatchObject({
+      status: 'failed',
+      code: 'conflict',
+      message: TEXT.history.compareConflict,
+    });
+    expect(fake.companion.opened.files.get(file!)!.text).toBe('theirs\n');
+    clock += 1000;
+    fake.companion.replaceOpened(file!);
+    const replaced = await saver.save(request('again\n'));
+    expect(replaced.status === 'failed' && replaced.message).toBe(
+      TEXT.history.compareFailed(TEXT.openFiles.readOnly.replaced!),
+    );
+    // Each Save had a connection of its own, let go.
+    expect(made).toHaveLength(5);
+    // The demo has no such files: a side of the companion's is not written there.
+    const demoOnly = compareProjectSaver(
+      origin,
+      Object.assign(() => ({ ...demoBackend({ wait: () => Promise.resolve() }), name: 'demo' as const }), {
+        id: 'demo',
+      }),
+      openFiles,
+    );
+    expect(await demoOnly.save(request('x\n'))).toEqual({
+      status: 'failed',
+      message: TEXT.history.compareNotConnected,
+    });
   });
 });
 

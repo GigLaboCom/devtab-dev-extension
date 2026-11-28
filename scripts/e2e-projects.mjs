@@ -5,7 +5,8 @@
 //   and its retry every 5 s; another API version; no project; ready — the tree (ignored dimmed, the secret marked, a
 //   link out of the project not opened), a file, find in files and its cancel, the changes, a diff, the history, an event
 //   that reads the tree again, a long answer in pieces (a folder of 5000 names, a 2 MiB file); the port lost →
-//   reconnecting → back; the server restarted; the repository's strings (HTML, a terminal's escape sequences) drawn as
+//   reconnecting → back; the installation's number each `hello` says (./e2e-projects/install.mjs, the companion's step
+//   O3); the server restarted; the repository's strings (HTML, a terminal's escape sequences) drawn as
 //   text (З3, S17); the address never triggers an action (F6); then stages 4–6 (./e2e-projects/writes.mjs: trusted
 //   folders, adding, classes, saving, conflicts, the write policy's refusals, committing, its errors, undo, rollback,
 //   and an older companion with every write inactive) and stage 7 (./e2e-projects/history.mjs: the history, restore and
@@ -13,7 +14,8 @@
 //   from the system (./e2e-projects/openFiles.mjs, D42 step O2: a companion without the methods, the event, the address
 //   and its token, a conflict, read-only reasons, the «Files» group, an expired token, a project's file); the permission
 //   removed → the page closes its port, and a file that arrives waits beside «Connect the companion»; «Connect the
-//   companion» → connected again; then the free build's opened file (read only, «Copy to a scratch»).
+//   companion» → connected again; then the free build's opened file (read only, «Copy to a scratch») and its own
+//   installation's number.
 //
 // The browser is its own: Chrome for Testing without a window and a throwaway profile under .state/e2e/, the extension
 // loaded by CDP (Extensions.loadUnpacked) from a copy of the build. The host's manifest goes only into that profile's
@@ -33,6 +35,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HOSTILE_STRINGS, METHODS } from './e2e-projects/companion.mjs';
 import { runCompanionHistory } from './e2e-projects/history.mjs';
+import { SHAPE as INSTALL_SHAPE, installsOf, runCompanionInstall } from './e2e-projects/install.mjs';
 import { runCompanionOpenedFiles, runOpenedFilesFree } from './e2e-projects/openFiles.mjs';
 import { runCompanionWrites } from './e2e-projects/writes.mjs';
 
@@ -389,6 +392,16 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
     );
     await shoot(page, 'projects-companion-project.png');
 
+    // ---- the installation's number in `hello` (D42, the companion's step O3) --------------------------------------
+    const install = await runCompanionInstall({
+      page,
+      origin: `chrome-extension://${id}/`,
+      check,
+      command,
+      logOf,
+      waitState,
+    });
+
     // ---- the address shows, it does not act (F6) -----------------------------------------------------------------------
     const beforeAddresses = logOf().length;
     for (const hash of [
@@ -550,6 +563,16 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
       command,
       setMode,
     });
+    // The free build says its own number the same way (not a Pro feature).
+    const free = installsOf(logOf).filter(h => h.origin !== null && h.origin !== `chrome-extension://${id}/`);
+    check(
+      'companion install (free): the free build’s page says a number of its own in `hello` too',
+      free.length > 0 &&
+        free.every(h => typeof h.install === 'string' && INSTALL_SHAPE.test(h.install)) &&
+        new Set(free.map(h => h.install)).size === 1 &&
+        free[0].install !== install,
+      `${free.length} hellos, ${new Set(free.map(h => h.install)).size} number(s)`,
+    );
   } finally {
     result.hostLog = logOf().length;
     await ctx.close();

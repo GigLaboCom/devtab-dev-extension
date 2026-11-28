@@ -4,13 +4,14 @@
 // `open.requested`, which goes only to a connection that has told `page.activity`. No path is ever read: an opened file
 // is a text in memory with a `~/…` display path, as the companion would show it.
 //
-//   openFileMethods({ error, hashOf, now }) → { methods, offer, changeOnDisk, replace, expire, activity, files }
+//   openFileMethods({ error, hashOf, now }) → { methods, offer, changeOnDisk, replace, expire, point, activity, files }
 //
 // `offer(spec)` is what `devtab open` would do: a file (or a file of an added project) and a token for it, `{ token }`
 // back — the e2e then sends `open.requested` or leaves the token for `openFile.pending` / the page's address.
 // `changeOnDisk(file, text)` is someone else's edit; `replace(file)` — the file was replaced or moved (read only from
-// then on, `not-editable {reason: "replaced"}`); `expire()` lets every waiting token run out; `activity` is what the page
-// said of itself.
+// then on, `not-editable {reason: "replaced"}`); `expire()` lets every waiting token run out; `point(file, spec)` adds a
+// copy to the file's history as the companion would have kept it (`content: false` — a moment noted without its text,
+// whose text the companion does not give and does not restore); `activity` is what the page said of itself.
 
 /** The methods a companion with open files announces. */
 export const OPEN_FILE_METHODS = [
@@ -158,14 +159,15 @@ export const openFileMethods = ({ error, hashOf, now = Date.now }) => {
     'openFile.historyContent': ({ file, point }) => {
       const f = fileOf(file);
       const found = f.points.find(p => p.point === point);
-      if (!found) throw error('not-found', 'no such copy');
+      // A point without its text is one the companion has no copy of (as `not-found`, like the real one).
+      if (!found?.content) throw error('not-found', 'no such copy');
       return { text: found.text, secret: f.reason === 'secret' };
     },
     'openFile.restore': ({ file, point, currentHash }) => {
       const f = fileOf(file);
       writable(f);
       const found = f.points.find(p => p.point === point);
-      if (!found) throw error('not-found', 'no such copy');
+      if (!found?.content) throw error('not-found', 'no such copy');
       if (currentHash !== hashOf(f.text))
         throw error('conflict', 'the file changed on disk', { currentHash: hashOf(f.text) });
       const before = keep(f, 'Before restore');
@@ -240,6 +242,27 @@ export const openFileMethods = ({ error, hashOf, now = Date.now }) => {
         f.mode = 'read';
         f.reason = 'replaced';
       }
+    },
+    /**
+     * A copy in the file's history, newest first: `{ label, text, content, timeMs }` (`content: false` — noted without
+     * its text). Returns the point.
+     */
+    point(file, { label = 'Before save', text = '', content = true, timeMs = now() } = {}) {
+      const f = files.get(file);
+      if (!f) return null;
+      const point = content ? `f:${hashOf(text)}@${timeMs + f.points.length}` : `f:none@${timeMs + f.points.length}`;
+      f.points.unshift({
+        point,
+        label,
+        source: 'companion',
+        size: content ? text.length : 0,
+        timeMs,
+        content,
+        ...(content && { text }),
+      });
+      // Newest first, as the companion lists them.
+      f.points.sort((a, b) => b.timeMs - a.timeMs);
+      return point;
     },
     /** Every waiting token runs out. */
     expire() {

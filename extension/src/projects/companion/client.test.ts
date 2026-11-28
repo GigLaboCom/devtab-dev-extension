@@ -63,6 +63,15 @@ describe('the handshake', () => {
     client!.close();
   });
 
+  it('says the installation’s number in `hello.install` when it has one, as the contract’s vector does', async () => {
+    const fake = fakeCompanion();
+    const said = (VECTORS['hello.json'] as { request: { extension: string; install: string } }[])[1]!.request;
+    const { client } = await openClient({ openLink: fake.openLink, extension: said.extension, install: said.install });
+    expect(fake.ports[0]!.sent[0]).toEqual(said);
+    expect(fake.companion.installs).toEqual([said.install]);
+    client!.close();
+  });
+
   it('no version in common: `unsupported` with what the companion speaks', async () => {
     const fake = fakeCompanion({ mode: 'version' });
     const { handshake, client } = await openClient({ openLink: fake.openLink, extension: '1.4.0' });

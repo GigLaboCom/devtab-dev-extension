@@ -1027,6 +1027,7 @@ export type ClientFrame =
   | {
       api: number[];
       extension: string;
+      install?: string | null;
       type: 'hello';
     }
   | {

@@ -14,26 +14,22 @@
  * project. Clearing the history is the companion's question to the person (`history.requestPurge`): without its window
  * it answers with the command for Terminal, shown verbatim with Copy. Every refusal is said in the page's own words
  * (./errors.ts).
+ *
+ * The rows, «Compare the two selected», the restore's question and the note with «Undo restore» are ./historyParts.tsx,
+ * shared with the history of a file opened from the computer (./OpenedFileHistory.tsx).
  */
 import { errorText, toneOf } from './errors';
+import { CompareSelected, HistoryNoteView, HistoryPointRow, RestoreDialog, pickPoint, pointName } from './historyParts';
 import { SaidNote } from './SaidNote';
-import { TEXT, formatSize, formatTime, printable } from './text';
+import { TEXT, formatTime, printable } from './text';
 import { routeHash, go } from '../route';
 import { handToCompare } from '@src/compare/handoff';
 import { isCompanionError } from '@src/projects/types';
 import { Button } from '@workspace/ui/button';
-import { Checkbox } from '@workspace/ui/checkbox';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@workspace/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { useEffect, useRef, useState } from 'react';
 import type { Said } from './errors';
+import type { HistoryNote } from './historyParts';
 import type { Workspace } from './useWorkspace';
 import type { FilePoint, HistoryGap, ProjectPoint } from '@src/projects/types';
 import type { ReactElement } from 'react';
@@ -73,12 +69,7 @@ interface Asked {
   currentHash: string | null;
 }
 
-interface Note {
-  said: Said;
-  tone: 'info' | 'success' | 'error';
-  kind: string;
-  undo?: { path: string; point: string; hash: string };
-}
+type Note = HistoryNote<{ path: string; point: string; hash: string }>;
 
 export interface HistoryPanelProps {
   workspace: Workspace;
@@ -210,8 +201,7 @@ export const HistoryPanel = ({ workspace, lastVisit = null }: HistoryPanelProps)
   };
 
   const pathOf = (point: Point): string => ('path' in point ? point.path : subject!);
-  const label = (point: Point): string => printable(point.label);
-  const named = (point: Point): string => `${label(point)} ${formatTime(point.timeMs)}`;
+  const named = (point: Point): string => pointName(point);
   const gone = (target: string): boolean =>
     fileScope ? deletedSubject !== null : feed?.deleted.includes(target) === true;
 
@@ -366,16 +356,7 @@ export const HistoryPanel = ({ workspace, lastVisit = null }: HistoryPanelProps)
           )}
         </ToggleGroup>
         {fileScope && (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={picked.length !== 2}
-            onClick={() => {
-              const [a, b] = [...picked].sort((x, y) => x.timeMs - y.timeMs);
-              workspace.open(subject!, { kind: 'points', a: a!, b: b! });
-            }}>
-            {TEXT.compareSelected}
-          </Button>
+          <CompareSelected picked={picked} onCompare={(a, b) => workspace.open(subject!, { kind: 'points', a, b })} />
         )}
         {!fileScope && offers.purge && (
           <Button size="sm" variant="ghost" disabled={purging !== null} onClick={() => void purge()}>
@@ -396,15 +377,7 @@ export const HistoryPanel = ({ workspace, lastVisit = null }: HistoryPanelProps)
           </span>
         )}
       </div>
-      {note && (
-        <SaidNote said={note.said} tone={note.tone} kind={note.kind}>
-          {note.undo && (
-            <Button size="sm" variant="outline" onClick={() => void undo(note.undo!)}>
-              {TEXT.undoRestore}
-            </Button>
-          )}
-        </SaidNote>
-      )}
+      {note && <HistoryNoteView note={note} onUndo={next => void undo(next)} />}
       {failed && <SaidNote said={failed} tone="error" kind="history" />}
       {gaps.map(g => (
         <p key={`${g.from}-${g.to}`} className="kit-projects-note" data-gap="">
@@ -432,54 +405,25 @@ export const HistoryPanel = ({ workspace, lastVisit = null }: HistoryPanelProps)
         <ul className="kit-projects-points">
           {points.map(point => {
             const target = pathOf(point);
-            const text = hasText(point);
             return (
-              <li
+              <HistoryPointRow
                 key={point.point}
-                className="kit-projects-point"
-                data-source={point.source}
-                data-text={text ? undefined : 'none'}>
-                {fileScope && (
-                  <Checkbox
-                    aria-label={named(point)}
-                    disabled={!text}
-                    checked={picked.some(p => p.point === point.point)}
-                    onCheckedChange={on =>
-                      setPicked(p => (on === true ? [...p, point].slice(-2) : p.filter(x => x.point !== point.point)))
-                    }
-                  />
-                )}
-                <span className="kit-projects-point-time">{formatTime(point.timeMs)}</span>
-                {point.source === 'commit' && <span className="kit-projects-mark">{TEXT.history.sourceCommit}</span>}
-                <span className="kit-projects-point-label">{label(point)}</span>
-                {'path' in point && <span className="kit-projects-point-path">{printable(point.path)}</span>}
-                {/* A commit's point has no size of its own (the companion sends 0), nor has a moment without a text. */}
-                {point.source !== 'commit' && text && (
-                  <span className="kit-projects-item-meta">{formatSize(point.size)}</span>
-                )}
-                {!text && (
-                  <span className="kit-projects-item-meta" title={TEXT.history.noContentTitle}>
-                    {TEXT.history.noContent}
-                  </span>
-                )}
-                {text && (
-                  <span className="kit-projects-point-actions">
-                    <Button size="sm" variant="ghost" onClick={() => compare(point)}>
-                      {TEXT.compareWithCurrent}
-                    </Button>
-                    {!gone(target) && (
-                      <Button size="sm" variant="ghost" onClick={() => void openInCompare(point)}>
-                        {TEXT.history.openInCompare}
-                      </Button>
-                    )}
-                    {canRestore && (
-                      <Button size="sm" variant="ghost" aria-haspopup="dialog" onClick={() => void ask(point)}>
-                        {TEXT.restore}
-                      </Button>
-                    )}
-                  </span>
-                )}
-              </li>
+                point={point}
+                text={hasText(point)}
+                // A commit's point has no size of its own (the companion sends 0).
+                size={point.source === 'commit' ? null : point.size}
+                {...(point.source === 'commit' && { mark: TEXT.history.sourceCommit })}
+                {...('path' in point && { path: point.path })}
+                {...(fileScope && {
+                  pick: {
+                    checked: picked.some(p => p.point === point.point),
+                    onChange: on => setPicked(p => pickPoint(p, point as FilePoint, on)),
+                  },
+                })}
+                onCompare={() => compare(point)}
+                {...(!gone(target) && { onOpenInCompare: () => void openInCompare(point) })}
+                {...(canRestore && { restore: { run: () => void ask(point) } })}
+              />
             );
           })}
         </ul>
@@ -511,26 +455,17 @@ export const HistoryPanel = ({ workspace, lastVisit = null }: HistoryPanelProps)
           </ul>
         </div>
       )}
-      <Dialog open={asked !== null} onOpenChange={open => !open && setAsked(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{TEXT.restoreTitle}</DialogTitle>
-            <DialogDescription>
-              {asked
-                ? asked.currentHash === null
-                  ? TEXT.history.restoreDeletedBody(printable(asked.path), formatTime(asked.point.timeMs))
-                  : TEXT.restoreBody(printable(asked.path), formatTime(asked.point.timeMs))
-                : ''}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAsked(null)}>
-              {TEXT.cancel}
-            </Button>
-            <Button onClick={() => asked && void restore(asked)}>{TEXT.restoreRun}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RestoreDialog
+        body={
+          asked
+            ? asked.currentHash === null
+              ? TEXT.history.restoreDeletedBody(printable(asked.path), formatTime(asked.point.timeMs))
+              : TEXT.restoreBody(printable(asked.path), formatTime(asked.point.timeMs))
+            : null
+        }
+        onCancel={() => setAsked(null)}
+        onRestore={() => asked && void restore(asked)}
+      />
     </section>
   );
 };
