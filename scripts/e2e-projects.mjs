@@ -5,9 +5,11 @@
 //   and its retry every 5 s; another API version; no project; ready — the tree (ignored dimmed, the secret marked, a
 //   link out of the project not opened), a file, find in files and its cancel, the changes, a diff, the history, an event
 //   that reads the tree again, a long answer in pieces (a folder of 5000 names, a 2 MiB file); the port lost →
-//   reconnecting → back; the server restarted; the writes the companion does not offer inactive with why; the
-//   repository's strings (HTML, a terminal's escape sequences) drawn as text (З3, S17); the address never triggers an
-//   action (F6); the permission removed → the page closes its port; «Connect the companion» → connected again.
+//   reconnecting → back; the server restarted; the repository's strings (HTML, a terminal's escape sequences) drawn as
+//   text (З3, S17); the address never triggers an action (F6); then stages 4–6 (./e2e-projects/writes.mjs: trusted
+//   folders, adding, classes, saving, conflicts, the write policy's refusals, committing, its errors, undo, rollback,
+//   and an older companion with every write inactive); the permission removed → the page closes its port; «Connect the
+//   companion» → connected again.
 //
 // The browser is its own: Chrome for Testing without a window and a throwaway profile under .state/e2e/, the extension
 // loaded by CDP (Extensions.loadUnpacked) from a copy of the build. The host's manifest goes only into that profile's
@@ -26,6 +28,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HOSTILE_STRINGS, METHODS } from './e2e-projects/companion.mjs';
+import { runCompanionWrites } from './e2e-projects/writes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -271,8 +274,13 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
     await tree.locator('[data-path="src/app.txt"]').click();
     await frame.and(page.locator('[data-ready]')).waitFor({ timeout: 45_000 });
     await editorShows(0, 'file');
-    const readOnly = await page.locator('.kit-projects-editor-bar').innerText();
-    check('projects: a file of the companion opens in the editor, read only', readOnly.includes('Read only'), readOnly);
+    await page.locator('.kit-projects-save[data-state="saved"]').waitFor({ timeout: 10_000 });
+    const writable = await page.locator('.kit-projects-editor-bar').innerText();
+    check(
+      'projects: a file of a writable project opens in the editor, editable (saved by itself)',
+      !writable.includes('Read only') && writable.includes('Saved'),
+      writable.replace(/\s+/g, ' '),
+    );
 
     // ---- its diff with HEAD ------------------------------------------------------------------------------------------------
     let n = await shown();
@@ -300,30 +308,7 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
       .locator('.kit-projects-chunk')
       .count();
     check('projects: a changed file’s hunks (git.hunks) listed', chunks === 3, `${chunks} chunks`);
-    await shoot(page, 'projects-companion-commit-readonly.png');
-
-    // ---- the writes this companion does not offer ---------------------------------------------------------------------------
-    // A read-only project's Commit view (D35): the changes, one line of why, and nothing that looks clickable and fails.
-    const inactive = {
-      line: await commit.locator('[data-read-only]').innerText(),
-      commit: await commit.getByRole('button', { name: /^Commit/ }).count(),
-      checkboxes: await commit.getByRole('checkbox').count(),
-      message: await commit.getByRole('textbox').count(),
-      rollback: await commit.getByRole('button', { name: 'Rollback…' }).count(),
-      makeMine: await page.getByRole('button', { name: 'Make writable…' }).isDisabled(),
-      makeMineWhy: await page.getByRole('button', { name: 'Make writable…' }).getAttribute('title'),
-    };
-    check(
-      'projects: every write the companion does not offer is inactive with why, or not there (the Commit view: one line)',
-      inactive.line.includes('read only') &&
-        inactive.commit === 0 &&
-        inactive.checkboxes === 0 &&
-        inactive.message === 0 &&
-        inactive.rollback === 0 &&
-        inactive.makeMine &&
-        !!inactive.makeMineWhy,
-      JSON.stringify(inactive),
-    );
+    await shoot(page, 'projects-companion-commit.png');
     await switchOf(page, 'Files').click();
     await tree.locator('[data-path="src"]').waitFor({ timeout: 10_000 });
 
@@ -399,6 +384,7 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
     await shoot(page, 'projects-companion-project.png');
 
     // ---- the address shows, it does not act (F6) -----------------------------------------------------------------------
+    const beforeAddresses = logOf().length;
     for (const hash of [
       '#/projects/p_abcdefgh23/src%2Fapp.txt%3Fsave%3D1',
       '#/projects/p_abcdefgh23/..%2F..%2Fetc%2Fhosts',
@@ -409,6 +395,8 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
       await page.locator('.kit-projects').waitFor({ timeout: 10_000 });
       await sleep(400);
     }
+    // The reads of stage 3 and the two of stages 4–6 that change nothing (the trusted folders, the recent messages).
+    const reads = [...METHODS, 'locations.list', 'git.messages'];
     const methods = [
       ...new Set(
         logOf()
@@ -416,9 +404,12 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
           .map(r => r.method),
       ),
     ];
+    const fromAddresses = logOf()
+      .slice(beforeAddresses)
+      .filter(r => r.event === 'in' && r.type === 'call' && !reads.includes(r.method));
     check(
-      'projects: the address never triggers an action — only the contract’s reads were ever called (F6)',
-      methods.every(m => METHODS.includes(m)),
+      'projects: the address never triggers an action — only reads were ever called, none from the addresses (F6)',
+      methods.every(m => reads.includes(m)) && fromAddresses.length === 0,
       methods.join(', '),
     );
 
@@ -476,6 +467,9 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
       `${JSON.stringify(injected)}; ${line}; ${label}`,
     );
     await shoot(page, 'projects-companion-hostile.png');
+
+    // ---- stages 4–6: classes, adding, writing files, committing (rows 4.5, 5.4, 6.5) ------------------------------------
+    await runCompanionWrites({ page, check, shoot, sleep, command, logOf, setMode, waitState });
 
     // ---- the permission removed: the page closes its port ------------------------------------------------------------------
     const live = logOf()

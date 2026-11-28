@@ -5,10 +5,14 @@
 // contract's vectors (extension/src/projects/api/companion-api-v1/vectors/).
 //
 // Steered through a folder (DEVTAB_FAKE_HOST_DIR, set by the wrapper the e2e writes):
-//   mode.json      read at start: { "mode": "normal" | "empty" | "version" | "not-running", "hostile", "big" }
+//   mode.json      read at start: { "mode": "normal" | "empty" | "fresh" | "version" | "not-running", "hostile", "big",
+//                  "methods": "all" | "stage3", "confirm", "identity" } (./companion.mjs)
 //   cmd-<n>.json   commands, taken once by the running host: { "event": { name, project, data } },
-//                  { "addFile": { project, path, text } }, { "exit": true } (the port is lost without a word)
-//   log.jsonl      what happened: start (with the caller's origin), each frame in (type, id, method), stdin's end, exit
+//                  { "addFile": { project, path, text } }, { "changeOnDisk": { project, path, text } },
+//                  { "failNext": { method, code, data, stream, hang } }, { "confirm": answer }, { "identity": … },
+//                  { "exit": true } (the port is lost without a word)
+//   log.jsonl      what happened: start (with the caller's origin), each frame in (type, id, method; the parameters of a
+//                  commit, a rollback, a save — a text by its length — and of adding a project), stdin's end, exit
 // Nothing else is read or written; the host never touches the network.
 import { appendFileSync, existsSync, readFileSync, readdirSync, renameSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -56,7 +60,11 @@ process.stdin.on('data', data => {
       frame = null;
     }
     buffer = buffer.subarray(4 + length);
-    log({ event: 'in', type: frame?.type, id: frame?.id, method: frame?.method });
+    // What a commit, a rollback and a save were asked: the e2e checks the selection and the paths sent.
+    const asked = ['git.commit', 'git.rollback', 'file.save', 'project.requestAdd', 'file.read'].includes(frame?.method)
+      ? { params: { ...frame.params, ...(frame.params?.text !== undefined && { text: frame.params.text.length }) } }
+      : {};
+    log({ event: 'in', type: frame?.type, id: frame?.id, method: frame?.method, ...asked });
     void companion.handle(frame, send).then(() => {
       // As the relay does: after its last word about the connection it exits.
       if (frame?.type === 'hello' && options.mode !== undefined && ['not-running', 'version'].includes(options.mode))
@@ -83,6 +91,14 @@ setInterval(() => {
     const command = JSON.parse(readFileSync(`${file}.taken-${process.pid}`, 'utf8'));
     log({ event: 'command', command: Object.keys(command) });
     if (command.addFile) companion.addFile(command.addFile.project, command.addFile.path, command.addFile.text);
+    if (command.changeOnDisk)
+      companion.changeOnDisk(command.changeOnDisk.project, command.changeOnDisk.path, command.changeOnDisk.text);
+    if (command.failNext) {
+      const { method, code, data, ...rest } = command.failNext;
+      companion.failNext(method, code, data, rest);
+    }
+    if (command.confirm) companion.setConfirm(command.confirm);
+    if ('identity' in command) companion.setIdentity(command.identity);
     if (command.event) {
       const { name: event, project, data } = command.event;
       log({ event: 'emit', name: event, sent: companion.emit(event, project, data, send) });

@@ -1,21 +1,33 @@
 // A scripted companion speaking the companion's contract (extension/src/projects/api/companion-api-v1/): what the
 // e2e's fake Native Messaging host (./fake-host.mjs) answers with, and what the extension's unit tests run the client
 // and the seam's contract suite against. No socket, no server, no git: one repository in memory, seeded from the
-// contract's vectors — a request that is one of the vectors' is answered with that vector's response, word for word;
-// any other is answered from the same repository by the contract's rules (paths, secrets, symlinks, limits).
+// contract's vectors — a read that is one of the vectors' is answered with that vector's response, word for word, while
+// the repository is as the vectors saw it; anything else — and every method whose answer depends on what happened
+// before (classes, writes, commits) — is answered from the same repository by the contract's rules (paths, secrets,
+// symlinks, limits, the write policy, `expect` of a commit).
 //
-//   createCompanion({ vectors, mode, hostile, big, wait }) → { handle(frame, send), emit(event, send), files, … }
+//   createCompanion({ vectors, mode, hostile, big, wait, methods, replay }) → { handle(frame, send), emit(…), … }
 //
 // `vectors` is the vectors folder as { 'tree.list.json': [...], … } (the caller reads it: Node from disk, the tests
-// with Vite's glob). `mode`: 'normal' | 'empty' (no project added) | 'version' (no API version in common) |
-// 'not-running' (the relay cannot reach the supervisor). `hostile` adds a second project whose names, branch, history
-// labels and lines carry HTML and terminal escape sequences; `big` adds to it a folder of 5001 long names (5000 listed)
-// and a 2 MiB file, both answered in chunks. `send(frame)` gets each frame out, chunked as the supervisor chunks (`maxFrameBytes`).
+// with Vite's glob). `mode`: 'normal' | 'empty' (no project added) | 'fresh' (`devtab init` never ran: no project, no
+// trusted folder, no environment) | 'version' (no API version in common) | 'not-running' (the relay cannot reach the
+// supervisor). `methods: 'stage3'` is a companion of stage 3: it reads and offers nothing else. `hostile` adds a second
+// project whose names, branch, history labels and lines carry HTML and terminal escape sequences; `big` adds to it a
+// folder of 5001 long names (5000 listed) and a 2 MiB file, both answered in chunks. `replay` answers every vector's
+// request word for word, a request asked again with the vector's next answer (the vectors' own sequence). `send(frame)`
+// gets each frame out, chunked as the supervisor chunks (`maxFrameBytes`).
+//
+// Steering what needs a person or the outside world: `confirm` — what the companion's window would answer to a request
+// outside a trusted folder ('unavailable': no window, the command instead; 'yes'; 'no'; 'busy'; 'requests-off';
+// 'rate-limited'); `failNext(method, error, stream)` — the next call of a method fails as given, after its streamed
+// output (a hook that fails, a lock, a signing failure, too little disk, …); `identity` — git's name and e-mail, or none;
+// `changeOnDisk(project, path, text)` — someone else's edit.
 
 const PROJECT = 'p_abcdefgh23';
 const HOSTILE = 'p_hostile001';
 export const MAX_FRAME_BYTES = 921_600;
 export const MAX_TEXT_BYTES = 5_242_880;
+/** The methods of a companion of stage 3: reads only. */
 export const METHODS = [
   'companion.state',
   'projects.list',
@@ -34,6 +46,30 @@ export const METHODS = [
   'history.project',
   'history.content',
 ];
+
+/** What stages 4–6 added (a companion without a Trash does not offer `file.delete`). */
+export const WRITE_METHODS = [
+  'locations.list',
+  'project.requestAdd',
+  'project.requestMine',
+  'project.setView',
+  'project.remove',
+  'env.requestCapture',
+  'file.save',
+  'file.create',
+  'folder.create',
+  'file.rename',
+  'git.commit',
+  'git.rollback',
+  'git.undoCommit',
+  'git.messages',
+];
+
+/** Methods whose answer depends on what happened before: never replayed from a vector outside `replay`. */
+const STATEFUL = new Set([...WRITE_METHODS, 'git.identity', 'file.delete']);
+
+/** The trusted folder of the scripted repository, as an absolute path typed on the page would be inside it. */
+export const TRUSTED_ROOT = '/srv/fixtures/fx';
 
 /** Strings a hostile repository may hold (S17): HTML, and a terminal's colour and link sequences. */
 export const HOSTILE_STRINGS = {
@@ -58,7 +94,7 @@ const canonical = value =>
       : JSON.stringify(value);
 
 /** An opaque stand-in for a text's SHA-256 (the page never computes one): 64 hex digits from FNV-1a. */
-const hashOf = text => {
+const fnv = text => {
   let out = '';
   for (let round = 0; round < 8; round++) {
     let h = 0x811c9dc5 ^ round;
@@ -69,6 +105,66 @@ const hashOf = text => {
 };
 
 const error = (code, message, data) => Object.assign(new Error(message), { code, data });
+
+/** The hunks of a text from `a` to `b`, by lines (a longest common subsequence): 0-based starts, as `git.hunks` has. */
+export const lineHunks = (a, b) => {
+  const x = a === null || a === '' ? [] : a.replace(/\n$/, '').split('\n');
+  const y = b === null || b === '' ? [] : b.replace(/\n$/, '').split('\n');
+  const n = x.length;
+  const m = y.length;
+  const lcs = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--)
+      lcs[i][j] = x[i] === y[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+  const hunks = [];
+  let i = 0;
+  let j = 0;
+  while (i < n || j < m) {
+    if (i < n && j < m && x[i] === y[j]) {
+      i++;
+      j++;
+      continue;
+    }
+    const oldStart = i;
+    const start = j;
+    while ((i < n || j < m) && !(i < n && j < m && x[i] === y[j])) {
+      if (j < m && (i >= n || lcs[i][j + 1] >= lcs[i + 1][j])) j++;
+      else i++;
+    }
+    hunks.push({ index: hunks.length, oldStart, oldLines: i - oldStart, start, lines: j - start });
+  }
+  return hunks;
+};
+
+/** `head` with the chosen hunks of `head → disk` applied. */
+export const applyHunks = (head, disk, chosen) => {
+  const x = head === null || head === '' ? [] : head.replace(/\n$/, '').split('\n');
+  const y = disk === null || disk === '' ? [] : disk.replace(/\n$/, '').split('\n');
+  const out = [];
+  let i = 0;
+  for (const hunk of lineHunks(head, disk)) {
+    while (i < hunk.oldStart) out.push(x[i++]);
+    if (chosen.includes(hunk.index)) out.push(...y.slice(hunk.start, hunk.start + hunk.lines));
+    else out.push(...x.slice(hunk.oldStart, hunk.oldStart + hunk.oldLines));
+    i = hunk.oldStart + hunk.oldLines;
+  }
+  while (i < x.length) out.push(x[i++]);
+  return out.length ? `${out.join('\n')}\n` : '';
+};
+
+/** A path as one word of a shell command. */
+const shellWord = path => (/^[\w~@%+=:,./-]+$/.test(path) ? path : `'${path.replace(/'/g, `'\\''`)}'`);
+
+/** The files that run code (the companion's `protected.toml`, in short): written, and marked with the rule. */
+const protectedRule = path =>
+  /^(\.husky|\.githooks)\//.test(path)
+    ? 'hooks'
+    : /(^|\/)(package\.json|pyproject\.toml)$/.test(path)
+      ? 'commit-time'
+      : /^\.(envrc|tool-versions|nvmrc)$/.test(path)
+        ? 'shell-environment'
+        : null;
+const SECRET = /(^|\/)(\.env(\..+)?|id_rsa[^/]*|[^/]+\.(pem|key)|\.npmrc|\.netrc|credentials\.json)$/;
 
 /** The supervisor's chunking (§4.3): the message as one JSON string, cut so every frame is at most `max` bytes. */
 export const chunked = (frame, max = MAX_FRAME_BYTES) => {
@@ -122,28 +218,43 @@ export const createCompanion = ({
   big = false,
   wait = ms => new Promise(resolve => setTimeout(resolve, ms)),
   maxFrameBytes = MAX_FRAME_BYTES,
+  methods: offered = 'all',
+  replay = false,
+  confirm: confirmed = 'unavailable',
+  identity: who = { name: 'Fixture Person', email: 'person@example.invalid' },
 } = {}) => {
   // ---- the vectors: requests answered word for word ----------------------------------------------------------------
   const replies = new Map();
   for (const [file, list] of Object.entries(vectors)) {
     if (!Array.isArray(list) || file === 'hello.json' || file === 'unknown-method.json') continue;
     for (const v of list)
-      if (v.request?.type === 'call')
-        replies.set(`${v.request.method} ${canonical(v.request.params ?? {})}`, {
-          response: v.response,
-          stream: v.stream,
-        });
+      if (v.request?.type === 'call') {
+        const key = `${v.request.method} ${canonical(v.request.params ?? {})}`;
+        if (!replies.has(key)) replies.set(key, []);
+        replies.get(key).push({ method: v.request.method, response: v.response, stream: v.stream });
+      }
   }
   const vector = (file, at = 0) => vectors[file]?.[at]?.response;
-  const welcome = vectors['hello.json']?.[0]?.response ?? {
+  const helloed = vectors['hello.json']?.[0]?.response ?? {
     type: 'welcome',
     companion: '0.1.0',
     api: 1,
     server: '0.1.44',
     platform: 'macos',
-    methods: METHODS,
+    methods: [...METHODS, ...WRITE_METHODS],
     limits: { maxRequestBytes: 8_388_608, maxTextBytes: MAX_TEXT_BYTES },
   };
+  const welcome =
+    offered === 'stage3' ? { ...copy(helloed), methods: helloed.methods.filter(m => METHODS.includes(m)) } : helloed;
+  const offers = method => welcome.methods.includes(method);
+
+  // The versions of texts the vectors name: a text the vectors saw keeps its real hash, any other gets a stand-in.
+  const knownHashes = new Map();
+  for (const v of vectors['file.read.json'] ?? []) {
+    const r = v.response?.result;
+    if (r?.text !== undefined && r.hash) knownHashes.set(r.text, r.hash);
+  }
+  const hashOf = text => knownHashes.get(text) ?? fnv(text);
 
   // ---- the repository ---------------------------------------------------------------------------------------------
   const appText = vector('file.read.json', 0)?.result?.text ?? 'line 01 of the app\n';
@@ -167,6 +278,16 @@ export const createCompanion = ({
     ['link-in', { link: 'inside', target: 'src/app.txt' }],
     ['link-out', { link: 'outside' }],
     ['link-git', { link: 'outside' }],
+  ]);
+  // The vectors' status names the changed files; every other file is as HEAD has it.
+  const changedInVectors = new Set([
+    'big.txt',
+    'src/new.txt',
+    'link-in',
+    'link-out',
+    'link-git',
+    '.env',
+    'build/out.txt',
   ]);
   const bigFiles = new Map();
   if (big) {
@@ -195,15 +316,25 @@ export const createCompanion = ({
     state: vector('project.state.json')?.result,
     files: repoFiles,
     head: new Map([
+      ...[...repoFiles]
+        .filter(([path, file]) => !changedInVectors.has(path) && !file.link)
+        .map(([path, file]) => [path, file.text ?? { bytes: path, size: file.size }]),
       ['src/app.txt', headApp],
       ['docs/readme.md', '# Readme\n'],
       ['gone.txt', 'This file will be deleted.\n'],
-      ['.gitignore', 'build/\n.env\n'],
     ]),
+    hooks: vector('project.state.json')?.result?.hooks ?? ['pre-commit'],
+    headSha: vector('git.status.json')?.result?.headSha ?? 'a5c8a8f38f555426b8634a56dac2a7423e9f3902',
+    commits: [],
+    messages: [],
     status: vector('git.status.json')?.result,
     points: [...(vector('history.file.json')?.result?.points ?? []).map(p => ({ ...p, path: 'docs/readme.md' }))],
     contents: new Map([[vector('history.file.json')?.result?.points?.[0]?.point, '# Readme\n\nchanged on disk\n']]),
   });
+  for (const f of vector('git.status.json')?.result?.files ?? []) {
+    const text = repoFiles.get(f.path)?.text;
+    if (text !== undefined && f.diskHash) knownHashes.set(text, f.diskHash);
+  }
   if (hostile || big) {
     const files = new Map([
       [HOSTILE_STRINGS.file, { text: `${HOSTILE_STRINGS.line}\n` }],
@@ -224,6 +355,10 @@ export const createCompanion = ({
       },
       files,
       head: new Map([['notes.txt', 'plain\n']]),
+      hooks: [],
+      headSha: '0'.repeat(39) + '1',
+      commits: [],
+      messages: [],
       points: [
         {
           label: HOSTILE_STRINGS.label,
@@ -240,7 +375,7 @@ export const createCompanion = ({
 
   const projectOf = id => {
     const p = projects.get(id);
-    if (!p || mode === 'empty') throw error('not-found', 'no such project');
+    if (!p || mode === 'empty' || mode === 'fresh') throw error('not-found', 'no such project');
     return p;
   };
   const checkPath = path => {
@@ -278,10 +413,14 @@ export const createCompanion = ({
     if (path) lead(p, path);
     const prefix = path ? `${path}/` : '';
     const children = new Map();
+    let found = false;
     for (const [full, file] of p.files) {
       if (!full.startsWith(prefix)) continue;
+      found = true;
       const rest = full.slice(prefix.length);
       const name = rest.split('/')[0];
+      // An empty folder is kept as `<folder>/`: it has no entry of its own inside.
+      if (!name) continue;
       const dir = rest.includes('/');
       const at = prefix + name;
       if (children.has(at)) continue;
@@ -294,11 +433,12 @@ export const createCompanion = ({
           entry(at, 'file', {
             ignored: !!file.ignored,
             secret: !!file.secret,
+            protected: protectedRule(at) !== null,
             size: file.size ?? bytes(file.text),
           }),
         );
     }
-    if (path && children.size === 0) throw error('not-found', 'no such file or folder in the project');
+    if (path && !found) throw error('not-found', 'no such file or folder in the project');
     const entries = [...children.values()].sort(
       (a, b) => Number(b.kind === 'dir') - Number(a.kind === 'dir') || (a.name < b.name ? -1 : 1),
     );
@@ -308,10 +448,114 @@ export const createCompanion = ({
   let changed = false;
   const running = new Map();
   const subscribed = new Set();
+  let confirm = confirmed;
+  let identity = who;
+  const failures = [];
+  let commits = 0;
+  // Emitting needs a way out: the last `send` the companion was handed (the port of the call or command).
+  let lastSend = null;
+  const tell = (name, project, data) => {
+    if (!lastSend) return;
+    if (project !== null && !subscribed.has(project)) return;
+    out(lastSend, { type: 'event', name, project, data });
+  };
+
+  const locations = () =>
+    mode === 'fresh'
+      ? []
+      : (
+          vector('locations.list.json')?.result ?? [
+            { createdVia: 'terminal', displayPath: '~/fx', mode: 'write', name: 'fx', projects: 1 },
+          ]
+        ).map(l => ({
+          ...l,
+          projects: [...projects.values()].filter(p => p.summary.location === l.displayPath).length,
+        }));
+
+  const textFile = file => file !== undefined && file.text !== undefined && !file.binary && !file.tooLarge;
+  /** The status the companion computes: HEAD against the disk, by the text's hash (the bytes' for a binary). */
+  const statusOf = p => {
+    const out = [];
+    const paths = [...new Set([...p.head.keys(), ...p.files.keys()])].filter(path => !path.endsWith('/')).sort();
+    for (const path of paths) {
+      const disk = p.files.get(path);
+      const head = p.head.get(path);
+      if (disk?.ignored) continue;
+      const diskHash = textFile(disk) ? hashOf(disk.text) : null;
+      const diskBytesHash = disk && !disk.link && !textFile(disk) ? fnv(`bytes:${path}:${disk.size}`) : null;
+      const base = { diskBytesHash, diskHash, path, renamedFrom: null, stagedOutside: false };
+      if (head === undefined && disk !== undefined) out.push({ ...base, change: 'untracked', group: 'unversioned' });
+      else if (head !== undefined && disk === undefined) out.push({ ...base, change: 'deleted', group: 'changes' });
+      else if (typeof head === 'string' && textFile(disk) && head !== disk.text)
+        out.push({ ...base, change: 'modified', group: 'changes' });
+    }
+    return out;
+  };
+
+  const isMine = p => (p.cls ?? p.summary.class) === 'mine';
+  const summaryOf = p => ({ ...copy(p.summary), class: p.cls ?? p.summary.class, via: p.via ?? p.summary.via });
+  const failing = method => {
+    const at = failures.findIndex(f => f.method === method);
+    return at < 0 ? null : failures.splice(at, 1)[0];
+  };
+  /** Waits as the companion's window would, then answers as `confirm` says; `cancel` closes it. */
+  const askPerson = async (command, cancelled) => {
+    if (confirm === 'unavailable')
+      throw error(
+        'confirmation-unavailable',
+        'the companion cannot show its window; run the command in a terminal instead',
+        {
+          command,
+          reason: 'no-window',
+        },
+      );
+    if (confirm === 'requests-off')
+      throw error('confirmation-unavailable', 'the page’s requests are off', {
+        command: 'devtab resume-requests',
+        reason: 'requests-off',
+      });
+    if (confirm === 'busy') throw error('confirmation-busy', 'another confirmation is waiting');
+    if (confirm === 'rate-limited') throw error('rate-limited', 'too soon after a decline', { retryAfterMs: 30_000 });
+    for (let i = 0; i < 40; i++) {
+      await wait(125);
+      if (cancelled()) throw error('cancelled', 'the request was cancelled');
+    }
+    if (confirm === 'no') throw error('confirmation-declined', 'declined in the companion’s window');
+  };
+  /** The write policy (§5.4), for every write: the class, `.git`, secrets, links, a file read only on disk. */
+  const writable = (p, path, field = 'path') => {
+    if (!isMine(p)) throw error('not-mine', 'the project is read-only (view); this needs a writable one');
+    if (typeof path !== 'string' || path === '')
+      throw error('invalid-params', 'the parameters do not match the method’s schema', { field });
+    checkPath(path);
+    if (SECRET.test(path) || p.files.get(path)?.secret)
+      throw error('secret-file', 'secret files are shown read-only and never written from the browser');
+    const top = p.files.get(path.split('/')[0]);
+    if (top?.link === 'outside' && path.includes('/'))
+      throw error('outside-project', 'the path leads out of the project');
+    if (p.files.get(path)?.link)
+      throw error('protected-path', 'the companion never writes through a symlink or to one', { rule: 'symlink' });
+    if (p.files.get(path)?.readOnly)
+      throw error('protected-path', 'the file is read-only on disk', { rule: 'read-only-file' });
+    if (/[\s.]$/.test(path)) throw error('invalid-path', 'a name may not end with a space or a dot');
+  };
+  const exists = (p, path) => [...p.files.keys()].some(k => k === path || k.startsWith(`${path}/`));
+  const wrote = (p, paths) => {
+    changed = true;
+    tell('files.changed', p.id, { more: false, paths });
+  };
+  const sha = () => fnv(`commit ${++commits}`).slice(0, 40);
+  /** The server's «Saved» point of each write, as its history keeps it. */
+  const saved = (p, path, text) => {
+    const timeMs = 1_767_225_600_000 + p.points.length * 1000;
+    const point = `s:${fnv(`${path}:${p.points.length}`).slice(0, 12)}@${timeMs}:${[...encoder.encode(path)].map(b => b.toString(16).padStart(2, '0')).join('')}`;
+    p.points.unshift({ label: 'Saved', path, point, size: bytes(text), source: 'server', timeMs });
+    p.contents.set(point, text);
+  };
 
   const methods = {
     'companion.state': () =>
-      vector('companion.state.json')?.result ?? {
+      (mode !== 'fresh' && vector('companion.state.json')?.result) || {
         companion: '0.1.0',
         deletePolicy: 'trash',
         env: { capturedAt: null, path: [] },
@@ -319,11 +563,12 @@ export const createCompanion = ({
         problems: [],
         server: { state: 'running', version: '0.1.44' },
       },
-    'projects.list': () => (mode === 'empty' ? [] : [...projects.values()].map(p => copy(p.summary))),
+    'projects.list': () => (mode === 'empty' || mode === 'fresh' ? [] : [...projects.values()].map(summaryOf)),
     'project.state': ({ project: id }) => {
       const p = projectOf(id);
+      const state = (p.state && { ...copy(p.state), class: p.cls ?? p.state.class, via: p.via ?? p.state.via }) ?? null;
       return (
-        (p.state && copy(p.state)) ?? {
+        state ?? {
           ahead: 0,
           behind: 0,
           branch: p.summary.branch,
@@ -350,7 +595,7 @@ export const createCompanion = ({
         large: false,
         lineEnding: file.lineEnding ?? 'lf',
         mtimeMs: 0,
-        protected: false,
+        protected: protectedRule(path) !== null,
         secret: !!file.secret,
         size: bytes(file.text),
         text: file.text,
@@ -417,9 +662,14 @@ export const createCompanion = ({
     },
     'git.status': ({ project: id }) => {
       const p = projectOf(id);
-      return p.status ? copy(p.status) : { branch: p.summary.branch, files: [], headSha: '0'.repeat(40) };
+      if (p.status && !changed) return copy(p.status);
+      return { branch: p.summary.branch, files: statusOf(p), headSha: p.headSha };
     },
-    'git.identity': () => ({ email: null, name: null, signing: { enabled: false, format: null } }),
+    'git.identity': () => ({
+      email: identity?.email ?? null,
+      name: identity?.name ?? null,
+      signing: { enabled: false, format: null },
+    }),
     'diff.sides': ({ project: id, path, base }) => {
       const p = projectOf(id);
       checkPath(path);
@@ -430,25 +680,12 @@ export const createCompanion = ({
       } else old = p.head.get(path) ?? null;
       const file = lead(p, path);
       const now = file?.text ?? null;
-      const a = (old ?? '').split('\n');
-      const b = (now ?? '').split('\n');
-      // A plain line-by-line comparison: enough for a fake, the hunks of the vectors come with the vectors.
-      const hunks = [];
-      let i = 0;
-      while (i < Math.max(a.length, b.length)) {
-        if (a[i] === b[i]) {
-          i++;
-          continue;
-        }
-        const start = i;
-        while (i < Math.max(a.length, b.length) && a[i] !== b[i]) i++;
-        hunks.push({
-          lines: Math.max(0, Math.min(i, b.length) - start),
-          oldLines: Math.max(0, Math.min(i, a.length) - start),
-          oldStart: start,
-          start,
-        });
-      }
+      const hunks = lineHunks(old, now).map(({ oldStart, oldLines, start, lines }) => ({
+        oldStart,
+        oldLines,
+        start,
+        lines,
+      }));
       return {
         flags: { binary: false, conflicted: false, crlf: false, renamedFrom: null, utf8: true },
         hunks,
@@ -460,12 +697,18 @@ export const createCompanion = ({
       const p = projectOf(id);
       checkPath(path);
       const file = lead(p, path);
-      if (file?.binary) return { chunkable: false, diskHash: null, headHash: null, hunks: [], reason: 'binary' };
+      const head = p.head.get(path);
+      const headHash = typeof head === 'string' ? hashOf(head) : null;
+      if (file?.binary || file?.tooLarge)
+        return { chunkable: false, diskHash: null, headHash, hunks: [], reason: 'binary' };
+      if (!file) return { chunkable: false, diskHash: null, headHash, hunks: [], reason: 'deleted' };
+      if (file.encoding && file.encoding !== 'utf-8')
+        return { chunkable: false, diskHash: hashOf(file.text), headHash, hunks: [], reason: 'not-utf8' };
       return {
         chunkable: true,
-        diskHash: file?.text ? hashOf(file.text) : null,
-        headHash: null,
-        hunks: [],
+        diskHash: hashOf(file.text),
+        headHash,
+        hunks: lineHunks(typeof head === 'string' ? head : null, file.text),
         reason: null,
       };
     },
@@ -492,6 +735,301 @@ export const createCompanion = ({
     },
   };
 
+  Object.assign(methods, {
+    'locations.list': () => locations(),
+    'project.requestAdd': async ({ path }, { cancelled }) => {
+      if (typeof path !== 'string' || !path.startsWith('/') || path.split('/').some(s => s === '..'))
+        throw error('not-found', 'not found');
+      const inside = path.startsWith(`${TRUSTED_ROOT}/`) && !path.slice(TRUSTED_ROOT.length + 1).includes('/');
+      const name = path.slice(path.lastIndexOf('/') + 1);
+      if (inside && name === 'repo') return { class: 'mine', id: PROJECT, via: 'location' };
+      if (inside && (name === 'outside' || name === 'no-such-folder')) throw error('not-found', 'not found');
+      if (!inside) await askPerson(`cd ${shellWord(path)} && devtab add`, cancelled);
+      const id = `p_${fnv(path).slice(0, 10)}`;
+      const location = inside ? '~/fx' : null;
+      project(id, {
+        summary: {
+          branch: 'main',
+          class: inside ? 'mine' : 'view',
+          displayPath: inside ? `~/fx/${name}` : `~/elsewhere/${name}`,
+          id,
+          location,
+          locationName: inside ? 'fx' : null,
+          name,
+          state: 'open',
+          via: inside ? 'location' : 'dialog',
+        },
+        files: new Map([['README.md', { text: `# ${name}\n` }]]),
+        head: new Map([['README.md', `# ${name}\n`]]),
+        hooks: [],
+        headSha: fnv(`head ${id}`).slice(0, 40),
+        commits: [],
+        messages: [],
+        points: [],
+        contents: new Map(),
+      });
+      changed = true;
+      tell('projects.changed', null, {});
+      return { class: inside ? 'mine' : 'view', id, via: inside ? 'location' : 'dialog' };
+    },
+    'project.requestMine': async ({ project: id }, { cancelled }) => {
+      const p = projectOf(id);
+      if (isMine(p)) return { class: 'mine' };
+      const folder = locations().find(l => l.displayPath === p.summary.location && l.mode === 'write');
+      if (!folder || p.via === 'person')
+        await askPerson(`cd ${p.summary.displayPath} && devtab add --write`, cancelled);
+      p.cls = 'mine';
+      p.via = folder && p.via !== 'person' ? 'location' : 'dialog';
+      changed = true;
+      tell('project.changed', id, { class: 'mine', via: p.via });
+      tell('projects.changed', null, {});
+      return { class: 'mine' };
+    },
+    'project.setView': ({ project: id }) => {
+      const p = projectOf(id);
+      if (!isMine(p)) throw error('not-mine', 'the project is read-only (view); this needs a writable one');
+      p.cls = 'view';
+      p.via = 'person';
+      changed = true;
+      tell('project.changed', id, { class: 'view', via: 'person' });
+      tell('projects.changed', null, {});
+      return { class: 'view' };
+    },
+    'project.remove': ({ project: id }) => {
+      projectOf(id);
+      projects.delete(id);
+      changed = true;
+      tell('projects.changed', null, {});
+      return {};
+    },
+    'env.requestCapture': () => {
+      throw error(
+        'confirmation-unavailable',
+        'the companion cannot show its window; run the command in a terminal instead',
+        {
+          command: 'devtab env capture',
+          reason: 'no-window',
+        },
+      );
+    },
+    'file.save': ({ project: id, path, baseHash, text }) => {
+      const p = projectOf(id);
+      writable(p, path);
+      const file = p.files.get(path);
+      if (!file) throw error('not-found', 'no such file or folder in the project');
+      if (file.binary) throw error('binary', 'the file is binary', { size: file.size });
+      if (typeof text !== 'string')
+        throw error('invalid-params', 'the parameters do not match the method’s schema', { field: 'text' });
+      if (bytes(text) > MAX_TEXT_BYTES)
+        throw error('too-large', 'the text is too large', { limit: MAX_TEXT_BYTES, size: bytes(text) });
+      const current = hashOf(file.text);
+      if (baseHash !== current)
+        throw error('conflict', 'the file changed on disk since it was read; nothing was written', {
+          currentHash: current,
+        });
+      // eslint-disable-next-line no-control-regex
+      if (file.encoding === 'windows-1252' && /[^\u0000-\u00ff]/.test(text))
+        throw error('not-encodable', 'the text has characters its encoding cannot hold; nothing was written', {
+          encoding: 'windows-1252',
+        });
+      p.files.set(path, { ...file, text: text.replace(/\r\n?/g, '\n') });
+      saved(p, path, text);
+      wrote(p, [path]);
+      return { hash: hashOf(text), mtimeMs: 0, protected: protectedRule(path) };
+    },
+    'file.create': ({ project: id, path, text = '' }) => {
+      const p = projectOf(id);
+      writable(p, path);
+      if (exists(p, path)) throw error('exists', 'a file or folder with that name exists already');
+      for (const key of [...p.files.keys()]) if (path.startsWith(key) && key.endsWith('/')) p.files.delete(key);
+      p.files.set(path, { text });
+      saved(p, path, text);
+      wrote(p, [path]);
+      return { hash: hashOf(text), protected: protectedRule(path) };
+    },
+    'folder.create': ({ project: id, path }) => {
+      const p = projectOf(id);
+      writable(p, path);
+      if (exists(p, path)) throw error('exists', 'a file or folder with that name exists already');
+      p.files.set(`${path}/`, { dir: true });
+      wrote(p, [path]);
+      return { protected: protectedRule(`${path}/`) };
+    },
+    'file.rename': ({ project: id, from, to }) => {
+      const p = projectOf(id);
+      writable(p, from, 'from');
+      writable(p, to, 'to');
+      if (!exists(p, from)) throw error('not-found', 'no such file or folder in the project');
+      if (exists(p, to)) throw error('exists', 'a file or folder with that name exists already');
+      for (const [key, file] of [...p.files])
+        if (key === from || key.startsWith(`${from}/`)) {
+          p.files.delete(key);
+          p.files.set(to + key.slice(from.length), file);
+        }
+      wrote(p, [from, to]);
+      return { protected: protectedRule(to) };
+    },
+    'file.delete': ({ project: id, path }) => {
+      writable(projectOf(id), path);
+      throw error(
+        'trash-unavailable',
+        'the companion cannot move files to the Trash here, so it deleted nothing; delete the file in Finder',
+      );
+    },
+    'git.messages': ({ project: id }) => ({ messages: [...projectOf(id).messages] }),
+    'git.commit': async (params, { id: call, send, cancelled }) => {
+      const p = projectOf(params.project);
+      if (!isMine(p)) throw error('not-mine', 'the project is read-only (view); this needs a writable one');
+      const { message, selection, runHooks, expect } = params;
+      if (typeof message !== 'string' || !message.trim())
+        throw error('invalid-params', 'the parameters do not match the method’s schema', { field: 'message' });
+      if (!Array.isArray(selection) || selection.length === 0)
+        throw error('nothing-selected', 'nothing is checked; nothing was committed');
+      const shown = new Map((expect?.files ?? []).map(f => [f.path, f]));
+      for (const { path, chunks } of selection) {
+        if (!shown.has(path))
+          throw error('invalid-params', 'every checked path needs its entry in expect', { field: 'expect' });
+        if (Array.isArray(chunks) && chunks.length === 0)
+          throw error('invalid-params', 'the parameters do not match the method’s schema', { field: 'chunks' });
+      }
+      if ((expect?.headSha ?? null) !== p.headSha)
+        throw error('stale-selection', 'the repository or a file changed since the page showed it; nothing was done', {
+          paths: [],
+        });
+      const status = statusOf(p);
+      const stale = selection
+        .map(({ path }) => {
+          const now = status.find(f => f.path === path);
+          const was = shown.get(path);
+          return (now?.diskHash ?? null) === (was.diskHash ?? null) &&
+            (now?.diskHash != null || (now?.diskBytesHash ?? null) === (was.diskBytesHash ?? null))
+            ? null
+            : path;
+        })
+        .filter(Boolean);
+      if (stale.length)
+        throw error('stale-selection', 'the repository or a file changed since the page showed it; nothing was done', {
+          paths: stale,
+        });
+      for (const { path, chunks } of selection) {
+        if (!chunks) continue;
+        const entry = status.find(f => f.path === path);
+        const file = p.files.get(path);
+        const reason =
+          entry?.change === 'untracked'
+            ? 'new-file'
+            : entry?.change === 'deleted'
+              ? 'deleted'
+              : !textFile(file)
+                ? 'binary'
+                : file.encoding && file.encoding !== 'utf-8'
+                  ? 'not-utf8'
+                  : null;
+        if (reason)
+          throw error('hunks-unsupported', 'hunks were chosen of a file committed whole; nothing was committed', {
+            path,
+            reason,
+          });
+      }
+      if (!identity?.email) throw error('identity-missing', 'git has no user.name or user.email for the repository');
+      const streamed = text => send({ type: 'stream', id: call, seq: streamSeq++, data: { text } });
+      let streamSeq = 0;
+      const failure = failing('git.commit');
+      const hooks = runHooks ? p.hooks.filter(h => h === 'pre-commit' || h === 'commit-msg') : [];
+      if (failure) {
+        for (const text of failure.stream ?? []) {
+          await wait(failure.pauseMs ?? 150);
+          if (cancelled()) throw error('cancelled', 'the commit was cancelled');
+          streamed(text);
+        }
+        if (failure.code === 'hook-timeout' || failure.hang) {
+          for (let i = 0; i < 40 && !cancelled(); i++) await wait(100);
+          if (cancelled()) throw error('cancelled', 'the commit was cancelled');
+        }
+        throw error(failure.code, failure.message ?? 'the commit failed; nothing was committed', failure.data);
+      }
+      for (const hook of hooks) {
+        await wait(150);
+        if (cancelled()) throw error('cancelled', 'the commit was cancelled');
+        streamed(`${hook}: checking ${selection.length} ${selection.length === 1 ? 'file' : 'files'}\n`);
+        await wait(150);
+        if (cancelled()) throw error('cancelled', 'the commit was cancelled');
+        streamed(`${hook}: passed\n`);
+      }
+      const before = new Map();
+      for (const { path, chunks } of selection) {
+        before.set(path, p.head.has(path) ? p.head.get(path) : null);
+        const file = p.files.get(path);
+        if (file === undefined) p.head.delete(path);
+        else if (chunks) p.head.set(path, applyHunks(p.head.get(path) ?? null, file.text, chunks));
+        else p.head.set(path, file.text ?? { bytes: path, size: file.size });
+      }
+      const made = { sha: sha(), parent: p.headSha, message: message.trim(), before };
+      p.commits.push(made);
+      p.headSha = made.sha;
+      p.messages = [made.message, ...p.messages.filter(m => m !== made.message)].slice(0, 20);
+      changed = true;
+      tell('git.changed', p.id, {});
+      return {
+        changedAfter: [],
+        hookChangedCommit: [],
+        hooksSkipped: runHooks ? [] : p.hooks.filter(h => h === 'pre-commit' || h === 'commit-msg'),
+        indexKept: [],
+        sha: made.sha,
+      };
+    },
+    'git.rollback': ({ project: id, paths, deleteAdded, expect }) => {
+      const p = projectOf(id);
+      for (const path of paths ?? []) writable(p, path);
+      const status = statusOf(p);
+      const shown = new Map((expect?.files ?? []).map(f => [f.path, f]));
+      const stale = (paths ?? []).filter(path => {
+        const now = status.find(f => f.path === path);
+        return (now?.diskHash ?? null) !== (shown.get(path)?.diskHash ?? null);
+      });
+      if (stale.length)
+        throw error('stale-selection', 'the repository or a file changed since the page showed it; nothing was done', {
+          paths: stale,
+        });
+      if (deleteAdded && paths.some(path => !p.head.has(path)))
+        throw error(
+          'trash-unavailable',
+          'the companion cannot move files to the Trash here, so it deleted nothing; delete the file in Finder',
+        );
+      const rolledBack = [];
+      for (const path of paths) {
+        if (!p.head.has(path)) continue;
+        const head = p.head.get(path);
+        p.files.set(
+          path,
+          typeof head === 'string' ? { ...(p.files.get(path) ?? {}), text: head } : { binary: true, size: head.size },
+        );
+        rolledBack.push(path);
+      }
+      wrote(p, rolledBack);
+      tell('git.changed', id, {});
+      return { rolledBack, trashed: [] };
+    },
+    'git.undoCommit': ({ project: id, headSha }) => {
+      const p = projectOf(id);
+      if (!isMine(p)) throw error('not-mine', 'the project is read-only (view); this needs a writable one');
+      if (headSha !== p.headSha)
+        throw error('undo-unavailable', 'HEAD is not the commit the page showed', { reason: 'moved' });
+      const last = p.commits.at(-1);
+      if (!last || last.sha !== p.headSha)
+        throw error('undo-unavailable', 'a remote branch has the commit', { reason: 'pushed' });
+      for (const [path, was] of last.before) {
+        if (was === null) p.head.delete(path);
+        else p.head.set(path, was);
+      }
+      p.commits.pop();
+      p.headSha = last.parent;
+      changed = true;
+      tell('git.changed', id, {});
+      return { message: last.message, paths: [...last.before.keys()] };
+    },
+  });
+
   const out = (send, frame) => {
     for (const piece of chunked(frame, maxFrameBytes)) send(piece);
   };
@@ -502,6 +1040,7 @@ export const createCompanion = ({
     subscribed,
     /** Answers one frame of the extension; frames go out through `send`. */
     async handle(frame, send) {
+      lastSend = send;
       if (frame?.type === 'hello') {
         if (mode === 'not-running')
           return send({
@@ -524,19 +1063,40 @@ export const createCompanion = ({
       if (frame?.type !== 'call') return;
       const { id, method, params = {} } = frame;
       const handler = methods[method];
-      if (!handler)
+      if (!handler || (!offers(method) && !replay))
         return send({
           type: 'error',
           id,
           error: { code: 'unknown-method', data: { method }, message: 'this companion does not offer that method' },
         });
-      const known = replies.get(`${method} ${canonical(params)}`);
+      const queue = replies.get(`${method} ${canonical(params)}`);
       if (method === 'events.subscribe' && projects.has(params.project)) subscribed.add(params.project);
-      // A vector answers only for the repository as the vectors saw it: not once a file was added.
-      if (known && mode === 'normal' && !changed && !(method === 'projects.list' && projects.size > 1)) {
+      // A vector answers only for the repository as the vectors saw it: not once a file was added, and never a method
+      // whose answer depends on what happened before — unless the vectors' own sequence is played (`replay`).
+      const known = replay ? (queue?.length > 1 ? queue.shift() : queue?.[0]) : queue?.[0];
+      if (
+        known &&
+        (replay ||
+          (mode === 'normal' &&
+            !changed &&
+            !STATEFUL.has(method) &&
+            !(method === 'projects.list' && projects.size > 1)))
+      ) {
         for (const part of known.stream ?? []) send({ ...copy(part), id });
         return out(send, { ...copy(known.response), id });
       }
+      // A failure scripted for this method (git.commit streams its own before it fails).
+      const scripted = method === 'git.commit' ? null : failing(method);
+      if (scripted)
+        return out(send, {
+          type: 'error',
+          id,
+          error: {
+            code: scripted.code,
+            message: scripted.message ?? 'refused',
+            ...(scripted.data && { data: scripted.data }),
+          },
+        });
       let stop = false;
       running.set(id, { cancel: () => (stop = true) });
       try {
@@ -559,6 +1119,27 @@ export const createCompanion = ({
     addFile(id, path, text) {
       changed = true;
       projects.get(id)?.files.set(path, { text });
+    },
+    /** Someone else's edit of a file on disk (null: deleted): a save from the older text then meets `conflict`. */
+    changeOnDisk(id, path, text) {
+      changed = true;
+      const p = projects.get(id);
+      if (!p) return;
+      if (text === null) p.files.delete(path);
+      else p.files.set(path, { ...(p.files.get(path) ?? {}), text });
+      tell('files.changed', id, { more: false, paths: [path] });
+    },
+    /** The next call of `method` fails with `code` and `data`, after the streamed parts `stream` (texts). */
+    failNext(method, code, data, options = {}) {
+      failures.push({ method, code, data, ...options });
+    },
+    /** What the companion's window answers from now on. */
+    setConfirm(answer) {
+      confirm = answer;
+    },
+    /** git's name and e-mail (null: none, `identity-missing`). */
+    setIdentity(next) {
+      identity = next;
     },
   };
 };

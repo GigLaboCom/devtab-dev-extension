@@ -205,6 +205,7 @@ const budgets = {
   perTool: budget('scripts/start-route-growth.mjs', 'PER_TOOL_LIMIT'),
   companionRetry: budget('extension/src/projects/connection.ts', 'RETRY_MS'),
   companionHandshake: budget('extension/src/projects/companion/client.ts', 'HANDSHAKE_MS'),
+  companionWaitSaid: budget('extension/src/app/projects/PathDialog.tsx', 'WAIT_SAID_AFTER_MS'),
   companionReconnect: (/RECONNECT_MS[^=]*=\s*\[([^\]]*)\]/.exec(src('extension/src/projects/connection.ts'))?.[1] ?? '')
     .split(',')
     .map(v => Number(v.trim().replaceAll('_', '')))
@@ -667,6 +668,11 @@ out.push(
         'Projects: рукопожатие с компаньоном',
         `≤ ${budgets.companionHandshake / 1000} с`,
         '`extension/src/projects/companion/client.ts`',
+      ],
+      [
+        'Projects: «Подтвердите в окне компаньона» — после ожидания',
+        `${budgets.companionWaitSaid} мс (ответ сразу — без этой строки)`,
+        '`extension/src/app/projects/PathDialog.tsx`',
       ],
       [
         'Подпись / текст записи истории',
