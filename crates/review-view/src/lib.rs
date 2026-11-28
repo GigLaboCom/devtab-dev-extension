@@ -11,6 +11,8 @@
 //! - [`compare`]: the implementations one comparison runs with, and options naming built-ins as data;
 //! - [`alignment`]: the blank rows that keep both sides level;
 //! - [`sides`]: which side the user may edit and whether its text moved away from what was loaded or saved;
+//! - [`editor_commands`]: the editor's own commands a host runs from its buttons (undo, copy, find, …), the one table of
+//!   their keys, and what a side offers them (editable, empty, a selection);
 //! - [`editor_settings`]: how an editor indents and shows its text — what the host may say and what an editor shows;
 //! - `view` (feature `view`, gpui): the view itself — two sides compared or one file alone, read-only by default, a
 //!   side editable on request, the comparison following the edits, a line or a hunk brought into view;
@@ -21,6 +23,7 @@
 
 pub mod alignment;
 pub mod compare;
+pub mod editor_commands;
 pub mod editor_settings;
 pub mod hunks;
 pub mod line_differ;
@@ -40,6 +43,7 @@ use gpui_platform as _;
 
 pub use alignment::DiffSide;
 pub use compare::{CompareOptions, Comparison, UnknownVariant};
+pub use editor_commands::{CommandStanding, EditorCommand};
 pub use editor_settings::{EditorLook, EditorSettings, IndentStyle, SideEditorSettings};
 pub use hunks::{DiffStats, HunkKind, LineHunk};
 pub use line_differ::{HistogramLineDiffer, LineDiffer, MyersLineDiffer};
@@ -47,5 +51,5 @@ pub use sides::{SideState, Sides};
 #[cfg(feature = "view")]
 pub use view::{
     DiffDocument, FileDocument, Layout, RECOMPARE_DELAY, ReviewEvent, ReviewView, ReviewViewBuilder, Shown, ShownCause,
-    Texts,
+    Texts, bind_module_keys, command_action,
 };

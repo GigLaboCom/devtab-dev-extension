@@ -29,6 +29,11 @@
 //! - `set_mode(mode)` — `file` (the new side alone) or `diff` (both sides compared): the texts and edits stay;
 //! - `reveal_line(line, column?)` — bring a 0-based line of the new side into view: the caret at the UTF-16 column, or
 //!   the line selected without one; `reveal_hunk(index)` — the `index`-th hunk of what is shown, selected;
+//! - `run_command(side, command)` — one of the editor's commands (`undo`, `redo`, `cut`, `copy`, `selectAll`, `indent`,
+//!   `outdent`, `find`; review-view's `editor_commands`) on a side, as its key runs it: the side's editor takes the
+//!   keyboard and gpui-kit's action is dispatched to it. What Copy and Cut write goes to the platform's clipboard
+//!   synchronously, inside this call (the editor page hands it to the main page); `paste_text(side, text)` — the text
+//!   the page read from the clipboard, inserted over the selection as one edit;
 //! - with the feature `grammar-files` (the mixed highlighter build), `grammar_abi()`, `register_grammar(entry_json,
 //!   language)` and `function_table()`: grammars that arrive as files while the page runs (src/grammars.rs).
 //!
@@ -37,7 +42,8 @@
 //! `{path, changes, added, removed, lineDiffer, compareMs, updateMs, cause, sides, mode}` — `lineDiffer`, `compareMs`
 //! and `updateMs` `null` for `show_diff` and `set_mode`; `cause` `request` for a call above, `edit` when the user's edit
 //! was compared once the typing paused; `sides.old` / `sides.new` = `{editable, modified, empty}`; `mode` `file` or
-//! `diff`) and `error` (a theme file that does not parse).
+//! `diff`), `standing` (detail: JSON `{old, new}` = `{editable, empty, selection}`, whenever one of them changes: what
+//! the sides offer the editor's commands — flags, never text) and `error` (a theme file that does not parse).
 #![cfg(target_family = "wasm")]
 
 use std::{
@@ -54,8 +60,8 @@ use gpui_component::{
     theme::{Theme, ThemeMode, ThemeRegistry, ThemeSet},
 };
 use review_view::{
-    CompareOptions, DiffDocument, DiffSide, EditorSettings, FileDocument, Layout, LineHunk, ReviewEvent, ReviewView,
-    Shown, SideEditorSettings, Texts,
+    CommandStanding, CompareOptions, DiffDocument, DiffSide, EditorCommand, EditorSettings, FileDocument, Layout,
+    LineHunk, ReviewEvent, ReviewView, Shown, SideEditorSettings, Texts,
 };
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
@@ -235,6 +241,14 @@ fn shown_detail(shown: &Shown) -> String {
         "mode": shown.layout.name(),
     })
     .to_string()
+}
+
+fn standing_detail(standing: &[CommandStanding; 2]) -> String {
+    let side = |side: DiffSide| {
+        let state = standing[side.index()];
+        serde_json::json!({ "editable": state.editable, "empty": state.empty, "selection": state.selection })
+    };
+    serde_json::json!({ "old": side(DiffSide::Old), "new": side(DiffSide::New) }).to_string()
 }
 
 fn notify_host(event: &str, detail: &str) {
@@ -494,6 +508,25 @@ pub fn reveal_hunk(index: u32) -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
+pub fn run_command(side: String, command: String) -> Result<(), JsValue> {
+    let side = side_named("run_command", &side)?;
+    let command = EditorCommand::from_name(&command).ok_or_else(|| {
+        JsValue::from_str(&format!(
+            "run_command: unknown command \"{command}\"; the commands are undo, redo, cut, copy, selectAll, indent, outdent, find"
+        ))
+    })?;
+    with_view("run_command", |view, window, cx| {
+        view.run_command(side, command, window, cx)
+    })
+}
+
+#[wasm_bindgen]
+pub fn paste_text(side: String, text: String) -> Result<(), JsValue> {
+    let side = side_named("paste_text", &side)?;
+    with_view("paste_text", |view, window, cx| view.paste_text(side, text, window, cx))
+}
+
+#[wasm_bindgen]
 pub fn run(options_json: Option<String>) -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
     gpui_web::init_logging();
@@ -524,22 +557,20 @@ pub fn run(options_json: Option<String>) -> Result<(), JsValue> {
         gpui_component::init(cx);
 
         // gpui-kit picks its key bindings at compile time and wasm is never `target_os = "macos"`, so in a browser
-        // on a Mac only the Ctrl bindings would work. The Mac bindings an editable side needs: clipboard, undo and
-        // redo, selection, moving and deleting by line and by word (as gpui-kit binds them on macOS).
-        if matches!(cx.platform_info().os, OperatingSystem::Mac | OperatingSystem::Ios) {
+        // on a Mac only the Ctrl bindings would work. The editor commands' keys come from their one table
+        // (review-view's `editor_commands`: clipboard, undo and redo, select all, indent, outdent, find; Paste stays
+        // the browser's `paste` event on every platform); the rest an editable side needs — moving and deleting by line
+        // and by word — as gpui-kit binds them on macOS.
+        let mac = matches!(cx.platform_info().os, OperatingSystem::Mac | OperatingSystem::Ios);
+        review_view::bind_module_keys(mac, cx);
+        if mac {
             use gpui_component::input::{
-                Copy, Cut, DeleteToBeginningOfLine, DeleteToEndOfLine, DeleteToNextWordEnd, DeleteToPreviousWordStart,
-                MoveEnd, MoveHome, MoveToEnd, MoveToNextWord, MoveToPreviousWord, MoveToStart, Redo, SelectAll,
-                SelectToEnd, SelectToEndOfLine, SelectToNextWordEnd, SelectToPreviousWordStart, SelectToStart,
-                SelectToStartOfLine, Undo,
+                DeleteToBeginningOfLine, DeleteToEndOfLine, DeleteToNextWordEnd, DeleteToPreviousWordStart, MoveEnd,
+                MoveHome, MoveToEnd, MoveToNextWord, MoveToPreviousWord, MoveToStart, SelectToEnd, SelectToEndOfLine,
+                SelectToNextWordEnd, SelectToPreviousWordStart, SelectToStart, SelectToStartOfLine,
             };
             let input = Some("Input");
             cx.bind_keys([
-                KeyBinding::new("cmd-c", Copy, input),
-                KeyBinding::new("cmd-x", Cut, input),
-                KeyBinding::new("cmd-a", SelectAll, input),
-                KeyBinding::new("cmd-z", Undo, input),
-                KeyBinding::new("cmd-shift-z", Redo, input),
                 KeyBinding::new("cmd-left", MoveHome, input),
                 KeyBinding::new("cmd-right", MoveEnd, input),
                 KeyBinding::new("cmd-up", MoveToStart, input),
@@ -557,12 +588,6 @@ pub fn run(options_json: Option<String>) -> Result<(), JsValue> {
                 KeyBinding::new("alt-backspace", DeleteToPreviousWordStart, input),
                 KeyBinding::new("alt-delete", DeleteToNextWordEnd, input),
             ]);
-        } else {
-            // Paste stays the browser's: its `paste` event hands the text over without a clipboard permission
-            // (gpui-pre-web's register_paste), while gpui-kit's Paste action reads navigator.clipboard, which an
-            // extension page may only do after Chrome's prompt. Cmd+V on a Mac is not bound in wasm, so it is the
-            // browser's already.
-            cx.bind_keys([KeyBinding::new("ctrl-v", NoAction, Some("Input"))]);
         }
 
         // The browser platform has no font database, and `.SystemUIFont` resolves to IBM Plex Sans there: it must
@@ -602,6 +627,8 @@ pub fn run(options_json: Option<String>) -> Result<(), JsValue> {
                 // The user's edit, compared once the typing paused: the page learns the counts and which side is
                 // modified; the text stays here until the page asks for it.
                 ReviewEvent::Recompared(shown) => notify_host_later("shown", shown_detail(shown)),
+                // A selection made or gone, a side made editable, a text emptied: the page greys its buttons by it.
+                ReviewEvent::Standing(standing) => notify_host_later("standing", standing_detail(standing)),
             })
             .detach();
             VIEW.with(|slot| *slot.borrow_mut() = Some((window.window_handle(), view.downgrade())));

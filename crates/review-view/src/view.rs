@@ -19,17 +19,22 @@
 //! and the code font size — is the host's to say ([`ReviewView::set_editor_settings`], [`crate::editor_settings`]):
 //! each side keeps what it was told until told otherwise, a swap carries it with the texts, and only one file alone
 //! wraps (side by side a wrapped row would have no row level with it on the other side).
+//!
+//! The editor's own commands ([`crate::editor_commands`]) run from the host's buttons the way their keys run them: the
+//! side's editor takes the focus and gpui-kit's action is dispatched to it ([`ReviewView::run_command`]); a paste comes
+//! with its text, read by the host ([`ReviewView::paste_text`]). Whether a side is editable, empty or has a selection
+//! is reported whenever it changes ([`ReviewEvent::Standing`]) — flags, never text.
 
 use std::{ops::Range, rc::Rc, sync::Arc, time::Duration};
 
 use gpui::{
-    AppContext as _, Context, Entity, EventEmitter, Focusable as _, IntoElement, ParentElement as _, Pixels, Render,
-    SharedString, Styled as _, Subscription, Task, Window, div, px,
+    Action, App, AppContext as _, Context, Entity, EventEmitter, Focusable as _, IntoElement, KeyBinding, NoAction,
+    ParentElement as _, Pixels, Render, SharedString, Styled as _, Subscription, Task, Window, div, px,
 };
 use gpui_component::{
     ActiveTheme as _, Rope, RopeExt as _, Side, h_flex,
     highlighter::Diagnostic,
-    input::{Editor, EditorState, InputEvent, LineDecorationCollection, TabSize},
+    input::{self, Editor, EditorState, InputEvent, LineDecorationCollection, TabSize},
     scroll::ScrollbarPlacement,
     theme::Theme,
     v_flex,
@@ -40,6 +45,7 @@ use crate::{
     alignment::DiffSide,
     compare::{CompareOptions, Comparison, UnknownVariant},
     diff_view::{ChangedLines, DiffModel, DiffSpacers},
+    editor_commands::{CommandStanding, EditorCommand, key_of},
     editor_settings::{EditorLook, EditorSettings, IndentStyle, font_size_after},
     hunks::{DiffStats, LineHunk},
     line_differ::LineDiffer,
@@ -177,6 +183,50 @@ pub enum ReviewEvent {
     FirstFrame,
     /// The user edited a side and the view compared the sides again.
     Recompared(Shown),
+    /// What the sides offer the editor's commands changed (old side first): editable, empty, a selection.
+    Standing([CommandStanding; 2]),
+}
+
+/// gpui-kit's own action for an editor command — the value its keymap binds to the command's key. `None` for Paste,
+/// whose text the host brings ([`ReviewView::paste_text`]).
+pub fn command_action(command: EditorCommand) -> Option<Box<dyn Action>> {
+    Some(match command {
+        EditorCommand::Undo => Box::new(input::Undo),
+        EditorCommand::Redo => Box::new(input::Redo),
+        EditorCommand::Cut => Box::new(input::Cut),
+        EditorCommand::Copy => Box::new(input::Copy),
+        EditorCommand::Paste => return None,
+        EditorCommand::SelectAll => Box::new(input::SelectAll),
+        EditorCommand::Indent => Box::new(input::Indent),
+        EditorCommand::Outdent => Box::new(input::Outdent),
+        EditorCommand::Find => Box::new(input::Search),
+    })
+}
+
+/// The commands' keys the module binds itself in a browser ([`crate::editor_commands::KEYS`]). gpui-kit chooses its
+/// bindings at compile time and wasm is never `target_os = "macos"`, so on a Mac it binds the table's Mac column for
+/// every command but Paste. Paste stays the browser's on every platform: its `paste` event hands the text over without
+/// a clipboard permission, while gpui-kit's Paste reads `navigator.clipboard` — ⌘V is not bound in wasm, and Ctrl+V is
+/// unbound elsewhere.
+pub fn bind_module_keys(mac: bool, cx: &mut App) {
+    let context = Some("Input");
+    if !mac {
+        let paste = key_of(EditorCommand::Paste, false).expect("the table names Paste's key");
+        cx.bind_keys([KeyBinding::new(paste, NoAction, context)]);
+        return;
+    }
+    let key = |command| key_of(command, true).expect("the table names every command's key");
+    // The same actions as `command_action`; the view's tests check that each key resolves to it.
+    cx.bind_keys([
+        KeyBinding::new(key(EditorCommand::Undo), input::Undo, context),
+        KeyBinding::new(key(EditorCommand::Redo), input::Redo, context),
+        KeyBinding::new(key(EditorCommand::Cut), input::Cut, context),
+        KeyBinding::new(key(EditorCommand::Copy), input::Copy, context),
+        KeyBinding::new(key(EditorCommand::SelectAll), input::SelectAll, context),
+        KeyBinding::new(key(EditorCommand::Indent), input::Indent, context),
+        KeyBinding::new(key(EditorCommand::Outdent), input::Outdent, context),
+        KeyBinding::new(key(EditorCommand::Find), input::Search, context),
+    ]);
 }
 
 pub struct ReviewView {
@@ -205,6 +255,9 @@ pub struct ReviewView {
     wrapping: [bool; 2],
     /// The code font size; `None`: the theme's.
     font_size: Option<f32>,
+    /// What each side offered its commands when the host was last told; `None` before it was told anything, so the
+    /// first standing is always told (the host starts knowing nothing).
+    standing: Option<[CommandStanding; 2]>,
     _collections: [LineDecorationCollection; 2],
     _subscriptions: Vec<Subscription>,
 }
@@ -253,9 +306,16 @@ impl ReviewView {
         let (editor, new_collection) = side_editor(DiffSide::New, window, cx);
 
         let mut subscriptions = vec![
-            // Wheel scrolling notifies the scrolled editor; re-render to carry it to the other side.
-            cx.observe(&editor, |_, _, cx| cx.notify()),
-            cx.observe(&old_editor, |_, _, cx| cx.notify()),
+            // Wheel scrolling notifies the scrolled editor; re-render to carry it to the other side. A new selection or
+            // text notifies it too: the commands' standing may have moved.
+            cx.observe(&editor, |view, _, cx| {
+                view.update_standing(cx);
+                cx.notify()
+            }),
+            cx.observe(&old_editor, |view, _, cx| {
+                view.update_standing(cx);
+                cx.notify()
+            }),
             // Spacers keep the fill they were created with; a new theme needs new ones.
             cx.observe_global::<Theme>(|view, cx| {
                 for editor in &view.editors {
@@ -292,6 +352,7 @@ impl ReviewView {
             looks: [EditorLook::default(); 2],
             wrapping: [false; 2],
             font_size: None,
+            standing: None,
             _collections: [old_collection, new_collection],
             _subscriptions: subscriptions,
         }
@@ -390,7 +451,71 @@ impl ReviewView {
                 state.focus(window, cx);
             }
         });
+        self.update_standing(cx);
         cx.notify();
+    }
+
+    /// Runs one of the editor's commands on a side as its key would: the side's editor takes the keyboard and
+    /// gpui-kit's action ([`command_action`]) is dispatched from there. A command that changes the text is refused on a
+    /// read-only side; Paste is refused here — its text comes with [`Self::paste_text`].
+    pub fn run_command(
+        &mut self,
+        side: DiffSide,
+        command: EditorCommand,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
+        let Some(action) = command_action(command) else {
+            return Err(format!("{}: the text comes with paste_text", command.name()));
+        };
+        if command.edits() && !self.sides.editable(side) {
+            return Err(format!("{}: the {} side is read-only", command.name(), side.name()));
+        }
+        self.focus(side, window, cx);
+        window.dispatch_action(action, cx);
+        Ok(())
+    }
+
+    /// Pastes `text` the host read from the clipboard into a side: over the selection (or at the caret), as one edit
+    /// the history keeps, the caret after it — gpui-kit's `replace`, the atomic edit its own Paste makes. Refused on a
+    /// read-only side; an empty text changes nothing (as gpui-kit's Paste leaves a clipboard without text alone).
+    pub fn paste_text(
+        &mut self,
+        side: DiffSide,
+        text: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
+        if !self.sides.editable(side) {
+            return Err(format!("paste: the {} side is read-only", side.name()));
+        }
+        self.focus(side, window, cx);
+        if !text.is_empty() {
+            self.editor(side)
+                .update(cx, |state, cx| state.replace(text, window, cx));
+        }
+        Ok(())
+    }
+
+    /// What each side offers the editor's commands now (old side first).
+    pub fn standing(&self, cx: &App) -> [CommandStanding; 2] {
+        DiffSide::BOTH.map(|side| {
+            let state = self.editor(side).read(cx);
+            CommandStanding {
+                editable: self.sides.editable(side),
+                empty: state.text().len() == 0,
+                selection: !state.selected_range().is_empty(),
+            }
+        })
+    }
+
+    /// Tells the host when what the sides offer has changed since it was last told.
+    fn update_standing(&mut self, cx: &mut Context<Self>) {
+        let standing = self.standing(cx);
+        if self.standing != Some(standing) {
+            self.standing = Some(standing);
+            cx.emit(ReviewEvent::Standing(standing));
+        }
     }
 
     /// The host saved `text` for the side: it is the side's baseline from now on.
@@ -1288,6 +1413,221 @@ mod editing_tests {
             view.set_editor_settings(None, &settings(r#"{"fontSize": null}"#), window, cx)
         });
         assert_eq!(o.view.read_with(o.cx, |view, _| view.font_size()), None);
+    }
+
+    /// The key gpui-kit binds to a command natively here (macOS: the table's Mac column; elsewhere the other).
+    fn native_key(command: EditorCommand) -> &'static str {
+        key_of(command, cfg!(target_os = "macos")).unwrap()
+    }
+
+    fn run(o: &mut Opened<'_>, side: DiffSide, command: EditorCommand) -> Result<(), String> {
+        let result = o
+            .view
+            .update_in(o.cx, |view, window, cx| view.run_command(side, command, window, cx));
+        o.draw();
+        result
+    }
+
+    fn selected(o: &mut Opened<'_>, side: DiffSide) -> Range<usize> {
+        o.view
+            .read_with(o.cx, |view, cx| view.editor(side).read(cx).selected_range())
+    }
+
+    fn clipboard(o: &mut Opened<'_>) -> Option<String> {
+        o.cx.update(|_, cx| cx.read_from_clipboard().and_then(|item| item.text()))
+    }
+
+    /// The gate on the road: a button's command is the key's action, so Undo by the button undoes exactly what the
+    /// keystroke's Undo would — and Redo, Indent and Outdent alike.
+    #[gpui::test]
+    fn the_button_undoes_what_the_keystroke_would(cx: &mut TestAppContext) {
+        let mut o = open(cx);
+        show_file(&mut o, "a\nb\n", false);
+        o.focus(DiffSide::New);
+        o.cx.simulate_input("x");
+        o.pause(RECOMPARE_DELAY);
+        o.cx.simulate_keystrokes(native_key(EditorCommand::Undo));
+        let by_key = o.text(DiffSide::New);
+        o.cx.simulate_keystrokes(native_key(EditorCommand::Redo));
+        let redone_by_key = o.text(DiffSide::New);
+        assert_eq!((by_key.as_str(), redone_by_key.as_str()), ("a\nb\n", "xa\nb\n"));
+        run(&mut o, DiffSide::New, EditorCommand::Undo).unwrap();
+        assert_eq!(o.text(DiffSide::New), by_key);
+        run(&mut o, DiffSide::New, EditorCommand::Redo).unwrap();
+        assert_eq!(o.text(DiffSide::New), redone_by_key);
+        // Indent and Outdent: the button's text is the key's.
+        o.cx.simulate_keystrokes(native_key(EditorCommand::Indent));
+        let indented_by_key = o.text(DiffSide::New);
+        o.cx.simulate_keystrokes(native_key(EditorCommand::Outdent));
+        let outdented_by_key = o.text(DiffSide::New);
+        assert_ne!(indented_by_key, outdented_by_key);
+        run(&mut o, DiffSide::New, EditorCommand::Indent).unwrap();
+        assert_eq!(o.text(DiffSide::New), indented_by_key);
+        run(&mut o, DiffSide::New, EditorCommand::Outdent).unwrap();
+        assert_eq!(o.text(DiffSide::New), outdented_by_key);
+    }
+
+    #[gpui::test]
+    fn select_all_copy_cut_and_find_run_the_editor_s_own_actions(cx: &mut TestAppContext) {
+        let mut o = open(cx);
+        show_file(&mut o, "one\ntwo\n", false);
+        run(&mut o, DiffSide::New, EditorCommand::SelectAll).unwrap();
+        assert_eq!(selected(&mut o, DiffSide::New), 0..8);
+        run(&mut o, DiffSide::New, EditorCommand::Copy).unwrap();
+        assert_eq!(clipboard(&mut o).as_deref(), Some("one\ntwo\n"));
+        assert_eq!(o.text(DiffSide::New), "one\ntwo\n");
+        o.cx.update(|_, cx| cx.write_to_clipboard(gpui::ClipboardItem::new_string(String::new())));
+        run(&mut o, DiffSide::New, EditorCommand::Cut).unwrap();
+        assert_eq!(clipboard(&mut o).as_deref(), Some("one\ntwo\n"));
+        assert_eq!(o.text(DiffSide::New), "");
+        // One Undo by its key brings the cut text back.
+        o.cx.simulate_keystrokes(native_key(EditorCommand::Undo));
+        assert_eq!(o.text(DiffSide::New), "one\ntwo\n");
+        // Find opens the editor's own search, as its key does.
+        let searching = |o: &mut Opened<'_>| {
+            o.view.read_with(o.cx, |view, cx| {
+                view.editor(DiffSide::New).read(cx).search_session().open
+            })
+        };
+        assert!(!searching(&mut o));
+        run(&mut o, DiffSide::New, EditorCommand::Find).unwrap();
+        assert!(searching(&mut o));
+    }
+
+    #[gpui::test]
+    fn a_paste_brings_its_text_as_one_edit_and_a_read_only_side_refuses_edits(cx: &mut TestAppContext) {
+        let mut o = open(cx);
+        show_file(&mut o, "a\nb\n", false);
+        o.focus(DiffSide::New);
+        o.cx.simulate_input("x");
+        // Over the selection: "xa" is replaced by the clipboard's text, the caret after it.
+        o.view.update(o.cx, |view, cx| {
+            view.editor(DiffSide::New)
+                .update(cx, |state, cx| state.set_selected_range(0..2, cx))
+        });
+        let paste = |o: &mut Opened<'_>, text: &str| {
+            let text = text.to_owned();
+            o.view.update_in(o.cx, |view, window, cx| {
+                view.paste_text(DiffSide::New, text, window, cx)
+            })
+        };
+        paste(&mut o, "pasted\nlines").unwrap();
+        assert_eq!(o.text(DiffSide::New), "pasted\nlines\nb\n");
+        assert_eq!(selected(&mut o, DiffSide::New), 12..12);
+        // One Undo takes the paste back, and only the paste.
+        o.cx.simulate_keystrokes(native_key(EditorCommand::Undo));
+        assert_eq!(o.text(DiffSide::New), "xa\nb\n");
+        // An empty clipboard changes nothing.
+        paste(&mut o, "").unwrap();
+        assert_eq!(o.text(DiffSide::New), "xa\nb\n");
+        // Read only: the commands that change the text are refused, the others run.
+        show_file(&mut o, "c\n", true);
+        assert_eq!(paste(&mut o, "q"), Err("paste: the new side is read-only".to_owned()));
+        for command in [EditorCommand::Undo, EditorCommand::Cut, EditorCommand::Indent] {
+            assert!(run(&mut o, DiffSide::New, command).is_err(), "{}", command.name());
+        }
+        assert_eq!(
+            run(&mut o, DiffSide::New, EditorCommand::Paste),
+            Err("paste: the text comes with paste_text".to_owned())
+        );
+        run(&mut o, DiffSide::New, EditorCommand::SelectAll).unwrap();
+        run(&mut o, DiffSide::New, EditorCommand::Copy).unwrap();
+        assert_eq!(clipboard(&mut o).as_deref(), Some("c\n"));
+        assert_eq!(o.text(DiffSide::New), "c\n");
+    }
+
+    #[gpui::test]
+    fn the_standing_is_told_whenever_it_changes(cx: &mut TestAppContext) {
+        let mut o = open(cx);
+        let told = Rc::new(RefCell::new(Vec::new()));
+        let sink = told.clone();
+        let view = o.view.clone();
+        o.cx.update(|_, cx| {
+            cx.subscribe(&view, move |_, event: &ReviewEvent, _| {
+                if let ReviewEvent::Standing(standing) = event {
+                    sink.borrow_mut().push(*standing);
+                }
+            })
+            .detach()
+        });
+        let last = |told: &Rc<RefCell<Vec<[CommandStanding; 2]>>>| told.borrow().last().copied();
+        let side = |editable, empty, selection| CommandStanding {
+            editable,
+            empty,
+            selection,
+        };
+        // A read-only text with nothing selected: every flag off, as a standing nobody computed yet would read — told
+        // all the same, since the host knows nothing until it is told.
+        show_file(&mut o, "a\n", true);
+        assert_eq!(last(&told), Some([side(false, false, false); 2]));
+        show_file(&mut o, "a\n", false);
+        assert_eq!(last(&told), Some([side(false, false, false), side(true, false, false)]));
+        run(&mut o, DiffSide::New, EditorCommand::SelectAll).unwrap();
+        assert_eq!(last(&told).unwrap()[1], side(true, false, true));
+        run(&mut o, DiffSide::New, EditorCommand::Cut).unwrap();
+        assert_eq!(last(&told).unwrap()[1], side(true, true, false));
+        // Nothing moved: nothing told.
+        let count = told.borrow().len();
+        o.draw();
+        o.pause(RECOMPARE_DELAY * 2);
+        assert_eq!(told.borrow().len(), count);
+        o.editable(DiffSide::New, false);
+        assert_eq!(last(&told).unwrap()[1], side(false, true, false));
+    }
+
+    /// The one table of keys is what the module binds: each key resolves to its command's action in the editor's
+    /// context — the Mac column as the module binds it in a browser, the other column as gpui-kit binds it (natively on
+    /// a host that is not a Mac) — and Ctrl+V is left to the browser's paste.
+    #[gpui::test]
+    fn the_table_s_keys_are_the_keys_the_module_binds(cx: &mut TestAppContext) {
+        use gpui::{KeyContext, Keystroke};
+
+        cx.update(gpui_component::init);
+        let resolves = |cx: &mut TestAppContext, key: &'static str| {
+            cx.update(|cx| {
+                let keymap = cx.key_bindings();
+                let keymap = keymap.borrow();
+                let (bindings, _) = keymap.bindings_for_input(
+                    &[Keystroke::parse(key).unwrap()],
+                    &[KeyContext::parse("Input").unwrap()],
+                );
+                bindings.first().map(|binding| binding.action().boxed_clone())
+            })
+        };
+        cx.update(|cx| bind_module_keys(false, cx));
+        assert!(
+            resolves(cx, key_of(EditorCommand::Paste, false).unwrap())
+                .is_none_or(|action| !action.partial_eq(&input::Paste)),
+            "Ctrl+V reaches gpui-kit's Paste"
+        );
+        // gpui-kit's own bindings are the other column only where it is compiled for a system that is not macOS.
+        if !cfg!(target_os = "macos") {
+            for command in EditorCommand::ALL {
+                let Some(action) = command_action(command) else {
+                    continue;
+                };
+                let key = key_of(command, false).unwrap();
+                let bound = resolves(cx, key);
+                assert!(
+                    bound.is_some_and(|b| b.partial_eq(action.as_ref())),
+                    "{key} → {}",
+                    command.name()
+                );
+            }
+        }
+        cx.update(|cx| bind_module_keys(true, cx));
+        for command in EditorCommand::ALL {
+            let Some(action) = command_action(command) else {
+                continue;
+            };
+            let key = key_of(command, true).unwrap();
+            let bound = resolves(cx, key);
+            assert!(
+                bound.is_some_and(|b| b.partial_eq(action.as_ref())),
+                "{key} → {}",
+                command.name()
+            );
+        }
     }
 
     /// A grammar that arrives after its text is shown (feature `grammar-files`): the view highlights again when the

@@ -1,0 +1,11 @@
+{
+  "undo": { "mac": "cmd-z", "other": "ctrl-z" },
+  "redo": { "mac": "cmd-shift-z", "other": "ctrl-y" },
+  "cut": { "mac": "cmd-x", "other": "ctrl-x" },
+  "copy": { "mac": "cmd-c", "other": "ctrl-c" },
+  "paste": { "mac": "cmd-v", "other": "ctrl-v" },
+  "selectAll": { "mac": "cmd-a", "other": "ctrl-a" },
+  "indent": { "mac": "cmd-]", "other": "ctrl-]" },
+  "outdent": { "mac": "cmd-[", "other": "ctrl-[" },
+  "find": { "mac": "cmd-f", "other": "ctrl-f" }
+}
