@@ -84,22 +84,199 @@
     "$defs": {
       "AnnouncedLimits": {
         "additionalProperties": false,
-        "description": "The limits `welcome` reports.",
+        "description": "Every limit of the API, as `welcome.limits` announces them: the values this companion enforces (the defaults\nare in `docs/api.md`).",
         "properties": {
+          "binarySniffBytes": {
+            "description": "Bytes sniffed for a NUL to call a file binary.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "commitTimeoutMs": {
+            "description": "Longest a commit with its hooks (and `devtab doctor --commit`) may take, in milliseconds: then git and\neverything it started are stopped (`hook-timeout`).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "diskFloorBytes": {
+            "description": "Least free space on the volume of the companion's state or of the project (`disk-low` below it).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "editSessionMs": {
+            "description": "A file's editing session ends after this many milliseconds without a write to it; a new session starts with\na new \"before\" copy.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxBrowserConnections": {
+            "description": "Most browser connections open at once, for the whole supervisor.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxChangedPaths": {
+            "description": "Most paths in one `files.changed` event (`more` above it).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxFindResults": {
+            "description": "Most results of `files.find`.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxFolderFiles": {
+            "description": "Most files in a folder that is renamed or deleted (`too-many-files` above it).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxFrameBytes": {
+            "description": "Largest frame the supervisor sends; longer messages are cut into `chunk` frames.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxGitPaths": {
+            "description": "Most paths one `git.commit` or `git.rollback` names (`invalid-params` above it).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxHistoryPage": {
+            "description": "Most points on one page of `history.project`.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxHookOutputBytes": {
+            "description": "Most bytes of a hook's output in an error's `data.output` (the end is kept, the cut marked).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxHookStreamBytes": {
+            "description": "Most bytes of git's and the hooks' output streamed by one `git.commit` (the rest is not streamed).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxPathBytes": {
+            "description": "Longest path, in bytes.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
           "maxRequestBytes": {
+            "description": "Largest request frame from the extension, in bytes (`invalid-params` above it).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxSearchBytes": {
+            "description": "Most bytes streamed by one `search.start` (`truncated` above it).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxSearchMatches": {
+            "description": "Most matches of one `search.start` (`truncated` above it).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxSegmentBytes": {
+            "description": "Longest path segment, in bytes.",
             "format": "uint64",
             "minimum": 0,
             "type": "integer"
           },
           "maxTextBytes": {
+            "description": "Largest text of a file, a diff side or a history point, in bytes (`too-large` above it).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxTreeEntries": {
+            "description": "Most entries of one `tree.list` answer (`truncated` above it).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "minSaveIntervalMs": {
+            "description": "Least time between two `file.save` of one file, in milliseconds (`rate-limited` sooner).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "readsPerSecond": {
+            "description": "Read calls per second, for the whole supervisor (`rate-limited` above it).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "relayMaxInBytes": {
+            "description": "Largest frame Chrome sends to a native host.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "relayMaxOutBytes": {
+            "description": "Largest frame Chrome accepts from a native host; the relay refuses to forward more.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "searchesPerConnection": {
+            "description": "Searches running at once on one connection.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "snapshotBudgetBytes": {
+            "description": "Most bytes of the companion's \"before\" copies, for all projects together (`disk-low` once reached).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "writesPerSecond": {
+            "description": "Write calls per second, for the whole supervisor (`rate-limited` above it).",
             "format": "uint64",
             "minimum": 0,
             "type": "integer"
           }
         },
         "required": [
+          "binarySniffBytes",
+          "commitTimeoutMs",
+          "diskFloorBytes",
+          "editSessionMs",
+          "maxBrowserConnections",
+          "maxChangedPaths",
+          "maxFindResults",
+          "maxFolderFiles",
+          "maxFrameBytes",
+          "maxGitPaths",
+          "maxHistoryPage",
+          "maxHookOutputBytes",
+          "maxHookStreamBytes",
+          "maxPathBytes",
           "maxRequestBytes",
-          "maxTextBytes"
+          "maxSearchBytes",
+          "maxSearchMatches",
+          "maxSegmentBytes",
+          "maxTextBytes",
+          "maxTreeEntries",
+          "minSaveIntervalMs",
+          "readsPerSecond",
+          "relayMaxInBytes",
+          "relayMaxOutBytes",
+          "searchesPerConnection",
+          "snapshotBudgetBytes",
+          "writesPerSecond"
         ],
         "type": "object"
       },
@@ -385,7 +562,8 @@
             "type": "string"
           },
           "limits": {
-            "$ref": "#/$defs/AnnouncedLimits"
+            "$ref": "#/$defs/AnnouncedLimits",
+            "description": "Every limit, with the value this companion enforces."
           },
           "methods": {
             "description": "The methods this companion offers; the extension hides what is missing.",

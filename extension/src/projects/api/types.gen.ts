@@ -400,6 +400,8 @@ export interface Gap {
 
 /** One point of `history.file`. */
 export interface HistoryPoint {
+  /** Whether the point keeps a version of the file. True: `history.content`, `diff.sides` (`base: {point}`) and `history.restore` give its text (`too-large` above `limits.maxTextBytes`). False: they answer `not-found` — a moment the companion noted without a text (`Before create`, `Deleted while away`, a write's `Before …` of a binary file or of one above the text limit) or a commit that does not hold the file (the commit that deleted it). Both while the path stays as it was (a symlink there serves no point). Companions older than this field do not send it. */
+  content: boolean;
   /** The server's `External change`, `Saved`, `Deleted`; the companion's `Before save`, `Before edit`, `Before restore`, `Before rollback`, `Before rename`, `Before delete`, `Before create`, `Uncommitted when added`, `Uncommitted when made writable`, `Changed while away`, `Deleted while away`, `External change`; a commit's summary. */
   label: string;
   /** Opaque to the extension; pass it to `history.content`, `diff.sides` or `history.restore`. */
@@ -424,7 +426,7 @@ export interface HistoryProjectParams {
 
 /** `history.project`. */
 export interface HistoryProject {
-  /** Files with history that no longer exist on disk. */
+  /** Files that no longer exist on disk and have at least one point in this feed: the server's (as S6 allows) or the companion's, with or without content (so also a file whose only point is `Deleted while away`). Listed whatever `since`, `cursor` and `limit`. `history.file` of such a file adds its commits; `history.restore` of a point with `content` creates the file again. */
   deleted: string[];
   /** The cursor of the next page; null on the last one. */
   next?: string | null;
@@ -434,6 +436,8 @@ export interface HistoryProject {
 
 /** One point of `history.project`. */
 export interface ProjectPoint {
+  /** As `history.file`'s `content`: whether `history.content`, `diff.sides` and `history.restore` give the point's text (true) or answer `not-found` (false). */
+  content: boolean;
   label: string;
   path: string;
   point: string;
@@ -645,10 +649,62 @@ export type ProjectsChanged = Record<string, never>;
 /** `server.restarted`: a new server process is ready; read again what is shown. No data. */
 export type ServerRestarted = Record<string, never>;
 
-/** The limits `welcome` reports. */
+/** Every limit of the API, as `welcome.limits` announces them: the values this companion enforces (the defaults are in `docs/api.md`). */
 export interface AnnouncedLimits {
+  /** Bytes sniffed for a NUL to call a file binary. */
+  binarySniffBytes: number;
+  /** Longest a commit with its hooks (and `devtab doctor --commit`) may take, in milliseconds: then git and everything it started are stopped (`hook-timeout`). */
+  commitTimeoutMs: number;
+  /** Least free space on the volume of the companion's state or of the project (`disk-low` below it). */
+  diskFloorBytes: number;
+  /** A file's editing session ends after this many milliseconds without a write to it; a new session starts with a new "before" copy. */
+  editSessionMs: number;
+  /** Most browser connections open at once, for the whole supervisor. */
+  maxBrowserConnections: number;
+  /** Most paths in one `files.changed` event (`more` above it). */
+  maxChangedPaths: number;
+  /** Most results of `files.find`. */
+  maxFindResults: number;
+  /** Most files in a folder that is renamed or deleted (`too-many-files` above it). */
+  maxFolderFiles: number;
+  /** Largest frame the supervisor sends; longer messages are cut into `chunk` frames. */
+  maxFrameBytes: number;
+  /** Most paths one `git.commit` or `git.rollback` names (`invalid-params` above it). */
+  maxGitPaths: number;
+  /** Most points on one page of `history.project`. */
+  maxHistoryPage: number;
+  /** Most bytes of a hook's output in an error's `data.output` (the end is kept, the cut marked). */
+  maxHookOutputBytes: number;
+  /** Most bytes of git's and the hooks' output streamed by one `git.commit` (the rest is not streamed). */
+  maxHookStreamBytes: number;
+  /** Longest path, in bytes. */
+  maxPathBytes: number;
+  /** Largest request frame from the extension, in bytes (`invalid-params` above it). */
   maxRequestBytes: number;
+  /** Most bytes streamed by one `search.start` (`truncated` above it). */
+  maxSearchBytes: number;
+  /** Most matches of one `search.start` (`truncated` above it). */
+  maxSearchMatches: number;
+  /** Longest path segment, in bytes. */
+  maxSegmentBytes: number;
+  /** Largest text of a file, a diff side or a history point, in bytes (`too-large` above it). */
   maxTextBytes: number;
+  /** Most entries of one `tree.list` answer (`truncated` above it). */
+  maxTreeEntries: number;
+  /** Least time between two `file.save` of one file, in milliseconds (`rate-limited` sooner). */
+  minSaveIntervalMs: number;
+  /** Read calls per second, for the whole supervisor (`rate-limited` above it). */
+  readsPerSecond: number;
+  /** Largest frame Chrome sends to a native host. */
+  relayMaxInBytes: number;
+  /** Largest frame Chrome accepts from a native host; the relay refuses to forward more. */
+  relayMaxOutBytes: number;
+  /** Searches running at once on one connection. */
+  searchesPerConnection: number;
+  /** Most bytes of the companion's "before" copies, for all projects together (`disk-low` once reached). */
+  snapshotBudgetBytes: number;
+  /** Write calls per second, for the whole supervisor (`rate-limited` above it). */
+  writesPerSecond: number;
 }
 
 /** The body of an `error` frame. */
@@ -820,6 +876,7 @@ export type ServerFrame =
       api: number;
       /** The companion's version. */
       companion: string;
+      /** Every limit, with the value this companion enforces. */
       limits: AnnouncedLimits;
       /** The methods this companion offers; the extension hides what is missing. */
       methods: string[];

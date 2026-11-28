@@ -68,6 +68,10 @@
         "additionalProperties": false,
         "description": "One point of `history.project`.",
         "properties": {
+          "content": {
+            "description": "As `history.file`'s `content`: whether `history.content`, `diff.sides` and `history.restore` give the\npoint's text (true) or answer `not-found` (false).",
+            "type": "boolean"
+          },
           "label": {
             "type": "string"
           },
@@ -97,7 +101,8 @@
           "label",
           "source",
           "size",
-          "timeMs"
+          "timeMs",
+          "content"
         ],
         "type": "object"
       }
@@ -107,7 +112,7 @@
     "description": "`history.project`.",
     "properties": {
       "deleted": {
-        "description": "Files with history that no longer exist on disk.",
+        "description": "Files that no longer exist on disk and have at least one point in this feed: the server's (as S6 allows) or\nthe companion's, with or without content (so also a file whose only point is `Deleted while away`). Listed\nwhatever `since`, `cursor` and `limit`. `history.file` of such a file adds its commits; `history.restore` of\na point with `content` creates the file again.",
         "items": {
           "type": "string"
         },

@@ -1,7 +1,7 @@
 [
   {
     "request": {
-      "id": 71,
+      "id": 73,
       "method": "git.rollback",
       "params": {
         "deleteAdded": false,
@@ -26,7 +26,7 @@
       "type": "call"
     },
     "response": {
-      "id": 71,
+      "id": 73,
       "result": {
         "rolledBack": [
           "src/app.txt",
@@ -39,7 +39,7 @@
   },
   {
     "request": {
-      "id": 72,
+      "id": 74,
       "method": "git.rollback",
       "params": {
         "deleteAdded": true,
@@ -63,13 +63,13 @@
         "code": "trash-unavailable",
         "message": "the companion cannot move files to the Trash here, so it deleted nothing; delete the file in Finder"
       },
-      "id": 72,
+      "id": 74,
       "type": "error"
     }
   },
   {
     "request": {
-      "id": 73,
+      "id": 75,
       "method": "git.rollback",
       "params": {
         "deleteAdded": false,
@@ -93,7 +93,7 @@
         "code": "secret-file",
         "message": "secret files are shown read-only and never written from the browser; edit them in your own editor"
       },
-      "id": 73,
+      "id": 75,
       "type": "error"
     }
   }

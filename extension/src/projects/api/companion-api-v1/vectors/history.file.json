@@ -15,6 +15,7 @@
         "gaps": [],
         "points": [
           {
+            "content": true,
             "label": "External change",
             "point": "s:<ID>@0:646f63732f726561646d652e6d64",
             "size": 26,
@@ -22,6 +23,7 @@
             "timeMs": 0
           },
           {
+            "content": true,
             "label": "Second commit",
             "point": "g:a5c8a8f38f555426b8634a56dac2a7423e9f3902@1767312000000:646f63732f726561646d652e6d64",
             "size": 0,
@@ -29,6 +31,7 @@
             "timeMs": 1767312000000
           },
           {
+            "content": true,
             "label": "First commit",
             "point": "g:0c7a861fca255928ca618426f5393578e9d2d984@1767225600000:646f63732f726561646d652e6d64",
             "size": 0,
@@ -57,6 +60,42 @@
       },
       "id": 34,
       "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 58,
+      "method": "history.file",
+      "params": {
+        "path": "notes/new.txt",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 58,
+      "result": {
+        "gaps": [],
+        "points": [
+          {
+            "content": true,
+            "label": "Before rename",
+            "point": "c:5c8ead41b7018d96e1a50cc1739ba4f4b2c7cda3a1d98d6c599aa37a3148d224@0:6e6f7465732f6e65772e747874",
+            "size": 17,
+            "source": "companion",
+            "timeMs": 0
+          },
+          {
+            "content": false,
+            "label": "Before create",
+            "point": "c:none@0:6e6f7465732f6e65772e747874",
+            "size": 0,
+            "source": "companion",
+            "timeMs": 0
+          }
+        ]
+      },
+      "type": "result"
     }
   }
 ]

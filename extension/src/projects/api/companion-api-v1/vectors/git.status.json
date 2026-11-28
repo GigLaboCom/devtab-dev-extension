@@ -95,7 +95,7 @@
   },
   {
     "request": {
-      "id": 68,
+      "id": 70,
       "method": "git.status",
       "params": {
         "project": "p_abcdefgh23"
@@ -103,7 +103,7 @@
       "type": "call"
     },
     "response": {
-      "id": 68,
+      "id": 70,
       "result": {
         "branch": "main",
         "files": [
@@ -198,7 +198,7 @@
   },
   {
     "request": {
-      "id": 83,
+      "id": 85,
       "method": "git.status",
       "params": {
         "project": "p_abcdefgh23"
@@ -206,7 +206,7 @@
       "type": "call"
     },
     "response": {
-      "id": 83,
+      "id": 85,
       "result": {
         "branch": "main",
         "files": [

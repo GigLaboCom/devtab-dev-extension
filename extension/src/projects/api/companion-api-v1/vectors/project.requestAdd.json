@@ -1,7 +1,7 @@
 [
   {
     "request": {
-      "id": 75,
+      "id": 77,
       "method": "project.requestAdd",
       "params": {
         "path": "<HOME>/fx/repo"
@@ -9,7 +9,7 @@
       "type": "call"
     },
     "response": {
-      "id": 75,
+      "id": 77,
       "result": {
         "class": "mine",
         "id": "p_abcdefgh23",
@@ -20,7 +20,7 @@
   },
   {
     "request": {
-      "id": 76,
+      "id": 78,
       "method": "project.requestAdd",
       "params": {
         "path": "<HOME>/fx/outside"
@@ -32,13 +32,13 @@
         "code": "not-found",
         "message": "not found"
       },
-      "id": 76,
+      "id": 78,
       "type": "error"
     }
   },
   {
     "request": {
-      "id": 77,
+      "id": 79,
       "method": "project.requestAdd",
       "params": {
         "path": "<HOME>/fx/no-such-folder"
@@ -50,13 +50,13 @@
         "code": "not-found",
         "message": "not found"
       },
-      "id": 77,
+      "id": 79,
       "type": "error"
     }
   },
   {
     "request": {
-      "id": 78,
+      "id": 80,
       "method": "project.requestAdd",
       "params": {
         "path": "/no-such-folder/app"
@@ -72,13 +72,13 @@
         },
         "message": "the companion cannot show its window; run the command in a terminal instead"
       },
-      "id": 78,
+      "id": 80,
       "type": "error"
     }
   },
   {
     "request": {
-      "id": 79,
+      "id": 81,
       "method": "project.requestAdd",
       "params": {
         "path": "relative/app"
@@ -90,7 +90,7 @@
         "code": "not-found",
         "message": "not found"
       },
-      "id": 79,
+      "id": 81,
       "type": "error"
     }
   }

@@ -1,7 +1,7 @@
 [
   {
     "request": {
-      "id": 86,
+      "id": 88,
       "method": "project.remove",
       "params": {
         "project": "p_abcdefgh23"
@@ -9,14 +9,14 @@
       "type": "call"
     },
     "response": {
-      "id": 86,
+      "id": 88,
       "result": {},
       "type": "result"
     }
   },
   {
     "request": {
-      "id": 87,
+      "id": 89,
       "method": "project.remove",
       "params": {
         "project": "p_abcdefgh23"
@@ -28,7 +28,7 @@
         "code": "not-found",
         "message": "no such project"
       },
-      "id": 87,
+      "id": 89,
       "type": "error"
     }
   }

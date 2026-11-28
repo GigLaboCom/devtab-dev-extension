@@ -16,6 +16,7 @@
         "next": null,
         "points": [
           {
+            "content": true,
             "label": "External change",
             "path": "docs/readme.md",
             "point": "s:<ID>@0:646f63732f726561646d652e6d64",
@@ -24,6 +25,28 @@
             "timeMs": 0
           }
         ]
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 59,
+      "method": "history.project",
+      "params": {
+        "project": "p_abcdefgh23",
+        "since": 4102444800000
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 59,
+      "result": {
+        "deleted": [
+          "notes/new.txt"
+        ],
+        "next": null,
+        "points": []
       },
       "type": "result"
     }

@@ -1,7 +1,7 @@
 [
   {
     "request": {
-      "id": 69,
+      "id": 71,
       "method": "git.undoCommit",
       "params": {
         "headSha": "5b6b5f775097e72d2b9ef3ae399007246d513b99",
@@ -17,13 +17,13 @@
         },
         "message": "HEAD is not the commit the page showed; reload and try again"
       },
-      "id": 69,
+      "id": 71,
       "type": "error"
     }
   },
   {
     "request": {
-      "id": 70,
+      "id": 72,
       "method": "git.undoCommit",
       "params": {
         "headSha": "18164950badb5dbbf3f6ed43a694fbc95b0916d1",
@@ -32,7 +32,7 @@
       "type": "call"
     },
     "response": {
-      "id": 70,
+      "id": 72,
       "result": {
         "message": "Add new.txt",
         "paths": [

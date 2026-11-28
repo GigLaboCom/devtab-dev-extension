@@ -46,6 +46,10 @@
         "additionalProperties": false,
         "description": "One point of `history.file`.",
         "properties": {
+          "content": {
+            "description": "Whether the point keeps a version of the file. True: `history.content`, `diff.sides` (`base: {point}`) and\n`history.restore` give its text (`too-large` above `limits.maxTextBytes`). False: they answer `not-found` —\na moment the companion noted without a text (`Before create`, `Deleted while away`, a write's `Before …`\nof a binary file or of one above the text limit) or a commit that does not hold the file (the commit that\ndeleted it). Both while the path stays as it was (a symlink there serves no point). Companions older than\nthis field do not send it.",
+            "type": "boolean"
+          },
           "label": {
             "description": "The server's `External change`, `Saved`, `Deleted`; the companion's `Before save`, `Before edit`,\n`Before restore`, `Before rollback`, `Before rename`, `Before delete`, `Before create`, `Uncommitted when\nadded`, `Uncommitted when made writable`, `Changed while away`, `Deleted while away`, `External change`; a\ncommit's summary.",
             "type": "string"
@@ -73,7 +77,8 @@
           "label",
           "source",
           "size",
-          "timeMs"
+          "timeMs",
+          "content"
         ],
         "type": "object"
       },

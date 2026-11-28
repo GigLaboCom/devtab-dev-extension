@@ -1,13 +1,13 @@
 [
   {
     "request": {
-      "id": 74,
+      "id": 76,
       "method": "locations.list",
       "params": {},
       "type": "call"
     },
     "response": {
-      "id": 74,
+      "id": 76,
       "result": [
         {
           "createdVia": "terminal",

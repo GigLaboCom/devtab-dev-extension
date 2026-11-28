@@ -1,7 +1,7 @@
 [
   {
     "request": {
-      "id": 80,
+      "id": 82,
       "method": "project.requestMine",
       "params": {
         "project": "p_abcdefgh23"
@@ -9,7 +9,7 @@
       "type": "call"
     },
     "response": {
-      "id": 80,
+      "id": 82,
       "result": {
         "class": "mine"
       },
@@ -18,7 +18,7 @@
   },
   {
     "request": {
-      "id": 84,
+      "id": 86,
       "method": "project.requestMine",
       "params": {
         "project": "p_abcdefgh23"
@@ -34,7 +34,7 @@
         },
         "message": "the companion cannot show its window; run the command in a terminal instead"
       },
-      "id": 84,
+      "id": 86,
       "type": "error"
     }
   }
