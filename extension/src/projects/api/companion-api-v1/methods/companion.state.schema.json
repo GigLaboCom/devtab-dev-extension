@@ -48,6 +48,35 @@
         ],
         "type": "object"
       },
+      "FileMode": {
+        "description": "What the page may do with an open file.",
+        "oneOf": [
+          {
+            "const": "edit",
+            "description": "Read and write it (`openFile.save`, `openFile.restore`).",
+            "type": "string"
+          },
+          {
+            "const": "read",
+            "description": "Read it only; `reason` says why.",
+            "type": "string"
+          }
+        ]
+      },
+      "OpenFilesState": {
+        "additionalProperties": false,
+        "description": "`companion.state.openFiles`: the setting for open files that run by themselves.",
+        "properties": {
+          "executes": {
+            "$ref": "#/$defs/FileMode",
+            "description": "`edit`: written with a mark (the default); `read`: read-only (`devtab files policy --executes`)."
+          }
+        },
+        "required": [
+          "executes"
+        ],
+        "type": "object"
+      },
       "ServerRunState": {
         "oneOf": [
           {
@@ -97,6 +126,10 @@
       "env": {
         "$ref": "#/$defs/EnvState"
       },
+      "openFiles": {
+        "$ref": "#/$defs/OpenFilesState",
+        "description": "The setting for open files (`openFile.*`). Companions older than open files do not send it (nor list the\n`openFile.*` methods in `welcome.methods`)."
+      },
       "paused": {
         "description": "Whether writing is paused (always false: this version has no pause).",
         "type": "boolean"
@@ -118,7 +151,8 @@
       "env",
       "paused",
       "problems",
-      "deletePolicy"
+      "deletePolicy",
+      "openFiles"
     ],
     "title": "CompanionState",
     "type": "object"

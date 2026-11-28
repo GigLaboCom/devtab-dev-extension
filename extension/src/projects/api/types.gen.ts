@@ -11,6 +11,8 @@ export interface CompanionState {
   /** How deletions from the browser happen: `trash` when they go to the Trash, `unavailable` while the companion has no Trash (`file.delete` is then not in `welcome.methods`, and every deletion is refused with `trash-unavailable`, nothing deleted). */
   deletePolicy: DeletePolicyState;
   env: EnvState;
+  /** The setting for open files (`openFile.*`). Companions older than open files do not send it (nor list the `openFile.*` methods in `welcome.methods`). */
+  openFiles: OpenFilesState;
   /** Whether writing is paused (always false: this version has no pause). */
   paused: boolean;
   /** Problems the person should know about, as short English sentences; `devtab doctor` explains each. */
@@ -26,6 +28,15 @@ export interface EnvState {
   capturedAt?: number | null;
   path: string[];
 }
+
+/** `companion.state.openFiles`: the setting for open files that run by themselves. */
+export interface OpenFilesState {
+  /** `edit`: written with a mark (the default); `read`: read-only (`devtab files policy --executes`). */
+  executes: FileMode;
+}
+
+/** What the page may do with an open file. */
+export type FileMode = 'edit' | 'read';
 
 export interface ServerState {
   state: ServerRunState;
@@ -485,6 +496,97 @@ export type CreatedVia = 'terminal' | 'dialog' | 'init';
 /** What a trusted folder gives the projects inside it. */
 export type LocationMode = 'write' | 'read-only';
 
+/** `openFile.claim` parameters. */
+export interface ClaimParams {
+  /** From `open.requested` or `openFile.pending`: 32 lowercase hexadecimal characters, claimed once. */
+  token: string;
+}
+
+/** Why an open file is read-only. */
+export type ReadReason = 'secret' | 'executes' | 'remote' | 'not-utf8' | 'read-only-file' | 'requested' | 'replaced';
+
+export type ProjectClass = 'view' | 'mine';
+
+/** Parameters naming an open file. */
+export interface FileParams {
+  file: string;
+}
+
+/** `openFile.history`: the companion's copies of the file, newest first (`source` is always `companion`). */
+export interface FileHistory {
+  points: HistoryPoint[];
+}
+
+/** Parameters naming a point of an open file's history. */
+export interface FilePointParams {
+  file: string;
+  /** A point of `openFile.history`. */
+  point: string;
+}
+
+/** One entry of `openFile.list`, the most recently opened first. */
+export interface OpenFileSummary {
+  displayPath: string;
+  executes: boolean;
+  file: string;
+  mode: FileMode;
+  name: string;
+  /** When a person last opened it (ms since the epoch). */
+  openedAt: number;
+  reason?: ReadReason | null;
+  via: OpenedVia;
+}
+
+/** How an open file came. */
+export type OpenedVia = 'open-with' | 'terminal' | 'link';
+
+/** `openFile.pending`: the tokens of openings waiting for this page (each lives `limits.openTokenMs`). */
+export interface PendingOpens {
+  tokens: string[];
+}
+
+/** `openFile.restore` parameters. */
+export interface FileRestoreParams {
+  /** The hash of the file's text as the page showed it (`openFile.read.hash`). */
+  currentHash: string;
+  file: string;
+  /** A point of `openFile.history` that keeps a version (`content: true`). */
+  point: string;
+}
+
+/** `openFile.restore`. */
+export interface FileRestored {
+  /** The copy "Before restore" of what was there; restoring it undoes the restore. */
+  before: string;
+  /** The hash of the file's text now (the next `baseHash`). */
+  hash: string;
+  /** The point now on disk. */
+  restored: string;
+}
+
+/** `openFile.save` parameters. */
+export interface FileSaveParams {
+  /** `openFile.read.hash` of the version the edit started from; a file that changed since is not written (`conflict`). */
+  baseHash: string;
+  file: string;
+  /** The whole new text, with `\n` line ends (`\r\n` and `\r` are read as `\n`); the file keeps its byte order mark and line ends. */
+  text: string;
+}
+
+/** `openFile.save`. */
+export interface FileSaved {
+  /** The new version (the next `baseHash`). */
+  hash: string;
+  mtimeMs: number;
+}
+
+/** `page.activity` parameters: whether the page is visible and when it last got the focus. The companion sends `open.requested` to the page that reported the latest focus (a visible one first); a page that never reported is never sent one. */
+export interface PageActivityParams {
+  /** When the page last got the focus (ms since the epoch). */
+  focusedAt: number;
+  visible: boolean;
+}
+
 /** `project.requestAdd` parameters: the only absolute path the API accepts. */
 export interface RequestAddParams {
   /** The folder to add: an absolute path (`~` is not expanded). */
@@ -497,8 +599,6 @@ export interface RequestAdded {
   id: string;
   via: Via;
 }
-
-export type ProjectClass = 'view' | 'mine';
 
 /** How the project got its class. */
 export type Via = 'terminal' | 'dialog' | 'location' | 'person';
@@ -635,6 +735,12 @@ export interface HistoryGap {
   to: number;
 }
 
+/** `open.requested`: a person opened a file (`devtab open`) and this page was chosen to show it. Claim the token with `openFile.claim`. */
+export interface OpenRequested {
+  /** One-time, `limits.openTokenMs` long, only for a page of the same extension. */
+  token: string;
+}
+
 /** `project.changed`: the project's class or state changed. */
 export interface ProjectChanged {
   class?: ProjectClass | null;
@@ -677,8 +783,12 @@ export interface AnnouncedLimits {
   maxHookOutputBytes: number;
   /** Most bytes of git's and the hooks' output streamed by one `git.commit` (the rest is not streamed). */
   maxHookStreamBytes: number;
+  /** Most open files the companion keeps (`openFile.list`); opening one more drops the one opened longest ago, and with it the page's right to it. */
+  maxOpenFiles: number;
   /** Longest path, in bytes. */
   maxPathBytes: number;
+  /** Most openings waiting for a page at once (`devtab open` is refused above it). */
+  maxPendingOpens: number;
   /** Largest request frame from the extension, in bytes (`invalid-params` above it). */
   maxRequestBytes: number;
   /** Most bytes streamed by one `search.start` (`truncated` above it). */
@@ -693,6 +803,12 @@ export interface AnnouncedLimits {
   maxTreeEntries: number;
   /** Least time between two `file.save` of one file, in milliseconds (`rate-limited` sooner). */
   minSaveIntervalMs: number;
+  /** An open file not opened again by a person for this many milliseconds is dropped from the list. */
+  openFileIdleMs: number;
+  /** How long a token of `open.requested` and `openFile.pending` can be claimed, in milliseconds. */
+  openTokenMs: number;
+  /** Most openings in any ten seconds, for the whole companion (`devtab open` is refused above it). */
+  opensPerTenSeconds: number;
   /** Read calls per second, for the whole supervisor (`rate-limited` above it). */
   readsPerSecond: number;
   /** Largest frame Chrome sends to a native host. */
@@ -760,6 +876,7 @@ export type ErrorCode =
   | 'confirmation-required'
   | 'disk-low'
   | 'not-encodable'
+  | 'not-editable'
   | 'not-running'
   | 'peer-not-allowed'
   | 'too-many-connections'
@@ -817,6 +934,58 @@ export interface ContractMethods {
   'history.restore': { params: RestoreParams; result: Restored; stream: never };
   /** The trusted folders, read-only: no method creates, changes or removes one. Scope: companion. */
   'locations.list': { params: NoParams; result: LocationSummary[]; stream: never };
+  /** Claims a token, once: the open file (its id, mode and marks), or the project's file it names. Scope: companion. */
+  'openFile.claim': {
+    params: ClaimParams;
+    result:
+      | {
+          /** The column to show, 0-based, in characters of the line; null when not asked. */
+          column?: number | null;
+          /** The canonical path, with `~/` for the home folder. */
+          displayPath: string;
+          /** A file that runs by itself (`~/.zshrc`, launch agents, …): marked; each write has its own journal line and a "before" copy. */
+          executes: boolean;
+          file: string;
+          kind: 'file';
+          /** The line to show, 0-based (`devtab open --line 12` gives 11); null when not asked. */
+          line?: number | null;
+          mode: FileMode;
+          /** The file's name. */
+          name: string;
+          /** Why `mode` is `read`; null in mode `edit`. */
+          reason?: ReadReason | null;
+        }
+      | {
+          /** The project's class now. */
+          class: ProjectClass;
+          column?: number | null;
+          displayPath: string;
+          kind: 'project';
+          line?: number | null;
+          name: string;
+          path: string;
+          project: string;
+        };
+    stream: never;
+  };
+  /** Forgets an open file at once: the page loses its right to it and the companion's copies of it go. Scope: file. */
+  'openFile.forget': { params: FileParams; result: Empty; stream: never };
+  /** The companion's copies of an open file, newest first. Scope: file. */
+  'openFile.history': { params: FileParams; result: FileHistory; stream: never };
+  /** The text of one copy of an open file. Scope: file. */
+  'openFile.historyContent': { params: FilePointParams; result: HistoryContent; stream: never };
+  /** The open files, the most recently opened first (at most `limits.maxOpenFiles`). Scope: companion. */
+  'openFile.list': { params: NoParams; result: OpenFileSummary[]; stream: never };
+  /** The tokens of openings waiting for a page of this extension (a page that connects later asks). Scope: companion. */
+  'openFile.pending': { params: NoParams; result: PendingOpens; stream: never };
+  /** The text of an open file, as `file.read` gives a project's file; read by the companion itself. Scope: file. */
+  'openFile.read': { params: FileParams; result: FileText; stream: never };
+  /** Writes a copy's version over an open file, after a copy "Before restore" of what is there. Scope: file-edit. */
+  'openFile.restore': { params: FileRestoreParams; result: FileRestored; stream: never };
+  /** Writes an open file's new text if the file is still the version `baseHash` names (else `conflict`); a "before" copy first; keeps its byte order mark and line ends. Scope: file-edit. */
+  'openFile.save': { params: FileSaveParams; result: FileSaved; stream: never };
+  /** The page tells whether it is visible and when it last got the focus; `open.requested` goes to the page with the latest focus, and never to one that did not report. Scope: companion. */
+  'page.activity': { params: PageActivityParams; result: Empty; stream: never };
   /** Removes a project from the companion at once; nothing in its folder is touched, its history stays. Scope: project. */
   'project.remove': { params: ProjectParams; result: Empty; stream: never };
   /** Asks to add a folder (an absolute path). Inside a trusted folder: added at once. Elsewhere: only after the person confirms in the companion's window; every refusal of the folder is `not-found`. Scope: companion. */
@@ -843,6 +1012,8 @@ export interface ContractEvents {
   'git.changed': GitChanged;
   /** The companion did not watch the project for a while (stopped, server restarted, project removed); it reconciled the files on its return: the history may miss versions from `from` to `to`. */
   'history.gap': HistoryGap;
+  /** Sent to one connection (`project` null): a person opened a file and this page reported the latest focus (`page.activity`); claim `token` with `openFile.claim`. */
+  'open.requested': OpenRequested;
   /** The project's class or state changed (for example, its folder went missing). */
   'project.changed': ProjectChanged;
   /** Sent to every connection (`project` null): a project was added or removed, a class changed, or a trusted folder changed; read `projects.list` and `locations.list` again. */
@@ -943,6 +1114,16 @@ export const CONTRACT_METHODS = [
   'history.requestPurge',
   'history.restore',
   'locations.list',
+  'openFile.claim',
+  'openFile.forget',
+  'openFile.history',
+  'openFile.historyContent',
+  'openFile.list',
+  'openFile.pending',
+  'openFile.read',
+  'openFile.restore',
+  'openFile.save',
+  'page.activity',
   'project.remove',
   'project.requestAdd',
   'project.requestMine',
@@ -958,6 +1139,7 @@ export const CONTRACT_EVENTS = [
   'files.changed',
   'git.changed',
   'history.gap',
+  'open.requested',
   'project.changed',
   'projects.changed',
   'server.restarted',
@@ -1009,6 +1191,7 @@ export const CONTRACT_ERRORS = {
   'confirmation-required': 'write',
   'disk-low': 'files',
   'not-encodable': 'files',
+  'not-editable': 'open',
   'not-running': 'read',
   'peer-not-allowed': 'read',
   'too-many-connections': 'read',

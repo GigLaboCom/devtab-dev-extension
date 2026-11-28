@@ -1,0 +1,30 @@
+{
+  "method": "openFile.pending",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "No parameters.",
+    "title": "NoParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`openFile.pending`: the tokens of openings waiting for this page (each lives `limits.openTokenMs`).",
+    "properties": {
+      "tokens": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "tokens"
+    ],
+    "title": "PendingOpens",
+    "type": "object"
+  },
+  "scope": "companion",
+  "summary": "The tokens of openings waiting for a page of this extension (a page that connects later asks)."
+}

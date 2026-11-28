@@ -1,0 +1,45 @@
+{
+  "method": "openFile.historyContent",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Parameters naming a point of an open file's history.",
+    "properties": {
+      "file": {
+        "type": "string"
+      },
+      "point": {
+        "description": "A point of `openFile.history`.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "file",
+      "point"
+    ],
+    "title": "FilePointParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`history.content`.",
+    "properties": {
+      "secret": {
+        "type": "boolean"
+      },
+      "text": {
+        "description": "With `\\n` line ends for the companion's copies; a copy that is not UTF-8 reads as `windows-1252`.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "text",
+      "secret"
+    ],
+    "title": "HistoryContent",
+    "type": "object"
+  },
+  "scope": "file",
+  "summary": "The text of one copy of an open file."
+}

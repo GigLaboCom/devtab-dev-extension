@@ -1,0 +1,17 @@
+[
+  {
+    "request": {
+      "id": 106,
+      "method": "openFile.forget",
+      "params": {
+        "file": "f_<ID>"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 106,
+      "result": {},
+      "type": "result"
+    }
+  }
+]

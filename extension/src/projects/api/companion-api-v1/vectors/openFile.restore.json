@@ -1,0 +1,23 @@
+[
+  {
+    "request": {
+      "id": 101,
+      "method": "openFile.restore",
+      "params": {
+        "currentHash": "327cab65c1e05c5fdd5bc739c0e33679d095739287bbf55e9925fc1bc76e3b97",
+        "file": "f_<ID>",
+        "point": "f:b3b4dc5f9e66829ac5de8476a2b150030c20d66a3aeaee5f935f9e10b88ef743@0"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 101,
+      "result": {
+        "before": "f:6be5f12a8c6eb95164c03df1f9e1122d409f8afc3b846ae4d742ba7a707674c8@0",
+        "hash": "db85c80086685af004a35de9b8b138d77b68b7d8e881693aa16b87c5422de04d",
+        "restored": "f:b3b4dc5f9e66829ac5de8476a2b150030c20d66a3aeaee5f935f9e10b88ef743@0"
+      },
+      "type": "result"
+    }
+  }
+]

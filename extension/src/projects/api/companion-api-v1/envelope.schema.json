@@ -164,8 +164,20 @@
             "minimum": 0,
             "type": "integer"
           },
+          "maxOpenFiles": {
+            "description": "Most open files the companion keeps (`openFile.list`); opening one more drops the one opened longest ago,\nand with it the page's right to it.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
           "maxPathBytes": {
             "description": "Longest path, in bytes.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxPendingOpens": {
+            "description": "Most openings waiting for a page at once (`devtab open` is refused above it).",
             "format": "uint64",
             "minimum": 0,
             "type": "integer"
@@ -208,6 +220,24 @@
           },
           "minSaveIntervalMs": {
             "description": "Least time between two `file.save` of one file, in milliseconds (`rate-limited` sooner).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "openFileIdleMs": {
+            "description": "An open file not opened again by a person for this many milliseconds is dropped from the list.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "openTokenMs": {
+            "description": "How long a token of `open.requested` and `openFile.pending` can be claimed, in milliseconds.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "opensPerTenSeconds": {
+            "description": "Most openings in any ten seconds, for the whole companion (`devtab open` is refused above it).",
             "format": "uint64",
             "minimum": 0,
             "type": "integer"
@@ -263,7 +293,9 @@
           "maxHistoryPage",
           "maxHookOutputBytes",
           "maxHookStreamBytes",
+          "maxOpenFiles",
           "maxPathBytes",
+          "maxPendingOpens",
           "maxRequestBytes",
           "maxSearchBytes",
           "maxSearchMatches",
@@ -271,6 +303,9 @@
           "maxTextBytes",
           "maxTreeEntries",
           "minSaveIntervalMs",
+          "openFileIdleMs",
+          "openTokenMs",
+          "opensPerTenSeconds",
           "readsPerSecond",
           "relayMaxInBytes",
           "relayMaxOutBytes",
@@ -519,6 +554,11 @@
           {
             "const": "not-encodable",
             "description": "The text has characters the file's encoding cannot hold, or (`history.restore`) a copy that is not UTF-8 would go into a file that is not `windows-1252`; nothing was written.",
+            "type": "string"
+          },
+          {
+            "const": "not-editable",
+            "description": "A write to an open file the page may only read (`openFile.save`, `openFile.restore`); nothing was written. `reason` is as `openFile.list.reason` — `replaced` when the file was replaced, moved or became a symlink since it was opened (it is read-only from now on, until a person opens it again).",
             "type": "string"
           },
           {

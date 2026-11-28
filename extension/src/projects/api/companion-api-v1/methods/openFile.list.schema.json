@@ -1,0 +1,147 @@
+{
+  "method": "openFile.list",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "No parameters.",
+    "title": "NoParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "FileMode": {
+        "description": "What the page may do with an open file.",
+        "oneOf": [
+          {
+            "const": "edit",
+            "description": "Read and write it (`openFile.save`, `openFile.restore`).",
+            "type": "string"
+          },
+          {
+            "const": "read",
+            "description": "Read it only; `reason` says why.",
+            "type": "string"
+          }
+        ]
+      },
+      "OpenFileSummary": {
+        "additionalProperties": false,
+        "description": "One entry of `openFile.list`, the most recently opened first.",
+        "properties": {
+          "displayPath": {
+            "type": "string"
+          },
+          "executes": {
+            "type": "boolean"
+          },
+          "file": {
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/$defs/FileMode"
+          },
+          "name": {
+            "type": "string"
+          },
+          "openedAt": {
+            "description": "When a person last opened it (ms since the epoch).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ReadReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "via": {
+            "$ref": "#/$defs/OpenedVia"
+          }
+        },
+        "required": [
+          "file",
+          "name",
+          "displayPath",
+          "mode",
+          "executes",
+          "via",
+          "openedAt"
+        ],
+        "type": "object"
+      },
+      "OpenedVia": {
+        "description": "How an open file came.",
+        "oneOf": [
+          {
+            "const": "open-with",
+            "description": "\"Open With\" of the system (no version produces it yet).",
+            "type": "string"
+          },
+          {
+            "const": "terminal",
+            "description": "`devtab open` in the person's terminal.",
+            "type": "string"
+          },
+          {
+            "const": "link",
+            "description": "A link of the companion's URL scheme (no version produces it yet).",
+            "type": "string"
+          }
+        ]
+      },
+      "ReadReason": {
+        "description": "Why an open file is read-only.",
+        "oneOf": [
+          {
+            "const": "secret",
+            "description": "A secret place: a secret's name (`.env`, keys, …), `~/.ssh`, `~/.aws`, keychains, browsers' data, the\ncompanion's own state, … — also when reached through a symlink.",
+            "type": "string"
+          },
+          {
+            "const": "executes",
+            "description": "A file that runs by itself (`~/.zshrc`, `~/.gitconfig`, launch agents, …) while the setting\n`[files] executes = \"read\"` makes those read-only.",
+            "type": "string"
+          },
+          {
+            "const": "remote",
+            "description": "Not on a local volume.",
+            "type": "string"
+          },
+          {
+            "const": "not-utf8",
+            "description": "Not UTF-8 text: shown as `windows-1252`, never written.",
+            "type": "string"
+          },
+          {
+            "const": "read-only-file",
+            "description": "The person cannot write the file (no write permission, or another owner).",
+            "type": "string"
+          },
+          {
+            "const": "requested",
+            "description": "The person asked for read-only (`devtab open --read-only`).",
+            "type": "string"
+          },
+          {
+            "const": "replaced",
+            "description": "The file was replaced by another one, moved, or became a symlink since it was opened: read-only until a\nperson opens it again.",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "items": {
+      "$ref": "#/$defs/OpenFileSummary"
+    },
+    "title": "Array_of_OpenFileSummary",
+    "type": "array"
+  },
+  "scope": "companion",
+  "summary": "The open files, the most recently opened first (at most `limits.maxOpenFiles`)."
+}

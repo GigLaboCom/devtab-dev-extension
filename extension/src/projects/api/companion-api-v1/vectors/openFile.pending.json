@@ -1,0 +1,19 @@
+[
+  {
+    "request": {
+      "id": 91,
+      "method": "openFile.pending",
+      "params": {},
+      "type": "call"
+    },
+    "response": {
+      "id": 91,
+      "result": {
+        "tokens": [
+          "<TOKEN>"
+        ]
+      },
+      "type": "result"
+    }
+  }
+]

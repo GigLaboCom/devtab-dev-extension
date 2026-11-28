@@ -1,0 +1,18 @@
+[
+  {
+    "request": {
+      "id": 90,
+      "method": "page.activity",
+      "params": {
+        "focusedAt": 1767225600000,
+        "visible": true
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 90,
+      "result": {},
+      "type": "result"
+    }
+  }
+]

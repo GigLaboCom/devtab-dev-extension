@@ -1,0 +1,34 @@
+{
+  "method": "page.activity",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`page.activity` parameters: whether the page is visible and when it last got the focus. The companion sends\n`open.requested` to the page that reported the latest focus (a visible one first); a page that never reported is\nnever sent one.",
+    "properties": {
+      "focusedAt": {
+        "description": "When the page last got the focus (ms since the epoch).",
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "visible": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "visible",
+      "focusedAt"
+    ],
+    "title": "PageActivityParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "An empty result.",
+    "title": "Empty",
+    "type": "object"
+  },
+  "scope": "companion",
+  "summary": "The page tells whether it is visible and when it last got the focus; `open.requested` goes to the page with the latest focus, and never to one that did not report."
+}

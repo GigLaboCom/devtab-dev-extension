@@ -15,6 +15,9 @@
           "capturedAt": null,
           "path": []
         },
+        "openFiles": {
+          "executes": "edit"
+        },
         "paused": false,
         "problems": [],
         "server": {

@@ -1,0 +1,12 @@
+[
+  {
+    "event": {
+      "data": {
+        "token": "<TOKEN>"
+      },
+      "name": "open.requested",
+      "project": null,
+      "type": "event"
+    }
+  }
+]

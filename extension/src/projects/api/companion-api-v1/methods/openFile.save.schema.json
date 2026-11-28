@@ -1,0 +1,51 @@
+{
+  "method": "openFile.save",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`openFile.save` parameters.",
+    "properties": {
+      "baseHash": {
+        "description": "`openFile.read.hash` of the version the edit started from; a file that changed since is not written\n(`conflict`).",
+        "type": "string"
+      },
+      "file": {
+        "type": "string"
+      },
+      "text": {
+        "description": "The whole new text, with `\\n` line ends (`\\r\\n` and `\\r` are read as `\\n`); the file keeps its byte order\nmark and line ends.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "file",
+      "baseHash",
+      "text"
+    ],
+    "title": "FileSaveParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`openFile.save`.",
+    "properties": {
+      "hash": {
+        "description": "The new version (the next `baseHash`).",
+        "type": "string"
+      },
+      "mtimeMs": {
+        "format": "double",
+        "type": "number"
+      }
+    },
+    "required": [
+      "hash",
+      "mtimeMs"
+    ],
+    "title": "FileSaved",
+    "type": "object"
+  },
+  "scope": "file-edit",
+  "summary": "Writes an open file's new text if the file is still the version `baseHash` names (else `conflict`); a \"before\" copy first; keeps its byte order mark and line ends."
+}

@@ -1,0 +1,216 @@
+{
+  "method": "openFile.claim",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`openFile.claim` parameters.",
+    "properties": {
+      "token": {
+        "description": "From `open.requested` or `openFile.pending`: 32 lowercase hexadecimal characters, claimed once.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "token"
+    ],
+    "title": "ClaimParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "FileMode": {
+        "description": "What the page may do with an open file.",
+        "oneOf": [
+          {
+            "const": "edit",
+            "description": "Read and write it (`openFile.save`, `openFile.restore`).",
+            "type": "string"
+          },
+          {
+            "const": "read",
+            "description": "Read it only; `reason` says why.",
+            "type": "string"
+          }
+        ]
+      },
+      "ProjectClass": {
+        "oneOf": [
+          {
+            "const": "view",
+            "description": "Read-only: the page reads, nothing more.",
+            "type": "string"
+          },
+          {
+            "const": "mine",
+            "description": "Writable: the page may also write files (and use git, in later versions).",
+            "type": "string"
+          }
+        ]
+      },
+      "ReadReason": {
+        "description": "Why an open file is read-only.",
+        "oneOf": [
+          {
+            "const": "secret",
+            "description": "A secret place: a secret's name (`.env`, keys, …), `~/.ssh`, `~/.aws`, keychains, browsers' data, the\ncompanion's own state, … — also when reached through a symlink.",
+            "type": "string"
+          },
+          {
+            "const": "executes",
+            "description": "A file that runs by itself (`~/.zshrc`, `~/.gitconfig`, launch agents, …) while the setting\n`[files] executes = \"read\"` makes those read-only.",
+            "type": "string"
+          },
+          {
+            "const": "remote",
+            "description": "Not on a local volume.",
+            "type": "string"
+          },
+          {
+            "const": "not-utf8",
+            "description": "Not UTF-8 text: shown as `windows-1252`, never written.",
+            "type": "string"
+          },
+          {
+            "const": "read-only-file",
+            "description": "The person cannot write the file (no write permission, or another owner).",
+            "type": "string"
+          },
+          {
+            "const": "requested",
+            "description": "The person asked for read-only (`devtab open --read-only`).",
+            "type": "string"
+          },
+          {
+            "const": "replaced",
+            "description": "The file was replaced by another one, moved, or became a symlink since it was opened: read-only until a\nperson opens it again.",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "`openFile.claim`: what the person opened — a file of its own (`kind: file`), or a file inside an added project,\nwhich opens as that project's file with the project's class (`kind: project`).",
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "description": "`openFile.claim` of a file outside the added projects.",
+        "properties": {
+          "column": {
+            "description": "The column to show, 0-based, in characters of the line; null when not asked.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "displayPath": {
+            "description": "The canonical path, with `~/` for the home folder.",
+            "type": "string"
+          },
+          "executes": {
+            "description": "A file that runs by itself (`~/.zshrc`, launch agents, …): marked; each write has its own journal line and a\n\"before\" copy.",
+            "type": "boolean"
+          },
+          "file": {
+            "type": "string"
+          },
+          "kind": {
+            "const": "file",
+            "type": "string"
+          },
+          "line": {
+            "description": "The line to show, 0-based (`devtab open --line 12` gives 11); null when not asked.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "mode": {
+            "$ref": "#/$defs/FileMode"
+          },
+          "name": {
+            "description": "The file's name.",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ReadReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why `mode` is `read`; null in mode `edit`."
+          }
+        },
+        "required": [
+          "kind",
+          "file",
+          "name",
+          "displayPath",
+          "mode",
+          "executes"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "`openFile.claim` of a file inside an added project: read and write it with the project's methods.",
+        "properties": {
+          "class": {
+            "$ref": "#/$defs/ProjectClass",
+            "description": "The project's class now."
+          },
+          "column": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "displayPath": {
+            "type": "string"
+          },
+          "kind": {
+            "const": "project",
+            "type": "string"
+          },
+          "line": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "project",
+          "path",
+          "name",
+          "displayPath",
+          "class"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "Claimed"
+  },
+  "scope": "companion",
+  "summary": "Claims a token, once: the open file (its id, mode and marks), or the project's file it names."
+}

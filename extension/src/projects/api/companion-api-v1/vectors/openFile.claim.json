@@ -1,0 +1,66 @@
+[
+  {
+    "request": {
+      "id": 92,
+      "method": "openFile.claim",
+      "params": {
+        "token": "<TOKEN>"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 92,
+      "result": {
+        "column": null,
+        "displayPath": "~/notes/todo.md",
+        "executes": false,
+        "file": "f_<ID>",
+        "kind": "file",
+        "line": 1,
+        "mode": "edit",
+        "name": "todo.md",
+        "reason": null
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 93,
+      "method": "openFile.claim",
+      "params": {
+        "token": "<TOKEN>"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "not-found",
+        "message": "no such opening: it was claimed already, it expired, or it is for another extension"
+      },
+      "id": 93,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 94,
+      "method": "openFile.claim",
+      "params": {
+        "token": "x"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "invalid-params",
+        "data": {
+          "field": "token"
+        },
+        "message": "a token is 32 lowercase hexadecimal characters"
+      },
+      "id": 94,
+      "type": "error"
+    }
+  }
+]

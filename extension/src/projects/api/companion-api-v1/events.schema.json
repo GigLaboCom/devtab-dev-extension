@@ -71,6 +71,25 @@
     },
     "summary": "The companion did not watch the project for a while (stopped, server restarted, project removed); it reconciled the files on its return: the history may miss versions from `from` to `to`."
   },
+  "open.requested": {
+    "data": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "`open.requested`: a person opened a file (`devtab open`) and this page was chosen to show it. Claim the token\nwith `openFile.claim`.",
+      "properties": {
+        "token": {
+          "description": "One-time, `limits.openTokenMs` long, only for a page of the same extension.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "token"
+      ],
+      "title": "OpenRequested",
+      "type": "object"
+    },
+    "summary": "Sent to one connection (`project` null): a person opened a file and this page reported the latest focus (`page.activity`); claim `token` with `openFile.claim`."
+  },
   "project.changed": {
     "data": {
       "$defs": {

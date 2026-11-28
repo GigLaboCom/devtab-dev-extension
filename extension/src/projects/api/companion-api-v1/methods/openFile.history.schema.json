@@ -1,0 +1,99 @@
+{
+  "method": "openFile.history",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Parameters naming an open file.",
+    "properties": {
+      "file": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "file"
+    ],
+    "title": "FileParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "HistoryPoint": {
+        "additionalProperties": false,
+        "description": "One point of `history.file`.",
+        "properties": {
+          "content": {
+            "description": "Whether the point keeps a version of the file. True: `history.content`, `diff.sides` (`base: {point}`) and\n`history.restore` give its text (`too-large` above `limits.maxTextBytes`). False: they answer `not-found` —\na moment the companion noted without a text (`Before create`, `Deleted while away`, a write's `Before …`\nof a binary file or of one above the text limit) or a commit that does not hold the file (the commit that\ndeleted it). Both while the path stays as it was (a symlink there serves no point). Companions older than\nthis field do not send it.",
+            "type": "boolean"
+          },
+          "label": {
+            "description": "The server's `External change`, `Saved`, `Deleted`; the companion's `Before save`, `Before edit`,\n`Before restore`, `Before rollback`, `Before rename`, `Before delete`, `Before create`, `Uncommitted when\nadded`, `Uncommitted when made writable`, `Changed while away`, `Deleted while away`, `External change`; a\ncommit's summary.",
+            "type": "string"
+          },
+          "point": {
+            "description": "Opaque to the extension; pass it to `history.content`, `diff.sides` or `history.restore`.",
+            "type": "string"
+          },
+          "size": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/$defs/PointSource"
+          },
+          "timeMs": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "point",
+          "label",
+          "source",
+          "size",
+          "timeMs",
+          "content"
+        ],
+        "type": "object"
+      },
+      "PointSource": {
+        "oneOf": [
+          {
+            "const": "server",
+            "description": "The server's local history.",
+            "type": "string"
+          },
+          {
+            "const": "companion",
+            "description": "The companion's own copies: before each write from the page, the baseline, the reconciliation after a stop,\nthe top-up beyond the server's limits.",
+            "type": "string"
+          },
+          {
+            "const": "commit",
+            "description": "A commit that changed the file.",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`openFile.history`: the companion's copies of the file, newest first (`source` is always `companion`).",
+    "properties": {
+      "points": {
+        "items": {
+          "$ref": "#/$defs/HistoryPoint"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "points"
+    ],
+    "title": "FileHistory",
+    "type": "object"
+  },
+  "scope": "file",
+  "summary": "The companion's copies of an open file, newest first."
+}

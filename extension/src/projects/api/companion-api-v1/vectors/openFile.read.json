@@ -1,0 +1,46 @@
+[
+  {
+    "request": {
+      "id": 96,
+      "method": "openFile.read",
+      "params": {
+        "file": "f_<ID>"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 96,
+      "result": {
+        "bom": false,
+        "encoding": "utf-8",
+        "hash": "db85c80086685af004a35de9b8b138d77b68b7d8e881693aa16b87c5422de04d",
+        "large": false,
+        "lineEnding": "crlf",
+        "mtimeMs": 0,
+        "protected": false,
+        "secret": false,
+        "size": 14,
+        "text": "- one\n- two\n"
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 105,
+      "method": "openFile.read",
+      "params": {
+        "file": "f_<ID>"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "not-found",
+        "message": "no such open file"
+      },
+      "id": 105,
+      "type": "error"
+    }
+  }
+]

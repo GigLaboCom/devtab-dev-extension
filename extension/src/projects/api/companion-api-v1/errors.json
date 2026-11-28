@@ -265,6 +265,12 @@
       "since": "files"
     },
     {
+      "code": "not-editable",
+      "data": "{reason}",
+      "description": "A write to an open file the page may only read (`openFile.save`, `openFile.restore`); nothing was written. `reason` is as `openFile.list.reason` — `replaced` when the file was replaced, moved or became a symlink since it was opened (it is read-only from now on, until a person opens it again).",
+      "since": "open"
+    },
+    {
       "code": "not-running",
       "data": "—",
       "description": "The relay could not reach the supervisor; sent by the relay just before it exits.",

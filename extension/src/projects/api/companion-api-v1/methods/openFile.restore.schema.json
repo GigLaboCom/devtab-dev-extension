@@ -1,0 +1,56 @@
+{
+  "method": "openFile.restore",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`openFile.restore` parameters.",
+    "properties": {
+      "currentHash": {
+        "description": "The hash of the file's text as the page showed it (`openFile.read.hash`).",
+        "type": "string"
+      },
+      "file": {
+        "type": "string"
+      },
+      "point": {
+        "description": "A point of `openFile.history` that keeps a version (`content: true`).",
+        "type": "string"
+      }
+    },
+    "required": [
+      "file",
+      "point",
+      "currentHash"
+    ],
+    "title": "FileRestoreParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`openFile.restore`.",
+    "properties": {
+      "before": {
+        "description": "The copy \"Before restore\" of what was there; restoring it undoes the restore.",
+        "type": "string"
+      },
+      "hash": {
+        "description": "The hash of the file's text now (the next `baseHash`).",
+        "type": "string"
+      },
+      "restored": {
+        "description": "The point now on disk.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "restored",
+      "before",
+      "hash"
+    ],
+    "title": "FileRestored",
+    "type": "object"
+  },
+  "scope": "file-edit",
+  "summary": "Writes a copy's version over an open file, after a copy \"Before restore\" of what is there."
+}

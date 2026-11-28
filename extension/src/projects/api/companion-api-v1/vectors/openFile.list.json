@@ -1,0 +1,26 @@
+[
+  {
+    "request": {
+      "id": 95,
+      "method": "openFile.list",
+      "params": {},
+      "type": "call"
+    },
+    "response": {
+      "id": 95,
+      "result": [
+        {
+          "displayPath": "~/notes/todo.md",
+          "executes": false,
+          "file": "f_<ID>",
+          "mode": "edit",
+          "name": "todo.md",
+          "openedAt": 0,
+          "reason": null,
+          "via": "terminal"
+        }
+      ],
+      "type": "result"
+    }
+  }
+]

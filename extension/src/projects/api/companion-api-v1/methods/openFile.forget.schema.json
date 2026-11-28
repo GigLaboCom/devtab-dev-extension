@@ -1,0 +1,27 @@
+{
+  "method": "openFile.forget",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Parameters naming an open file.",
+    "properties": {
+      "file": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "file"
+    ],
+    "title": "FileParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "An empty result.",
+    "title": "Empty",
+    "type": "object"
+  },
+  "scope": "file",
+  "summary": "Forgets an open file at once: the page loses its right to it and the companion's copies of it go."
+}

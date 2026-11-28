@@ -1,0 +1,28 @@
+[
+  {
+    "request": {
+      "id": 99,
+      "method": "openFile.history",
+      "params": {
+        "file": "f_<ID>"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 99,
+      "result": {
+        "points": [
+          {
+            "content": true,
+            "label": "Before save",
+            "point": "f:b3b4dc5f9e66829ac5de8476a2b150030c20d66a3aeaee5f935f9e10b88ef743@0",
+            "size": 14,
+            "source": "companion",
+            "timeMs": 0
+          }
+        ]
+      },
+      "type": "result"
+    }
+  }
+]
