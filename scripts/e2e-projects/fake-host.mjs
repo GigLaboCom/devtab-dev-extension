@@ -15,7 +15,8 @@
 //                  { "gap": { project, from, to, paths } } (the companion was not running: `history.gap`),
 //                  { "openFile": { …file, "emit": true|false } } (a file opened from the system; `emit` sends
 //                  `open.requested` if the page told `page.activity`), { "changeOpenedOnDisk": { file, text } },
-//                  { "replaceOpened": { file } }, { "expireTokens": true },
+//                  { "replaceOpened": { file } }, { "openedPoint": { file, label, text, content } } (a copy in an
+//                  opened file's history), { "expireTokens": true },
 //                  { "exit": true } (the port is lost without a word)
 //   log.jsonl      what happened: start (with the caller's origin), each frame in (type, id, method; the parameters of a
 //                  commit, a rollback, a save — a text by its length — and of adding a project; `install` of a `hello`),
@@ -78,6 +79,7 @@ process.stdin.on('data', data => {
       'history.project',
       'openFile.claim',
       'openFile.save',
+      'openFile.restore',
       'page.activity',
     ].includes(frame?.method)
       ? { params: { ...frame.params, ...(frame.params?.text !== undefined && { text: frame.params.text.length }) } }
@@ -129,6 +131,10 @@ setInterval(() => {
     if (command.changeOpenedOnDisk)
       companion.changeOpenedOnDisk(command.changeOpenedOnDisk.file, command.changeOpenedOnDisk.text);
     if (command.replaceOpened) companion.replaceOpened(command.replaceOpened.file);
+    if (command.openedPoint) {
+      const { file, ...spec } = command.openedPoint;
+      companion.openedPoint(file, spec);
+    }
     if (command.expireTokens) companion.expireTokens();
     if (command.event) {
       const { name: event, project, data } = command.event;

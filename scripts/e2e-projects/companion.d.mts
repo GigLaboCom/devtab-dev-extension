@@ -36,6 +36,11 @@ export interface ScriptedCompanion {
   offerFile(spec: OfferedFile): { token: string; file: string | null };
   changeOpenedOnDisk(file: string, text: string): void;
   replaceOpened(file: string): void;
+  /** A copy in an opened file's history, as the companion kept it (`content: false`: noted without its text). */
+  openedPoint(
+    file: string,
+    spec?: { label?: string; text?: string; content?: boolean; timeMs?: number },
+  ): string | null;
   requestOpen(token: string, send: (frame: Frame) => void): boolean;
   expireTokens(): void;
   opened: {

@@ -31,8 +31,9 @@
 // `openFiles: true` is a companion of step O2 of files opened from the system (D42): it also offers `openFile.*` and
 // `page.activity` (./openFileMethods.mjs); `offerFile(spec)` opens a file as `devtab open` would and gives its token,
 // `requestOpen(token, send)` sends `open.requested` (only after the page told `page.activity`), `changeOpenedOnDisk(file,
-// text)` is someone else's edit, `replaceOpened(file)` replaces it (read only from then on), `expireTokens()` lets the
-// waiting tokens run out.
+// text)` is someone else's edit, `replaceOpened(file)` replaces it (read only from then on), `openedPoint(file, spec)`
+// adds a copy to its history (`content: false`: noted without its text), `expireTokens()` lets the waiting tokens run
+// out.
 //
 // `installs` is what each `hello` said in `install` (step O3), oldest first: the number as the companion would keep it,
 // or null — none sent, or not in the contract's shape (the companion ignores such a one).
@@ -1359,6 +1360,8 @@ export const createCompanion = ({
     offerFile: spec => opened.offer(spec),
     changeOpenedOnDisk: (file, text) => opened.changeOnDisk(file, text),
     replaceOpened: file => opened.replace(file),
+    /** A copy in an opened file's history (`content: false`: noted without its text); the point back. */
+    openedPoint: (file, spec) => opened.point(file, spec),
     /** `open.requested` for a token — only to a connection that told `page.activity`, as the companion does. */
     requestOpen(token, send) {
       if (!opened.told()) return false;
