@@ -149,6 +149,25 @@ export interface DiffShown {
   mode: ViewMode;
 }
 
+/**
+ * One of the editor's own commands (crates/review-view/src/editor_commands.rs), run on a side as its key runs it:
+ * `run_command(side, command)` focuses the side's editor and dispatches gpui-kit's action. Paste is not among them: the
+ * page reads the clipboard and hands the text in (`paste_text`). The keys are one table, `EDITOR_KEYS` (./editorKeys.ts).
+ */
+export type EditorCommand = 'undo' | 'redo' | 'cut' | 'copy' | 'selectAll' | 'indent' | 'outdent' | 'find';
+
+/** What one side offers the editor's commands now: flags, never text. */
+export interface CommandStanding {
+  /** The user may edit it. */
+  editable: boolean;
+  empty: boolean;
+  /** Something is selected. */
+  selection: boolean;
+}
+
+/** The `standing` event's detail: both sides, whenever one of them changes. */
+export type EditorStanding = Record<Side, CommandStanding>;
+
 /** `run(options_json)`. */
 export interface RunOptions {
   dark: boolean;
@@ -163,11 +182,14 @@ export interface RunOptions {
 }
 
 /** What the module calls back through `globalThis.__reviewEvent(name, detail)`. */
-export type ReviewEventName = 'first-frame' | 'shown' | 'error';
+export type ReviewEventName = 'first-frame' | 'shown' | 'standing' | 'error';
 
 /** The module's events as the controller passes them on. */
 export type ReviewEvent =
-  { name: 'first-frame' } | { name: 'shown'; shown: DiffShown } | { name: 'error'; message: string };
+  | { name: 'first-frame' }
+  | { name: 'shown'; shown: DiffShown }
+  | { name: 'standing'; standing: EditorStanding }
+  | { name: 'error'; message: string };
 
 /** The exports, as the host wrapper calls them. A refused call throws. */
 export interface ReviewModule {
@@ -188,6 +210,8 @@ export interface ReviewModule {
   reveal_line: (line: number, column?: number | null) => void;
   reveal_hunk: (index: number) => void;
   set_editor_settings: (settingsJson: string, side: Side | undefined) => void;
+  run_command: (side: Side, command: EditorCommand) => void;
+  paste_text: (side: Side, text: string) => void;
 }
 
 /**

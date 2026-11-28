@@ -1,8 +1,11 @@
 import type {
+  CommandStanding,
   CompareRequest,
   DiffPayload,
   DiffShown,
+  EditorCommand,
   EditorSettings,
+  EditorStanding,
   FileRequest,
   ReviewEvent,
   ReviewModule,
@@ -53,6 +56,14 @@ export interface ReviewController {
   focusSide: (side: Side) => void;
   /** A side's text as the editor holds it now. Throws before the first frame or when the module refuses. */
   sideText: (side: Side) => string;
+  /**
+   * Runs one of the editor's commands on a side as its key would (the side's editor takes the keyboard). Synchronous:
+   * what Copy or Cut writes to the clipboard is written before this returns. Throws before the first frame or when the
+   * module refuses (a read-only side for a command that edits).
+   */
+  runCommand: (side: Side, command: EditorCommand) => void;
+  /** Pastes the page's clipboard text into a side, over its selection, as one edit. Throws like `runCommand`. */
+  pasteText: (side: Side, text: string) => void;
   /** The side whose editor has the keyboard; null before the first frame or when neither has it. */
   focusedSide: () => Side | null;
   setTheme: (theme: ThemeArgs) => void;
@@ -99,6 +110,22 @@ const parseShown = (detail: string): DiffShown | null => {
       sides: { old: sideOf(sides.old), new: sideOf(sides.new) },
       mode: value.mode === 'file' ? 'file' : 'diff',
     };
+  } catch {
+    return null;
+  }
+};
+
+const standingOf = (value: unknown): CommandStanding => ({
+  editable: isObject(value) && value.editable === true,
+  empty: isObject(value) && value.empty === true,
+  selection: isObject(value) && value.selection === true,
+});
+
+const parseStanding = (detail: string): EditorStanding | null => {
+  try {
+    const value: unknown = JSON.parse(detail);
+    if (!isObject(value) || !isObject(value.old) || !isObject(value.new)) return null;
+    return { old: standingOf(value.old), new: standingOf(value.new) };
   } catch {
     return null;
   }
@@ -184,6 +211,14 @@ export const createReviewController = (module: ReviewModule, hooks: ControllerHo
       requireReady('side_text');
       return module.side_text(side);
     },
+    runCommand(side, command) {
+      requireReady('run_command');
+      module.run_command(side, command);
+    },
+    pasteText(side, text) {
+      requireReady('paste_text');
+      module.paste_text(side, text);
+    },
     focusedSide() {
       if (!ready) return null;
       try {
@@ -210,6 +245,10 @@ export const createReviewController = (module: ReviewModule, hooks: ControllerHo
         const shown = parseShown(detail);
         if (shown) hooks.onEvent?.({ name, shown });
         else hooks.onError?.(new Error(`the editor reported an unreadable result: ${detail}`));
+      } else if (name === 'standing') {
+        const standing = parseStanding(detail);
+        if (standing) hooks.onEvent?.({ name, standing });
+        else hooks.onError?.(new Error(`the editor reported an unreadable standing: ${detail}`));
       } else if (name === 'error') {
         hooks.onEvent?.({ name, message: detail });
       }

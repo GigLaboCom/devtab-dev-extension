@@ -43,6 +43,8 @@ const fakeModule = () => {
     reveal_line: (line, column) => void calls.push(`line ${line}${column === null ? '' : `:${column}`}`),
     reveal_hunk: index => void calls.push(`hunk ${index}`),
     set_editor_settings: (json, side) => void calls.push(`settings ${side ?? 'both'} ${json}`),
+    run_command: (side, command) => void calls.push(`command ${side} ${command}`),
+    paste_text: (side, text) => void calls.push(`paste ${side} ${JSON.stringify(text)}`),
   };
   return { module, calls };
 };
@@ -208,6 +210,49 @@ describe('createReviewController', () => {
         },
       },
     ]);
+  });
+
+  it('runs a command or a paste only once the editor has drawn, and lets the module’s refusal through', () => {
+    const { module, calls } = fakeModule();
+    const c = createReviewController(module);
+    expect(() => c.runCommand('new', 'undo')).toThrow('run_command: the editor has not drawn its first frame yet');
+    expect(() => c.pasteText('new', 'x')).toThrow('paste_text');
+    c.onModuleEvent('first-frame', '');
+    c.runCommand('old', 'selectAll');
+    c.pasteText('new', 'a\nb');
+    expect(calls).toEqual(['command old selectAll', 'paste new "a\\nb"']);
+    const refusing = createReviewController({
+      ...module,
+      run_command: () => {
+        throw 'undo: the new side is read-only';
+      },
+    });
+    refusing.onModuleEvent('first-frame', '');
+    expect(() => refusing.runCommand('new', 'undo')).toThrow();
+  });
+
+  it('passes the standing on as flags and reports one it cannot read', () => {
+    const onError = vi.fn();
+    const events: ReviewEvent[] = [];
+    const c = createReviewController(fakeModule().module, { onError, onEvent: e => events.push(e) });
+    c.onModuleEvent(
+      'standing',
+      JSON.stringify({
+        old: { editable: false, empty: true, selection: false },
+        new: { editable: true, empty: false, selection: true, text: 'never read' },
+      }),
+    );
+    expect(events).toEqual([
+      {
+        name: 'standing',
+        standing: {
+          old: { editable: false, empty: true, selection: false },
+          new: { editable: true, empty: false, selection: true },
+        },
+      },
+    ]);
+    c.onModuleEvent('standing', '{"old": {}}');
+    expect(onError).toHaveBeenCalledTimes(1);
   });
 
   it('reports what the module refuses instead of throwing, and ignores unknown events', () => {
