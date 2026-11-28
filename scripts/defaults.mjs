@@ -113,6 +113,9 @@ const code = await load(
   import { SCRATCH_MAX_COUNT, SCRATCH_MAX_CHARS, SCRATCH_NAME_MAX, SCRATCH_DEFAULT_NAME, SCRATCH_DEFAULT_LANGUAGE } from ${at('extension/src/projects/scratch/store.ts')};
   import { SCRATCHES_KEY, SCRATCH_TEXT_PREFIX } from ${at('extension/src/projects/scratch/storage.ts')};
   import { LANGUAGES, labelOf } from ${at('extension/src/compare/languages.ts')};
+  import * as EDITOR from ${at('extension/src/editorSettings/model.ts')};
+  import { DETECT_MAX_LINES, DETECT_MAX_CHARS, DETECT_MIN_LINES, DETECT_MAX_INDENT } from ${at('extension/src/editorSettings/detect.ts')};
+  import { EDITOR_SETTINGS_KEY } from ${at('extension/src/editorSettings/storage.ts')};
   const actions = shortcutActions(DESTINATIONS, suggestedKeys(TOOL_CATALOGUE));
   const resolved = mac => {
     const r = resolveBindings(actions, DEFAULT_SHORTCUTS, mac);
@@ -138,6 +141,11 @@ const code = await load(
     scratches: { MAX_COUNT: SCRATCH_MAX_COUNT, MAX_CHARS: SCRATCH_MAX_CHARS, NAME_MAX: SCRATCH_NAME_MAX, name: SCRATCH_DEFAULT_NAME,
       language: labelOf(SCRATCH_DEFAULT_LANGUAGE), languages: LANGUAGES.filter(l => l.id !== 'text').length, key: SCRATCHES_KEY, textPrefix: SCRATCH_TEXT_PREFIX,
       autosaveMs: AUTOSAVE_DELAY_MS, inPro: editionFor({ kind: 'fixed', edition: 'pro' }).scratches, inFree: editionFor({ kind: 'fixed', edition: 'free' }).scratches },
+    editor: { key: EDITOR_SETTINGS_KEY, version: EDITOR.EDITOR_SETTINGS_VERSION, base: EDITOR.BUILT_IN_VALUES,
+      languages: Object.entries(EDITOR.BUILT_IN_LANGUAGES).map(([id, values]) => ({ label: labelOf(id), values })),
+      limits: { indent: [EDITOR.INDENT_SIZE_MIN, EDITOR.INDENT_SIZE_MAX], font: [EDITOR.FONT_SIZE_MIN, EDITOR.FONT_SIZE_MAX],
+        languages: EDITOR.LANGUAGES_MAX, chars: EDITOR.RECORD_MAX_CHARS },
+      detect: { DETECT_MAX_LINES, DETECT_MAX_CHARS, DETECT_MIN_LINES, DETECT_MAX_INDENT } },
     roots: { toolbarButton: toolbarButton.id, newTab: newTab.id, optionsPage: optionsPage.id, pageOpener: pageOpener.id ?? null, editionSource: editionSource.id, planSource: planSource.id, licence: licence.id },
   };
 `,
@@ -159,6 +167,7 @@ const ROOT_FILES = [
   'extension/src/compare/behaviors.ts',
   'extension/src/history/behaviors.ts',
   'extension/src/projects/behaviors.ts',
+  'extension/src/editorSettings/behaviors.ts',
 ];
 const picks = ROOT_FILES.map(file => ({
   file,
@@ -386,6 +395,74 @@ out.push(
 );
 out.push(
   `\nХранится в \`chrome.storage.local\`: список — \`${sc.key}\`, текст каждого — \`${sc.textPrefix}<id>\`; не синхронизируется между вкладками, последняя запись выигрывает.`,
+);
+h('Настройки редактора (D39)');
+const ed = code.editor;
+const styleRu = style => (style === 'tab' ? 'табуляция' : 'пробелы');
+const languageRu = values =>
+  [
+    values.indentStyle && styleRu(values.indentStyle),
+    values.indentSize && `размер ${values.indentSize}`,
+    values.softWrap !== undefined && (values.softWrap ? 'перенос строк' : 'без переноса'),
+  ]
+    .filter(Boolean)
+    .join(', ');
+out.push(
+  table(
+    ['Что', 'По умолчанию', 'Пределы', 'Хранится'],
+    [
+      ['Отступ', styleRu(ed.base.indentStyle), 'пробелы или табуляция', `\`${ed.key}.base.indentStyle\``],
+      [
+        'Размер отступа (он же ширина табуляции)',
+        String(ed.base.indentSize),
+        `${ed.limits.indent[0]}…${ed.limits.indent[1]} везде (настройки, выбор в индикаторе, модуль редактора)`,
+        `\`${ed.key}.base.indentSize\``,
+      ],
+      [
+        'Узнавать отступ по файлу',
+        yes(ed.base.detectIndent),
+        `не меньше ${ed.detect.DETECT_MIN_LINES} строк с отступом; читается до ${ed.detect.DETECT_MAX_LINES.toLocaleString('ru-RU')} строк и ${ed.detect.DETECT_MAX_CHARS.toLocaleString('ru-RU')} знаков, отступ строки — до ${ed.detect.DETECT_MAX_INDENT} знаков; шаг из 2, 4, 6, 8`,
+        `\`${ed.key}.base.detectIndent\``,
+      ],
+      [
+        'Размер шрифта кода',
+        ed.base.fontSize === null ? 'из темы' : `${ed.base.fontSize} px`,
+        `${ed.limits.font[0]}…${ed.limits.font[1]} px`,
+        `\`${ed.key}.base.fontSize\``,
+      ],
+      [
+        'Перенос строк',
+        yes(ed.base.softWrap),
+        'только один файл; в сравнении рядом — нет',
+        `\`${ed.key}.base.softWrap\``,
+      ],
+      ['Видимые пробелы', yes(ed.base.whitespace), '—', `\`${ed.key}.base.whitespace\``],
+      ['Направляющие отступов', yes(ed.base.indentGuides), '—', `\`${ed.key}.base.indentGuides\``],
+      ['Номера строк', yes(ed.base.lineNumbers), '—', `\`${ed.key}.base.lineNumbers\``],
+      ...ed.languages.map(l => [
+        `Язык: ${l.label}`,
+        languageRu(l.values),
+        'строка набора Default, меняется и сбрасывается',
+        `\`${ed.key}.languages\``,
+      ]),
+      [
+        'Строк языков',
+        '—',
+        `не больше ${ed.limits.languages}; вся запись — до ${ed.limits.chars.toLocaleString('ru-RU')} знаков JSON`,
+        `\`${ed.key}.languages\``,
+      ],
+      [
+        'Выбор в индикаторе отступа',
+        'нет (автоматически)',
+        'пробелы или табуляция, размер 2 / 4 / 8; живёт, пока файл открыт',
+        'не хранится',
+      ],
+      ['Издание', 'всё — в обоих изданиях (D39, D40)', '—', '—'],
+    ],
+  ),
+);
+out.push(
+  `\nХранится в \`chrome.storage.local\`, одна запись \`${ed.key}\` (набор Default, версия ${ed.version}); профили (этап 2, Pro) — отдельная запись. Порядок слоёв: выбор в индикаторе → \`.editorconfig\` (этап 3) → узнанный отступ → язык → общее → встроенное.`,
 );
 h('Сочетания клавиш (сочетания приложения, по умолчанию)');
 out.push(

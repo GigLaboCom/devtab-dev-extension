@@ -30,11 +30,21 @@ test('a section runs its own steps, its unit tests and the build, not the growth
 test('the editor page runs every step that shows the editor', () => {
   assert.deepEqual(plan('extension/src/viewer/main.ts').e2e, [
     'compare',
+    'editor-settings',
     'project-keys',
     'projects',
     'projects-demo',
     'scratches',
   ]);
+});
+
+test('the editor’s settings run every step with an editor and their own; Settings → Editor its step and the shell’s', () => {
+  const editors = ['compare', 'editor-settings', 'project-keys', 'projects', 'projects-demo', 'scratches'];
+  assert.deepEqual(plan('extension/src/editorSettings/resolve.ts').e2e, editors);
+  assert.deepEqual(plan('extension/src/app/editor/IndentIndicator.tsx').e2e, editors);
+  assert.deepEqual(plan('extension/src/app/settings/EditorSettingsGroup.tsx').e2e, ['editor-settings', 'shell']);
+  assert.deepEqual(plan('scripts/e2e-editor-settings.mjs').e2e, ['editor-settings']);
+  assert.equal(plan('extension/src/editorSettings/resolve.ts').growth, false);
 });
 
 test('what the start route reads also runs the growth check', () => {

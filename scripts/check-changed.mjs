@@ -62,9 +62,12 @@ const E2E_HARNESS = /^scripts\/(e2e-check\.mjs|e2e-helpers\.mjs|e2e-setup\.sh)$/
 const SELF = /^scripts\/check-changed\./;
 
 /** Path → the end-to-end steps that exercise it (the names `pnpm test:e2e -- --only=` takes). */
-const EDITOR_USERS = ['compare', 'projects-demo', 'projects', 'scratches', 'project-keys'];
+const EDITOR_USERS = ['compare', 'projects-demo', 'projects', 'scratches', 'project-keys', 'editor-settings'];
 const RULES = [
   [/^extension\/src\/[^/]+\.test\.ts$/, []],
+  // The editor's settings (D39): every place with an editor follows them, and their own step checks them.
+  [/^extension\/src\/(editorSettings|app\/editor)\//, EDITOR_USERS],
+  [/^extension\/src\/app\/settings\/EditorSettings/, ['editor-settings', 'shell']],
   [/^extension\/src\/(viewer|highlighter)\//, EDITOR_USERS],
   [/^extension\/src\/shared\/viewerProtocol\.ts$/, EDITOR_USERS],
   [/^extension\/src\/compare\//, ['compare', 'scratches']],
@@ -105,6 +108,7 @@ const RULES = [
   [/^scripts\/e2e-history\.mjs$/, ['history']],
   [/^scripts\/e2e-scratches\.mjs$/, ['scratches']],
   [/^scripts\/e2e-keys\.mjs$/, ['project-keys']],
+  [/^scripts\/e2e-editor-settings\.mjs$/, ['editor-settings']],
   [/^scripts\/e2e-projects-demo\.mjs$/, ['projects-demo']],
   [/^scripts\/e2e-projects(\.mjs|\/)/, ['projects']],
 ];

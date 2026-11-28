@@ -43,6 +43,10 @@
 //   4a'. the keys of scratch files and of «Projects» (scripts/e2e-keys.mjs, step project-keys): "New scratch file" from another
 //      section, the start page, the palette and both editors opens the language popup; the open scratch's keys and the
 //      parts of a project by their keys; a key recorded again in Settings; the popup at the scratch limit;
+//   4a''. the editor's settings (scripts/e2e-editor-settings.mjs, step editor-settings, D39): Tab inserts what applies in a
+//      scratch, a demo project's file and a side of «Compare code»; the built-in language rows (Go tabs, YAML 2); a
+//      four-space file detected as four; the indent indicator and its choice for one file; Settings → Editor changing
+//      the open editors without a reload and surviving a reload; how both look, light and dark, wide and narrow;
 //   4b. «Projects» with a companion (scripts/e2e-projects.mjs, step projects): a browser of its own, the build's copy
 //      loaded by CDP, a fake Native Messaging host speaking the companion's contract — every state of the connection,
 //      the tree, a file, find, changes, diff, history, events, long answers, the permission removed and granted;
@@ -59,7 +63,7 @@
 //   pnpm test:e2e [-- <dist>] [--shots=<dir>] [--json=<file>] [--only=<step or tool>,…]
 //   --only  run only these after the extension has loaded: a tool's id (its module of scripts/e2e-tools/, e.g.
 //           `--only=jwt`), or a step — start, own-page, toolbar, compare (2–2c), tools (3: every tool and the JSON
-//           controls), shell, themes (4–6), projects-demo, scratches, project-keys, projects, history. The console-error check runs over what
+//           controls), shell, themes (4–6), projects-demo, scratches, project-keys, editor-settings, projects, history. The console-error check runs over what
 //           ran.
 // Needs a build (pnpm build) and Playwright with Chrome for Testing: `pnpm e2e:setup` puts both under .state/
 // (Playwright is NOT a workspace dependency, as in the second sibling extension). Elsewhere: PLAYWRIGHT_DIR=<a
@@ -83,6 +87,7 @@ import { runProjectsDemoChecks } from './e2e-projects-demo.mjs';
 import { runProjectsChecks } from './e2e-projects.mjs';
 import { runScratchesChecks } from './e2e-scratches.mjs';
 import { runKeysChecks } from './e2e-keys.mjs';
+import { runEditorSettingsChecks } from './e2e-editor-settings.mjs';
 import { runGrammarChecks } from './e2e-grammars.mjs';
 
 /* global document, window, addEventListener, chrome, createImageBitmap, OffscreenCanvas, getComputedStyle, location -- page.evaluate callbacks run in the pages */
@@ -1103,6 +1108,10 @@ try {
   if (want('scratches')) await runScratchesChecks({ ctx, id, check, shoot, report, sleep });
   if (want('project-keys')) await runKeysChecks({ ctx, id, check, shoot, report, sleep });
   await noteErrors('scratches');
+
+  // The editor's settings: Settings → Editor, the indent indicator, Tab in every editor (scripts/e2e-editor-settings.mjs).
+  if (want('editor-settings')) await runEditorSettingsChecks({ ctx, id, check, shoot, report, sleep });
+  await noteErrors('editor-settings');
 
   // «Projects» with a companion (scripts/e2e-projects.mjs): in a browser of its own, so this one's profile stays as it is.
   if (want('projects')) await runProjectsChecks({ chromium, dist: DIST, check, shoot, report, sleep });

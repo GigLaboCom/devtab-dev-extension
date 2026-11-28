@@ -624,11 +624,13 @@ export const runCompareChecks = async ({ ctx, id, check, shoot, report, sleep, h
     // ---- the keyboard -----------------------------------------------------------------------------------------------
     await page.getByLabel('Language', { exact: true }).focus();
     const focused = () =>
-      page.evaluate(() =>
-        document.activeElement?.tagName === 'IFRAME'
-          ? 'editor'
-          : (document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.textContent?.trim()),
-      );
+      page
+        .evaluate(() =>
+          document.activeElement?.tagName === 'IFRAME'
+            ? 'editor'
+            : (document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.textContent?.trim()),
+        )
+        .then(label => (label?.startsWith('Indentation:') ? 'Indentation' : label));
     const order = [];
     while (order.length < 24 && order.at(-1) !== 'editor') {
       await page.keyboard.press('Tab');
@@ -636,11 +638,13 @@ export const runCompareChecks = async ({ ctx, id, check, shoot, report, sleep, h
     }
     const expected = [
       'Swap sides',
-      ...['original', 'changed'].flatMap(side =>
-        ['Open file…', 'Paste from the clipboard', 'Copy the text', 'Save', 'Save as…', 'Edit', 'Clear'].map(
+      // Each side's bar: its indent indicator (D39), then its actions.
+      ...['original', 'changed'].flatMap(side => [
+        'Indentation',
+        ...['Open file…', 'Paste from the clipboard', 'Copy the text', 'Save', 'Save as…', 'Edit', 'Clear'].map(
           t => `${t} (${side} side)`,
         ),
-      ),
+      ]),
     ];
     // With the example shown every action is enabled, so Tab stops on each.
     check(
