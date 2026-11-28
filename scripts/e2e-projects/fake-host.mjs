@@ -6,7 +6,8 @@
 //
 // Steered through a folder (DEVTAB_FAKE_HOST_DIR, set by the wrapper the e2e writes):
 //   mode.json      read at start: { "mode": "normal" | "empty" | "fresh" | "version" | "not-running", "hostile", "big",
-//                  "methods": "all" | "stage3" | "stage6", "confirm", "identity" } (./companion.mjs)
+//                  "methods": "all" | "stage3" | "stage6", "confirm", "identity", "contentFlag", "limits" }
+//                  (./companion.mjs)
 //   cmd-<n>.json   commands, taken once by the running host: { "event": { name, project, data } },
 //                  { "addFile": { project, path, text } }, { "changeOnDisk": { project, path, text } },
 //                  { "failNext": { method, code, data, stream, hang } }, { "confirm": answer }, { "identity": … },

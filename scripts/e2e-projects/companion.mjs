@@ -6,7 +6,8 @@
 // before (classes, writes, commits) — is answered from the same repository by the contract's rules (paths, secrets,
 // symlinks, limits, the write policy, `expect` of a commit).
 //
-//   createCompanion({ vectors, mode, hostile, big, wait, methods, replay }) → { handle(frame, send), emit(…), … }
+//   createCompanion({ vectors, mode, hostile, big, wait, methods, replay, contentFlag, limits })
+//     → { handle(frame, send), emit(…), … }
 //
 // `vectors` is the vectors folder as { 'tree.list.json': [...], … } (the caller reads it: Node from disk, the tests
 // with Vite's glob). `mode`: 'normal' | 'empty' (no project added) | 'fresh' (`devtab init` never ran: no project, no
@@ -15,8 +16,10 @@
 // 6: everything but restoring from the history and clearing it (stage 7's `HISTORY_METHODS`). `hostile` adds a second
 // project whose names, branch, history labels and lines carry HTML and terminal escape sequences; `big` adds to it a
 // folder of 5001 long names (5000 listed) and a 2 MiB file, both answered in chunks. `replay` answers every vector's
-// request word for word, a request asked again with the vector's next answer (the vectors' own sequence). `send(frame)`
-// gets each frame out, chunked as the supervisor chunks (`maxFrameBytes`).
+// request word for word, a request asked again with the vector's next answer (the vectors' own sequence).
+// `contentFlag: false` is a companion older than the points' `content` and the full `welcome.limits`: its points carry
+// no `content`, its welcome only `maxRequestBytes` and `maxTextBytes`. `limits` replaces announced limits (a smaller
+// `maxHistoryPage`, say). `send(frame)` gets each frame out, chunked as the supervisor chunks (`maxFrameBytes`).
 //
 // Steering what needs a person or the outside world: `confirm` — what the companion's window would answer to a request
 // outside a trusted folder ('unavailable': no window, the command instead; 'yes'; 'no'; 'busy'; 'requests-off';
@@ -233,6 +236,8 @@ export const createCompanion = ({
   confirm: confirmed = 'unavailable',
   identity: who = { name: 'Fixture Person', email: 'person@example.invalid' },
   now = Date.now,
+  contentFlag = true,
+  limits: announced = {},
 } = {}) => {
   // ---- the vectors: requests answered word for word ----------------------------------------------------------------
   const replies = new Map();
@@ -255,12 +260,26 @@ export const createCompanion = ({
     methods: [...METHODS, ...WRITE_METHODS],
     limits: { maxRequestBytes: 8_388_608, maxTextBytes: MAX_TEXT_BYTES },
   };
-  const welcome =
+  const offeredWelcome =
     offered === 'stage3'
       ? { ...copy(helloed), methods: helloed.methods.filter(m => METHODS.includes(m)) }
       : offered === 'stage6'
         ? { ...copy(helloed), methods: helloed.methods.filter(m => !HISTORY_METHODS.includes(m)) }
         : helloed;
+  const { maxRequestBytes, maxTextBytes } = offeredWelcome.limits;
+  const welcome = {
+    ...offeredWelcome,
+    limits: contentFlag ? { ...offeredWelcome.limits, ...announced } : { maxRequestBytes, maxTextBytes, ...announced },
+  };
+  const historyPage = welcome.limits.maxHistoryPage ?? 500;
+  /** An answer as this companion gives it: without the points' `content` when it is older than the field. */
+  const asSent = (method, result) =>
+    contentFlag || !['history.file', 'history.project'].includes(method) || !Array.isArray(result?.points)
+      ? result
+      : {
+          ...result,
+          points: result.points.map(pt => Object.fromEntries(Object.entries(pt).filter(([k]) => k !== 'content'))),
+        };
   const offers = method => welcome.methods.includes(method);
 
   // The versions of texts the vectors name: a text the vectors saw keeps its real hash, any other gets a stand-in.
@@ -352,6 +371,7 @@ export const createCompanion = ({
       })),
       // A file that is gone: the server's last «Saved» of it, and the companion's note that it went while away.
       {
+        content: false,
         label: 'Deleted while away',
         path: 'gone.txt',
         point: `c:none@1767398400000:${hexOf('gone.txt')}`,
@@ -360,12 +380,42 @@ export const createCompanion = ({
         timeMs: 1767398400000,
       },
       {
+        content: true,
         label: 'Saved',
         path: 'gone.txt',
         point: `s:${fnv('gone.txt').slice(0, 12)}@1767312000000:${hexOf('gone.txt')}`,
         size: 27,
         source: 'server',
         timeMs: 1767312000000,
+      },
+      // A file a commit deleted: that commit keeps no version of it, nor did the copy before a rollback of it while it
+      // was binary; the commit that added it does.
+      {
+        content: false,
+        label: 'Remove retired.txt',
+        path: 'retired.txt',
+        point: `g:${fnv('remove retired.txt').slice(0, 40)}@1767441600000:${hexOf('retired.txt')}`,
+        size: 0,
+        source: 'commit',
+        timeMs: 1767441600000,
+      },
+      {
+        content: false,
+        label: 'Before rollback',
+        path: 'retired.txt',
+        point: `c:none@1767355200000:${hexOf('retired.txt')}`,
+        size: 0,
+        source: 'companion',
+        timeMs: 1767355200000,
+      },
+      {
+        content: true,
+        label: 'Add retired.txt',
+        path: 'retired.txt',
+        point: `g:${fnv('add retired.txt').slice(0, 40)}@1767139200000:${hexOf('retired.txt')}`,
+        size: 0,
+        source: 'commit',
+        timeMs: 1767139200000,
       },
     ],
     contents: new Map([
@@ -374,6 +424,7 @@ export const createCompanion = ({
         .filter(p => p.source === 'commit')
         .map(p => [p.point, '# Readme\n']),
       [`s:${fnv('gone.txt').slice(0, 12)}@1767312000000:${hexOf('gone.txt')}`, 'This file will be deleted.\n'],
+      [`g:${fnv('add retired.txt').slice(0, 40)}@1767139200000:${hexOf('retired.txt')}`, 'A file a commit deleted.\n'],
     ]),
     gaps: [],
   });
@@ -410,6 +461,7 @@ export const createCompanion = ({
           label: HOSTILE_STRINGS.label,
           path: 'notes.txt',
           point: 'g:0000000000000000000000000000000000000001@1767225600000:6e6f7465732e747874',
+          content: true,
           size: 0,
           source: 'commit',
           timeMs: 1767225600000,
@@ -598,7 +650,7 @@ export const createCompanion = ({
   const saved = (p, path, text) => {
     const timeMs = timeOf(p);
     const point = `s:${fnv(`${path}:${p.points.length}`).slice(0, 12)}@${timeMs}:${hexOf(path)}`;
-    p.points.unshift({ label: 'Saved', path, point, size: bytes(text), source: 'server', timeMs });
+    p.points.unshift({ content: true, label: 'Saved', path, point, size: bytes(text), source: 'server', timeMs });
     p.contents.set(point, text);
     return point;
   };
@@ -607,7 +659,8 @@ export const createCompanion = ({
     const timeMs = timeOf(p);
     const id = text === null ? 'none' : fnv(`${path}:${label}:${p.points.length}:${text}`);
     const point = `c:${id}@${timeMs}:${hexOf(path)}`;
-    p.points.unshift({ label, path, point, size: text === null ? 0 : bytes(text), source: 'companion', timeMs });
+    const size = text === null ? 0 : bytes(text);
+    p.points.unshift({ content: text !== null, label, path, point, size, source: 'companion', timeMs });
     if (text !== null) p.contents.set(point, text);
     return point;
   };
@@ -796,7 +849,7 @@ export const createCompanion = ({
     // Newest first, page by page: the cursor is the place after the last point given (stable as new points arrive).
     'history.project': ({ project: id, limit, cursor, since }) => {
       const p = projectOf(id);
-      const size = Math.min(Math.max(1, limit ?? 500), 500);
+      const size = Math.min(Math.max(1, limit ?? historyPage), historyPage);
       let all = newestFirst(p.points).filter(pt => since == null || pt.timeMs >= since);
       if (cursor) {
         const [time, point] = [Number(cursor.slice(0, cursor.indexOf(':'))), cursor.slice(cursor.indexOf(':') + 1)];
@@ -1202,7 +1255,8 @@ export const createCompanion = ({
             !(method === 'projects.list' && projects.size > 1)))
       ) {
         for (const part of known.stream ?? []) send({ ...copy(part), id });
-        return out(send, { ...copy(known.response), id });
+        const response = copy(known.response);
+        return out(send, { ...response, ...(response.result && { result: asSent(method, response.result) }), id });
       }
       // A failure scripted for this method (git.commit streams its own before it fails).
       const scripted = method === 'git.commit' ? null : failing(method);
@@ -1220,7 +1274,7 @@ export const createCompanion = ({
       running.set(id, { cancel: () => (stop = true) });
       try {
         const result = await handler(params, { id, send: f => out(send, f), cancelled: () => stop });
-        out(send, { type: 'result', id, result });
+        out(send, { type: 'result', id, result: asSent(method, result) });
       } catch (e) {
         if (!e.code) throw e;
         out(send, { type: 'error', id, error: { code: e.code, message: e.message, ...(e.data && { data: e.data }) } });

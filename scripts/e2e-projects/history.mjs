@@ -3,9 +3,10 @@
 // file's history opened in «Compare code» next to the current file, edited there and saved back into the project
 // through a connection of its own; a file's points with its commits; a restore asked with the comparison shown, written
 // from the version shown, and undone; the stretch the companion did not watch, told by its event; the project's feed
-// with its deleted files and a deleted file's history; clearing the history answered with the command for Terminal;
-// then a companion of stage 6, whose feeds read while restoring and clearing are inactive and never sent. Screenshots
-// of the new states, light and dark, wide and narrow.
+// with its deleted files and a deleted file's history; a file a commit deleted, whose points without a text the
+// companion names (`content`); clearing the history answered with the command for Terminal; then a companion of stage
+// 6, whose feeds read while restoring and clearing are inactive and never sent, and one older than `content`, whose
+// moments without a text are known by their labels. Screenshots of the new states, light and dark, wide and narrow.
 
 /* global document, location -- page.evaluate callbacks run in the page */
 
@@ -222,6 +223,27 @@ export const runCompanionHistory = async ({ page, check, shoot, sleep, command, 
     `${projectRows} points; ${goneLabels.join(' | ')}`,
   );
 
+  // ---- a file a commit deleted: the points without a text are the companion's word (`content`), not a label --------
+  await history.getByRole('radio', { name: 'Project' }).click();
+  await deleted.getByRole('button', { name: 'History of retired.txt, deleted' }).click();
+  await row('Add retired.txt').waitFor({ timeout: 10_000 });
+  const retiredLabels = await labels();
+  const textless = [];
+  for (const label of ['Remove retired.txt', 'Before rollback'])
+    textless.push({
+      label,
+      none: (await row(label).getAttribute('data-text')) === 'none',
+      said: (await row(label).innerText()).includes('No version kept'),
+      buttons: await row(label).getByRole('button').count(),
+    });
+  check(
+    'projects: a file a commit deleted — the deleting commit and a copy kept without its text say «No version kept» by the companion’s `content` and offer nothing; the commit that added it can be restored',
+    retiredLabels.join('|') === 'Remove retired.txt|Before rollback|Add retired.txt' &&
+      textless.every(t => t.none && t.said && t.buttons === 0) &&
+      (await row('Add retired.txt').getByRole('button', { name: 'Restore…' }).count()) === 1,
+    `${retiredLabels.join(' | ')}; ${JSON.stringify(textless)}`,
+  );
+
   // ---- clearing: the companion without its window answers with the command ----------------------------------------
   await history.getByRole('radio', { name: 'Project' }).click();
   mark = logOf().length;
@@ -257,6 +279,24 @@ export const runCompanionHistory = async ({ page, check, shoot, sleep, command, 
       calls(mark, 'history.restore').length === 0 &&
       calls(mark, 'history.requestPurge').length === 0,
     quiet,
+  );
+
+  // ---- a companion older than `content` and the full `welcome.limits`: labels tell, pages of 100 -------------------
+  await freshHost({ mode: 'normal', contentFlag: false });
+  mark = logOf().length;
+  await openWithHistory('docs/readme.md');
+  await history.getByRole('radio', { name: 'Project' }).click();
+  await deleted.waitFor({ timeout: 10_000 });
+  const firstPage = calls(mark, 'history.project').find(c => c.params.since === undefined);
+  await deleted.getByRole('button', { name: 'History of gone.txt, deleted' }).click();
+  await row('Deleted while away').waitFor({ timeout: 10_000 });
+  const olderNoText = await row('Deleted while away').innerText();
+  check(
+    'projects: a companion older than `content` — «Deleted while away» known by its label, «No version kept», nothing to open; the project’s feed asked 100 at a time',
+    olderNoText.includes('No version kept') &&
+      (await row('Deleted while away').getByRole('button').count()) === 0 &&
+      firstPage?.params.limit === 100,
+    `${olderNoText.replace(/\s+/g, ' ')}; ${JSON.stringify(firstPage?.params)}`,
   );
   await freshHost({ mode: 'normal' });
 };

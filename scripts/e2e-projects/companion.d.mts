@@ -43,4 +43,8 @@ export declare const createCompanion: (options?: {
   confirm?: Confirm;
   identity?: { name: string; email: string } | null;
   now?: () => number;
+  /** False: a companion older than the points' `content` and the full `welcome.limits`. */
+  contentFlag?: boolean;
+  /** Announced limits that replace the vectors' (`maxHistoryPage`, say). */
+  limits?: Record<string, number>;
 }) => ScriptedCompanion;
