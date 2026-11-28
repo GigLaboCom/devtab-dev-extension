@@ -1,14 +1,15 @@
 /**
  * `EditorSettingsStore` in a storage area (./store.ts): the extension's `chrome.storage.local` (`chromeEditorSettings`),
  * or an area in the page's memory (`memoryEditorSettings`: a host without the extension's API, and tests). One record,
- * `editorSettings` — the Default set, versioned from the start (./model.ts); no other record is read or written. A
- * record of another shape is read as far as it makes sense and is not deleted for it.
+ * `editorSettings` — the Default set, versioned from the start (./model.ts); this store reads and writes no other. A
+ * record of another shape is read as far as it makes sense and is not deleted for it. `areaRecord` is the same for
+ * any one record: the profiles' store (./profilesStore.ts) is made of it too.
  */
 import { RECORD_MAX_CHARS, normalizeEditorSettings } from './model';
 import type { EditorSettingsRecord } from './model';
-import type { EditorSettingsRefusal, EditorSettingsResult, EditorSettingsStore } from './store';
+import type { EditorSettingsRefusal, EditorSettingsStore } from './store';
 
-/** chrome.storage.local key of the Default set. (Profiles, stage 2, get a key of their own: `editorProfiles`.) */
+/** chrome.storage.local key of the Default set. (The profiles have a record of their own: ./profilesStore.ts.) */
 export const EDITOR_SETTINGS_KEY = 'editorSettings';
 
 /** What the store needs of a storage area: `chrome.storage.local`'s promise form and the change event. */
@@ -25,22 +26,39 @@ const refusalOf = (error: unknown): EditorSettingsRefusal => {
   return /quota/i.test(message) ? { kind: 'full' } : { kind: 'failed', message };
 };
 
-export const areaEditorSettings = (
+/** One record of a storage area: its key, how it is read back, the longest written. */
+export interface RecordShape<T> {
+  key: string;
+  normalize(raw: unknown): T;
+  maxChars: number;
+}
+
+/** What a store of one record does — read, normalize and write it, follow its changes — whatever the record. */
+export interface AreaRecord<T> {
+  load(): Promise<T>;
+  save(record: T): Promise<{ ok: true; value: T } | { ok: false; refused: EditorSettingsRefusal }>;
+  watch(onRecord: (record: T) => void): () => void;
+}
+
+/**
+ * One record kept in a storage area: written normalized and refused (an answer, never an exception) when longer than
+ * its limit or when the area is full; `watch` answers with the stored record, then every change from any page. Shared
+ * by the Default set (`editorSettings`) and the profiles (`editorProfiles`, ./profilesStore.ts).
+ */
+export const areaRecord = <T>(
+  shape: RecordShape<T>,
   { area, onChanged, areaName }: EditorSettingsArea,
-  options: { id: string; keeps: boolean },
-): EditorSettingsStore => {
-  const load = async (): Promise<EditorSettingsRecord> =>
-    normalizeEditorSettings((await area.get(EDITOR_SETTINGS_KEY))[EDITOR_SETTINGS_KEY]);
+): AreaRecord<T> => {
+  const { key, normalize, maxChars } = shape;
+  const load = async (): Promise<T> => normalize((await area.get(key))[key]);
   return {
-    id: options.id,
-    keeps: options.keeps,
     load,
-    async save(record): Promise<EditorSettingsResult> {
-      const value = normalizeEditorSettings(record);
+    async save(record) {
+      const value = normalize(record);
       const chars = JSON.stringify(value).length;
-      if (chars > RECORD_MAX_CHARS) return { ok: false, refused: { kind: 'too-large', max: RECORD_MAX_CHARS, chars } };
+      if (chars > maxChars) return { ok: false, refused: { kind: 'too-large', max: maxChars, chars } };
       try {
-        await area.set({ [EDITOR_SETTINGS_KEY]: value });
+        await area.set({ [key]: value });
         return { ok: true, value };
       } catch (error) {
         return { ok: false, refused: refusalOf(error) };
@@ -51,13 +69,13 @@ export const areaEditorSettings = (
       let loaded = false;
       let changedWhileLoading = false;
       const onStorage = (changes: Record<string, chrome.storage.StorageChange>, name: string): void => {
-        if (name !== areaName || !(EDITOR_SETTINGS_KEY in changes)) return;
+        if (name !== areaName || !(key in changes)) return;
         if (!loaded) changedWhileLoading = true;
-        else if (live) onRecord(normalizeEditorSettings(changes[EDITOR_SETTINGS_KEY]!.newValue));
+        else if (live) onRecord(normalize(changes[key]!.newValue));
       };
       onChanged.addListener(onStorage);
       void (async () => {
-        let record = await load().catch(() => normalizeEditorSettings(undefined));
+        let record = await load().catch(() => normalize(undefined));
         while (changedWhileLoading) {
           changedWhileLoading = false;
           record = await load().catch(() => record);
@@ -72,6 +90,18 @@ export const areaEditorSettings = (
     },
   };
 };
+
+export const areaEditorSettings = (
+  area: EditorSettingsArea,
+  options: { id: string; keeps: boolean },
+): EditorSettingsStore => ({
+  id: options.id,
+  keeps: options.keeps,
+  ...areaRecord<EditorSettingsRecord>(
+    { key: EDITOR_SETTINGS_KEY, normalize: normalizeEditorSettings, maxChars: RECORD_MAX_CHARS },
+    area,
+  ),
+});
 
 type Listener = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => void;
 

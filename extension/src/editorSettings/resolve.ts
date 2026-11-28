@@ -3,15 +3,18 @@
  * levels, strongest first —
  *
  *   1. file        the person's choice for this file in the indent indicator (lives while the file is open);
- *   2. project     the project's settings for this file — `.editorconfig` (stage 3, Pro); no level yet: `null`;
+ *   2. project     the project's settings for this file — its `.editorconfig` (Pro; ./project.ts); `null` for a scratch,
+ *                  «Compare code», a project that says nothing, and in the free edition;
  *   3. detected    the indentation the text already uses (./detect.ts), when the set says to detect it;
  *   4. language    the language's row of the active set;
  *   5. general     the active set's general values;
  *   6. default     the built-in values (./model.ts), for what the set does not hold.
  *
- * Each value is resolved on its own: a level that sets only the size leaves the style to the levels below it. Which set
- * is active is the caller's (`profile`): today always the Default set; with profiles (stage 2, Pro) the profile chosen
- * globally or for the project — the same shape, so this function does not change.
+ * Each value is resolved on its own: a level that sets only the size leaves the style to the levels below it. The
+ * project gives the size as EditorConfig does, two numbers (`indentSize`, `tabWidth`) where the editor has one: which
+ * one applies follows the style in force — tabs take the tab width, spaces the indent size, each falling back to the
+ * other (research §4.1). Which set is active is the caller's (`profile`): the Default set, or the profile chosen
+ * globally or for the project (Pro, ./profiles.ts) — the same shape.
  */
 import { BUILT_IN_VALUES, INDENT_SIZE_MAX, INDENT_SIZE_MIN } from './model';
 import type { DetectedIndent } from './detect';
@@ -24,8 +27,14 @@ export interface FileChoice {
   indentSize?: number;
 }
 
-/** What a project says about a file (stage 3: `.editorconfig`). Only these fields have a meaning there. */
-export type ProjectValues = Partial<Pick<EditorValues, 'indentStyle' | 'indentSize'>>;
+/** What a project says about a file (its `.editorconfig`, ./project.ts). Only these fields have a meaning there. */
+export interface ProjectValues {
+  indentStyle?: IndentStyle;
+  /** EditorConfig's `indent_size`: what one indent level is when indenting with spaces. */
+  indentSize?: number;
+  /** EditorConfig's `tab_width`: how wide a tab is, so the size when indenting with tabs. */
+  tabWidth?: number;
+}
 
 /** Where a value came from: the level that set it. */
 export type Source = 'file' | 'project' | 'detected' | 'language' | 'general' | 'default';
@@ -73,23 +82,37 @@ export const effectiveEditorSettings = (input: ResolveInput): Effective => {
     (values as unknown as Record<string, unknown>)[key] = value;
     sources[key] = source;
   }
-  // Level 3 only where the set says to detect; then 2, then 1 — each over what is below it.
+  // Levels 3, 2 and 1, each over what is below it: the style first, since the project's size depends on it.
   const detected = values.detectIndent ? input.detected : null;
-  const levels: Array<[Source, Partial<Pick<EditorValues, 'indentStyle' | 'indentSize'>> | null]> = [
-    ['detected', detected],
-    ['project', input.project],
-    ['file', input.file],
-  ];
-  for (const [source, level] of levels) {
-    if (!level) continue;
-    if (level.indentStyle === 'space' || level.indentStyle === 'tab') {
-      values.indentStyle = level.indentStyle;
-      sources.indentStyle = source;
-    }
-    if (typeof level.indentSize === 'number' && Number.isFinite(level.indentSize)) {
-      values.indentSize = clampSize(level.indentSize);
-      sources.indentSize = source;
-    }
+  const project = input.project;
+  const isStyle = (style: unknown): style is IndentStyle => style === 'space' || style === 'tab';
+  const isSize = (size: unknown): size is number => typeof size === 'number' && Number.isFinite(size);
+  for (const [source, style] of [
+    ['detected', detected?.indentStyle],
+    ['project', project?.indentStyle],
+    ['file', input.file?.indentStyle],
+  ] as const) {
+    if (!isStyle(style)) continue;
+    values.indentStyle = style;
+    sources.indentStyle = source;
+  }
+  const projectSize = project
+    ? values.indentStyle === 'tab'
+      ? isSize(project.tabWidth)
+        ? project.tabWidth
+        : project.indentSize
+      : isSize(project.indentSize)
+        ? project.indentSize
+        : project.tabWidth
+    : undefined;
+  for (const [source, size] of [
+    ['detected', detected?.indentSize],
+    ['project', projectSize],
+    ['file', input.file?.indentSize],
+  ] as const) {
+    if (!isSize(size)) continue;
+    values.indentSize = clampSize(size);
+    sources.indentSize = source;
   }
   values.indentSize = clampSize(values.indentSize);
   return { values, sources };

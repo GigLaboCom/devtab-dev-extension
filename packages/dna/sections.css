@@ -15,7 +15,11 @@
  *                              .kit-settings-intro, .kit-settings-subtitle, .kit-settings-actions, .kit-settings-prose,
  *                              .kit-settings-theme, .kit-settings-buttons (buttons under a row's words); Settings →
  *                              Editor (D39): .kit-editor-settings-select (a value's Select), .kit-editor-language (a
- *                              language's row) > .kit-editor-language-controls of .kit-editor-language-select
+ *                              language's row) > .kit-editor-language-controls of .kit-editor-language-select; the
+ *                              profiles (Pro): .kit-editor-profiles of .kit-editor-profile rows
+ *                              (.kit-editor-profile-choice with .kit-editor-profile-radio and -name,
+ *                              .kit-editor-profile-actions, or .kit-editor-profile-rename), .kit-editor-profile-input,
+ *                              .kit-editor-profile-note
  *         .kit-compare         «Compare code»: .kit-compare-bar (.kit-compare-title, .kit-compare-notice[data-tone],
  *                              .kit-compare-tools, .kit-compare-counts with .kit-compare-added / -removed);
  *                              .kit-compare-sides > .kit-compare-side (.kit-compare-side-role, .kit-compare-side-name
@@ -87,7 +91,8 @@
  * The editor's indent indicator (D39: a project's file, a scratch, each side of «Compare code»):
  *   .kit-indent-indicator      the button in an editor's bar: .kit-indent-value ("Spaces: 4"), .kit-indent-source (where
  *                              it comes from)
- *   .kit-indent-popup          its popover: .kit-indent-field (.kit-indent-label and a segmented choice),
+ *   .kit-indent-popup          its popover: .kit-indent-field (.kit-indent-label and a segmented choice, or a project's
+ *                              profile, .kit-indent-profile), .kit-indent-note (a project's settings in one line),
  *                              .kit-indent-actions
  *
  *   .kit-projects-picker       the language popup (D38) on the palette's frame (shell.css .kit-palette): its title
@@ -1949,6 +1954,62 @@
     min-width: calc(var(--spacing) * 32);
   }
 
+  /* Profiles (Pro): a list of rows — the radio of the active one and the name, then the row's icon buttons; a row being
+     renamed is a field with Save and Cancel; under the list, a new profile's field and the import. */
+  .kit-editor-profiles {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .kit-editor-profile {
+    padding-block: calc(var(--spacing) * 1.5);
+  }
+
+  .kit-editor-profile-actions {
+    gap: calc(var(--spacing) * 0.5);
+  }
+
+  .kit-editor-profile-choice {
+    flex-direction: row;
+    align-items: center;
+    gap: calc(var(--spacing) * 2.5);
+  }
+
+  .kit-editor-profile-radio {
+    flex-shrink: 0;
+    width: calc(var(--spacing) * 4);
+    height: calc(var(--spacing) * 4);
+    margin: 0;
+    accent-color: var(--primary);
+  }
+
+  .kit-editor-profile-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .kit-editor-profile-rename {
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+  }
+
+  .kit-editor-profile-input {
+    width: calc(var(--spacing) * 56);
+    max-width: 100%;
+  }
+
+  .kit-editor-profile-rename .kit-editor-profile-input {
+    flex: 1;
+    min-width: calc(var(--spacing) * 40);
+  }
+
+  .kit-editor-profile-note {
+    padding-block-end: calc(var(--spacing) * 2);
+  }
+
   /* The indent indicator (D39): a small ghost button in an editor's bar — the value, then where it comes from. */
   .kit-indent-indicator {
     flex-shrink: 0;
@@ -1979,6 +2040,25 @@
   .kit-indent-label {
     color: var(--muted-foreground);
     font-size: var(--text-xs);
+  }
+
+  /* A project's file: its own profile's Select, and one quiet line about the project's settings. */
+  .kit-indent-field[data-field='project-profile'] {
+    flex-direction: column;
+    align-items: stretch;
+    gap: calc(var(--spacing) * 1);
+  }
+
+  .kit-indent-profile {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .kit-indent-note {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
   }
 
   .kit-indent-actions {

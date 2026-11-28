@@ -23,7 +23,7 @@ import { useShortcuts } from './shell/useShortcuts';
 import { useHostEdition } from './useHostEdition';
 import product from '../../product.json';
 import { compareBehaviors } from '@src/compare/behaviors';
-import { editorSettingsBehaviors } from '@src/editorSettings/behaviors';
+import { editorSettingsBehaviors, withEdition } from '@src/editorSettings/behaviors';
 import { DESTINATIONS, SECTION_DESTINATIONS, SETTINGS_DESTINATION } from '@src/shared/destinations';
 import { shellBehaviors } from '@src/shell/behaviors';
 import { trailOf } from '@src/shell/trail';
@@ -153,8 +153,9 @@ const Part = ({
   shell?: ShellChoices;
 }): ReactElement => {
   const host = use(history());
-  // Whether the edition in force has scratch files (D34), followed while the page is open.
-  const { scratches } = useHostEdition(host);
+  // Whether the edition in force has scratch files (D34), and the editor's profiles and a project's settings (D39),
+  // followed while the page is open.
+  const { scratches, editorProfiles, projectEditorSettings } = useHostEdition(host);
   // "New scratch file" from any section (D38): the Projects section opens its language popup — at once when it is
   // the section shown, on arrival otherwise; the intent goes in the page's memory, not in the address (F6).
   const onProjects = route.section === 'projects';
@@ -168,8 +169,13 @@ const Part = ({
   });
   // «Compare code»'s composition root (compare/behaviors.ts): in this lazy chunk, so a new tab never loads it.
   const compare = useMemo(() => compareBehaviors(window), []);
-  // The editor's settings (editorSettings/behaviors.ts, D39): one for the page, every editor and Settings → Editor.
-  const editorSettings = useMemo(() => editorSettingsBehaviors(), []);
+  // The editor's settings (editorSettings/behaviors.ts, D39): one for the page, every editor and Settings → Editor —
+  // with what the edition in force names for the profiles and a project's settings.
+  const editorBase = useMemo(() => editorSettingsBehaviors(), []);
+  const editorSettings = useMemo(
+    () => withEdition(editorBase, { profiles: editorProfiles, projectSettings: projectEditorSettings }),
+    [editorBase, editorProfiles, projectEditorSettings],
+  );
   return (
     <>
       {route.section === 'compare' && (

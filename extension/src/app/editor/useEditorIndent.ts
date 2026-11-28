@@ -11,16 +11,23 @@
  *   - `choose(side, choice)` is the indicator's choice for one file: it lives while the file is open (`open` with
  *     `keep: false` forgets it); `null` goes back to automatic.
  *
- * Which set is active is `profile` of ../../editorSettings/resolve.ts: the stored Default set today. Without behaviors
- * (a page drawn with no settings, as in older tests) the place sends nothing and the editor keeps its own defaults.
+ * Which set is active is `profile` of ../../editorSettings/resolve.ts: the profile a project names for itself, else the
+ * active one (Pro, ../../editorSettings/profiles.ts), else — and always in the free edition — the Default set; a
+ * switch of profile, here or in another tab, reaches every open editor at once. What a project says about the file
+ * (its `.editorconfig`, Pro) comes with `open` and later with `setProject`; it is the same for both sides (one path).
+ * Without behaviors (a page drawn with no settings, as in older tests) the place sends nothing and the editor keeps its
+ * own defaults.
  */
 import { defaultEditorSettings } from '@src/editorSettings/model';
+import { DEFAULT_PROFILE, emptyEditorProfiles, nameOf, profileFor } from '@src/editorSettings/profiles';
 import { effectiveEditorSettings, toModuleSettings } from '@src/editorSettings/resolve';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EditorSettings, Side, SideEditorSettings } from '@extension/review-wasm';
 import type { EditorSettingsBehaviors } from '@src/editorSettings/behaviors';
 import type { DetectedIndent } from '@src/editorSettings/detect';
-import type { EditorSettingsRecord } from '@src/editorSettings/model';
+import type { EditorSet, EditorSettingsRecord } from '@src/editorSettings/model';
+import type { EditorProfilesRecord } from '@src/editorSettings/profiles';
+import type { ProjectSettings } from '@src/editorSettings/project';
 import type { Effective, FileChoice } from '@src/editorSettings/resolve';
 import type { ToViewer } from '@src/shared/viewerProtocol';
 
@@ -33,6 +40,46 @@ export const useEditorRecord = (behaviors: EditorSettingsBehaviors | undefined):
   return record;
 };
 
+/** The profiles as the page knows them: the Default set, the other profiles' record, whether the edition has them. */
+export interface EditorProfilesState {
+  defaults: EditorSettingsRecord;
+  profiles: EditorProfilesRecord;
+  /** Whether the edition in force has profiles (false: Default alone, and Settings says they are part of Pro). */
+  included: boolean;
+  /** Whether profiles exist here at all (false: no edition was given — nothing is said about them). */
+  offered: boolean;
+}
+
+/** Both records, followed while the page is open. An edition without profiles reads nothing of theirs. */
+export const useEditorProfiles = (behaviors: EditorSettingsBehaviors | undefined): EditorProfilesState => {
+  const defaults = useEditorRecord(behaviors);
+  const store = behaviors?.profiles;
+  const [profiles, setProfiles] = useState(emptyEditorProfiles);
+  useEffect(() => {
+    if (!store) return setProfiles(emptyEditorProfiles());
+    return store.watch(setProfiles);
+  }, [store]);
+  return useMemo(
+    () => ({
+      defaults,
+      profiles: store?.included ? profiles : emptyEditorProfiles(),
+      included: !!store?.included,
+      offered: !!store,
+    }),
+    [defaults, profiles, store],
+  );
+};
+
+/** The profile a place uses (`project`: its project's own, if it names one) — its id, name and values. */
+export const profileIn = (
+  state: EditorProfilesState,
+  project?: string,
+): { id: string; name: string; set: EditorSet } => {
+  const id = profileFor(state.profiles, project);
+  const own = state.profiles.profiles.find(p => p.id === id);
+  return { id, name: nameOf(state.profiles, id), set: id === DEFAULT_PROFILE || !own ? state.defaults : own };
+};
+
 export interface EditorIndent {
   /** Whether this place has settings at all (behaviors were given). */
   readonly enabled: boolean;
@@ -41,11 +88,25 @@ export interface EditorIndent {
   /** The person's choice for each side's file; null: automatic. */
   readonly choice: Readonly<Record<Side, FileChoice | null>>;
   readonly language: string;
+  /** The profile in force here: its id and name. */
+  readonly profile: { readonly id: string; readonly name: string };
+  /** Both records of the profiles, as the page knows them. */
+  readonly profiles: EditorProfilesState;
+  /** What the project says about the open file (both sides); null: no project, or nothing asked yet. */
+  readonly project: ProjectSettings | null;
   /**
    * New texts replace what is shown: detects each side's indentation; with `keep` the choices stay (the same file in
-   * another view). Returns what the replacing request carries, or undefined without settings.
+   * another view); `project` is what the file's project says. Returns what the replacing request carries, or undefined
+   * without settings.
    */
-  open(texts: { old?: string; new: string }, language: string, keep?: boolean): SideEditorSettings | undefined;
+  open(
+    texts: { old?: string; new: string },
+    language: string,
+    keep?: boolean,
+    project?: ProjectSettings | null,
+  ): SideEditorSettings | undefined;
+  /** What the project says about the open file changed (its `.editorconfig` was edited, or read for the first time). */
+  setProject(project: ProjectSettings | null): void;
   /** One side's text replaced (a file dropped on it): detected again, its choice forgotten. */
   replaceSide(side: Side, text: string): void;
   /** The language of both sides changed: its values apply from now on. */
@@ -60,15 +121,15 @@ interface Sides {
   language: string;
   detected: Record<Side, DetectedIndent | null>;
   choice: Record<Side, FileChoice | null>;
+  project: ProjectSettings | null;
 }
 
-const resolveSide = (state: Sides, profile: EditorSettingsRecord, side: Side): Effective =>
+const resolveSide = (state: Sides, profile: EditorSet, side: Side): Effective =>
   effectiveEditorSettings({
     profile,
     language: state.language,
     detected: state.detected[side],
-    // Stage 3 (`.editorconfig`, Pro) puts the project's values here.
-    project: null,
+    project: state.project?.values ?? null,
     file: state.choice[side],
   });
 
@@ -76,12 +137,17 @@ export const useEditorIndent = (
   behaviors: EditorSettingsBehaviors | undefined,
   post: (message: ToViewer) => void,
   initialLanguage = 'text',
+  /** The project of the files shown (its own profile, if it names one); absent: a scratch or «Compare code». */
+  projectId?: string,
 ): EditorIndent => {
-  const record = useEditorRecord(behaviors);
+  const profiles = useEditorProfiles(behaviors);
+  const active = useMemo(() => profileIn(profiles, projectId), [profiles, projectId]);
+  const record = active.set;
   const [sides, setSides] = useState<Sides>(() => ({
     language: initialLanguage,
     detected: { old: null, new: null },
     choice: { old: null, new: null },
+    project: null,
   }));
   const sidesRef = useRef(sides);
   const recordRef = useRef(record);
@@ -114,7 +180,7 @@ export const useEditorIndent = (
   }, [behaviors, effective]);
 
   const open = useCallback<EditorIndent['open']>(
-    (texts, language, keep = false) => {
+    (texts, language, keep = false, project = null) => {
       if (!behaviors) return undefined;
       const before = sidesRef.current;
       const detectedNew = behaviors.detector.detect(texts.new);
@@ -125,6 +191,7 @@ export const useEditorIndent = (
           new: detectedNew,
         },
         choice: keep ? before.choice : { old: null, new: null },
+        project,
       };
       update(next);
       const payload = {} as Required<SideEditorSettings>;
@@ -148,6 +215,11 @@ export const useEditorIndent = (
       });
     },
     [behaviors, update],
+  );
+
+  const setProject = useCallback<EditorIndent['setProject']>(
+    project => update({ ...sidesRef.current, project }),
+    [update],
   );
 
   const setLanguage = useCallback<EditorIndent['setLanguage']>(
@@ -184,7 +256,11 @@ export const useEditorIndent = (
     effective,
     choice: sides.choice,
     language: sides.language,
+    profile: { id: active.id, name: active.name },
+    profiles,
+    project: sides.project,
     open,
+    setProject,
     replaceSide,
     setLanguage,
     choose,

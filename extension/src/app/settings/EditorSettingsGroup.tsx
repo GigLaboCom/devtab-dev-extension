@@ -1,16 +1,20 @@
 /**
- * Settings → Editor (D39; research §6.2): the Default set of the editor's settings — the general values, then a row per
- * language that overrides them (add one, change it, reset it to its built-in values). Everything here is in every
+ * Settings → Editor (D39; research §6.2): the editor's settings — the general values, then a row per language that
+ * overrides them (add one, change it, reset it to its built-in values). Everything of the Default set is in every
  * edition (D39, D40). Saved at once into the store the shell's composition root names
  * (src/editorSettings/behaviors.ts); every open editor — project files, scratch files, both sides of «Compare code»,
  * in any tab of ours — takes the change without a reload. A write the store refuses is said in one line and what was
  * stored stays.
  *
- * Stage 2 (profiles, Pro) puts the choice of the profile above the general values; stage 3 (`.editorconfig`, Pro) a
- * switch under the languages. Neither is drawn yet: there is nothing to point to.
+ * Profiles (stage 2, Pro): where the edition has them, their block stands above the values (./EditorSettingsProfiles.tsx)
+ * and the values shown and changed are the active profile's — the Default set's in the `editorSettings` record, another
+ * profile's in the profiles' record. Where it has none, one quiet line stands in the block's place and the values are
+ * the Default set's (D40). A project's `.editorconfig` (stage 3, Pro) has no switch here: it is said where it decides,
+ * in the indent indicator of a project's file.
  */
+import { EditorSettingsProfiles } from './EditorSettingsProfiles';
 import { EDITOR_TEXT } from '../editor/text';
-import { useEditorRecord } from '../editor/useEditorIndent';
+import { profileIn, useEditorProfiles } from '../editor/useEditorIndent';
 import { LANGUAGES, labelOf } from '@src/compare/languages';
 import {
   BUILT_IN_LANGUAGES,
@@ -18,12 +22,13 @@ import {
   FONT_SIZE_MIN,
   INDENT_SIZE_MAX,
   INDENT_SIZE_MIN,
-  defaultEditorSettings,
+  builtInSet,
   isEditorLanguage,
   languageChanged,
   withLanguage,
   withLanguageReset,
 } from '@src/editorSettings/model';
+import { DEFAULT_PROFILE, withProfileSet } from '@src/editorSettings/profiles';
 import { Button } from '@workspace/ui/button';
 import { Label } from '@workspace/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
@@ -32,8 +37,8 @@ import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { RotateCcwIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { EditorSettingsBehaviors } from '@src/editorSettings/behaviors';
-import type { EditorSettingsRecord, EditorValues, LanguageValues } from '@src/editorSettings/model';
-import type { EditorSettingsRefusal } from '@src/editorSettings/store';
+import type { EditorSet, EditorValues, LanguageValues } from '@src/editorSettings/model';
+import type { EditorProfilesRefusal } from '@src/editorSettings/profilesStore';
 import type { ReactElement } from 'react';
 
 export interface EditorSettingsGroupProps {
@@ -47,10 +52,16 @@ const FONT_SIZES = range(FONT_SIZE_MIN, FONT_SIZE_MAX);
 const GENERAL = 'general';
 const THEME = 'theme';
 
-const refusalText = (refusal: EditorSettingsRefusal): string =>
-  EDITOR_TEXT.notSaved(
-    refusal.kind === 'full' ? EDITOR_TEXT.full : refusal.kind === 'too-large' ? EDITOR_TEXT.tooLarge : refusal.message,
-  );
+/** Why a store wrote nothing, in words (after "Not saved: ", "Not created: " and the like). */
+const refusalReason = (refusal: EditorProfilesRefusal): string =>
+  refusal.kind === 'full'
+    ? EDITOR_TEXT.full
+    : refusal.kind === 'too-large'
+      ? EDITOR_TEXT.tooLarge
+      : refusal.kind === 'excluded'
+        ? EDITOR_TEXT.profilesExcludedRefusal
+        : refusal.message;
+const refusalText = (refusal: EditorProfilesRefusal): string => EDITOR_TEXT.notSaved(refusalReason(refusal));
 
 type SwitchField = 'detectIndent' | 'softWrap' | 'whitespace' | 'indentGuides' | 'lineNumbers';
 const SWITCHES: ReadonlyArray<{ field: SwitchField; label: string; hint: string }> = [
@@ -62,15 +73,22 @@ const SWITCHES: ReadonlyArray<{ field: SwitchField; label: string; hint: string 
 ];
 
 export const EditorSettingsGroup = ({ behaviors }: EditorSettingsGroupProps): ReactElement => {
-  const stored = useEditorRecord(behaviors);
+  const profiles = useEditorProfiles(behaviors);
+  // The values belong to the active profile (the Default set where there are no profiles).
+  const active = profileIn(profiles);
+  const stored = active.set;
   // What the page shows: the stored set, or the change just made while it is being written.
-  const [shown, setShown] = useState<EditorSettingsRecord>(stored);
+  const [shown, setShown] = useState<EditorSet>(stored);
   useEffect(() => setShown(stored), [stored]);
   const [note, setNote] = useState<string | null>(null);
 
-  const save = (next: EditorSettingsRecord): void => {
+  const save = (next: EditorSet): void => {
     setShown(next);
-    void behaviors.store.save(next).then(result => {
+    const written =
+      active.id === DEFAULT_PROFILE || !behaviors.profiles
+        ? behaviors.store.save({ version: 1, base: next.base, languages: next.languages })
+        : behaviors.profiles.save(withProfileSet(profiles.profiles, active.id, next));
+    void written.then(result => {
       if (result.ok) return setNote(null);
       setNote(refusalText(result.refused));
       setShown(stored);
@@ -90,7 +108,7 @@ export const EditorSettingsGroup = ({ behaviors }: EditorSettingsGroupProps): Re
     .filter(isEditorLanguage)
     .sort((a, b) => labelOf(a).localeCompare(labelOf(b)));
   const addable = LANGUAGES.filter(l => !(l.id in shown.languages));
-  const changed = JSON.stringify(shown) !== JSON.stringify(defaultEditorSettings());
+  const changed = JSON.stringify({ base: shown.base, languages: shown.languages }) !== JSON.stringify(builtInSet());
   const styleWord = (style: string): string => (style === 'tab' ? EDITOR_TEXT.tabs : EDITOR_TEXT.spaces);
 
   return (
@@ -100,6 +118,25 @@ export const EditorSettingsGroup = ({ behaviors }: EditorSettingsGroupProps): Re
       </h2>
       <p className="kit-settings-intro kit-settings-hint">{EDITOR_TEXT.intro}</p>
       {!behaviors.store.keeps && <p className="kit-settings-hint">{EDITOR_TEXT.inMemory}</p>}
+      {profiles.included && behaviors.profiles ? (
+        <>
+          <EditorSettingsProfiles
+            store={behaviors.profiles}
+            state={profiles}
+            activeSet={shown}
+            refusalReason={refusalReason}
+          />
+          <h3 className="kit-settings-subtitle" data-editor-values={active.id}>
+            {EDITOR_TEXT.profileValues(active.name)}
+          </h3>
+        </>
+      ) : (
+        profiles.offered && (
+          <p className="kit-settings-intro kit-settings-hint" data-editor-profiles="excluded">
+            {EDITOR_TEXT.profilesExcluded}
+          </p>
+        )
+      )}
 
       <div className="kit-settings-row" data-setting="indentStyle">
         <div className="kit-settings-text">
@@ -311,7 +348,7 @@ export const EditorSettingsGroup = ({ behaviors }: EditorSettingsGroupProps): Re
         </p>
       )}
       <div className="kit-settings-actions">
-        <Button variant="outline" size="sm" disabled={!changed} onClick={() => save(defaultEditorSettings())}>
+        <Button variant="outline" size="sm" disabled={!changed} onClick={() => save(builtInSet())}>
           {EDITOR_TEXT.resetAll}
         </Button>
       </div>

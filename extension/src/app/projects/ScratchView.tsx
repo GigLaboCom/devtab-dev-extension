@@ -28,6 +28,7 @@ import { useEditorIndent } from '../editor/useEditorIndent';
 import { go, routeHash } from '../route';
 import { hintOf, useOffer } from '../shell/sectionKeys';
 import { LANGUAGES, labelOf } from '@src/compare/languages';
+import { DEFAULT_PROFILE } from '@src/editorSettings/profiles';
 import { createAutosave } from '@src/projects/autosave';
 import { fileName } from '@src/projects/scratch/store';
 import { VIEWER_PAGE } from '@src/shared/pages';
@@ -397,6 +398,7 @@ export const ScratchView = ({
                   open={indentOpen}
                   onOpenChange={setIndentOpen}
                   settingsHref={routeHash({ section: 'settings' })}
+                  {...(indent.profile.id !== DEFAULT_PROFILE && { profileName: indent.profile.name })}
                 />
               )}
               {info && (

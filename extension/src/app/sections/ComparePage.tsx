@@ -30,6 +30,7 @@ import {
   reduce,
   sideName,
 } from '@src/compare/state';
+import { DEFAULT_PROFILE } from '@src/editorSettings/profiles';
 import { keyLabel } from '@src/shared/keyLabels';
 import { VIEWER_PAGE } from '@src/shared/pages';
 import { chordOf, isFromViewer, isMac, sameChord } from '@src/shared/viewerProtocol';
@@ -654,6 +655,7 @@ export const ComparePage = ({ behaviors, frameKeys, editorSettings, keys }: Comp
                     open={indentOpen === side}
                     onOpenChange={open => setIndentOpen(open ? side : null)}
                     settingsHref={routeHash({ section: 'settings' })}
+                    {...(indent.profile.id !== DEFAULT_PROFILE && { profileName: indent.profile.name })}
                   />
                 )}
                 <div className="kit-compare-side-actions">

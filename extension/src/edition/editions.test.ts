@@ -140,6 +140,18 @@ describe.each(IMPLEMENTATIONS.map(e => [e.id, e] as const))(
       expect(memoryHistoryHost([], fixedSource(variant.id)).scratches).toBe(true);
     });
 
+    it('the editor’s profiles and a project’s .editorconfig (D39) exist exactly in Pro; the host says so to the pages', () => {
+      const storage = fakeStorage();
+      const profiles = variant.editorProfiles({ area: storage.area, onChanged: storage.onChanged, areaName: 'local' });
+      expect(profiles.included).toBe(isPro);
+      expect(variant.projectEditorSettings.included).toBe(isPro);
+      const host = memoryHistoryHost([], fixedSource(variant.id));
+      expect(host.editorProfiles.included).toBe(isPro);
+      // One store per edition and page: the pages can follow it by identity.
+      expect(host.editorProfiles).toBe(host.editorProfiles);
+      expect(host.projectEditorSettings).toBe(variant.projectEditorSettings);
+    });
+
     it('automatic copying exists exactly in Pro; a stored "on" is left in the record either way', async () => {
       expect(variant.automaticCopying).toBe(isPro);
       const storage = fakeStorage();

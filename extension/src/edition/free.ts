@@ -8,8 +8,13 @@
  *     that nothing writes to, and the history's database in the profile, if a Pro build left one, is neither opened,
  *     read nor deleted (a Pro build in the same profile finds it as it was);
  *   - "Copy automatically after generating" does not exist: no switch in Settings, no generator copies by itself, and a
- *     stored "on" is left as it is. The Copy buttons work as in Pro.
+ *     stored "on" is left as it is. The Copy buttons work as in Pro;
+ *   - the editor has one set of settings, Default (kept, as in Pro): the profiles' record is never opened — no read,
+ *     no write — so one a Pro build left is found as it was when Pro is back; and no project's `.editorconfig` is read.
+ *     Settings → Editor and the indicator of a project's file say so in one line each (D40).
  */
+import { noEditorProfiles } from '../editorSettings/profilesStore';
+import { noProjectEditorSettings } from '../editorSettings/project';
 import { noParameterStorage } from '@workspace/tools-host';
 import { memoryStore } from '@workspace/tools-shared/history';
 import type { Edition } from './edition';
@@ -21,4 +26,6 @@ export const free: Edition = {
   automaticCopying: false,
   // D34: Free or Pro is the owner's decision, not made yet; on in both editions until then.
   scratches: true,
+  editorProfiles: () => noEditorProfiles,
+  projectEditorSettings: noProjectEditorSettings,
 };

@@ -306,6 +306,9 @@ const TIDE_DISK: Record<string, DemoFile> = {
 
 const GARDEN_HEAD: Record<string, DemoFile> = {
   '.gitignore': 'target/\n',
+  // The project's own editor settings (D39): Rust by four spaces, TOML and Markdown by two.
+  '.editorconfig':
+    '# Editor settings shared by everyone who works on pixel-garden.\nroot = true\n\n[*]\nend_of_line = lf\ninsert_final_newline = true\ntrim_trailing_whitespace = true\n\n[*.rs]\nindent_style = space\nindent_size = 4\n\n[*.{toml,md}]\nindent_size = 2\n',
   'Cargo.toml': '[package]\nname = "pixel-garden"\nversion = "0.1.0"\nedition = "2024"\n',
   'rust-toolchain.toml': '[toolchain]\nchannel = "stable"\n',
   'src/main.rs':

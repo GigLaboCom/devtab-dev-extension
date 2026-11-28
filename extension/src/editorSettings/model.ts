@@ -9,8 +9,8 @@
  * and Plain text wrap. A language without a row takes the general values.
  *
  * Stored (version 1) — the Default set, which every edition reads: `{version, base, languages}`. Another profile is
- * a set of the same shape under a name (stage 2, Pro: a second record of its own); a set never holds the theme or the
- * shortcuts (§4.3).
+ * a set of the same shape under a name (Pro: a second record of its own, ./profiles.ts); a set never holds the theme or
+ * the shortcuts (§4.3).
  */
 import { LANGUAGES } from '@src/compare/languages';
 
@@ -158,13 +158,13 @@ export const normalizeLanguageValues = (raw: unknown): LanguageValues => {
  */
 export const migrateEditorSettings = (raw: unknown): Record<string, unknown> | null => (isRecord(raw) ? raw : null);
 
-/** The stored record as this build reads it: every field of its type, within the limits, the rest its default. */
-export const normalizeEditorSettings = (raw: unknown): EditorSettingsRecord => {
-  const source = migrateEditorSettings(raw);
-  if (!source) return defaultEditorSettings();
+/**
+ * One set as far as it can be read — the Default set's fields, or a profile's (./profiles.ts): general values each of
+ * its type (the built-in value where it is not), and at most `LANGUAGES_MAX` language rows with a valid id.
+ */
+export const normalizeSet = (source: Record<string, unknown>): EditorSet => {
   const languages = isRecord(source.languages) ? source.languages : {};
   return {
-    version: 1,
     base: normalizeValues(source.base),
     languages: Object.fromEntries(
       Object.entries(languages)
@@ -175,16 +175,29 @@ export const normalizeEditorSettings = (raw: unknown): EditorSettingsRecord => {
   };
 };
 
+/** The stored record as this build reads it: every field of its type, within the limits, the rest its default. */
+export const normalizeEditorSettings = (raw: unknown): EditorSettingsRecord => {
+  const source = migrateEditorSettings(raw);
+  if (!source) return defaultEditorSettings();
+  return { version: 1, ...normalizeSet(source) };
+};
+
+/** A set as it starts: the built-in values and the built-in language rows (what "Reset" puts back in any profile). */
+export const builtInSet = (): EditorSet => ({
+  base: { ...BUILT_IN_VALUES },
+  languages: copyLanguages(BUILT_IN_LANGUAGES),
+});
+
 /** Two language rows say the same. */
 export const sameLanguageValues = (a: LanguageValues | undefined, b: LanguageValues | undefined): boolean =>
   LANGUAGE_FIELDS.every(field => a?.[field] === b?.[field]);
 
 /** The set with a language's row changed; `undefined` removes the row. */
-export const withLanguage = (
-  record: EditorSettingsRecord,
+export const withLanguage = <T extends EditorSet>(
+  record: T,
   language: string,
   values: LanguageValues | undefined,
-): EditorSettingsRecord => {
+): T => {
   const languages = { ...record.languages };
   if (values === undefined) delete languages[language];
   else languages[language] = normalizeLanguageValues(values);
@@ -192,13 +205,13 @@ export const withLanguage = (
 };
 
 /** The set with a language's row back to its built-in one (a language with none: no row). */
-export const withLanguageReset = (record: EditorSettingsRecord, language: string): EditorSettingsRecord => {
+export const withLanguageReset = <T extends EditorSet>(record: T, language: string): T => {
   const builtIn = BUILT_IN_LANGUAGES[language];
   return withLanguage(record, language, builtIn ? { ...builtIn } : undefined);
 };
 
 /** Whether a language's row differs from its built-in one (what "Reset" would change). */
-export const languageChanged = (record: EditorSettingsRecord, language: string): boolean => {
+export const languageChanged = (record: EditorSet, language: string): boolean => {
   const builtIn = BUILT_IN_LANGUAGES[language];
   const row = record.languages[language];
   return builtIn ? !sameLanguageValues(row, builtIn) : row !== undefined;

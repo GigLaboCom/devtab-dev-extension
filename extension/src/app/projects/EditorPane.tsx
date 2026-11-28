@@ -13,6 +13,10 @@
  * Indentation (D39): each text is opened with what applies to it (../editor/useEditorIndent.ts — detected from its
  * content, its language's values, the settings), and the indent indicator in the bar shows it and changes it for this
  * file; the choice holds across the file and diff views of the same path and is forgotten when another file opens.
+ * The project's own settings (its `.editorconfig`, Pro) are asked for with the file's text — both reads at once — so
+ * the file opens with them; when the project's settings change (the `files.changed` event names an `.editorconfig`)
+ * the open file is resolved again. The profile in force is the project's own, if it names one, else the active one;
+ * the indicator's popup chooses the project's own where profiles exist.
  */
 import { TEXT, formatSize, formatTime, printable } from './text';
 import { useEditorFrame } from './useEditorFrame';
@@ -21,6 +25,8 @@ import { useEditorIndent } from '../editor/useEditorIndent';
 import { routeHash } from '../route';
 import { hintOf, useOffer } from '../shell/sectionKeys';
 import { labelOf, languageOfFile } from '@src/compare/languages';
+import { DEFAULT_PROFILE, DEFAULT_PROFILE_NAME, chooseForProject, nameOf } from '@src/editorSettings/profiles';
+import { decidingFiles } from '@src/editorSettings/project';
 import { createAutosave } from '@src/projects/autosave';
 import { toLineHunks } from '@src/projects/hunks';
 import { isCompanionError } from '@src/projects/types';
@@ -33,6 +39,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SectionKeys } from '../shell/sectionKeys';
 import type { EditorView, Workspace } from './useWorkspace';
 import type { EditorSettingsBehaviors } from '@src/editorSettings/behaviors';
+import type { ProjectEditorSettings, ProjectFiles, ProjectSettings } from '@src/editorSettings/project';
 import type { Autosave, SaveState } from '@src/projects/autosave';
 import type { FrameKeys, KeyChord } from '@src/shared/keys';
 import type { ReactElement } from 'react';
@@ -120,17 +127,82 @@ export const EditorPane = ({
     onError: message => workspace.setError(message),
   });
   const { request, post, read } = editor;
-  const indent = useEditorIndent(editorSettings, post);
+  const indent = useEditorIndent(editorSettings, post, 'text', project.id);
   const indentRef = useRef(indent);
   indentRef.current = indent;
+  const { profiles } = indent;
+
+  // The project's own settings (seam ProjectEditorSettings, the edition's): one for the open project, made in an effect
+  // (and let go in its cleanup), read through the backend's `file.read` and told of `files.changed`.
+  const projectFiles = useMemo<ProjectFiles>(
+    () => ({
+      read: settingsPath =>
+        backend.call('file.read', { project: project.id, path: settingsPath }).then(
+          file => ({ text: file.text, size: file.size }),
+          (error: unknown) => {
+            if (isCompanionError(error, 'not-found')) return null;
+            // Larger than the API reads at all: over every limit of ours too.
+            if (isCompanionError(error, 'too-large')) return { text: '', size: Number.MAX_SAFE_INTEGER };
+            throw error;
+          },
+        ),
+      onChanged: listener =>
+        backend.subscribe(project.id, event => {
+          if (event.name === 'files.changed') listener(event.data.more ? 'all' : event.data.paths);
+          else if (event.name === 'server.restarted') listener('all');
+        }),
+    }),
+    [backend, project.id],
+  );
+  const projectFactory = editorSettings?.projectSettings;
+  const projectSettings = useRef<ProjectEditorSettings | null>(null);
+  const [projectGeneration, setProjectGeneration] = useState(0);
+  useEffect(() => {
+    const made = projectFactory?.(projectFiles) ?? null;
+    projectSettings.current = made;
+    setProjectGeneration(g => g + 1);
+    const undo = made?.onChange(() => setProjectGeneration(g => g + 1));
+    return () => {
+      undo?.();
+      made?.dispose();
+      if (projectSettings.current === made) projectSettings.current = null;
+    };
+  }, [projectFactory, projectFiles]);
+  /** What the project says about a file; null without project settings. Never rejects. */
+  const projectFor = useCallback(
+    (target: string): Promise<ProjectSettings | null> =>
+      projectSettings.current ? projectSettings.current.forFile(target) : Promise.resolve(null),
+    [],
+  );
+
   // The path the indentation was last opened for: the same file in another view keeps the person's choice.
   const indentPath = useRef<string | null>(null);
-  /** What a text opened for `target` carries: detected, resolved; the choice kept for the same path. */
-  const openIndent = useCallback((texts: { old?: string; new: string }, target: string) => {
-    const keep = indentPath.current === target;
-    indentPath.current = target;
-    return indentRef.current.open(texts, languageOf(target), keep);
-  }, []);
+  /**
+   * What a text opened for `target` carries: detected, resolved; the choice kept for the same path. `settings`: what the
+   * project says about it (absent: the same file again, what it said before).
+   */
+  const openIndent = useCallback(
+    (texts: { old?: string; new: string }, target: string, settings?: ProjectSettings | null) => {
+      const keep = indentPath.current === target;
+      indentPath.current = target;
+      const project = settings === undefined ? (keep ? indentRef.current.project : null) : settings;
+      return indentRef.current.open(texts, languageOf(target), keep, project);
+    },
+    [],
+  );
+  // The project's settings changed, or its source did (another edition): the open file is resolved again.
+  useEffect(() => {
+    if (!projectGeneration || !path) return;
+    let live = true;
+    void projectFor(path).then(settings => {
+      if (live && indentPath.current === path) indentRef.current.setProject(settings);
+    });
+    return () => {
+      live = false;
+    };
+    // `path` is followed through the opening itself; this answers the project's changes only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectGeneration, projectFor]);
   const [indentOpen, setIndentOpen] = useState(false);
 
   const postReveal = useCallback(() => {
@@ -161,7 +233,10 @@ export const EditorPane = ({
 
   const showFile = useCallback(
     async (target: string, ticket: () => boolean) => {
-      const file = await backend.call('file.read', { project: project.id, path: target });
+      const [file, settings] = await Promise.all([
+        backend.call('file.read', { project: project.id, path: target }),
+        projectFor(target),
+      ]);
       if (!ticket()) return;
       const readOnly =
         project.class !== 'mine'
@@ -177,8 +252,9 @@ export const EditorPane = ({
         request(id => ({ type: 'viewer/set-mode', id, mode: 'file' }));
         post({ type: 'viewer/set-editable', side: 'old', editable: false, focus: false });
         post({ type: 'viewer/set-editable', side: 'new', editable: readOnly === null, focus: false });
+        indentRef.current.setProject(settings);
       } else {
-        const editorSettings = openIndent({ new: file.text }, target)?.new;
+        const editorSettings = openIndent({ new: file.text }, target, settings)?.new;
         request(id => ({
           type: 'viewer/show-file',
           id,
@@ -219,7 +295,7 @@ export const EditorPane = ({
     },
     // `workspace.refresh` is stable; the rest is what a file is opened with.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [autosaveDelayMs, backend, openIndent, post, project.class, project.id, read, request],
+    [autosaveDelayMs, backend, openIndent, post, project.class, project.id, projectFor, read, request],
   );
 
   const load = useCallback(
@@ -234,11 +310,14 @@ export const EditorPane = ({
       try {
         if (wanted.kind === 'file') await showFile(target, ticket);
         else if (wanted.kind === 'points') {
-          const [a, b] = await Promise.all(
-            [wanted.a, wanted.b].map(p => backend.call('history.content', { project: project.id, point: p.point })),
-          );
+          const [[a, b], settings] = await Promise.all([
+            Promise.all(
+              [wanted.a, wanted.b].map(p => backend.call('history.content', { project: project.id, point: p.point })),
+            ),
+            projectFor(target),
+          ]);
           if (!ticket()) return;
-          const editorSettings = openIndent({ old: a!.text, new: b!.text }, target);
+          const editorSettings = openIndent({ old: a!.text, new: b!.text }, target, settings);
           request(id => ({
             type: 'viewer/compare',
             id,
@@ -259,7 +338,10 @@ export const EditorPane = ({
           });
         } else {
           const base = wanted.kind === 'diff' ? ('HEAD' as const) : { point: wanted.point };
-          const sides = await backend.call('diff.sides', { project: project.id, path: target, base });
+          const [sides, settings] = await Promise.all([
+            backend.call('diff.sides', { project: project.id, path: target, base }),
+            projectFor(target),
+          ]);
           if (!ticket()) return;
           if (sides.flags.binary) {
             setContent({ kind: 'card', text: TEXT.binary('') });
@@ -268,7 +350,7 @@ export const EditorPane = ({
           const oldText = sides.old.text ?? '';
           const newText = sides.new.text ?? '';
           diskInDiff.current = sides.new.exists ? newText : null;
-          const editorSettings = openIndent({ old: oldText, new: newText }, target);
+          const editorSettings = openIndent({ old: oldText, new: newText }, target, settings);
           request(id => ({
             type: 'viewer/show-diff',
             id,
@@ -305,7 +387,7 @@ export const EditorPane = ({
         loading.current = false;
       }
     },
-    [backend, leave, openIndent, postReveal, project.id, request, showFile],
+    [backend, leave, openIndent, postReveal, project.id, projectFor, request, showFile],
   );
 
   const key = viewKey(view);
@@ -480,6 +562,29 @@ export const EditorPane = ({
               open={indentOpen}
               onOpenChange={setIndentOpen}
               settingsHref={routeHash({ section: 'settings' })}
+              {...(indent.profile.id !== DEFAULT_PROFILE && { profileName: indent.profile.name })}
+              {...(projectFactory && {
+                project: {
+                  included: projectFactory.included,
+                  deciding: decidingFiles(indent.project, indent.effective.new),
+                  problem: indent.project?.problem ?? null,
+                },
+              })}
+              {...(profiles.included &&
+                editorSettings?.profiles && {
+                  projectProfile: {
+                    profiles: [
+                      { id: DEFAULT_PROFILE, name: DEFAULT_PROFILE_NAME },
+                      ...profiles.profiles.profiles.map(p => ({ id: p.id, name: p.name })),
+                    ],
+                    chosen: profiles.profiles.projects[project.id] ?? null,
+                    activeName: nameOf(profiles.profiles, profiles.profiles.active),
+                    onChoose: id => {
+                      const store = editorSettings.profiles!;
+                      void store.load().then(record => store.save(chooseForProject(record, project.id, id)));
+                    },
+                  },
+                })}
             />
           )}
           {content.kind === 'file' && !content.readOnly && (

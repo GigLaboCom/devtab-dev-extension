@@ -18,6 +18,15 @@
  *                     downloaded on the page). Whether they are Pro is the owner's decision and is not made: on in both
  *                     editions, so the answer is one line of ./pro.ts or ./free.ts. Off: the section shows no
  *                     «Scratches» group and opens no scratch; the ones kept are neither read nor deleted.
+ *   editorProfiles    where the editor's profiles besides Default are kept (seam `EditorProfilesStore`, D39 stage 2;
+ *                     src/editorSettings/profilesStore.ts). Pro: a record of their own in the browser's storage
+ *                     (`editorProfiles`); free: none — the record is never opened, every editor uses the Default set
+ *                     (which both editions keep), and Settings → Editor says in one line that profiles are part of Pro.
+ *                     When Pro ends nothing is deleted: the record is not read, and it is there again with Pro.
+ *   projectEditorSettings  what a project of the Projects section says about its files (seam `ProjectEditorSettings`,
+ *                     D39 stage 3; src/editorSettings/project.ts). Pro: its `.editorconfig` files, read through the
+ *                     backend's read method; free: nothing is read at all, and the indicator of a project's file says
+ *                     in one line that a project's .editorconfig is part of Pro.
  *
  * The tools never see any of it: they get their settings, their history and whether to copy from their host either way
  * (D14). Which edition is in force is seam `EditionSource` (./source.ts): the composition root (index.ts) names a
@@ -25,6 +34,9 @@
  * check yet: the root names a source fixed at build time, and the free build is that one line changed
  * (docs/defaults.md §2).
  */
+import type { EditorProfilesStore } from '../editorSettings/profilesStore';
+import type { ProjectEditorSettingsFactory } from '../editorSettings/project';
+import type { EditorSettingsArea } from '../editorSettings/storage';
 import type { HistoryPlace } from '../history/behaviors';
 import type { BrowserStorage } from '../tools/settings';
 import type { ParameterStorage } from '@workspace/tools-host';
@@ -58,4 +70,11 @@ export interface Edition {
   readonly automaticCopying: boolean;
   /** Whether the Projects section has scratch files in this edition (D34; Free or Pro is not decided yet). */
   readonly scratches: boolean;
+  /**
+   * Seam `EditorProfilesStore`: where the editor's profiles besides Default are kept, given the browser's storage (an
+   * edition without profiles never touches it). Called at most once per page for each edition.
+   */
+  editorProfiles(browser: EditorSettingsArea): EditorProfilesStore;
+  /** Seam `ProjectEditorSettings`: what a project says about its files (an edition without it reads nothing). */
+  readonly projectEditorSettings: ProjectEditorSettingsFactory;
 }

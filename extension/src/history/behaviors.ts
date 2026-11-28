@@ -17,8 +17,10 @@
  * of this version. It also carries the tools' per-tool settings (ToolHost.settings, src/tools/settings.ts —
  * chrome.storage.local), with the tools' saved parameters in the storage of the edition in force (seam
  * ParameterStorage: the browser's storage — Pro — or none — free; src/edition/parameters.ts carries the page's choice
- * over when it changes), and whether automatic copying exists (the edition's `automaticCopying`, D24): this object is
- * what the shell already hands to Tools and Settings, so these members travel with the first.
+ * over when it changes), whether automatic copying exists (the edition's `automaticCopying`, D24), and what stands
+ * behind the editor's profiles and a project's editor settings (the edition's `editorProfiles` and
+ * `projectEditorSettings`, D39): this object is what the shell already hands to Tools and Settings, so these members
+ * travel with the first.
  *
  * When the edition in force changes on an open page: the gate and automatic copying follow at once; free → Pro opens
  * the Pro store first (the same steps as at the start, the gate closed meanwhile) and only then switches the store and
@@ -51,6 +53,8 @@ import {
 import type { Edition, EditionHistory } from '../edition/edition';
 import type { LicenceControls } from '../edition/licenceClient';
 import type { EditionSource, SourceState } from '../edition/source';
+import type { EditorProfilesStore } from '../editorSettings/profilesStore';
+import type { ProjectEditorSettingsFactory } from '../editorSettings/project';
 import type { IndexedDbApi } from './idbStore';
 import type { SessionArea } from './sessionKeyHolder';
 import type { HistorySettingsSource, SettingsArea, SettingsChanged } from './settings';
@@ -110,7 +114,18 @@ export interface HistoryHost {
    * each render: it can change (`onEdition`).
    */
   readonly scratches: boolean;
-  /** Called after `included`, `automaticCopying` or `scratches` (or the licence state) changed; returns the undo. */
+  /**
+   * Where the editor's profiles besides Default are kept in the edition in force (seam `EditorProfilesStore`, D39): the
+   * browser's storage (Pro), or none (free: nothing read or written). One object per edition, made when first asked.
+   * Read it on each render: it can change (`onEdition`).
+   */
+  readonly editorProfiles: EditorProfilesStore;
+  /**
+   * What a project says about its files in the edition in force (seam `ProjectEditorSettings`, D39): its
+   * `.editorconfig` (Pro), or nothing read at all (free). Read it on each render: it can change (`onEdition`).
+   */
+  readonly projectEditorSettings: ProjectEditorSettingsFactory;
+  /** Called after `included`, `automaticCopying`, `scratches`, the editor's members (or the licence state) changed; returns the undo. */
   onEdition(listener: () => void): () => void;
   /** Settings → Pro: the licence's state and controls — only where the build follows a licence (source `licensed`). */
   readonly licence?: LicenceView;
@@ -181,6 +196,21 @@ export const historyHost = (env: HistoryEnvironment): HistoryHost => {
           idleMinutes: () => settings.get().idleLockMinutes,
           now,
         }));
+
+  // Where each edition keeps the editor's profiles, asked of it once, when first needed.
+  const profileStores = new Map<Edition, EditorProfilesStore>();
+  const profilesOf = (edition: Edition): EditorProfilesStore => {
+    let kept = profileStores.get(edition);
+    if (!kept) {
+      kept = edition.editorProfiles({
+        area: env.chrome.storage.local,
+        onChanged: env.chrome.storage.onChanged,
+        areaName: 'local',
+      });
+      profileStores.set(edition, kept);
+    }
+    return kept;
+  };
 
   /** The edition whose history is in use: the store and key holder below are its own, and the gate follows it. */
   let using = editionFor(source.current());
@@ -345,6 +375,12 @@ export const historyHost = (env: HistoryEnvironment): HistoryHost => {
     },
     get scratches() {
       return editionFor(source.current()).scratches;
+    },
+    get editorProfiles() {
+      return profilesOf(editionFor(source.current()));
+    },
+    get projectEditorSettings() {
+      return editionFor(source.current()).projectEditorSettings;
     },
     onEdition: listener => {
       editionListeners.add(listener);
