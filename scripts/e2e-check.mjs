@@ -63,11 +63,12 @@
 // Screenshots of each step go to --shots=<dir> (docs/screenshots/extension-dna/ for the record).
 //
 // Usage:
-//   pnpm test:e2e [-- <dist>] [--shots=<dir>] [--json=<file>] [--only=<step or tool>,…]
+//   pnpm test:e2e [-- <dist>] [--shots=<dir>] [--json=<file>] [--only=<step or tool>,…] [--skip=<step>,…]
 //   --only  run only these after the extension has loaded: a tool's id (its module of scripts/e2e-tools/, e.g.
 //           `--only=jwt`), or a step — start, own-page, toolbar, compare (2–2c), tools (3: every tool and the JSON
 //           controls), shell, themes (4–6), projects-demo, scratches, project-keys, editor-settings, editor-strip, projects, history. The console-error check runs over what
 //           ran.
+//   --skip  leave these steps out (e.g. `--skip=tools`: every step but the tools' own checks).
 // Needs a build (pnpm build) and Playwright with Chrome for Testing: `pnpm e2e:setup` puts both under .state/
 // (Playwright is NOT a workspace dependency, as in the second sibling extension). Elsewhere: PLAYWRIGHT_DIR=<a
 // directory with node_modules/playwright>, PLAYWRIGHT_BROWSERS_PATH=<its browsers>.
@@ -105,8 +106,13 @@ const ONLY = flag('only')
   ?.split(',')
   .map(s => s.trim())
   .filter(Boolean);
-/** Does this run include the step (all of them without --only)? */
-const want = step => !ONLY || ONLY.includes(step);
+const SKIP =
+  flag('skip')
+    ?.split(',')
+    .map(s => s.trim())
+    .filter(Boolean) ?? [];
+/** Does this run include the step (all of them without --only, none of --skip)? */
+const want = step => !SKIP.includes(step) && (!ONLY || ONLY.includes(step));
 const JSON_OUT = resolve(flag('json') ?? join(ROOT, '.state/e2e/report.json'));
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= join(ROOT, '.state/extension-e2e/browsers');
 

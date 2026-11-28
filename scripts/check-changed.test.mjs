@@ -191,8 +191,20 @@ test('the editor runs the sections that hold one and leaves the tools alone', ()
   );
 });
 
-test('the e2e harness runs every step and only the unit tests the other files choose', () => {
+test('the script that orders the steps runs every step but the tools, and one tool as a proof', () => {
   const all = lines('scripts/e2e-check.mjs', 'extension/src/projects/scratch/store.ts');
+  assert.deepEqual(all.slice(-2), ['pnpm test:e2e -- --skip=tools', 'pnpm test:e2e -- --only=jwt']);
+  assert.ok(!all.includes('pnpm check') && !all.includes('pnpm test:e2e'));
+  // A tool changed with it: that tool is the proof. All the tools asked for by a rule: every step.
+  assert.deepEqual(lines('scripts/e2e-check.mjs', 'packages/tools/ui/jwt/src/Jwt.tsx').slice(-2), [
+    'pnpm test:e2e -- --skip=tools',
+    'pnpm test:e2e -- --only=jwt',
+  ]);
+  assert.equal(lines('scripts/e2e-check.mjs', 'packages/tools/shared/src/x.ts').at(-1), 'pnpm test:e2e');
+});
+
+test('the e2e harness runs every step and only the unit tests the other files choose', () => {
+  const all = lines('scripts/e2e-helpers.mjs', 'extension/src/projects/scratch/store.ts');
   assert.equal(all.at(-1), 'pnpm test:e2e');
   assert.ok(!all.includes('pnpm check'));
   assert.ok(all.some(line => line.includes('--filter=...extension')));

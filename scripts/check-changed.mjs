@@ -16,7 +16,8 @@
 //                steps of the sections that hold an editor — not the tools, which never load it
 //   everything   what no rule can vouch for: dependencies, the lockfile, build configuration, the manifest — and any
 //                path no rule knows. Unknown means everything. A change to the e2e harness itself runs every e2e
-//                step, with the unit tests the other files choose.
+//                step, with the unit tests the other files choose; a change to the script that only orders the
+//                steps leaves the tools' own checks out and runs one tool as a proof that tools are still driven.
 //
 // The full run stays the gate before anything is published: `pnpm check && pnpm test:e2e`.
 //
@@ -69,6 +70,12 @@ const editorSteps = () => [...new Set([...EDITOR_USERS, 'history', 'own-page', '
 
 /** The end-to-end harness: every step runs, the unit tests stay as the other files choose. */
 const E2E_HARNESS = /^scripts\/(e2e-check\.mjs|e2e-helpers\.mjs|e2e-setup\.sh)$/;
+/**
+ * The script that orders the steps. The tools' checks are not in it (scripts/e2e-tools.mjs runs them, the helpers
+ * serve them), so a change here runs every step but those, and one tool's module to prove a tool is still driven.
+ */
+const E2E_STEPS = /^scripts\/e2e-check\.mjs$/;
+const TOOL_PROOF = 'jwt';
 
 /** This script and its test: the test is the check. */
 const SELF = /^scripts\/check-changed\./;
@@ -188,6 +195,8 @@ export const planFor = (files, options = {}) => {
     mockBackend: false,
     self: false,
     allE2e: false,
+    allTools: false,
+    tools: [],
     build: false,
     growth: false,
     e2e: [],
@@ -195,6 +204,7 @@ export const planFor = (files, options = {}) => {
     why: {},
   };
   const steps = new Set();
+  const toolSteps = new Set();
   const packages = new Set();
   const note = (key, file) => ((plan.why[key] ??= []).length < 3 ? plan.why[key].push(file) : undefined);
   for (const file of files) {
@@ -232,6 +242,7 @@ export const planFor = (files, options = {}) => {
     }
     if (E2E_HARNESS.test(file)) {
       plan.allE2e = true;
+      if (!E2E_STEPS.test(file)) plan.allTools = true;
       plan.build = true;
       continue;
     }
@@ -252,6 +263,7 @@ export const planFor = (files, options = {}) => {
     }
     if (toolE2e) {
       steps.add(toolE2e[1]);
+      toolSteps.add(toolE2e[1]);
       note(toolE2e[1], file);
       continue;
     }
@@ -268,11 +280,13 @@ export const planFor = (files, options = {}) => {
     if (isTest(file)) continue;
     for (const step of tool ? [toolModule(tool[2]) ? tool[2] : 'tools'] : rule[1]) {
       steps.add(step);
+      if (tool && step !== 'tools') toolSteps.add(step);
       note(step, file);
     }
   }
   plan.packages = [...packages].sort();
   plan.e2e = [...steps].sort();
+  plan.tools = plan.e2e.filter(step => toolSteps.has(step));
   if (plan.e2e.length > 0) plan.build = true;
   return plan;
 };
@@ -298,7 +312,16 @@ export const commandsFor = plan => {
   if (plan.self) commands.push(['pnpm', ['test:check-changed']]);
   if (plan.build) commands.push(['pnpm', ['build']], ['pnpm', ['validate:build']]);
   if (plan.growth) commands.push(['pnpm', ['validate:growth']]);
-  if (plan.allE2e) return [...commands, ['pnpm', ['test:e2e']]];
+  if (plan.allE2e) {
+    // Every tool, when the harness under the tools changed or a rule asks for all of them.
+    if (plan.allTools || plan.e2e.includes('tools')) return [...commands, ['pnpm', ['test:e2e']]];
+    const tools = plan.tools.length > 0 ? plan.tools : [TOOL_PROOF];
+    return [
+      ...commands,
+      ['pnpm', ['test:e2e', '--', '--skip=tools']],
+      ['pnpm', ['test:e2e', '--', `--only=${tools.join(',')}`]],
+    ];
+  }
   // The licence step builds its own variant of the extension, so it runs apart from the others.
   const steps = plan.e2e.filter(step => step !== 'licence');
   if (steps.length > 0) commands.push(['pnpm', ['test:e2e', '--', `--only=${steps.join(',')}`]]);
@@ -360,7 +383,12 @@ const main = () => {
     console.log('  documents only: nothing to check');
   } else {
     if (plan.packages.length > 0) console.log(`  unit tests: ${plan.packages.join(', ')} and what depends on them`);
-    if (plan.allE2e) console.log('  e2e: every step, because the harness itself changed');
+    if (plan.allE2e)
+      console.log(
+        plan.allTools || plan.e2e.includes('tools')
+          ? '  e2e: every step, because the harness itself changed'
+          : "  e2e: every step but the tools' own checks, because the order of the steps changed; one tool as a proof",
+      );
     for (const step of plan.allE2e ? [] : plan.e2e)
       console.log(`  e2e ${step}: ${plan.why[step].join(', ')}${plan.why[step].length === 3 ? ', …' : ''}`);
     if (plan.build && !plan.growth)
