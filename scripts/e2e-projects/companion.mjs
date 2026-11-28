@@ -27,6 +27,16 @@
 // output (a hook that fails, a lock, a signing failure, too little disk, …); `identity` — git's name and e-mail, or none;
 // `changeOnDisk(project, path, text)` — someone else's edit; `gap(project, from, to, paths)` — the companion was not
 // running for a while (a stretch in the history, the event `history.gap`). `now` is the clock of new history points.
+//
+// `openFiles: true` is a companion of step O2 of files opened from the system (D42): it also offers `openFile.*` and
+// `page.activity` (./openFileMethods.mjs); `offerFile(spec)` opens a file as `devtab open` would and gives its token,
+// `requestOpen(token, send)` sends `open.requested` (only after the page told `page.activity`), `changeOpenedOnDisk(file,
+// text)` is someone else's edit, `replaceOpened(file)` replaces it (read only from then on), `expireTokens()` lets the
+// waiting tokens run out.
+
+import { OPEN_FILE_METHODS, openFileMethods } from './openFileMethods.mjs';
+
+export { OPEN_FILE_METHODS };
 
 const PROJECT = 'p_abcdefgh23';
 const HOSTILE = 'p_hostile001';
@@ -74,7 +84,7 @@ export const WRITE_METHODS = [
 export const HISTORY_METHODS = ['history.restore', 'history.requestPurge'];
 
 /** Methods whose answer depends on what happened before: never replayed from a vector outside `replay`. */
-const STATEFUL = new Set([...WRITE_METHODS, ...HISTORY_METHODS, 'git.identity', 'file.delete']);
+const STATEFUL = new Set([...WRITE_METHODS, ...HISTORY_METHODS, ...OPEN_FILE_METHODS, 'git.identity', 'file.delete']);
 
 /** The trusted folder of the scripted repository, as an absolute path typed on the page would be inside it. */
 export const TRUSTED_ROOT = '/srv/fixtures/fx';
@@ -238,6 +248,7 @@ export const createCompanion = ({
   now = Date.now,
   contentFlag = true,
   limits: announced = {},
+  openFiles = false,
 } = {}) => {
   // ---- the vectors: requests answered word for word ----------------------------------------------------------------
   const replies = new Map();
@@ -260,12 +271,17 @@ export const createCompanion = ({
     methods: [...METHODS, ...WRITE_METHODS],
     limits: { maxRequestBytes: 8_388_608, maxTextBytes: MAX_TEXT_BYTES },
   };
-  const offeredWelcome =
+  const staged =
     offered === 'stage3'
       ? { ...copy(helloed), methods: helloed.methods.filter(m => METHODS.includes(m)) }
       : offered === 'stage6'
         ? { ...copy(helloed), methods: helloed.methods.filter(m => !HISTORY_METHODS.includes(m)) }
         : helloed;
+  // Open files only where `openFiles` says (the contract's own welcome vector lists them).
+  const offeredWelcome = {
+    ...copy(staged),
+    methods: [...staged.methods.filter(m => !OPEN_FILE_METHODS.includes(m)), ...(openFiles ? OPEN_FILE_METHODS : [])],
+  };
   const { maxRequestBytes, maxTextBytes } = offeredWelcome.limits;
   const welcome = {
     ...offeredWelcome,
@@ -1202,6 +1218,10 @@ export const createCompanion = ({
     },
   });
 
+  // Files opened from the system (step O2): answered only where `openFiles` announces them.
+  const opened = openFileMethods({ error, hashOf, now });
+  Object.assign(methods, opened.methods);
+
   const out = (send, frame) => {
     for (const piece of chunked(frame, maxFrameBytes)) send(piece);
   };
@@ -1326,5 +1346,17 @@ export const createCompanion = ({
     setIdentity(next) {
       identity = next;
     },
+    /** A file opened from the system (step O2), and its one-time token: `{ token, file }`. */
+    offerFile: spec => opened.offer(spec),
+    changeOpenedOnDisk: (file, text) => opened.changeOnDisk(file, text),
+    replaceOpened: file => opened.replace(file),
+    /** `open.requested` for a token — only to a connection that told `page.activity`, as the companion does. */
+    requestOpen(token, send) {
+      if (!opened.told()) return false;
+      out(send, { type: 'event', name: 'open.requested', project: null, data: { token } });
+      return true;
+    },
+    expireTokens: () => opened.expire(),
+    opened,
   };
 };

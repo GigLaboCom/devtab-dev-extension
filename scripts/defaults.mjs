@@ -112,6 +112,7 @@ const code = await load(
   import { AUTOSAVE_DELAY_MS } from ${at('extension/src/projects/autosave.ts')};
   import { SCRATCH_MAX_COUNT, SCRATCH_MAX_CHARS, SCRATCH_NAME_MAX, SCRATCH_DEFAULT_NAME, SCRATCH_DEFAULT_LANGUAGE } from ${at('extension/src/projects/scratch/store.ts')};
   import { SCRATCHES_KEY, SCRATCH_TEXT_PREFIX } from ${at('extension/src/projects/scratch/storage.ts')};
+  import { OPEN_FILES_DEFAULTS, OPEN_FILES_REUSE_TAB_KEY, OPEN_FILES_BRING_FORWARD_KEY, OPEN_FILES_OPENED_KEY } from ${at('extension/src/projects/openFiles/settings.ts')};
   import { LANGUAGES, labelOf } from ${at('extension/src/compare/languages.ts')};
   import * as EDITOR from ${at('extension/src/editorSettings/model.ts')};
   import { DETECT_MAX_LINES, DETECT_MAX_CHARS, DETECT_MIN_LINES, DETECT_MAX_INDENT } from ${at('extension/src/editorSettings/detect.ts')};
@@ -146,6 +147,8 @@ const code = await load(
     scratches: { MAX_COUNT: SCRATCH_MAX_COUNT, MAX_CHARS: SCRATCH_MAX_CHARS, NAME_MAX: SCRATCH_NAME_MAX, name: SCRATCH_DEFAULT_NAME,
       language: labelOf(SCRATCH_DEFAULT_LANGUAGE), languages: LANGUAGES.filter(l => l.id !== 'text').length, key: SCRATCHES_KEY, textPrefix: SCRATCH_TEXT_PREFIX,
       autosaveMs: AUTOSAVE_DELAY_MS, inPro: editionFor({ kind: 'fixed', edition: 'pro' }).scratches, inFree: editionFor({ kind: 'fixed', edition: 'free' }).scratches },
+    openFiles: { defaults: OPEN_FILES_DEFAULTS, keys: { reuseTab: OPEN_FILES_REUSE_TAB_KEY, bringForward: OPEN_FILES_BRING_FORWARD_KEY, opened: OPEN_FILES_OPENED_KEY },
+      inPro: editionFor({ kind: 'fixed', edition: 'pro' }).openFiles, inFree: editionFor({ kind: 'fixed', edition: 'free' }).openFiles },
     editor: { key: EDITOR_SETTINGS_KEY, version: EDITOR.EDITOR_SETTINGS_VERSION, base: EDITOR.BUILT_IN_VALUES,
       languages: Object.entries(EDITOR.BUILT_IN_LANGUAGES).map(([id, values]) => ({ label: labelOf(id), values })),
       limits: { indent: [EDITOR.INDENT_SIZE_MIN, EDITOR.INDENT_SIZE_MAX], font: [EDITOR.FONT_SIZE_MIN, EDITOR.FONT_SIZE_MAX],
@@ -415,6 +418,49 @@ out.push(
 );
 out.push(
   `\nХранится в \`chrome.storage.local\`: список — \`${sc.key}\`, текст каждого — \`${sc.textPrefix}<id>\`; не синхронизируется между вкладками, последняя запись выигрывает.`,
+);
+h('Projects: файлы, открытые из системы (D42, шаг O2)');
+const of = code.openFiles;
+const onOff = value => (value ? 'вкл' : 'выкл');
+out.push(
+  table(
+    ['Что', 'По умолчанию', 'Где меняется', 'Хранится'],
+    [
+      [
+        'Где',
+        'группа «Files» на главной раздела, рядом со «Scratches»; её нет, пока список пуст и здесь ничего не открывалось, и пока компаньон не объявляет методы `openFile.*`',
+        '—',
+        '—',
+      ],
+      [
+        'Файл приходит к подключённой странице — в этой же вкладке',
+        `${onOff(of.defaults.reuseTab)} (выкл — страница отдаёт номер новой вкладке своей страницы)`,
+        'группа «Files»: «Open it in this tab»',
+        `\`${of.keys.reuseTab}\``,
+      ],
+      [
+        'Вывести вкладку и окно вперёд, когда файл пришёл',
+        onOff(of.defaults.bringForward),
+        'группа «Files»: «Bring this window to the front»',
+        `\`${of.keys.bringForward}\``,
+      ],
+      [
+        'Группа видна и с пустым списком',
+        `после первого открытого файла (до того — ${onOff(of.defaults.opened)})`,
+        '—',
+        `\`${of.keys.opened}\``,
+      ],
+      [
+        'Издание',
+        `Pro — ${of.inPro === 'edit' ? 'запись по режиму компаньона, в справке группы — команда `devtab open <file>`' : 'только чтение'}; free — ${of.inFree === 'read' ? 'только чтение, одна тихая строка и «Copy to a scratch», команда не показывается' : 'запись'} (\`openFiles\` в \`extension/src/edition/pro.ts\`, \`free.ts\`; решение владельца по D42)`,
+        '—',
+        '—',
+      ],
+    ],
+  ),
+);
+out.push(
+  '\nВсё прочее о входах из системы (какие включены, браузер, профиль, типы файлов) — настройки компаньона, не расширения.',
 );
 h('Настройки редактора (D39)');
 const ed = code.editor;

@@ -9,8 +9,11 @@
 //   text (З3, S17); the address never triggers an action (F6); then stages 4–6 (./e2e-projects/writes.mjs: trusted
 //   folders, adding, classes, saving, conflicts, the write policy's refusals, committing, its errors, undo, rollback,
 //   and an older companion with every write inactive) and stage 7 (./e2e-projects/history.mjs: the history, restore and
-//   its undo, the gap, deleted files, clearing, «Open in Compare code» saving back, an older companion); the permission
-//   removed → the page closes its port; «Connect the companion» → connected again.
+//   its undo, the gap, deleted files, clearing, «Open in Compare code» saving back, an older companion) and files opened
+//   from the system (./e2e-projects/openFiles.mjs, D42 step O2: a companion without the methods, the event, the address
+//   and its token, a conflict, read-only reasons, the «Files» group, an expired token, a project's file); the permission
+//   removed → the page closes its port, and a file that arrives waits beside «Connect the companion»; «Connect the
+//   companion» → connected again; then the free build's opened file (read only, «Copy to a scratch»).
 //
 // The browser is its own: Chrome for Testing without a window and a throwaway profile under .state/e2e/, the extension
 // loaded by CDP (Extensions.loadUnpacked) from a copy of the build. The host's manifest goes only into that profile's
@@ -30,6 +33,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HOSTILE_STRINGS, METHODS } from './e2e-projects/companion.mjs';
 import { runCompanionHistory } from './e2e-projects/history.mjs';
+import { runCompanionOpenedFiles, runOpenedFilesFree } from './e2e-projects/openFiles.mjs';
 import { runCompanionWrites } from './e2e-projects/writes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -476,6 +480,9 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
     // ---- stage 7: the local history, restore, clearing, «Open in Compare code» (row 7.5) ---------------------------
     await runCompanionHistory({ page, check, shoot, sleep, command, logOf, setMode, waitState });
 
+    // ---- files opened from the system (D42, step O2) -----------------------------------------------------------------
+    await runCompanionOpenedFiles({ page, base, check, shoot, sleep, command, logOf, setMode, waitState });
+
     // ---- the permission removed: the page closes its port ------------------------------------------------------------------
     const live = logOf()
       .filter(r => r.event === 'start')
@@ -490,6 +497,19 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
       ended,
       `host ${live}`,
     );
+    // A file that arrives now waits beside «Connect the companion» (D42): the token leaves the address all the same.
+    await page.goto(`${base}#/projects/open/ee0000000000000000000000000000ff`);
+    const waiting = page.locator('[data-arrival]');
+    await waiting.waitFor({ timeout: 10_000 });
+    const waits = await waiting.innerText();
+    check(
+      'open files: without the permission a file waits — one sentence beside «Connect the companion», the token gone from the address',
+      waits === 'A file waits to open here. Connect the companion to open it.' &&
+        (await bar(page).getByRole('button', { name: 'Connect the companion' }).isVisible()) &&
+        (await page.evaluate(() => window.location.hash)) === '#/projects',
+      waits,
+    );
+    await shoot(page, 'open-files-waiting-permission.png');
 
     // ---- «Connect the companion»: the click asks Chrome; granted, the section connects -----------------------------------
     // Chrome's prompt has no answer here (finding 8): the click's request stays open, the page says Chrome asks.
@@ -515,6 +535,21 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
       await connection(page),
     );
     await page.close();
+
+    // ---- the free build's opened file (D42): read only, «Copy to a scratch» --------------------------------------------
+    await runOpenedFilesFree({
+      ctx,
+      cdp,
+      root: ROOT,
+      profile,
+      wrapper,
+      storeId: id,
+      check,
+      shoot,
+      sleep,
+      command,
+      setMode,
+    });
   } finally {
     result.hostLog = logOf().length;
     await ctx.close();

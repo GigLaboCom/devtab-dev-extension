@@ -6,12 +6,16 @@
 //
 // Steered through a folder (DEVTAB_FAKE_HOST_DIR, set by the wrapper the e2e writes):
 //   mode.json      read at start: { "mode": "normal" | "empty" | "fresh" | "version" | "not-running", "hostile", "big",
-//                  "methods": "all" | "stage3" | "stage6", "confirm", "identity", "contentFlag", "limits" }
+//                  "methods": "all" | "stage3" | "stage6", "confirm", "identity", "contentFlag", "limits",
+//                  "openFiles" }
 //                  (./companion.mjs)
 //   cmd-<n>.json   commands, taken once by the running host: { "event": { name, project, data } },
 //                  { "addFile": { project, path, text } }, { "changeOnDisk": { project, path, text } },
 //                  { "failNext": { method, code, data, stream, hang } }, { "confirm": answer }, { "identity": … },
 //                  { "gap": { project, from, to, paths } } (the companion was not running: `history.gap`),
+//                  { "openFile": { …file, "emit": true|false } } (a file opened from the system; `emit` sends
+//                  `open.requested` if the page told `page.activity`), { "changeOpenedOnDisk": { file, text } },
+//                  { "replaceOpened": { file } }, { "expireTokens": true },
 //                  { "exit": true } (the port is lost without a word)
 //   log.jsonl      what happened: start (with the caller's origin), each frame in (type, id, method; the parameters of a
 //                  commit, a rollback, a save — a text by its length — and of adding a project), stdin's end, exit
@@ -71,6 +75,9 @@ process.stdin.on('data', data => {
       'file.read',
       'history.restore',
       'history.project',
+      'openFile.claim',
+      'openFile.save',
+      'page.activity',
     ].includes(frame?.method)
       ? { params: { ...frame.params, ...(frame.params?.text !== undefined && { text: frame.params.text.length }) } }
       : {};
@@ -110,6 +117,16 @@ setInterval(() => {
     if (command.confirm) companion.setConfirm(command.confirm);
     if ('identity' in command) companion.setIdentity(command.identity);
     if (command.gap) companion.gap(command.gap.project, command.gap.from, command.gap.to, command.gap.paths);
+    if (command.openFile) {
+      const { emit, ...spec } = command.openFile;
+      const { token } = companion.offerFile(spec);
+      if (emit)
+        log({ event: 'emit', name: 'open.requested', sent: companion.emit('open.requested', null, { token }, send) });
+    }
+    if (command.changeOpenedOnDisk)
+      companion.changeOpenedOnDisk(command.changeOpenedOnDisk.file, command.changeOpenedOnDisk.text);
+    if (command.replaceOpened) companion.replaceOpened(command.replaceOpened.file);
+    if (command.expireTokens) companion.expireTokens();
     if (command.event) {
       const { name: event, project, data } = command.event;
       log({ event: 'emit', name: event, sent: companion.emit(event, project, data, send) });
