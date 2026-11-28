@@ -212,6 +212,7 @@ const budgets = {
   historyPage: budget('extension/src/app/projects/HistoryPanel.tsx', 'HISTORY_PAGE'),
   historyGaps: budget('extension/src/app/projects/HistoryPanel.tsx', 'GAPS_SHOWN'),
   lastSeenKey: /LAST_SEEN_PREFIX = '([^']+)'/.exec(src('extension/src/projects/lastSeen.ts'))?.[1] ?? '',
+  installKey: /COMPANION_INSTALL_KEY = '([^']+)'/.exec(src('extension/src/projects/companionInstall.ts'))?.[1] ?? '',
   companionReconnect: (/RECONNECT_MS[^=]*=\s*\[([^\]]*)\]/.exec(src('extension/src/projects/connection.ts'))?.[1] ?? '')
     .split(',')
     .map(v => Number(v.trim().replaceAll('_', '')))
@@ -737,6 +738,11 @@ out.push(
         'Projects: последний визит проекта («Since your last visit»)',
         `пишется при уходе из проекта (другой проект, раздел, вкладка скрыта или закрыта); ключ \`${budgets.lastSeenKey}<id>\` в chrome.storage.local`,
         '`extension/src/projects/lastSeen.ts`',
+      ],
+      [
+        'Projects: номер установки для компаньона (`hello.install`, D42)',
+        `\`crypto.randomUUID()\` при первом подключении, дальше тот же в каждом рукопожатии; строкой как есть под ключом \`${budgets.installKey}\` в chrome.storage.local; испорченный заменяется новым, без хранилища — рукопожатие без поля; в обоих изданиях`,
+        '`extension/src/projects/companionInstall.ts`',
       ],
       [
         'Подпись / текст записи истории',

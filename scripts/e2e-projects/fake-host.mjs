@@ -18,7 +18,8 @@
 //                  { "replaceOpened": { file } }, { "expireTokens": true },
 //                  { "exit": true } (the port is lost without a word)
 //   log.jsonl      what happened: start (with the caller's origin), each frame in (type, id, method; the parameters of a
-//                  commit, a rollback, a save — a text by its length — and of adding a project), stdin's end, exit
+//                  commit, a rollback, a save — a text by its length — and of adding a project; `install` of a `hello`),
+//                  stdin's end, exit
 // Nothing else is read or written; the host never touches the network.
 import { appendFileSync, existsSync, readFileSync, readdirSync, renameSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -81,7 +82,9 @@ process.stdin.on('data', data => {
     ].includes(frame?.method)
       ? { params: { ...frame.params, ...(frame.params?.text !== undefined && { text: frame.params.text.length }) } }
       : {};
-    log({ event: 'in', type: frame?.type, id: frame?.id, method: frame?.method, ...asked });
+    // The installation's number a `hello` said (step O3): the e2e checks it is made once and kept.
+    const said = frame?.type === 'hello' ? { install: frame.install ?? null } : {};
+    log({ event: 'in', type: frame?.type, id: frame?.id, method: frame?.method, ...asked, ...said });
     void companion.handle(frame, send).then(() => {
       // As the relay does: after its last word about the connection it exits.
       if (frame?.type === 'hello' && options.mode !== undefined && ['not-running', 'version'].includes(options.mode))
