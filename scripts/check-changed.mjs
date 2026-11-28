@@ -12,9 +12,11 @@
 //   build and validate:build    whenever something that ships changed; validate:growth only for what the start route
 //                               reads (it builds the extension twice)
 //   e2e          only the steps of the sections touched (RULES below), a tool's own module for a tool
-//   everything   what no rule can vouch for: dependencies, the lockfile, build configuration, the manifest, the
-//                editor's Rust code — and any path no rule knows. Unknown means everything. A change to the e2e
-//                harness itself runs every e2e step, with the unit tests the other files choose.
+//   the editor   its Rust code and its module: the unit tests of the module and of the extension, the build, and the
+//                steps of the sections that hold an editor — not the tools, which never load it
+//   everything   what no rule can vouch for: dependencies, the lockfile, build configuration, the manifest — and any
+//                path no rule knows. Unknown means everything. A change to the e2e harness itself runs every e2e
+//                step, with the unit tests the other files choose.
 //
 // The full run stays the gate before anything is published: `pnpm check && pnpm test:e2e`.
 //
@@ -43,8 +45,6 @@ const EVERYTHING = [
   [/(^|\/)package\.json$/, "a package's dependencies or scripts"],
   [/^patches\//, 'a patched dependency'],
   [/^packages\/(tsconfig|env|hmr)\//, 'build tooling'],
-  [/^(crates|vendor)\//, "the editor's Rust code (rebuild the module first: crates/review-wasm/build.sh)"],
-  [/^packages\/review-wasm\//, 'the editor module'],
   [
     /^extension\/(manifest\.config\.ts|product\.json|vite\.config\.ts|vitest\.config\.ts|tsconfig[^/]*\.json)$/,
     'the manifest or the build',
@@ -54,6 +54,18 @@ const EVERYTHING = [
   [/^scripts\/validate-build\./, 'the checks of the build'],
   [/^bash-scripts\//, 'build scripts'],
 ];
+
+/**
+ * The editor: its Rust code, the library it is built on and the module's own package. Only the extension depends on
+ * the module, and only the sections that hold an editor load it, so a change here runs their steps and leaves the
+ * tools alone. The module is not rebuilt and the crates' own tests are not run by this script: see `EDITOR_NOTE`.
+ */
+const EDITOR_MODULE = /^(crates|vendor)\/|^packages\/review-wasm\//;
+const EDITOR_PACKAGE = '@extension/review-wasm';
+const EDITOR_NOTE =
+  "the editor's Rust code changed: rebuild the module first (crates/review-wasm/build.sh) and run the crates' own tests";
+/** The steps that load the editor: the sections that hold one, and the steps that open its page or paint it. */
+const editorSteps = () => [...new Set([...EDITOR_USERS, 'history', 'own-page', 'shell', 'themes'])];
 
 /** The end-to-end harness: every step runs, the unit tests stay as the other files choose. */
 const E2E_HARNESS = /^scripts\/(e2e-check\.mjs|e2e-helpers\.mjs|e2e-setup\.sh)$/;
@@ -159,6 +171,7 @@ export const planFor = (files, options = {}) => {
     build: false,
     growth: false,
     e2e: [],
+    notes: [],
     why: {},
   };
   const steps = new Set();
@@ -169,6 +182,22 @@ export const planFor = (files, options = {}) => {
     const everything = EVERYTHING.find(([pattern]) => pattern.test(file));
     if (everything) {
       plan.full.push(`${file}: ${everything[1]}`);
+      continue;
+    }
+    if (EDITOR_MODULE.test(file)) {
+      // The module's TypeScript is linted and formatted like any other; Rust and the library are not ours to format.
+      if (file.startsWith('packages/')) {
+        plan.format.push(file);
+        if (isCode(file)) plan.lint.push(file);
+      } else if (!plan.notes.includes(EDITOR_NOTE)) plan.notes.push(EDITOR_NOTE);
+      plan.typeCheck = true;
+      packages.add(EDITOR_PACKAGE);
+      if (isTest(file)) continue;
+      plan.build = true;
+      for (const step of editorSteps()) {
+        steps.add(step);
+        note(step, file);
+      }
       continue;
     }
     plan.format.push(file);
@@ -317,6 +346,7 @@ const main = () => {
     if (plan.build && !plan.growth)
       console.log('  validate:growth is not needed: nothing the start route reads changed');
   }
+  for (const text of plan.notes) console.log(`  note: ${text}`);
   for (const [cmd, args] of commands) console.log(`  $ ${[cmd, ...args].join(' ')}`);
   if (!process.argv.includes('--run')) return;
   for (const [cmd, args] of commands) {

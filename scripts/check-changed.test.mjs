@@ -102,7 +102,7 @@ test('what no rule can vouch for runs everything', () => {
   for (const file of [
     'pnpm-lock.yaml',
     'packages/tools/logic/jwt/package.json',
-    'crates/review-wasm/src/lib.rs',
+    'packages/review-wasm/package.json',
     'extension/manifest.config.ts',
     'extension/src/background/index.ts',
     'scripts/validate-build.sh',
@@ -112,6 +112,56 @@ test('what no rule can vouch for runs everything', () => {
   ]) {
     assert.deepEqual(lines(file), ['pnpm check', 'pnpm test:e2e'], file);
   }
+});
+
+test('the editor runs the sections that hold one and leaves the tools alone', () => {
+  for (const file of [
+    'crates/review-view/src/view.rs',
+    'vendor/gpui-kit/pin.json',
+    'packages/review-wasm/lib/host.ts',
+  ]) {
+    const p = plan(file);
+    assert.deepEqual(p.full, [], file);
+    for (const step of [
+      'compare',
+      'projects',
+      'scratches',
+      'editor-settings',
+      'own-page',
+      'shell',
+      'themes',
+      'history',
+    ])
+      assert.ok(p.e2e.includes(step), `${file}: ${step}`);
+    for (const step of ['tools', 'start', 'toolbar', 'licence']) assert.ok(!p.e2e.includes(step), `${file}: ${step}`);
+    assert.deepEqual(p.packages, ['@extension/review-wasm']);
+    assert.equal(p.build, true);
+    assert.equal(p.growth, false);
+    const all = commandsFor(p).map(([cmd, args]) => [cmd, ...args].join(' '));
+    assert.ok(!all.includes('pnpm check') && !all.includes('pnpm test:e2e'), file);
+    assert.ok(
+      all.some(line => line.includes('--filter=...@extension/review-wasm')),
+      file,
+    );
+  }
+  // Rust is neither linted nor formatted here, and the plan says what it does not do.
+  const rust = plan('crates/review-view/src/view.rs');
+  assert.deepEqual([rust.lint, rust.format], [[], []]);
+  assert.equal(rust.notes.length, 1);
+  const ts = plan('packages/review-wasm/lib/host.ts');
+  assert.deepEqual(
+    [ts.lint, ts.format, ts.notes],
+    [['packages/review-wasm/lib/host.ts'], ['packages/review-wasm/lib/host.ts'], []],
+  );
+  // A test of the module proves itself in the unit run.
+  assert.deepEqual(plan('packages/review-wasm/lib/controller.test.ts').e2e, []);
+  // With a tool touched as well, the tool's own checks join; nothing else of the tools does.
+  assert.deepEqual(
+    plan('crates/review-view/src/view.rs', 'packages/tools/ui/jwt/src/Jwt.tsx').e2e.filter(
+      s => s === 'jwt' || s === 'tools',
+    ),
+    ['jwt'],
+  );
 });
 
 test('the e2e harness runs every step and only the unit tests the other files choose', () => {
