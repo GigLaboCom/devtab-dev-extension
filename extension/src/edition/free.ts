@@ -11,7 +11,9 @@
  *     stored "on" is left as it is. The Copy buttons work as in Pro;
  *   - the editor has one set of settings, Default (kept, as in Pro): the profiles' record is never opened — no read,
  *     no write — so one a Pro build left is found as it was when Pro is back; and no project's `.editorconfig` is read.
- *     Settings → Editor and the indicator of a project's file say so in one line each (D40).
+ *     Settings → Editor and the indicator of a project's file say so in one line each (D40);
+ *   - a file opened from the system opens read only, with one quiet line and «Copy to a scratch» (D42): the scratch is
+ *     editable and downloadable, a way out without buying; nothing names the command that sends files here.
  */
 import { noEditorProfiles } from '../editorSettings/profilesStore';
 import { noProjectEditorSettings } from '../editorSettings/project';
@@ -28,4 +30,6 @@ export const free: Edition = {
   scratches: true,
   editorProfiles: () => noEditorProfiles,
   projectEditorSettings: noProjectEditorSettings,
+  // D42 (owner's decision): a file opened from the system is read only in the free edition.
+  openFiles: 'read',
 };

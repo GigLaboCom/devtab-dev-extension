@@ -155,7 +155,7 @@ const Part = ({
   const host = use(history());
   // Whether the edition in force has scratch files (D34), and the editor's profiles and a project's settings (D39),
   // followed while the page is open.
-  const { scratches, editorProfiles, projectEditorSettings } = useHostEdition(host);
+  const { scratches, editorProfiles, projectEditorSettings, openFiles } = useHostEdition(host);
   // "New scratch file" from any section (D38): the Projects section opens its language popup — at once when it is
   // the section shown, on arrival otherwise; the intent goes in the page's memory, not in the address (F6).
   const onProjects = route.section === 'projects';
@@ -188,6 +188,7 @@ const Part = ({
             route={route}
             frameKeys={frameKeys}
             scratches={scratches}
+            openFiles={openFiles}
             keys={sectionKeys}
             editorSettings={editorSettings}
           />

@@ -27,6 +27,12 @@
  *                     D39 stage 3; src/editorSettings/project.ts). Pro: its `.editorconfig` files, read through the
  *                     backend's read method; free: nothing is read at all, and the indicator of a project's file says
  *                     in one line that a project's .editorconfig is part of Pro.
+ *   openFiles         what the Projects section does with a file opened from the system (D42: «Open With»,
+ *                     `devtab open <file>`). Pro (`edit`): the file is written as the companion's mode for it says, and the
+ *                     section's help names the terminal command. Free (`read`): the file opens read only, with one quiet
+ *                     line and «Copy to a scratch» (a way out without buying, D40), and nothing names the command. The
+ *                     companion knows nothing of the edition; when Pro ends nothing is deleted — the list stays, the
+ *                     files open read only. The one place where the line between Free and Pro is drawn for these files.
  *
  * The tools never see any of it: they get their settings, their history and whether to copy from their host either way
  * (D14). Which edition is in force is seam `EditionSource` (./source.ts): the composition root (index.ts) names a
@@ -77,4 +83,9 @@ export interface Edition {
   editorProfiles(browser: EditorSettingsArea): EditorProfilesStore;
   /** Seam `ProjectEditorSettings`: what a project says about its files (an edition without it reads nothing). */
   readonly projectEditorSettings: ProjectEditorSettingsFactory;
+  /** Files opened from the system (D42): written as the companion allows (`edit`), or shown read only (`read`). */
+  readonly openFiles: OpenFilesEdition;
 }
+
+/** What an edition does with a file opened from the system. */
+export type OpenFilesEdition = 'edit' | 'read';

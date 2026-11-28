@@ -56,8 +56,11 @@ export const projectBackendContract = (name: string, make: () => ProjectBackendH
       expect(['ready', 'ready-empty', 'paused']).toContain(connection.state);
       const { methods } = backend.capabilities();
       // Every read of the contract; of the writes, each offered on its own (no `file.delete` without a Trash, no push
-      // before the companion has it) — a backend that saves offers the writes of files and commits together.
-      for (const method of CONTRACT_METHODS.filter(m => !WRITE_METHODS.includes(m))) expect(methods).toContain(method);
+      // before the companion has it) — a backend that saves offers the writes of files and commits together. Files
+      // opened from the system (`openFile.*`, `page.activity`, D42) are a feature of their own: offered or not as a whole.
+      const ownFeature = (m: string): boolean => m.startsWith('openFile.') || m === 'page.activity';
+      for (const method of CONTRACT_METHODS.filter(m => !WRITE_METHODS.includes(m) && !ownFeature(m)))
+        expect(methods).toContain(method);
       if (methods.includes('file.save'))
         for (const method of [
           'file.create',

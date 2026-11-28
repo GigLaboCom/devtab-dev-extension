@@ -36,6 +36,24 @@ describe('route', () => {
     expect(parseRoute('#/projects/scratches/%E0%A4%A')).toEqual({ section: 'projects' });
     expect(routeHash({ section: 'projects', scratch: 's_abcdefghij' })).toBe('#/projects/scratches/s_abcdefghij');
   });
+  it('reads a file opened from the system (D42), and a waiting file’s token — which it never writes back', () => {
+    expect(parseRoute('#/projects/files/f_0000000001')).toEqual({ section: 'projects', file: 'f_0000000001' });
+    expect(parseRoute('#/projects/files')).toEqual({ section: 'projects' });
+    expect(routeHash({ section: 'projects', file: 'f_0000000001' })).toBe('#/projects/files/f_0000000001');
+    const token = 'a1'.repeat(16);
+    expect(parseRoute(`#/projects/open/${token}`)).toEqual({ section: 'projects', open: token });
+    expect(routeHash({ section: 'projects', open: token })).toBe('#/projects');
+    // Only a token's shape is taken: short, long, other characters, more parts — the section's home.
+    for (const hash of [
+      '#/projects/open/short',
+      `#/projects/open/${'a'.repeat(33)}`,
+      `#/projects/open/${token.toUpperCase()}`,
+      '#/projects/open/0123456789abcdef0123456789abcdeg',
+      `#/projects/open/${token}/more`,
+      '#/projects/open/',
+    ])
+      expect(parseRoute(hash)).toEqual({ section: 'projects' });
+  });
   it('writes what it reads', () => {
     for (const hash of [
       '#/start',
@@ -43,6 +61,7 @@ describe('route', () => {
       '#/compare',
       '#/projects',
       '#/projects/scratches/s_abcdefghij',
+      '#/projects/files/f_0000000001',
       '#/tools',
       '#/tools/json',
     ])

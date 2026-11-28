@@ -74,6 +74,14 @@ export type CommitResult = Contract.CommitResult;
 export type OutputLine = Contract.CommitOutput;
 export type SaveParams = Contract.SaveParams;
 export type Saved = Contract.Saved;
+/** Files opened from the system (D42): what the page may do with one, why it is read only, how it came, its copies. */
+export type FileMode = Contract.FileMode;
+export type ReadReason = Contract.ReadReason;
+export type OpenedVia = Contract.OpenedVia;
+export type OpenFileSummary = Contract.OpenFileSummary;
+export type FileSaved = Contract.FileSaved;
+export type FileRestored = Contract.FileRestored;
+export type HistoryContent = Contract.HistoryContent;
 
 // ---- by hand, until the companion offers them --------------------------------------------------------------------
 

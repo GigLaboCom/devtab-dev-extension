@@ -16,6 +16,13 @@
  * connection. Whether the section has them is the edition's (`scratches`, src/edition): without them neither the
  * group nor a scratch's address is shown, and what was kept is left as it is.
  *
+ * Files opened from the system (D42; `#/projects/files/<id>` opens one, `#/projects/open/<token>` brings one that waits)
+ * come from the root's `openFiles` (src/projects/openFiles/) over the same backend, only while the companion offers
+ * them: the «Files» group next to «Scratches» (./../projects/FilesGroup.tsx) and the file's editor
+ * (./../projects/OpenedFileView.tsx). A token is taken from the address at once (the history keeps the address
+ * without it) and redeemed once (./../projects/useOpenedFiles.ts). What the page does with such a file is the edition's
+ * (`openFiles`: written as the companion allows, or read only with «Copy to a scratch»).
+ *
  * Keys (D38): the page offers the shell the commands it has a target for (`keys`, app/shell/sectionKeys.ts) — an open
  * scratch its actions (ScratchView.tsx), an open project its panels, quick open and changes (below and
  * EditorPane.tsx). "New scratch file" is asked for from any page (src/shortcuts/intent.ts: in the page's memory, never
@@ -26,8 +33,10 @@ import { CommitPanel } from '../projects/CommitPanel';
 import { ConnectionBar } from '../projects/ConnectionBar';
 import { DemoNotice } from '../projects/DemoNotice';
 import { EditorPane } from '../projects/EditorPane';
+import { FilesGroup } from '../projects/FilesGroup';
 import { HistoryPanel } from '../projects/HistoryPanel';
 import { LanguagePicker } from '../projects/LanguagePicker';
+import { OpenedFileView } from '../projects/OpenedFileView';
 import { ProjectBar } from '../projects/ProjectBar';
 import { ProjectList } from '../projects/ProjectList';
 import { ProjectTree } from '../projects/ProjectTree';
@@ -38,14 +47,16 @@ import { SearchPanel } from '../projects/SearchPanel';
 import { TEXT, scratchRefusal } from '../projects/text';
 import { TrustedFolders } from '../projects/TrustedFolders';
 import { useLastVisit } from '../projects/useLastVisit';
+import { useOpenedFiles } from '../projects/useOpenedFiles';
 import { useWorkspace } from '../projects/useWorkspace';
 import { go, routeHash } from '../route';
 import { hintOf, useOffer } from '../shell/sectionKeys';
 import { projectsBehaviors } from '@src/projects/behaviors';
 import { onAsk, take } from '@src/shortcuts/intent';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Route } from '../route';
 import type { SectionKeys } from '../shell/sectionKeys';
+import type { OpenFilesEdition } from '@src/edition/edition';
 import type { EditorSettingsBehaviors } from '@src/editorSettings/behaviors';
 import type { ConnectionStatus, ProjectBackend } from '@src/projects/backend';
 import type { ProjectsBehaviors } from '@src/projects/behaviors';
@@ -63,6 +74,8 @@ export interface ProjectsPageProps {
   frameKeys?: FrameKeys;
   /** Whether the edition in force has scratch files (D34); they are where this is not said. */
   scratches?: boolean;
+  /** What the edition in force does with a file opened from the system (D42); `edit` where this is not said. */
+  openFiles?: OpenFilesEdition;
   /** The user's shortcuts as the section gets them (the shell's); absent: no keys. */
   keys?: SectionKeys;
   /** The editor's settings (the shell's composition root, D39); absent: the editors keep their own defaults. */
@@ -177,14 +190,36 @@ const Workspace = ({
   );
 };
 
+/** Tokens taken from the address, kept in the page's memory until they are claimed (never in the address again). */
+const useArrivals = (token: string | undefined): { take(): string[]; n: number } => {
+  const kept = useRef<string[]>([]);
+  const [n, setN] = useState(0);
+  // Before the page paints: the address loses the token, and the history keeps the address without it.
+  useLayoutEffect(() => {
+    if (!token) return;
+    kept.current.push(token);
+    location.replace(routeHash({ section: 'projects' }));
+    setN(c => c + 1);
+  }, [token]);
+  return useMemo(
+    () => ({
+      n,
+      take: () => kept.current.splice(0),
+    }),
+    [n],
+  );
+};
+
 export const ProjectsPage = ({
   route,
   behaviors,
   frameKeys,
   scratches = true,
+  openFiles = 'edit',
   keys,
   editorSettings,
 }: ProjectsPageProps): ReactElement | null => {
+  const arrivals = useArrivals(route.open);
   // One backend for the page's life in the section, holding the one port; let go when the section closes (§8.2).
   // Made in an effect, not during render: what the effect's cleanup disposed is never used again.
   const [backend, setBackend] = useState<ProjectBackend | null>(null);
@@ -199,9 +234,11 @@ export const ProjectsPage = ({
       behaviors={behaviors}
       frameKeys={frameKeys}
       scratches={scratches}
+      openFiles={openFiles}
       keys={keys}
       editorSettings={editorSettings}
       backend={backend}
+      arrivals={arrivals}
     />
   ) : null;
 };
@@ -211,10 +248,12 @@ const Projects = ({
   behaviors,
   frameKeys,
   scratches,
+  openFiles = 'edit',
   keys,
   editorSettings,
   backend,
-}: ProjectsPageProps & { backend: ProjectBackend }): ReactElement => {
+  arrivals,
+}: ProjectsPageProps & { backend: ProjectBackend; arrivals: { take(): string[]; n: number } }): ReactElement => {
   const [status, setStatus] = useState<ConnectionStatus>(() => backend.status());
   const [lists, setLists] = useState<Lists | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -263,8 +302,12 @@ const Projects = ({
     [backend, reload, demo],
   );
 
+  // Files opened from the system (D42): the list, and the files that arrive.
+  const opened = useOpenedFiles({ backend, status, generation, demo, behaviors: behaviors.openFiles, arrivals });
+
   const project = route.project ? lists?.projects.find(p => p.id === route.project) : undefined;
   const scratch = scratches ? route.scratch : undefined;
+  const file = opened.files ? route.file : undefined;
   // The scratch just made: it opens with the keyboard in the editor.
   const made = useRef<string | null>(null);
 
@@ -307,13 +350,18 @@ const Projects = ({
   return (
     <section
       className="kit-projects"
-      aria-labelledby={project || scratch ? undefined : 'projects-title'}
-      aria-label={project ? project.name : scratch ? TEXT.scratchesTitle : undefined}
+      aria-labelledby={project || scratch || file ? undefined : 'projects-title'}
+      aria-label={project ? project.name : scratch ? TEXT.scratchesTitle : file ? TEXT.openFiles.title : undefined}
       data-connection={status.connecting && status.state !== 'reconnecting' ? 'connecting' : status.state}
       data-backend={demo ? 'demo' : 'companion'}>
-      {!scratch && <DemoNotice demo={demo} state={status.state} />}
+      {!scratch && !file && <DemoNotice demo={demo} state={status.state} />}
       {!scratch && <ConnectionBar backend={backend} status={status} />}
-      {failed && !scratch && (
+      {opened.note && (
+        <p className="kit-projects-note" data-tone={opened.note.tone} role="status" data-arrival="">
+          {opened.note.text}
+        </p>
+      )}
+      {failed && !scratch && !file && (
         <p className="kit-projects-note" data-tone="error" role="status">
           {TEXT.failed(failed)}
         </p>
@@ -329,6 +377,25 @@ const Projects = ({
           editorSettings={editorSettings}
           autosaveDelayMs={behaviors.autosaveDelayMs}
           focus={made.current === scratch}
+        />
+      ) : file && opened.files ? (
+        <OpenedFileView
+          key={`${file}:${openFiles}`}
+          files={opened.files}
+          id={file}
+          file={opened.known(file)}
+          listed={opened.list !== null}
+          offered={opened.offered}
+          takeAt={opened.takeAt}
+          edition={openFiles}
+          saver={behaviors.openFiles!.saver}
+          scratchStore={scratches ? behaviors.scratchStore : undefined}
+          onForget={opened.forget}
+          canForget={opened.offered && opened.files.can('forget')}
+          frameKeys={frameKeys}
+          keys={keys}
+          editorSettings={editorSettings}
+          autosaveDelayMs={behaviors.autosaveDelayMs}
         />
       ) : project ? (
         <Workspace
@@ -354,7 +421,7 @@ const Projects = ({
               <p className="kit-section-hint">{TEXT.hint}</p>
             </div>
           </header>
-          {(lists || scratches) && (
+          {(lists || scratches || opened.visible) && (
             <div className="kit-projects-home">
               {lists && (
                 <ProjectList
@@ -378,6 +445,16 @@ const Projects = ({
                   store={behaviors.scratchStore}
                   onNew={openPicker}
                   newHint={hintOf(keys, NEW_SCRATCH, TEXT.newScratchTitle)}
+                />
+              )}
+              {opened.visible && opened.files && (
+                <FilesGroup
+                  files={opened.list ?? []}
+                  settings={opened.settings}
+                  onSettings={opened.setSettings}
+                  canForget={opened.files.can('forget')}
+                  onForget={opened.forget}
+                  edition={openFiles}
                 />
               )}
               {lists && <TrustedFolders locations={lists.locations} offered={lists.folders} />}
@@ -406,12 +483,14 @@ const ProjectsSection = ({
   route,
   frameKeys,
   scratches,
+  openFiles,
   keys,
   editorSettings,
 }: {
   route: Route;
   frameKeys?: FrameKeys;
   scratches?: boolean;
+  openFiles?: OpenFilesEdition;
   keys?: SectionKeys;
   editorSettings?: EditorSettingsBehaviors;
 }): ReactElement => {
@@ -422,6 +501,7 @@ const ProjectsSection = ({
       behaviors={behaviors}
       frameKeys={frameKeys}
       scratches={scratches}
+      openFiles={openFiles}
       keys={keys}
       editorSettings={editorSettings}
     />

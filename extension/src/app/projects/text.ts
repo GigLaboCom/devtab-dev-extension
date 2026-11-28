@@ -464,6 +464,55 @@ export const TEXT = {
   headUndo: {
     unknown: 'The companion could not check whether the last commit can be undone.',
   },
+
+  // ---- files opened from the system (D42, step O2): the «Files» group, a file's editor, a file arriving. Working
+  // placeholders: the owner writes these texts (D40: the free edition's line is quiet, it offers a way out). -------
+  openFiles: {
+    title: 'Files',
+    hint: 'Single files opened from your computer, outside any project.',
+    empty: 'No files are open.',
+    listLabel: 'Files opened from your computer',
+    markReadOnly: 'read only',
+    markExecutes: 'runs on its own',
+    mark: 'File',
+    forget: 'Forget',
+    forgetOf: (name: string) => `Forget ${name}`,
+    forgetTitle: 'Remove from this list and delete the companion’s copies of it. The file itself stays as it is.',
+    settingsTitle: 'When a file arrives',
+    reuseTab: 'Open it in this tab',
+    bringForward: 'Bring this window to the front',
+    // Pro only (the free edition does not name it).
+    commandHint: 'To open a file here from Terminal:',
+    command: 'devtab open <file>',
+    // An open file.
+    freeLine: 'Editing files opened from your computer is part of Pro.',
+    copyToScratch: 'Copy to a scratch',
+    // Why the companion keeps a file read only (its `reason`), one quiet sentence each.
+    readOnly: {
+      secret: 'Read only: this file holds secrets.',
+      executes: 'Read only: this file runs on its own, and the companion is set to keep such files read only.',
+      remote: 'Read only: this file is not on a disk of this computer.',
+      'not-utf8': 'Read only: this file is not UTF-8 text.',
+      'read-only-file': 'Read only: the file itself is read only on disk.',
+      requested: 'Read only: it was opened read only.',
+      replaced:
+        'Read only: the file was replaced, moved or became a link since it was opened. Open it again from your computer to edit it.',
+    } as Record<string, string>,
+    readOnlyOther: 'Read only.',
+    executes: 'This file runs on its own (a shell or system setting). It is written like any other file.',
+    missing: 'This file is not in the list any more. Open it again from your computer.',
+    notEditable: 'This file can only be read here now.',
+    forgetConfirm: (name: string) => `Forget ${name}?`,
+    forgetBody:
+      'It leaves this list, and the companion deletes the copies it kept of it. The file itself stays as it is.',
+    forgetRun: 'Forget',
+    // A file arriving (event, route, or waiting since before the page connected).
+    opening: 'Opening a file…',
+    waitingConnect: 'A file waits to open here. Connect the companion to open it.',
+    waitingCompanion: 'A file waits to open here once the companion is connected.',
+    notOffered: 'This companion cannot open files from your computer yet.',
+    expired: 'The link to this file has expired or was already used. Open the file again from your computer.',
+  },
 } as const;
 
 /** What a scratch store's refusal says (D34): what was not kept, and what the person can do. */

@@ -5,7 +5,8 @@
  * IndexedDB of the extension's origin (or in the store the host gives instead, when it has no database); "Copy
  * automatically after generating" exists; the editor has profiles, kept in a record of their own in the browser's
  * storage (`editorProfiles`, D39), and a project's `.editorconfig` applies to its files (read through the backend, in
- * a chunk loaded when the first project asks). Another storage for Pro (a remote one) is the line `parameters` changed
+ * a chunk loaded when the first project asks); a file opened from the system is written as the companion's mode for
+ * it says (D42). Another storage for Pro (a remote one) is the line `parameters` changed
  * (docs/tools/settings-storage.md §7).
  */
 import { areaEditorProfiles } from '../editorSettings/profilesStore';
@@ -25,4 +26,6 @@ export const pro: Edition = {
   projectEditorSettings: lazyProjectEditorSettings('editorconfig', () =>
     import('../editorSettings/editorconfig/editorConfigReader').then(m => m.editorConfigSettings),
   ),
+  // D42 (owner's decision): editing a file opened from the system is Pro.
+  openFiles: 'edit',
 };

@@ -1,12 +1,13 @@
 /**
  * What the edition in force says to the pages, followed while the page is open: whether the history is part of it and
  * whether automatic copying exists, whether the Projects section has scratch files, what stands behind the editor's
- * profiles and a project's editor settings (HistoryHost `included`, `automaticCopying`, `scratches`, `editorProfiles`,
- * `projectEditorSettings`), and — where the build follows a
- * licence — the licence's state. A page reads them here, never once at mount: when the edition or the licence state
+ * profiles and a project's editor settings, and what the section does with a file opened from the system (HistoryHost
+ * `included`, `automaticCopying`, `scratches`, `editorProfiles`, `projectEditorSettings`, `openFiles`), and — where
+ * the build follows a licence — the licence's state. A page reads them here, never once at mount: when the edition or the licence state
  * changes (`onEdition`), every place re-renders with the new values.
  */
 import { useCallback, useSyncExternalStore } from 'react';
+import type { OpenFilesEdition } from '@src/edition/edition';
 import type { SourceState } from '@src/edition/source';
 import type { EditorProfilesStore } from '@src/editorSettings/profilesStore';
 import type { ProjectEditorSettingsFactory } from '@src/editorSettings/project';
@@ -21,6 +22,7 @@ export const useHostEdition = (
   readonly scratches: boolean;
   readonly editorProfiles: EditorProfilesStore;
   readonly projectEditorSettings: ProjectEditorSettingsFactory;
+  readonly openFiles: OpenFilesEdition;
 } => {
   const subscribe = useCallback((listener: () => void) => host.onEdition(listener), [host]);
   const included = useSyncExternalStore(
@@ -43,7 +45,11 @@ export const useHostEdition = (
     subscribe,
     useCallback(() => host.projectEditorSettings, [host]),
   );
-  return { included, automaticCopying, scratches, editorProfiles, projectEditorSettings };
+  const openFiles = useSyncExternalStore(
+    subscribe,
+    useCallback(() => host.openFiles, [host]),
+  );
+  return { included, automaticCopying, scratches, editorProfiles, projectEditorSettings, openFiles };
 };
 
 /**

@@ -226,8 +226,11 @@ describe('calls', () => {
 });
 
 describe('the contract’s vectors', () => {
+  /** A vector of an event (`open.requested.json`): no request, the frame the companion sends by itself. */
+  const isEventVector = (list: unknown): boolean =>
+    Array.isArray(list) && list.every(v => typeof v === 'object' && v !== null && 'event' in v && !('request' in v));
   const calls = Object.entries(VECTORS).flatMap(([file, list]) =>
-    file === 'hello.json' || file === 'chunking.json'
+    file === 'hello.json' || file === 'chunking.json' || isEventVector(list)
       ? []
       : (
           list as {
@@ -245,7 +248,34 @@ describe('the contract’s vectors', () => {
 
   // A vector file is a sequence (a project made writable, then asked again; a commit, then undone): each file's calls
   // go to one companion that plays them in order.
-  const files = Object.entries(VECTORS).filter(([file]) => file !== 'hello.json' && file !== 'chunking.json');
+  const files = Object.entries(VECTORS).filter(
+    ([file, list]) => file !== 'hello.json' && file !== 'chunking.json' && !isEventVector(list),
+  );
+  const events = Object.entries(VECTORS).filter(([, list]) => isEventVector(list));
+
+  it.each(events)(
+    '%s: the event the companion sends is in the envelope’s shape and reaches the page',
+    async (_f, list) => {
+      const fake = fakeCompanion({});
+      const { client } = await openClient({ openLink: fake.openLink, extension: '1' });
+      const heard: unknown[] = [];
+      client!.onEvent(event => heard.push(event));
+      for (const v of list as { event: { name: string; project: string | null; data: unknown } }[]) {
+        expect(serverFrame(v.event)).not.toBeNull();
+        fake.emit(v.event.name, v.event.project, v.event.data);
+      }
+      await settle();
+      expect(heard).toEqual(
+        (list as { event: { name: string; project: string | null; data: unknown } }[]).map(v => ({
+          name: v.event.name,
+          project: v.event.project,
+          data: v.event.data,
+        })),
+      );
+      client!.close();
+      await settle();
+    },
+  );
   it.each(files)('%s: the client gives the page what the companion answered, call after call', async (_file, list) => {
     const fake = fakeCompanion({ replay: true });
     const { client } = await openClient({ openLink: fake.openLink, extension: '1' });

@@ -140,6 +140,11 @@ describe.each(IMPLEMENTATIONS.map(e => [e.id, e] as const))(
       expect(memoryHistoryHost([], fixedSource(variant.id)).scratches).toBe(true);
     });
 
+    it('a file opened from the system (D42): written in Pro, read only in the free edition; the host says so', () => {
+      expect(variant.openFiles).toBe(isPro ? 'edit' : 'read');
+      expect(memoryHistoryHost([], fixedSource(variant.id)).openFiles).toBe(variant.openFiles);
+    });
+
     it('the editor’s profiles and a project’s .editorconfig (D39) exist exactly in Pro; the host says so to the pages', () => {
       const storage = fakeStorage();
       const profiles = variant.editorProfiles({ area: storage.area, onChanged: storage.onChanged, areaName: 'local' });

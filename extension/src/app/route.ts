@@ -6,9 +6,11 @@
  *
  * The Projects section has three depths (the companion's specification §8.4): `#/projects` — the projects;
  * `#/projects/<id>` — one project; `#/projects/<id>/<path, URL-encoded>` — a file open in it. A scratch file (D34) is
- * `#/projects/scratches/<id>` (a project's id is `p_` and ten base32 characters, so `scratches` is never one). The
- * address only shows: nothing is written, committed or asked for from an address. `#/review` (the section's former
- * stub) opens Projects.
+ * `#/projects/scratches/<id>` (a project's id is `p_` and ten base32 characters, so `scratches` is never one). A file
+ * opened from the system (D42) is `#/projects/files/<the companion's id>`; `#/projects/open/<token>` is how the companion
+ * sends a new tab to a file that waits — the page takes the token, removes it from the address at once and redeems it
+ * once (`routeHash` never writes a token back). The address only shows: nothing is written, committed or asked for from
+ * an address — a token only says «ask the companion». `#/review` (the section's former stub) opens Projects.
  */
 import { BARE_FLAG, OPTIONS_FLAG, hasFlag } from '@src/shared/pages';
 import { useSyncExternalStore } from 'react';
@@ -25,10 +27,19 @@ export interface Route {
   path?: string;
   /** The scratch file open in the Projects section (D34): its id. */
   scratch?: string;
+  /** A file opened from the system, open in the Projects section (D42): the companion's id of it. */
+  file?: string;
+  /** A one-time token of a file that waits to be opened (D42): taken from the address and redeemed once. */
+  open?: string;
 }
 
 /** The second part of a scratch's address: `#/projects/scratches/<id>`. */
 const SCRATCHES = 'scratches';
+/** The second part of an opened file's address and of a waiting file's token. */
+const FILES = 'files';
+const OPEN = 'open';
+/** What a token looks like (the companion's contract): 32 lowercase hexadecimal characters; anything else is not taken. */
+const TOKEN = /^[0-9a-f]{32}$/;
 
 export const DEFAULT_ROUTE: Route = { section: 'start' };
 
@@ -47,10 +58,11 @@ export const parseRoute = (hash: string): Route => {
   if (section === 'tools') return tool ? { section, tool } : { section };
   if (section === 'review') return { section: 'projects' };
   if (section === 'projects') {
-    if (tool === SCRATCHES) {
-      const scratch = rest[0] ? decoded(rest[0]) : undefined;
-      return scratch ? { section, scratch } : { section };
+    if (tool === SCRATCHES || tool === FILES) {
+      const id = rest[0] ? decoded(rest[0]) : undefined;
+      return id ? { section, [tool === FILES ? 'file' : 'scratch']: id } : { section };
     }
+    if (tool === OPEN) return rest.length === 1 && TOKEN.test(rest[0]!) ? { section, open: rest[0] } : { section };
     const project = tool ? decoded(tool) : undefined;
     const path = project && rest.length ? decoded(rest.join('/')) : undefined;
     return { section, ...(project && { project }), ...(path && { path }) };
@@ -63,6 +75,7 @@ export const routeHash = (route: Route): string => {
   if (route.section === 'tools' && route.tool) return `#/tools/${route.tool}`;
   if (route.section === 'projects' && route.scratch)
     return `#/projects/${SCRATCHES}/${encodeURIComponent(route.scratch)}`;
+  if (route.section === 'projects' && route.file) return `#/projects/${FILES}/${encodeURIComponent(route.file)}`;
   if (route.section === 'projects' && route.project) {
     const project = `#/projects/${encodeURIComponent(route.project)}`;
     return route.path ? `${project}/${encodeURIComponent(route.path)}` : project;

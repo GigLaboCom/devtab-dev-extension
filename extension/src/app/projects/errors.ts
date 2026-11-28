@@ -34,7 +34,8 @@ export type ErrorContext =
   | 'undo'
   | 'capture'
   | 'restore'
-  | 'purge';
+  | 'purge'
+  | 'claim';
 
 const str = (value: unknown): string | null => (typeof value === 'string' && value.length > 0 ? value : null);
 const num = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null);
@@ -62,7 +63,16 @@ export const errorText = (error: unknown, context: ErrorContext, project?: strin
     case 'invalid-path':
       return { text: E.invalidPath };
     case 'not-found':
-      return { text: context === 'add' ? E.addNotFound : context === 'restore' ? TEXT.history.pointGone : E.notFound };
+      return {
+        text:
+          context === 'add'
+            ? E.addNotFound
+            : context === 'restore'
+              ? TEXT.history.pointGone
+              : context === 'claim'
+                ? TEXT.openFiles.expired
+                : E.notFound,
+      };
     case 'outside-project':
       return { text: E.outsideProject };
     case 'protected-path':
@@ -189,6 +199,8 @@ export const errorText = (error: unknown, context: ErrorContext, project?: strin
       return { text: E.internal };
     case 'confirmation-required':
       return { text: E.confirmationRequired };
+    case 'not-editable':
+      return { text: TEXT.openFiles.readOnly[str(data.reason) ?? ''] ?? TEXT.openFiles.notEditable };
     case 'push-rejected':
     case 'push-remote-rejected':
     case 'push-auth-failed':

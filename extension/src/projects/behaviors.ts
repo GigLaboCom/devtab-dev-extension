@@ -18,6 +18,11 @@
  *                    seam's `projectSaver` (./projectSaver.ts) — `file.save` from the version the edit started from
  *   LastSeen         where the person's last visit of a project is remembered (./lastSeen.ts, §7.5): one time per
  *                    project in chrome.storage.local, the page's memory where it has none
+ *   OpenedFiles      files opened from the system (./openFiles/files.ts, D42): the companion's, over the page's backend
+ *                    (./openFiles/companion.ts — the one module that knows their wire); saved through `openedFileSaver`
+ *                    (./openFiles/saver.ts), Save as through the downloads' saver; what the page keeps of them —
+ *                    `OpenFilesSettings` (./openFiles/settings.ts, chrome.storage.local) — and what it may do with its own
+ *                    tab when one arrives — `OwnTab` (./openFiles/ownTab.ts, the extension's tabs and windows)
  */
 import { AUTOSAVE_DELAY_MS } from './autosave';
 import { companionBackend } from './companion/backend';
@@ -26,6 +31,10 @@ import { createConnection } from './connection';
 import { demoBackend } from './demo/backend';
 import { chromeLastSeen } from './lastSeen';
 import { chromeLayoutMemory } from './layoutMemory';
+import { companionOpenedFiles } from './openFiles/companion';
+import { extensionOwnTab } from './openFiles/ownTab';
+import { openedFileSaver } from './openFiles/saver';
+import { chromeOpenFilesSettings } from './openFiles/settings';
 import { chromePermission } from './permission';
 import { projectSaver } from './projectSaver';
 import { chromeScratches } from './scratch/storage';
@@ -37,6 +46,10 @@ import type { ConnectionState, ProjectBackend, ProjectBackendFactory } from './b
 import type { CompanionConnection } from './connection';
 import type { LastSeen } from './lastSeen';
 import type { LayoutMemory } from './layoutMemory';
+import type { OpenedFilesFactory } from './openFiles/files';
+import type { OwnTab } from './openFiles/ownTab';
+import type { OpenedFileSaverFactory } from './openFiles/saver';
+import type { OpenFilesSettingsStore } from './openFiles/settings';
 import type { ProjectSaverFactory } from './projectSaver';
 import type { ScratchStore } from './scratch/store';
 
@@ -56,6 +69,16 @@ export interface ProjectsBehaviors {
   fileSaver: ProjectSaverFactory;
   /** Where the last visit of each project is remembered (row 7.5); absent: nothing is, and no «since» is offered. */
   lastSeen?: LastSeen;
+  /** Files opened from the system (D42); absent: the section has none, sends nothing for them and shows nothing. */
+  openFiles?: OpenFilesBehaviors;
+}
+
+/** What stands behind files opened from the system. */
+export interface OpenFilesBehaviors {
+  files: OpenedFilesFactory;
+  saver: OpenedFileSaverFactory;
+  settings: OpenFilesSettingsStore;
+  tab: OwnTab;
 }
 
 /** The states in which the page shows the companion's projects; in every other one the demo's. */
@@ -124,4 +147,10 @@ export const projectsBehaviors = (): ProjectsBehaviors => ({
   scratchSaver: chooseSaver(window),
   fileSaver: projectSaver,
   lastSeen: chromeLastSeen(),
+  openFiles: {
+    files: companionOpenedFiles,
+    saver: openedFileSaver,
+    settings: chromeOpenFilesSettings(),
+    tab: extensionOwnTab(),
+  },
 });

@@ -420,6 +420,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
 
   // ---- the methods --------------------------------------------------------------------------------------------
 
+  type OpenFileMethod = Extract<Method, `openFile.${string}`> | 'page.activity';
   type Handler<M extends Method> = (params: Params<M>, opts: CallOptions<M>) => Result<M> | Promise<Result<M>>;
   const summaryOf = (p: Project): ProjectSummary => ({
     id: p.seed.id,
@@ -433,7 +434,8 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
     state: 'open',
   });
 
-  const handlers: { [M in Method]: Handler<M> } = {
+  // Files opened from the system (D42) are a companion's only: the demo offers none of their methods.
+  const handlers: { [M in Exclude<Method, OpenFileMethod>]: Handler<M> } = {
     'companion.state': () => ({
       companion: 'demo',
       server: { state: 'running', version: 'demo' },
@@ -441,6 +443,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       paused,
       problems: [],
       deletePolicy: 'trash',
+      openFiles: { executes: 'edit' },
     }),
     'projects.list': () => [...projects.values()].filter(p => p.present).map(summaryOf),
     'project.state': ({ project }): ProjectState => {

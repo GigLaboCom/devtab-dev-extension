@@ -62,7 +62,9 @@
  *                              .kit-projects-item / .kit-projects-folder (-name, -path, -meta), .kit-projects-empty,
  *                              .kit-projects-command (a command to type); the scratch files' group (D34):
  *                              .kit-projects-scratch-new («New scratch…»), .kit-projects-scratch-language (an open
- *                              scratch's language), .kit-projects-scratch (a list item: the link and its delete button)
+ *                              scratch's language), .kit-projects-scratch (a list item: the link and its delete button);
+ *                              files opened from the system (D42): .kit-projects-opened (a list item: the link and
+ *                              «Forget»), .kit-projects-opened-settings, .kit-projects-opened-setting
  *   .kit-projects-bar          a project's or a scratch's bar: -back, -title (a scratch's in place of it while renamed:
  *                              .kit-projects-bar-name), -path, -branch, .kit-projects-class[data-class], -actions;
  *                              a scratch's editor is the only part of its .kit-projects-workspace; a project's bar and
@@ -1237,6 +1239,41 @@
   .kit-projects-scratch > .kit-projects-item {
     flex: 1 1 auto;
     min-width: 0;
+  }
+
+  /* Files opened from the system (D42): a row as a scratch's (the link, then «Forget»); the marks under the name; the
+     two settings of the group, one per line. */
+  .kit-projects-opened {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 1);
+  }
+
+  .kit-projects-opened > .kit-projects-item {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .kit-projects-opened .kit-projects-item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: calc(var(--spacing) * 1);
+  }
+
+  .kit-projects-opened-settings {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 1.5);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .kit-projects-opened-setting {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    font-size: var(--text-sm);
   }
 
   /* A project's bar. */

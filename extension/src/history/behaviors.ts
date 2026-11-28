@@ -50,7 +50,7 @@ import {
   passwordCipher,
   zipArchive,
 } from '@workspace/tools-shared/history';
-import type { Edition, EditionHistory } from '../edition/edition';
+import type { Edition, EditionHistory, OpenFilesEdition } from '../edition/edition';
 import type { LicenceControls } from '../edition/licenceClient';
 import type { EditionSource, SourceState } from '../edition/source';
 import type { EditorProfilesStore } from '../editorSettings/profilesStore';
@@ -125,6 +125,12 @@ export interface HistoryHost {
    * `.editorconfig` (Pro), or nothing read at all (free). Read it on each render: it can change (`onEdition`).
    */
   readonly projectEditorSettings: ProjectEditorSettingsFactory;
+  /**
+   * What the Projects section does with a file opened from the system in the edition in force (the edition's
+   * `openFiles`, D42): written as the companion allows (Pro), or shown read only (free). Read it on each render: it can
+   * change (`onEdition`).
+   */
+  readonly openFiles: OpenFilesEdition;
   /** Called after `included`, `automaticCopying`, `scratches`, the editor's members (or the licence state) changed; returns the undo. */
   onEdition(listener: () => void): () => void;
   /** Settings → Pro: the licence's state and controls — only where the build follows a licence (source `licensed`). */
@@ -381,6 +387,9 @@ export const historyHost = (env: HistoryEnvironment): HistoryHost => {
     },
     get projectEditorSettings() {
       return editionFor(source.current()).projectEditorSettings;
+    },
+    get openFiles() {
+      return editionFor(source.current()).openFiles;
     },
     onEdition: listener => {
       editionListeners.add(listener);
