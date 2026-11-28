@@ -89,7 +89,7 @@
           },
           {
             "const": "link",
-            "description": "A link of the companion's URL scheme (no version produces it yet).",
+            "description": "A link of the companion's URL scheme (`devtab://file/…`) the person confirmed in the companion's window:\nalways read-only (a link to a file of an added project opens as that project's file instead).",
             "type": "string"
           }
         ]
