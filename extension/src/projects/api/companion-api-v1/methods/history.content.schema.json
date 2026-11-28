@@ -28,6 +28,7 @@
         "type": "boolean"
       },
       "text": {
+        "description": "With `\\n` line ends for the companion's copies; a copy that is not UTF-8 reads as `windows-1252`.",
         "type": "string"
       }
     },

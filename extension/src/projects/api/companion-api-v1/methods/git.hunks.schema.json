@@ -90,7 +90,7 @@
         "type": "array"
       },
       "reason": {
-        "description": "Why not, when `chunkable` is false: `binary`, `not-utf8`, `conflicted`, `renamed`, `deleted`,\n`submodule`, `line-ends` (a line ends with a lone carriage return). Such a file is committed whole.",
+        "description": "Why not, when `chunkable` is false: `binary`, `not-utf8`, `conflicted`, `renamed`, `deleted`,\n`submodule`, `line-ends` (a line ends with a lone carriage return), `new-file` (not in HEAD: untracked or\nnewly added). Such a file is committed whole.",
         "type": [
           "string",
           "null"

@@ -156,7 +156,7 @@
           },
           {
             "const": "secret-file",
-            "description": "A write to a secret file (secrets are readable, never written from the browser): saving, creating, renaming, deleting.",
+            "description": "A write to a secret file (secrets are readable, never written from the browser): saving, creating, renaming, deleting, restoring from history.",
             "type": "string"
           },
           {
@@ -201,7 +201,7 @@
           },
           {
             "const": "hunks-unsupported",
-            "description": "Hunks were chosen of a file that can only be committed whole (`reason` as `git.hunks.reason`, or `new-file`, `does-not-apply`); nothing was committed.",
+            "description": "Hunks were chosen of a file that can only be committed whole (`reason` as `git.hunks.reason`, `new-file` included, or `does-not-apply`); nothing was committed.",
             "type": "string"
           },
           {
@@ -341,7 +341,7 @@
           },
           {
             "const": "not-encodable",
-            "description": "The text has characters the file's encoding cannot hold; nothing was written.",
+            "description": "The text has characters the file's encoding cannot hold, or (`history.restore`) a copy that is not UTF-8 would go into a file that is not `windows-1252`; nothing was written.",
             "type": "string"
           },
           {

@@ -1,7 +1,7 @@
 [
   {
     "request": {
-      "id": 53,
+      "id": 60,
       "method": "git.commit",
       "params": {
         "expect": {
@@ -34,7 +34,7 @@
         },
         "message": "the pre-commit hook stopped the commit; nothing was committed"
       },
-      "id": 53,
+      "id": 60,
       "type": "error"
     },
     "stream": [
@@ -42,7 +42,7 @@
         "data": {
           "text": "the fixture's pre-commit hook refuses every commit\n"
         },
-        "id": 53,
+        "id": 60,
         "seq": 0,
         "type": "stream"
       }
@@ -50,7 +50,7 @@
   },
   {
     "request": {
-      "id": 54,
+      "id": 61,
       "method": "git.commit",
       "params": {
         "expect": {
@@ -83,13 +83,13 @@
         },
         "message": "the repository or a file changed since the page showed it; nothing was done. Read the status again"
       },
-      "id": 54,
+      "id": 61,
       "type": "error"
     }
   },
   {
     "request": {
-      "id": 55,
+      "id": 62,
       "method": "git.commit",
       "params": {
         "expect": {
@@ -108,13 +108,13 @@
         "code": "nothing-selected",
         "message": "nothing is checked; nothing was committed"
       },
-      "id": 55,
+      "id": 62,
       "type": "error"
     }
   },
   {
     "request": {
-      "id": 56,
+      "id": 63,
       "method": "git.commit",
       "params": {
         "expect": {
@@ -141,7 +141,7 @@
       "type": "call"
     },
     "response": {
-      "id": 56,
+      "id": 63,
       "result": {
         "changedAfter": [],
         "hookChangedCommit": [],
@@ -156,7 +156,7 @@
   },
   {
     "request": {
-      "id": 58,
+      "id": 65,
       "method": "git.commit",
       "params": {
         "expect": {
@@ -180,7 +180,7 @@
       "type": "call"
     },
     "response": {
-      "id": 58,
+      "id": 65,
       "result": {
         "changedAfter": [],
         "hookChangedCommit": [],

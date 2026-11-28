@@ -55,6 +55,7 @@
         "type": "number"
       },
       "protected": {
+        "description": "A file that runs code or changes what git runs: the same rules that mark a write (`protected.toml` and the\nfolder of the repository's `core.hooksPath`).",
         "type": "boolean"
       },
       "secret": {

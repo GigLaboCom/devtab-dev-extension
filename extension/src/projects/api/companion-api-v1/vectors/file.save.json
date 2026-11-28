@@ -1,7 +1,7 @@
 [
   {
     "request": {
-      "id": 38,
+      "id": 39,
       "method": "file.save",
       "params": {
         "baseHash": "f5c962601b413ccda2fc14d64d98479d9fc74c90c2dde15f25ee9922e57f5074",
@@ -14,7 +14,7 @@
       "type": "call"
     },
     "response": {
-      "id": 38,
+      "id": 39,
       "result": {
         "hash": "f22f40641abd9b2975ebfa2cd666c406abe35e420a9edeefab2dda50b35c32e5",
         "mtimeMs": 0,
@@ -25,7 +25,7 @@
   },
   {
     "request": {
-      "id": 39,
+      "id": 40,
       "method": "file.save",
       "params": {
         "baseHash": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -43,13 +43,13 @@
         },
         "message": "the file changed on disk since it was read; nothing was written"
       },
-      "id": 39,
+      "id": 40,
       "type": "error"
     }
   },
   {
     "request": {
-      "id": 40,
+      "id": 41,
       "method": "file.save",
       "params": {
         "baseHash": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -64,13 +64,13 @@
         "code": "secret-file",
         "message": "secret files are shown read-only and never written from the browser; edit them in your own editor"
       },
-      "id": 40,
+      "id": 41,
       "type": "error"
     }
   },
   {
     "request": {
-      "id": 41,
+      "id": 42,
       "method": "file.save",
       "params": {
         "baseHash": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -88,13 +88,13 @@
         },
         "message": "the .git folder is never read or listed"
       },
-      "id": 41,
+      "id": 42,
       "type": "error"
     }
   },
   {
     "request": {
-      "id": 42,
+      "id": 43,
       "method": "file.save",
       "params": {
         "baseHash": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -112,7 +112,7 @@
         },
         "message": "the companion never writes through a symlink or to one"
       },
-      "id": 42,
+      "id": 43,
       "type": "error"
     }
   }

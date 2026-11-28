@@ -1,7 +1,7 @@
 [
   {
     "request": {
-      "id": 35,
+      "id": 36,
       "method": "git.push",
       "params": {
         "expect": {
@@ -19,7 +19,7 @@
         },
         "message": "this companion does not offer that method"
       },
-      "id": 35,
+      "id": 36,
       "type": "error"
     }
   }

@@ -1,7 +1,7 @@
 [
   {
     "request": {
-      "id": 43,
+      "id": 44,
       "method": "file.create",
       "params": {
         "path": "notes/new.txt",
@@ -11,7 +11,7 @@
       "type": "call"
     },
     "response": {
-      "id": 43,
+      "id": 44,
       "result": {
         "hash": "5c8ead41b7018d96e1a50cc1739ba4f4b2c7cda3a1d98d6c599aa37a3148d224",
         "protected": null
@@ -21,7 +21,7 @@
   },
   {
     "request": {
-      "id": 44,
+      "id": 45,
       "method": "file.create",
       "params": {
         "path": "notes/new.txt",
@@ -35,13 +35,13 @@
         "code": "exists",
         "message": "a file or folder with that name exists already"
       },
-      "id": 44,
+      "id": 45,
       "type": "error"
     }
   },
   {
     "request": {
-      "id": 45,
+      "id": 46,
       "method": "file.create",
       "params": {
         "path": ".husky/pre-commit",
@@ -51,7 +51,7 @@
       "type": "call"
     },
     "response": {
-      "id": 45,
+      "id": 46,
       "result": {
         "hash": "a8076d3d28d21e02012b20eaf7dbf75409a6277134439025f282e368e3305abf",
         "protected": "hooks"

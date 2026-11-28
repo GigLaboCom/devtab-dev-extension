@@ -1,0 +1,70 @@
+[
+  {
+    "request": {
+      "id": 54,
+      "method": "history.restore",
+      "params": {
+        "currentHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "path": "crlf.txt",
+        "point": "c:a4a3c24cceaa27476772e4fab11d2248299fee9598af6940121666f5af1094c7@0:63726c662e747874",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "conflict",
+        "data": {
+          "currentHash": "f22f40641abd9b2975ebfa2cd666c406abe35e420a9edeefab2dda50b35c32e5"
+        },
+        "message": "the file changed on disk since it was read; nothing was written"
+      },
+      "id": 54,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 55,
+      "method": "history.restore",
+      "params": {
+        "currentHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "path": "docs/readme.md",
+        "point": "c:a4a3c24cceaa27476772e4fab11d2248299fee9598af6940121666f5af1094c7@0:63726c662e747874",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "not-found",
+        "message": "the point is not one of this file's"
+      },
+      "id": 55,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 56,
+      "method": "history.restore",
+      "params": {
+        "currentHash": "f22f40641abd9b2975ebfa2cd666c406abe35e420a9edeefab2dda50b35c32e5",
+        "path": "crlf.txt",
+        "point": "c:a4a3c24cceaa27476772e4fab11d2248299fee9598af6940121666f5af1094c7@0:63726c662e747874",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 56,
+      "result": {
+        "before": "c:af720d9279b6675a942438fe0a9c3809228b23ba67573a32dcfb8d92ce571972@0:63726c662e747874",
+        "hash": "f5c962601b413ccda2fc14d64d98479d9fc74c90c2dde15f25ee9922e57f5074",
+        "protected": null,
+        "restored": "c:a4a3c24cceaa27476772e4fab11d2248299fee9598af6940121666f5af1094c7@0:63726c662e747874"
+      },
+      "type": "result"
+    }
+  }
+]

@@ -1,0 +1,71 @@
+{
+  "method": "history.restore",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`history.restore` parameters.",
+    "properties": {
+      "currentHash": {
+        "description": "The hash of the file's text as the page showed it (`file.read.hash`); null when the file does not exist.",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "path": {
+        "type": "string"
+      },
+      "point": {
+        "description": "A point of this file from `history.file` or `history.project`.",
+        "type": "string"
+      },
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "path",
+      "point"
+    ],
+    "title": "RestoreParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`history.restore`.",
+    "properties": {
+      "before": {
+        "description": "The companion's copy \"Before restore\" of what was there; restoring it undoes the restore. Null when the\nfile did not exist.",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "hash": {
+        "description": "The hash of the file's text now (the next `baseHash`).",
+        "type": "string"
+      },
+      "protected": {
+        "description": "The rule that marks the file as running code, if one does.",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "restored": {
+        "description": "The point now on disk (the one restored).",
+        "type": "string"
+      }
+    },
+    "required": [
+      "restored",
+      "hash"
+    ],
+    "title": "Restored",
+    "type": "object"
+  },
+  "scope": "mine",
+  "summary": "Writes a history point's version over the file (or creates it again), after a copy \"Before restore\" of what is there."
+}

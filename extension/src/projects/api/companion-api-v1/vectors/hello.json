@@ -31,6 +31,8 @@
         "history.file",
         "history.project",
         "history.content",
+        "history.restore",
+        "history.requestPurge",
         "locations.list",
         "project.requestAdd",
         "project.requestMine",

@@ -47,11 +47,11 @@
         "description": "One point of `history.file`.",
         "properties": {
           "label": {
-            "description": "`External change`, `Saved`, `Deleted`, a commit's summary, …",
+            "description": "The server's `External change`, `Saved`, `Deleted`; the companion's `Before save`, `Before edit`,\n`Before restore`, `Before rollback`, `Before rename`, `Before delete`, `Before create`, `Uncommitted when\nadded`, `Uncommitted when made writable`, `Changed while away`, `Deleted while away`, `External change`; a\ncommit's summary.",
             "type": "string"
           },
           "point": {
-            "description": "Opaque to the extension; pass it to `history.content` or `diff.sides`.",
+            "description": "Opaque to the extension; pass it to `history.content`, `diff.sides` or `history.restore`.",
             "type": "string"
           },
           "size": {
@@ -86,7 +86,7 @@
           },
           {
             "const": "companion",
-            "description": "The companion's own snapshots (from a later stage).",
+            "description": "The companion's own copies: before each write from the page, the baseline, the reconciliation after a stop,\nthe top-up beyond the server's limits.",
             "type": "string"
           },
           {
@@ -102,12 +102,14 @@
     "description": "`history.file`.",
     "properties": {
       "gaps": {
+        "description": "Stretches of time in which the companion did not watch the project (the history may miss changes there).",
         "items": {
           "$ref": "#/$defs/Gap"
         },
         "type": "array"
       },
       "points": {
+        "description": "Newest first.",
         "items": {
           "$ref": "#/$defs/HistoryPoint"
         },
@@ -122,5 +124,5 @@
     "type": "object"
   },
   "scope": "project",
-  "summary": "The history points of one regular file inside the project."
+  "summary": "The history points of one file (regular, inside the project, or gone): the server's, the companion's copies, commits; and the gaps."
 }

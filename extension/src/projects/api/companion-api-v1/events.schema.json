@@ -36,6 +36,41 @@
     },
     "summary": "Something under .git changed: branch, index, commits."
   },
+  "history.gap": {
+    "data": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "`history.gap`: the companion did not watch the project from `from` to `to` (it was stopped, the server\nrestarted, or the project was removed); on its return it reconciled the files and kept copies of `paths` files\nchanged or gone meanwhile. The history may miss versions in between.",
+      "properties": {
+        "from": {
+          "description": "When the companion last watched the project (ms since the epoch).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "paths": {
+          "description": "Files changed or gone in between that the companion kept a point of.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "to": {
+          "description": "When it watched again.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "paths"
+      ],
+      "title": "HistoryGap",
+      "type": "object"
+    },
+    "summary": "The companion did not watch the project for a while (stopped, server restarted, project removed); it reconciled the files on its return: the history may miss versions from `from` to `to`."
+  },
   "project.changed": {
     "data": {
       "$defs": {

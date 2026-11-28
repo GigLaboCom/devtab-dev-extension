@@ -64,5 +64,27 @@
       },
       "type": "result"
     }
+  },
+  {
+    "request": {
+      "id": 32,
+      "method": "git.hunks",
+      "params": {
+        "path": "src/new.txt",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 32,
+      "result": {
+        "chunkable": false,
+        "diskHash": "0103cc5bcf1407cdb47ea1261afdca6c9bafa635c35605310930e595e5958335",
+        "headHash": null,
+        "hunks": [],
+        "reason": "new-file"
+      },
+      "type": "result"
+    }
   }
 ]

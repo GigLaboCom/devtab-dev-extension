@@ -79,7 +79,7 @@
             "type": "string"
           },
           "protected": {
-            "description": "A file that runs code or changes what git runs (hooks, tool settings): marked, not refused.",
+            "description": "A file that runs code or changes what git runs (hooks, tool settings, the folder of `core.hooksPath`):\nmarked, not refused; the same rules that mark a write.",
             "type": "boolean"
           },
           "secret": {

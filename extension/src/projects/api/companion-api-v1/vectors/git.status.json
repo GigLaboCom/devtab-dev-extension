@@ -86,7 +86,206 @@
             "stagedOutside": false
           }
         ],
-        "headSha": "a5c8a8f38f555426b8634a56dac2a7423e9f3902"
+        "headSha": "a5c8a8f38f555426b8634a56dac2a7423e9f3902",
+        "headUndoReason": null,
+        "headUndoable": true
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 68,
+      "method": "git.status",
+      "params": {
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 68,
+      "result": {
+        "branch": "main",
+        "files": [
+          {
+            "change": "untracked",
+            "diskBytesHash": null,
+            "diskHash": "a8076d3d28d21e02012b20eaf7dbf75409a6277134439025f282e368e3305abf",
+            "group": "unversioned",
+            "path": ".husky/pre-commit",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "untracked",
+            "diskBytesHash": "5769bbaf2afc05866be07123385b0f6b85d74e90d4fbfbfd9cdd4fca9b7897b5",
+            "diskHash": null,
+            "group": "unversioned",
+            "path": "big.txt",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "modified",
+            "diskBytesHash": null,
+            "diskHash": "97386c425988e923536e35bdcf9b929f2a25d41ace71dc81391b49d5906d9150",
+            "group": "changes",
+            "path": "docs/readme.md",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "deleted",
+            "diskBytesHash": null,
+            "diskHash": null,
+            "group": "changes",
+            "path": "gone.txt",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "untracked",
+            "diskBytesHash": null,
+            "diskHash": null,
+            "group": "unversioned",
+            "path": "link-git",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "untracked",
+            "diskBytesHash": null,
+            "diskHash": null,
+            "group": "unversioned",
+            "path": "link-in",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "untracked",
+            "diskBytesHash": null,
+            "diskHash": null,
+            "group": "unversioned",
+            "path": "link-out",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "untracked",
+            "diskBytesHash": null,
+            "diskHash": "5c8ead41b7018d96e1a50cc1739ba4f4b2c7cda3a1d98d6c599aa37a3148d224",
+            "group": "unversioned",
+            "path": "notes/renamed.txt",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "modified",
+            "diskBytesHash": null,
+            "diskHash": "36a8c5242c933bf17bfe0e6367ba66cb5a1a0348a23b12d89abdacb0e99ef69e",
+            "group": "changes",
+            "path": "src/app.txt",
+            "renamedFrom": null,
+            "stagedOutside": false
+          }
+        ],
+        "headSha": "18164950badb5dbbf3f6ed43a694fbc95b0916d1",
+        "headUndoReason": null,
+        "headUndoable": true
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 83,
+      "method": "git.status",
+      "params": {
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 83,
+      "result": {
+        "branch": "main",
+        "files": [
+          {
+            "change": "untracked",
+            "diskBytesHash": null,
+            "diskHash": "a8076d3d28d21e02012b20eaf7dbf75409a6277134439025f282e368e3305abf",
+            "group": "unversioned",
+            "path": ".husky/pre-commit",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "untracked",
+            "diskBytesHash": "5769bbaf2afc05866be07123385b0f6b85d74e90d4fbfbfd9cdd4fca9b7897b5",
+            "diskHash": null,
+            "group": "unversioned",
+            "path": "big.txt",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "modified",
+            "diskBytesHash": null,
+            "diskHash": "97386c425988e923536e35bdcf9b929f2a25d41ace71dc81391b49d5906d9150",
+            "group": "changes",
+            "path": "docs/readme.md",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "untracked",
+            "diskBytesHash": null,
+            "diskHash": null,
+            "group": "unversioned",
+            "path": "link-git",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "untracked",
+            "diskBytesHash": null,
+            "diskHash": null,
+            "group": "unversioned",
+            "path": "link-in",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "untracked",
+            "diskBytesHash": null,
+            "diskHash": null,
+            "group": "unversioned",
+            "path": "link-out",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "untracked",
+            "diskBytesHash": null,
+            "diskHash": "5c8ead41b7018d96e1a50cc1739ba4f4b2c7cda3a1d98d6c599aa37a3148d224",
+            "group": "unversioned",
+            "path": "notes/renamed.txt",
+            "renamedFrom": null,
+            "stagedOutside": false
+          },
+          {
+            "change": "untracked",
+            "diskBytesHash": null,
+            "diskHash": "0103cc5bcf1407cdb47ea1261afdca6c9bafa635c35605310930e595e5958335",
+            "group": "unversioned",
+            "path": "src/new.txt",
+            "renamedFrom": null,
+            "stagedOutside": false
+          }
+        ],
+        "headSha": "5b6b5f775097e72d2b9ef3ae399007246d513b99",
+        "headUndoReason": "not-mine",
+        "headUndoable": false
       },
       "type": "result"
     }

@@ -28,6 +28,41 @@
         ],
         "type": "string"
       },
+      "HeadUndoReason": {
+        "description": "Why HEAD cannot be undone (`git.status.headUndoReason`). `detached`, `root`, `merge` and `pushed` are the\n`reason` that `git.undoCommit` answers with `undo-unavailable`.",
+        "oneOf": [
+          {
+            "const": "not-mine",
+            "description": "The project is read-only (view): `git.undoCommit` answers `not-mine`.",
+            "type": "string"
+          },
+          {
+            "const": "detached",
+            "description": "HEAD is detached: there is no branch whose last commit could be undone.",
+            "type": "string"
+          },
+          {
+            "const": "root",
+            "description": "The last commit is the repository's first, or there is no commit.",
+            "type": "string"
+          },
+          {
+            "const": "merge",
+            "description": "The last commit is a merge.",
+            "type": "string"
+          },
+          {
+            "const": "pushed",
+            "description": "A remote branch contains the last commit: undoing it would need a force push.",
+            "type": "string"
+          },
+          {
+            "const": "unknown",
+            "description": "The companion's git could not tell (`git.undoCommit` answers `internal`).",
+            "type": "string"
+          }
+        ]
+      },
       "StatusFile": {
         "additionalProperties": false,
         "description": "One changed file of `git.status`.",
@@ -103,14 +138,30 @@
           "string",
           "null"
         ]
+      },
+      "headUndoReason": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/HeadUndoReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why not, when `headUndoable` is false; null when it is true."
+      },
+      "headUndoable": {
+        "description": "Whether `git.undoCommit` would undo HEAD now: the same check it makes (a writable project, a branch, a\ncommit with one parent that no remote branch contains). The page may still get `undo-unavailable` when HEAD\nmoves before it asks, and `rate-limited` while another git operation runs.",
+        "type": "boolean"
       }
     },
     "required": [
-      "files"
+      "files",
+      "headUndoable"
     ],
     "title": "GitStatus",
     "type": "object"
   },
   "scope": "project",
-  "summary": "Changed and unversioned files, grouped as in a commit window."
+  "summary": "Changed and unversioned files, grouped as in a commit window; whether HEAD can be undone."
 }

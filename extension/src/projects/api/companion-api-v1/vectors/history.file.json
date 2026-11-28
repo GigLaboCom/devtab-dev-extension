@@ -1,7 +1,7 @@
 [
   {
     "request": {
-      "id": 32,
+      "id": 33,
       "method": "history.file",
       "params": {
         "path": "docs/readme.md",
@@ -10,7 +10,7 @@
       "type": "call"
     },
     "response": {
-      "id": 32,
+      "id": 33,
       "result": {
         "gaps": [],
         "points": [
@@ -42,7 +42,7 @@
   },
   {
     "request": {
-      "id": 33,
+      "id": 34,
       "method": "history.file",
       "params": {
         "path": "link-in",
@@ -55,7 +55,7 @@
         "code": "not-found",
         "message": "no such file or folder in the project"
       },
-      "id": 33,
+      "id": 34,
       "type": "error"
     }
   }

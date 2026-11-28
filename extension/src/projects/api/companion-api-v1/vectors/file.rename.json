@@ -1,7 +1,7 @@
 [
   {
     "request": {
-      "id": 48,
+      "id": 49,
       "method": "file.rename",
       "params": {
         "from": "notes/new.txt",
@@ -11,7 +11,7 @@
       "type": "call"
     },
     "response": {
-      "id": 48,
+      "id": 49,
       "result": {
         "protected": null
       },
@@ -20,7 +20,7 @@
   },
   {
     "request": {
-      "id": 49,
+      "id": 50,
       "method": "file.rename",
       "params": {
         "from": "notes/renamed.txt",
@@ -34,7 +34,7 @@
         "code": "outside-project",
         "message": "the path leads out of the project"
       },
-      "id": 49,
+      "id": 50,
       "type": "error"
     }
   }

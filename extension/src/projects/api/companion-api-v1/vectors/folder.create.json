@@ -1,7 +1,7 @@
 [
   {
     "request": {
-      "id": 46,
+      "id": 47,
       "method": "folder.create",
       "params": {
         "path": "notes/folder",
@@ -10,7 +10,7 @@
       "type": "call"
     },
     "response": {
-      "id": 46,
+      "id": 47,
       "result": {
         "protected": null
       },
@@ -19,7 +19,7 @@
   },
   {
     "request": {
-      "id": 47,
+      "id": 48,
       "method": "folder.create",
       "params": {
         "path": "notes/folder",
@@ -32,7 +32,7 @@
         "code": "exists",
         "message": "a file or folder with that name exists already"
       },
-      "id": 47,
+      "id": 48,
       "type": "error"
     }
   }

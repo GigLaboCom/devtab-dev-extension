@@ -43,5 +43,5 @@
     "type": "object"
   },
   "scope": "mine",
-  "summary": "Undoes the last commit of the current branch when no remote branch has it: its changes become                   uncommitted again, its message comes back."
+  "summary": "Undoes the last commit of the current branch when no remote branch has it: its changes become uncommitted again, its message comes back. `git.status.headUndoable` tells beforehand."
 }

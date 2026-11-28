@@ -1,0 +1,24 @@
+[
+  {
+    "request": {
+      "id": 57,
+      "method": "history.requestPurge",
+      "params": {
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "confirmation-unavailable",
+        "data": {
+          "command": "devtab history purge ~/fx/repo",
+          "reason": "no-window"
+        },
+        "message": "the companion cannot show its window; run the command in a terminal instead"
+      },
+      "id": 57,
+      "type": "error"
+    }
+  }
+]

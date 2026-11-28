@@ -10,7 +10,7 @@
       "id": 2,
       "result": {
         "companion": "0.1.0",
-        "deletePolicy": "trash",
+        "deletePolicy": "unavailable",
         "env": {
           "capturedAt": null,
           "path": []

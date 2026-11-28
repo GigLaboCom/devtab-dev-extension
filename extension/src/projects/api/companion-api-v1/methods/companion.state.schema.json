@@ -9,6 +9,21 @@
   },
   "result": {
     "$defs": {
+      "DeletePolicyState": {
+        "description": "`companion.state.deletePolicy`.",
+        "oneOf": [
+          {
+            "const": "trash",
+            "description": "Deletions go to the person's Trash, or do not happen.",
+            "type": "string"
+          },
+          {
+            "const": "unavailable",
+            "description": "The companion has no Trash: nothing is deleted from the browser (`trash-unavailable`).",
+            "type": "string"
+          }
+        ]
+      },
       "EnvState": {
         "additionalProperties": false,
         "description": "The environment captured from the person's login shell for git hooks (`devtab init`, `devtab env capture`):\nwhen, and the folders of its `PATH`. `capturedAt` is null until it is captured.",
@@ -76,8 +91,8 @@
         "type": "string"
       },
       "deletePolicy": {
-        "description": "How deletions from the browser happen; the only value is `trash`.",
-        "type": "string"
+        "$ref": "#/$defs/DeletePolicyState",
+        "description": "How deletions from the browser happen: `trash` when they go to the Trash, `unavailable` while the companion\nhas no Trash (`file.delete` is then not in `welcome.methods`, and every deletion is refused with\n`trash-unavailable`, nothing deleted)."
       },
       "env": {
         "$ref": "#/$defs/EnvState"

@@ -1,7 +1,7 @@
 [
   {
     "request": {
-      "id": 73,
+      "id": 81,
       "method": "project.setView",
       "params": {
         "project": "p_abcdefgh23"
@@ -9,7 +9,7 @@
       "type": "call"
     },
     "response": {
-      "id": 73,
+      "id": 81,
       "result": {
         "class": "view"
       },
@@ -18,7 +18,7 @@
   },
   {
     "request": {
-      "id": 74,
+      "id": 82,
       "method": "project.setView",
       "params": {
         "project": "p_abcdefgh23"
@@ -30,7 +30,7 @@
         "code": "not-mine",
         "message": "the project is read-only (view); this needs a writable one"
       },
-      "id": 74,
+      "id": 82,
       "type": "error"
     }
   }

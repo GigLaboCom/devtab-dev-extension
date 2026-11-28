@@ -1,7 +1,7 @@
 [
   {
     "request": {
-      "id": 50,
+      "id": 51,
       "method": "file.delete",
       "params": {
         "path": "notes/renamed.txt",
@@ -14,7 +14,7 @@
         "code": "trash-unavailable",
         "message": "the companion cannot move files to the Trash here, so it deleted nothing; delete the file in Finder"
       },
-      "id": 50,
+      "id": 51,
       "type": "error"
     }
   }

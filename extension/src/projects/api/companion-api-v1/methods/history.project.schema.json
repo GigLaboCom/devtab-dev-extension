@@ -54,7 +54,7 @@
           },
           {
             "const": "companion",
-            "description": "The companion's own snapshots (from a later stage).",
+            "description": "The companion's own copies: before each write from the page, the baseline, the reconciliation after a stop,\nthe top-up beyond the server's limits.",
             "type": "string"
           },
           {
@@ -107,19 +107,21 @@
     "description": "`history.project`.",
     "properties": {
       "deleted": {
-        "description": "Files with history that no longer exist (empty until the companion keeps its own record of them).",
+        "description": "Files with history that no longer exist on disk.",
         "items": {
           "type": "string"
         },
         "type": "array"
       },
       "next": {
+        "description": "The cursor of the next page; null on the last one.",
         "type": [
           "string",
           "null"
         ]
       },
       "points": {
+        "description": "Newest first.",
         "items": {
           "$ref": "#/$defs/ProjectPoint"
         },
@@ -134,5 +136,5 @@
     "type": "object"
   },
   "scope": "project",
-  "summary": "The history points of the whole project, page by page."
+  "summary": "The history points of the whole project, newest first, page by page; the files that are gone."
 }

@@ -107,5 +107,5 @@
     "type": "object"
   },
   "scope": "mine",
-  "summary": "Brings files back to HEAD, whole, through the write policy and with a \"before\" copy of each; new                   files leave the index, and go to the Trash only with `deleteAdded`."
+  "summary": "Brings files back to HEAD, whole, through the write policy and with a \"before\" copy of each; new files leave the index, and go to the Trash only with `deleteAdded`."
 }

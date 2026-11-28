@@ -8,8 +8,8 @@ export type NoParams = Record<string, never>;
 /** `companion.state`. */
 export interface CompanionState {
   companion: string;
-  /** How deletions from the browser happen; the only value is `trash`. */
-  deletePolicy: string;
+  /** How deletions from the browser happen: `trash` when they go to the Trash, `unavailable` while the companion has no Trash (`file.delete` is then not in `welcome.methods`, and every deletion is refused with `trash-unavailable`, nothing deleted). */
+  deletePolicy: DeletePolicyState;
   env: EnvState;
   /** Whether writing is paused (always false: this version has no pause). */
   paused: boolean;
@@ -17,6 +17,9 @@ export interface CompanionState {
   problems: string[];
   server: ServerState;
 }
+
+/** `companion.state.deletePolicy`. */
+export type DeletePolicyState = 'trash' | 'unavailable';
 
 /** The environment captured from the person's login shell for git hooks (`devtab init`, `devtab env capture`): when, and the folders of its `PATH`. `capturedAt` is null until it is captured. */
 export interface EnvState {
@@ -141,6 +144,7 @@ export interface FileText {
   large: boolean;
   lineEnding: LineEnding;
   mtimeMs: number;
+  /** A file that runs code or changes what git runs: the same rules that mark a write (`protected.toml` and the folder of the repository's `core.hooksPath`). */
   protected: boolean;
   secret: boolean;
   size: number;
@@ -268,7 +272,7 @@ export interface GitHunks {
   /** SHA-256 (hex) of HEAD's text; null when the file is not in HEAD. */
   headHash?: string | null;
   hunks: IndexedHunk[];
-  /** Why not, when `chunkable` is false: `binary`, `not-utf8`, `conflicted`, `renamed`, `deleted`, `submodule`, `line-ends` (a line ends with a lone carriage return). Such a file is committed whole. */
+  /** Why not, when `chunkable` is false: `binary`, `not-utf8`, `conflicted`, `renamed`, `deleted`, `submodule`, `line-ends` (a line ends with a lone carriage return), `new-file` (not in HEAD: untracked or newly added). Such a file is committed whole. */
   reason?: string | null;
 }
 
@@ -327,6 +331,10 @@ export interface GitStatus {
   branch?: string | null;
   files: StatusFile[];
   headSha?: string | null;
+  /** Why not, when `headUndoable` is false; null when it is true. */
+  headUndoReason?: HeadUndoReason | null;
+  /** Whether `git.undoCommit` would undo HEAD now: the same check it makes (a writable project, a branch, a commit with one parent that no remote branch contains). The page may still get `undo-unavailable` when HEAD moves before it asks, and `rate-limited` while another git operation runs. */
+  headUndoable: boolean;
 }
 
 /** One changed file of `git.status`. */
@@ -346,6 +354,9 @@ export interface StatusFile {
 export type Change = 'modified' | 'added' | 'deleted' | 'renamed' | 'conflicted' | 'untracked';
 
 export type StatusGroup = 'changes' | 'unversioned';
+
+/** Why HEAD cannot be undone (`git.status.headUndoReason`). `detached`, `root`, `merge` and `pushed` are the `reason` that `git.undoCommit` answers with `undo-unavailable`. */
+export type HeadUndoReason = 'not-mine' | 'detached' | 'root' | 'merge' | 'pushed' | 'unknown';
 
 /** `git.undoCommit` parameters. */
 export interface UndoParams {
@@ -369,12 +380,15 @@ export interface PointParams {
 /** `history.content`. */
 export interface HistoryContent {
   secret: boolean;
+  /** With `\n` line ends for the companion's copies; a copy that is not UTF-8 reads as `windows-1252`. */
   text: string;
 }
 
 /** `history.file`. */
 export interface HistoryFile {
+  /** Stretches of time in which the companion did not watch the project (the history may miss changes there). */
   gaps: Gap[];
+  /** Newest first. */
   points: HistoryPoint[];
 }
 
@@ -386,9 +400,9 @@ export interface Gap {
 
 /** One point of `history.file`. */
 export interface HistoryPoint {
-  /** `External change`, `Saved`, `Deleted`, a commit's summary, … */
+  /** The server's `External change`, `Saved`, `Deleted`; the companion's `Before save`, `Before edit`, `Before restore`, `Before rollback`, `Before rename`, `Before delete`, `Before create`, `Uncommitted when added`, `Uncommitted when made writable`, `Changed while away`, `Deleted while away`, `External change`; a commit's summary. */
   label: string;
-  /** Opaque to the extension; pass it to `history.content` or `diff.sides`. */
+  /** Opaque to the extension; pass it to `history.content`, `diff.sides` or `history.restore`. */
   point: string;
   size: number;
   source: PointSource;
@@ -410,9 +424,11 @@ export interface HistoryProjectParams {
 
 /** `history.project`. */
 export interface HistoryProject {
-  /** Files with history that no longer exist (empty until the companion keeps its own record of them). */
+  /** Files with history that no longer exist on disk. */
   deleted: string[];
+  /** The cursor of the next page; null on the last one. */
   next?: string | null;
+  /** Newest first. */
   points: ProjectPoint[];
 }
 
@@ -424,6 +440,28 @@ export interface ProjectPoint {
   size: number;
   source: PointSource;
   timeMs: number;
+}
+
+/** `history.restore` parameters. */
+export interface RestoreParams {
+  /** The hash of the file's text as the page showed it (`file.read.hash`); null when the file does not exist. */
+  currentHash?: string | null;
+  path: string;
+  /** A point of this file from `history.file` or `history.project`. */
+  point: string;
+  project: string;
+}
+
+/** `history.restore`. */
+export interface Restored {
+  /** The companion's copy "Before restore" of what was there; restoring it undoes the restore. Null when the file did not exist. */
+  before?: string | null;
+  /** The hash of the file's text now (the next `baseHash`). */
+  hash: string;
+  /** The rule that marks the file as running code, if one does. */
+  protected?: string | null;
+  /** The point now on disk (the one restored). */
+  restored: string;
 }
 
 /** One trusted folder of `locations.list`. The list is read-only for the page: no method creates, changes or removes a trusted folder. */
@@ -560,7 +598,7 @@ export interface TreeEntry {
   mtimeMs: number;
   name: string;
   path: string;
-  /** A file that runs code or changes what git runs (hooks, tool settings): marked, not refused. */
+  /** A file that runs code or changes what git runs (hooks, tool settings, the folder of `core.hooksPath`): marked, not refused; the same rules that mark a write. */
   protected: boolean;
   /** A secret (`.env`, keys): readable, never written from the browser. */
   secret: boolean;
@@ -582,6 +620,16 @@ export interface FilesChanged {
 
 /** `git.changed`: something under `.git` changed (branch, index, commits). No data. */
 export type GitChanged = Record<string, never>;
+
+/** `history.gap`: the companion did not watch the project from `from` to `to` (it was stopped, the server restarted, or the project was removed); on its return it reconciled the files and kept copies of `paths` files changed or gone meanwhile. The history may miss versions in between. */
+export interface HistoryGap {
+  /** When the companion last watched the project (ms since the epoch). */
+  from: number;
+  /** Files changed or gone in between that the companion kept a point of. */
+  paths: number;
+  /** When it watched again. */
+  to: number;
+}
 
 /** `project.changed`: the project's class or state changed. */
 export interface ProjectChanged {
@@ -675,7 +723,7 @@ export interface ContractMethods {
   'events.unsubscribe': { params: ProjectParams; result: Empty; stream: never };
   /** Creates a file (and missing folders on the way) with a text; never over an existing one. Scope: mine. */
   'file.create': { params: CreateParams; result: Created; stream: never };
-  /** Moves a file or folder to the Trash, or refuses with nothing deleted. This version has no Trash: it answers `trash-unavailable` and is not listed in `welcome.methods`. Scope: mine. */
+  /** Moves a file or folder to the Trash, or refuses with nothing deleted. This version has no Trash: it answers `trash-unavailable`, is not listed in `welcome.methods`, and `companion.state.deletePolicy` is `unavailable`. Scope: mine. */
   'file.delete': { params: DeleteParams; result: Deleted; stream: never };
   /** The text of a file (secrets too, flagged); binary and too large files are refused. Scope: project. */
   'file.read': { params: PathParams; result: FileText; stream: never };
@@ -687,7 +735,7 @@ export interface ContractMethods {
   'files.find': { params: FindParams; result: FoundFile[]; stream: never };
   /** Creates a folder (and missing folders on the way); never over an existing one. Scope: mine. */
   'folder.create': { params: PathParams; result: Written; stream: never };
-  /** Commits the checked files and hunks (counted from HEAD) with the companion's own git, in a                   temporary index; the person's index keeps what they staged. Hooks run as in a terminal unless                   `runHooks` is false. Streams the output of git and the hooks; cancellable. Scope: mine. */
+  /** Commits the checked files and hunks (counted from HEAD) with the companion's own git, in a temporary index; the person's index keeps what they staged. Hooks run as in a terminal unless `runHooks` is false. Streams the output of git and the hooks; cancellable. Scope: mine. */
   'git.commit': { params: CommitParams; result: CommitResult; stream: CommitOutput };
   /** The hunks of a file, HEAD against the disk. Scope: project. */
   'git.hunks': { params: PathParams; result: GitHunks; stream: never };
@@ -695,18 +743,22 @@ export interface ContractMethods {
   'git.identity': { params: ProjectParams; result: GitIdentity; stream: never };
   /** The project's recent commit messages, newest first (at most 20). Scope: project. */
   'git.messages': { params: ProjectParams; result: CommitMessages; stream: never };
-  /** Brings files back to HEAD, whole, through the write policy and with a "before" copy of each; new                   files leave the index, and go to the Trash only with `deleteAdded`. Scope: mine. */
+  /** Brings files back to HEAD, whole, through the write policy and with a "before" copy of each; new files leave the index, and go to the Trash only with `deleteAdded`. Scope: mine. */
   'git.rollback': { params: RollbackParams; result: RolledBack; stream: never };
-  /** Changed and unversioned files, grouped as in a commit window. Scope: project. */
+  /** Changed and unversioned files, grouped as in a commit window; whether HEAD can be undone. Scope: project. */
   'git.status': { params: ProjectParams; result: GitStatus; stream: never };
-  /** Undoes the last commit of the current branch when no remote branch has it: its changes become                   uncommitted again, its message comes back. Scope: mine. */
+  /** Undoes the last commit of the current branch when no remote branch has it: its changes become uncommitted again, its message comes back. `git.status.headUndoable` tells beforehand. Scope: mine. */
   'git.undoCommit': { params: UndoParams; result: UndoneCommit; stream: never };
   /** The text of one history point. Scope: project. */
   'history.content': { params: PointParams; result: HistoryContent; stream: never };
-  /** The history points of one regular file inside the project. Scope: project. */
+  /** The history points of one file (regular, inside the project, or gone): the server's, the companion's copies, commits; and the gaps. Scope: project. */
   'history.file': { params: PathParams; result: HistoryFile; stream: never };
-  /** The history points of the whole project, page by page. Scope: project. */
+  /** The history points of the whole project, newest first, page by page; the files that are gone. Scope: project. */
   'history.project': { params: HistoryProjectParams; result: HistoryProject; stream: never };
+  /** Asks the person to delete the project's local history (the server's and the companion's copies). Scope: project. */
+  'history.requestPurge': { params: ProjectParams; result: Empty; stream: never };
+  /** Writes a history point's version over the file (or creates it again), after a copy "Before restore" of what is there. Scope: mine. */
+  'history.restore': { params: RestoreParams; result: Restored; stream: never };
   /** The trusted folders, read-only: no method creates, changes or removes one. Scope: companion. */
   'locations.list': { params: NoParams; result: LocationSummary[]; stream: never };
   /** Removes a project from the companion at once; nothing in its folder is touched, its history stays. Scope: project. */
@@ -733,6 +785,8 @@ export interface ContractEvents {
   'files.changed': FilesChanged;
   /** Something under .git changed: branch, index, commits. */
   'git.changed': GitChanged;
+  /** The companion did not watch the project for a while (stopped, server restarted, project removed); it reconciled the files on its return: the history may miss versions from `from` to `to`. */
+  'history.gap': HistoryGap;
   /** The project's class or state changed (for example, its folder went missing). */
   'project.changed': ProjectChanged;
   /** Sent to every connection (`project` null): a project was added or removed, a class changed, or a trusted folder changed; read `projects.list` and `locations.list` again. */
@@ -829,6 +883,8 @@ export const CONTRACT_METHODS = [
   'history.content',
   'history.file',
   'history.project',
+  'history.requestPurge',
+  'history.restore',
   'locations.list',
   'project.remove',
   'project.requestAdd',
@@ -844,6 +900,7 @@ export const CONTRACT_METHODS = [
 export const CONTRACT_EVENTS = [
   'files.changed',
   'git.changed',
+  'history.gap',
   'project.changed',
   'projects.changed',
   'server.restarted',

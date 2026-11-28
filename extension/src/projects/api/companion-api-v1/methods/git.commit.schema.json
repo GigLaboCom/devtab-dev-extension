@@ -180,5 +180,5 @@
     "title": "CommitOutput",
     "type": "object"
   },
-  "summary": "Commits the checked files and hunks (counted from HEAD) with the companion's own git, in a                   temporary index; the person's index keeps what they staged. Hooks run as in a terminal unless                   `runHooks` is false. Streams the output of git and the hooks; cancellable."
+  "summary": "Commits the checked files and hunks (counted from HEAD) with the companion's own git, in a temporary index; the person's index keeps what they staged. Hooks run as in a terminal unless `runHooks` is false. Streams the output of git and the hooks; cancellable."
 }
