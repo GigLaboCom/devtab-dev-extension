@@ -47,6 +47,9 @@
 //      scratch, a demo project's file and a side of «Compare code»; the built-in language rows (Go tabs, YAML 2); a
 //      four-space file detected as four; the indent indicator and its choice for one file; Settings → Editor changing
 //      the open editors without a reload and surviving a reload; how both look, light and dark, wide and narrow;
+//   4a'''. the strip of the editor's buttons (scripts/e2e-editor-strip.mjs, step editor-strip): on a scratch, a demo
+//      project's file and a side of «Compare code» each button does what its key does; Paste refused and allowed; the
+//      toggles; read only; Save; the more menu at a narrow width; light and dark;
 //   4b. «Projects» with a companion (scripts/e2e-projects.mjs, step projects): a browser of its own, the build's copy
 //      loaded by CDP, a fake Native Messaging host speaking the companion's contract — every state of the connection,
 //      the tree, a file, find, changes, diff, history, events, long answers, the permission removed and granted;
@@ -63,7 +66,7 @@
 //   pnpm test:e2e [-- <dist>] [--shots=<dir>] [--json=<file>] [--only=<step or tool>,…]
 //   --only  run only these after the extension has loaded: a tool's id (its module of scripts/e2e-tools/, e.g.
 //           `--only=jwt`), or a step — start, own-page, toolbar, compare (2–2c), tools (3: every tool and the JSON
-//           controls), shell, themes (4–6), projects-demo, scratches, project-keys, editor-settings, projects, history. The console-error check runs over what
+//           controls), shell, themes (4–6), projects-demo, scratches, project-keys, editor-settings, editor-strip, projects, history. The console-error check runs over what
 //           ran.
 // Needs a build (pnpm build) and Playwright with Chrome for Testing: `pnpm e2e:setup` puts both under .state/
 // (Playwright is NOT a workspace dependency, as in the second sibling extension). Elsewhere: PLAYWRIGHT_DIR=<a
@@ -88,6 +91,7 @@ import { runProjectsChecks } from './e2e-projects.mjs';
 import { runScratchesChecks } from './e2e-scratches.mjs';
 import { runKeysChecks } from './e2e-keys.mjs';
 import { runEditorSettingsChecks } from './e2e-editor-settings.mjs';
+import { runEditorStripChecks } from './e2e-editor-strip.mjs';
 import { runGrammarChecks } from './e2e-grammars.mjs';
 
 /* global document, window, addEventListener, chrome, createImageBitmap, OffscreenCanvas, getComputedStyle, location -- page.evaluate callbacks run in the pages */
@@ -234,8 +238,12 @@ const dominantColor = async png => {
         const key = (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
         counts.set(key, (counts.get(key) ?? 0) + 1);
       }
-      const [key, n] = [...counts].sort((a, b) => b[1] - a[1])[0];
-      return { color: `#${key.toString(16).padStart(6, '0')}`, share: +(n / (data.length / 4)).toFixed(3) };
+      const all = data.length / 4;
+      const top = [...counts]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([key, n]) => ({ color: `#${key.toString(16).padStart(6, '0')}`, share: +(n / all).toFixed(3) }));
+      return { ...top[0], top };
     }, png.toString('base64'));
   } finally {
     await page.close();
@@ -890,6 +898,9 @@ try {
     }, '14-module-request-before-first-frame.png');
     report.earlyModule = polled;
     const polledShown = polled.events.find(e => e.name === 'shown');
+    // What the sides offer the editor's commands (`standing`, the strip's) is told apart from what is shown: left out of
+    // the order checked here.
+    const polledOrder = polled.events.filter(e => e.name !== 'standing').map(e => e.name);
     check(
       'the module refuses a request before run() with an error, never a panic',
       /__wbindgen|undefined/.test(polled.beforeInit ?? '') &&
@@ -902,7 +913,7 @@ try {
       'a request the module takes before its first frame is shown in that frame',
       polled.acceptedBeforeFirstFrame &&
         JSON.parse(polledShown?.detail ?? '{}').changes === 3 &&
-        polled.events.map(e => e.name).join(',') === 'shown,first-frame' &&
+        polledOrder.join(',') === 'shown,first-frame' &&
         polled.pixels.greenishPct > 0.5,
       `refused ${polled.refused}× while the window opened; then ${polled.events.map(e => e.name).join(' → ')}; ` +
         JSON.stringify(polled.pixels),
@@ -935,7 +946,8 @@ try {
     report.earlyNested = nested;
     check(
       'the page may call the module from inside its first-frame and shown callbacks',
-      nested.events.join(',') === 'first-frame,shown from-first-frame.py,shown from-shown.py' &&
+      nested.events.filter(e => e !== 'standing').join(',') ===
+        'first-frame,shown from-first-frame.py,shown from-shown.py' &&
         [...nested.results].sort().join(',') === 'from-first-frame.py: ok,from-shown.py: ok' &&
         nested.panics.length === 0,
       `${nested.events.join(' → ')}; ${nested.results.join(', ')}${nested.panics.length ? `; ${nested.panics[0]}` : ''}`,
@@ -1082,8 +1094,11 @@ try {
     report.otherTheme = { id: OTHER_THEME.id, page: pageOther, editorDominant: editorBg, expected: OTHER_EDITOR_BG };
     check(
       `a theme from the list (${OTHER_THEME.name}) reaches the page and the editor`,
-      pageOther === OTHER_THEME.id && near(editorBg.color, OTHER_EDITOR_BG),
-      `page ${pageOther}; editor background ${editorBg.color} (${Math.round(editorBg.share * 100)} % of the frame), ` +
+      // The background is the most common colour of the frame, or the second after the example's changed-line bands:
+      // with the strip of buttons over each side the frame is a row shorter, and the bands may cover more of it.
+      pageOther === OTHER_THEME.id &&
+        editorBg.top.slice(0, 2).some(c => near(c.color, OTHER_EDITOR_BG) && c.share > 0.2),
+      `page ${pageOther}; editor colours ${editorBg.top.map(c => `${c.color} ${Math.round(c.share * 100)} %`).join(', ')}, ` +
         (OTHER_HIGHLIGHT_BG
           ? `the theme's editor.background (a tree-sitter build reads it) ${OTHER_EDITOR_BG}`
           : `the theme's input_background over background ${OTHER_EDITOR_BG}`),
@@ -1112,6 +1127,10 @@ try {
   // The editor's settings: Settings → Editor, the indent indicator, Tab in every editor (scripts/e2e-editor-settings.mjs).
   if (want('editor-settings')) await runEditorSettingsChecks({ ctx, id, check, shoot, report, sleep });
   await noteErrors('editor-settings');
+
+  // The strip of the editor's buttons over every editor (scripts/e2e-editor-strip.mjs).
+  if (want('editor-strip')) await runEditorStripChecks({ ctx, id, check, shoot, report, sleep });
+  await noteErrors('editor-strip');
 
   // «Projects» with a companion (scripts/e2e-projects.mjs): in a browser of its own, so this one's profile stays as it is.
   if (want('projects')) await runProjectsChecks({ chromium, dist: DIST, check, shoot, report, sleep });

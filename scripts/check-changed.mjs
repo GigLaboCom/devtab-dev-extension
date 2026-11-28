@@ -74,7 +74,15 @@ const E2E_HARNESS = /^scripts\/(e2e-check\.mjs|e2e-helpers\.mjs|e2e-setup\.sh)$/
 const SELF = /^scripts\/check-changed\./;
 
 /** Path → the end-to-end steps that exercise it (the names `pnpm test:e2e -- --only=` takes). */
-const EDITOR_USERS = ['compare', 'projects-demo', 'projects', 'scratches', 'project-keys', 'editor-settings'];
+const EDITOR_USERS = [
+  'compare',
+  'projects-demo',
+  'projects',
+  'scratches',
+  'project-keys',
+  'editor-settings',
+  'editor-strip',
+];
 const RULES = [
   [/^extension\/src\/[^/]+\.test\.ts$/, []],
   // The editor's settings (D39): every place with an editor follows them, and their own step checks them.
@@ -82,13 +90,24 @@ const RULES = [
   [/^extension\/src\/app\/settings\/EditorSettings/, ['editor-settings', 'shell']],
   [/^extension\/src\/(viewer|highlighter)\//, EDITOR_USERS],
   [/^extension\/src\/shared\/viewerProtocol\.ts$/, EDITOR_USERS],
-  [/^extension\/src\/compare\//, ['compare', 'scratches']],
-  [/^extension\/src\/app\/sections\/ComparePage/, ['compare']],
+  [/^extension\/src\/compare\//, ['compare', 'scratches', 'editor-strip']],
+  [/^extension\/src\/app\/sections\/ComparePage/, ['compare', 'editor-strip']],
   [/^extension\/src\/app\/handoff\.ts$/, ['compare', 'history']],
   [/^extension\/src\/projects\/scratch\//, ['scratches', 'project-keys']],
-  [/^extension\/src\/app\/projects\/(Scratch|DeleteScratch|LanguagePicker|scratches)/, ['scratches', 'project-keys']],
+  [
+    /^extension\/src\/app\/projects\/(Scratch|DeleteScratch|LanguagePicker|scratches)/,
+    ['scratches', 'project-keys', 'editor-strip'],
+  ],
+  // The parts that hold an editor carry its strip of buttons (its own step checks it).
+  [
+    /^extension\/src\/app\/projects\/(EditorPane|OpenedFileView|useEditorFrame)/,
+    ['projects-demo', 'projects', 'scratches', 'project-keys', 'editor-strip'],
+  ],
   // The demo's data holds the project with an `.editorconfig` the editor's settings step reads (D39).
-  [/^extension\/src\/projects\/demo\//, ['projects-demo', 'projects', 'scratches', 'project-keys', 'editor-settings']],
+  [
+    /^extension\/src\/projects\/demo\//,
+    ['projects-demo', 'projects', 'scratches', 'project-keys', 'editor-settings', 'editor-strip'],
+  ],
   [/^extension\/src\/(projects|app\/projects)\//, ['projects-demo', 'projects', 'scratches', 'project-keys']],
   [/^extension\/src\/app\/sections\/ProjectsPage/, ['projects-demo', 'projects', 'scratches', 'project-keys']],
   [/^extension\/src\/app\/sectionPermissions\.ts$/, ['projects-demo', 'projects', 'shell']],
@@ -127,6 +146,7 @@ const RULES = [
   [/^scripts\/e2e-scratches\.mjs$/, ['scratches']],
   [/^scripts\/e2e-keys\.mjs$/, ['project-keys']],
   [/^scripts\/e2e-editor-settings\.mjs$/, ['editor-settings']],
+  [/^scripts\/e2e-editor-strip\.mjs$/, ['editor-strip']],
   [/^scripts\/e2e-projects-demo\.mjs$/, ['projects-demo']],
   [/^scripts\/e2e-projects(\.mjs|\/)/, ['projects']],
 ];

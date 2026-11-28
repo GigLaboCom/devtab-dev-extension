@@ -632,7 +632,7 @@ export const runCompareChecks = async ({ ctx, id, check, shoot, report, sleep, h
         )
         .then(label => (label?.startsWith('Indentation:') ? 'Indentation' : label));
     const order = [];
-    while (order.length < 24 && order.at(-1) !== 'editor') {
+    while (order.length < 60 && order.at(-1) !== 'editor') {
       await page.keyboard.press('Tab');
       order.push(await focused());
     }
@@ -644,6 +644,22 @@ export const runCompareChecks = async ({ ctx, id, check, shoot, report, sleep, h
         ...['Open file…', 'Paste from the clipboard', 'Copy the text', 'Save', 'Save as…', 'Edit', 'Clear'].map(
           t => `${t} (${side} side)`,
         ),
+      ]),
+      // Then the strip of the editor's buttons over each side (scripts/e2e-editor-strip.mjs): a greyed button keeps its
+      // Tab stop (aria-disabled), so every one is reached.
+      ...['original', 'changed'].flatMap(() => [
+        'Undo',
+        'Redo',
+        'Cut',
+        'Copy',
+        'Copy all',
+        'Paste',
+        'Select all',
+        'Indent',
+        'Outdent',
+        'Find',
+        'Wrap long lines',
+        'Show whitespace',
       ]),
     ];
     // With the example shown every action is enabled, so Tab stops on each.

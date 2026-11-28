@@ -7,13 +7,16 @@
 // (Pro) and «Forget»; a file arriving by the address (the token gone from the address and from the history); an
 // expired token; a file inside an added project opening as the project's. `runOpenedFilesFree` repeats the arrival
 // in the free build (DEVTAB_VARIANT=edition:fixedFree), loaded next to the store build in the same browser: the file
-// read only with one quiet line, «Copy to a scratch», no command. Screenshots light and dark, wide and narrow.
+// read only with one quiet line, «Copy to a scratch», no command. Screenshots light and dark, wide and narrow. The strip
+// of the editor's buttons over an opened file (../e2e-editor-strip.mjs): every button against its key on an editable
+// one, only what makes sense on a read-only one, Save greyed with the page's own reason.
 
 /* global document, location, chrome -- page.evaluate callbacks run in the page */
 
 import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { clipboardOf, exerciseStrip, stripState } from '../e2e-editor-strip.mjs';
 
 const PROJECT = 'p_abcdefgh23';
 const HOST_NAME = 'dev.devtab.companion';
@@ -202,6 +205,18 @@ export const runCompanionOpenedFiles = async ({
     secret === 'Read only: this file holds secrets.' && (await page.locator('.kit-projects-save').count()) === 0,
     secret,
   );
+  const strip = page.getByRole('toolbar', { name: 'Editor', exact: true });
+  await strip.waitFor({ timeout: 10_000 });
+  await sleep(500);
+  const readOnlyStrip = await stripState(strip);
+  check(
+    'open files: a read-only file’s strip — Save greyed; only Copy all, Select all, Find and the two toggles live',
+    readOnlyStrip[0]?.name === 'Save now' &&
+      !readOnlyStrip[0].live &&
+      JSON.stringify(readOnlyStrip.filter(b => b.live).map(b => b.name)) ===
+        JSON.stringify(['Copy all', 'Select all', 'Find', 'Wrap long lines', 'Show whitespace']),
+    readOnlyStrip.map(b => `${b.name}${b.live ? '' : ' (greyed)'}`).join(', '),
+  );
   await shots('read-only');
   command({
     openFile: {
@@ -216,6 +231,29 @@ export const runCompanionOpenedFiles = async ({
   await fileOpened('.zshrc');
   const executes = await page.locator('.kit-projects-bar [data-mark="executes"]').innerText();
   check('open files: a file that runs on its own is marked and editable', executes === 'runs on its own', executes);
+  await waitSave('saved');
+  await sleep(500);
+  const editableStrip = await stripState(strip);
+  // The extension's origin (Node's URL gives `null` for a chrome-extension:// address).
+  const clipboard = clipboardOf(page, /^chrome-extension:\/\/[^/]+/.exec(base)[0]);
+  await clipboard.grant();
+  const stripSeen = await exerciseStrip({
+    page,
+    frame,
+    frameSelector: 'iframe.kit-projects-frame',
+    toolbar: strip,
+    clipboard,
+    sleep,
+  });
+  check(
+    'open files: an editable file’s strip — Save first (greyed while nothing new waits); every button (Undo, Redo, Select all, Copy, Cut, Paste, Indent, Outdent, Copy all, Find) does what its key does',
+    editableStrip[0]?.name === 'Save now' &&
+      !editableStrip[0].live &&
+      ['undo', 'copy', 'cut', 'paste', 'indent', 'copyAll', 'find'].every(k => stripSeen[k]?.ok) &&
+      stripSeen.end,
+    JSON.stringify(stripSeen),
+  );
+  await waitSave('saved');
 
   // ---- the group: marks, the command (Pro), the settings, Forget ---------------------------------------------------
   await go('#/projects');

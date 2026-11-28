@@ -322,12 +322,12 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
     await page.getByRole('button', { name: 'Find in files…', exact: true }).click();
     const field = page.getByRole('textbox', { name: 'Find in files' });
     await field.fill('line 0');
-    await page.getByRole('button', { name: 'Find', exact: true }).click();
+    await page.locator('.kit-projects-search-form').getByRole('button', { name: 'Find', exact: true }).click();
     const found = page.getByText(/^\d+ match(es)? in \d+ files?/);
     await found.waitFor({ timeout: 10_000 });
     check('projects: find in files streams the companion’s matches', true, await found.innerText());
     await field.fill('slow-search');
-    await page.getByRole('button', { name: 'Find', exact: true }).click();
+    await page.locator('.kit-projects-search-form').getByRole('button', { name: 'Find', exact: true }).click();
     await page.getByText('Searching…').waitFor({ timeout: 5_000 });
     await sleep(600);
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -448,7 +448,7 @@ export const runProjectsChecks = async ({ chromium, dist, check, shoot, report, 
     const branch = await page.locator('.kit-projects-bar-branch').innerText();
     await page.getByRole('button', { name: 'Find in files…', exact: true }).click();
     await page.getByRole('textbox', { name: 'Find in files' }).fill('hostile');
-    await page.getByRole('button', { name: 'Find', exact: true }).click();
+    await page.locator('.kit-projects-search-form').getByRole('button', { name: 'Find', exact: true }).click();
     await page.locator('.kit-projects-result-line').first().waitFor({ timeout: 10_000 });
     const line = await page.locator('.kit-projects-result-text').first().innerText();
     await tree.locator('[data-path="notes.txt"]').click();

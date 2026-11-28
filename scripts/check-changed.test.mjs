@@ -20,17 +20,18 @@ test('documents need nothing', () => {
 test('a section runs its own steps, its unit tests and the build, not the growth check', () => {
   const p = plan('extension/src/app/projects/ScratchView.tsx', 'extension/src/projects/scratch/store.ts');
   assert.deepEqual(p.full, []);
-  assert.deepEqual(p.e2e, ['project-keys', 'scratches']);
+  assert.deepEqual(p.e2e, ['editor-strip', 'project-keys', 'scratches']);
   assert.deepEqual(p.packages, ['extension']);
   assert.equal(p.build, true);
   assert.equal(p.growth, false);
-  assert.deepEqual(commandsFor(p).at(-1), ['pnpm', ['test:e2e', '--', '--only=project-keys,scratches']]);
+  assert.deepEqual(commandsFor(p).at(-1), ['pnpm', ['test:e2e', '--', '--only=editor-strip,project-keys,scratches']]);
 });
 
 test('the editor page runs every step that shows the editor', () => {
   assert.deepEqual(plan('extension/src/viewer/main.ts').e2e, [
     'compare',
     'editor-settings',
+    'editor-strip',
     'project-keys',
     'projects',
     'projects-demo',
@@ -39,16 +40,41 @@ test('the editor page runs every step that shows the editor', () => {
 });
 
 test('the editor’s settings run every step with an editor and their own; Settings → Editor its step and the shell’s', () => {
-  const editors = ['compare', 'editor-settings', 'project-keys', 'projects', 'projects-demo', 'scratches'];
+  const editors = [
+    'compare',
+    'editor-settings',
+    'editor-strip',
+    'project-keys',
+    'projects',
+    'projects-demo',
+    'scratches',
+  ];
   assert.deepEqual(plan('extension/src/editorSettings/resolve.ts').e2e, editors);
   assert.deepEqual(plan('extension/src/app/editor/IndentIndicator.tsx').e2e, editors);
   assert.deepEqual(plan('extension/src/app/settings/EditorSettingsGroup.tsx').e2e, ['editor-settings', 'shell']);
   assert.deepEqual(plan('scripts/e2e-editor-settings.mjs').e2e, ['editor-settings']);
+  assert.deepEqual(plan('scripts/e2e-editor-strip.mjs').e2e, ['editor-strip']);
+  assert.deepEqual(plan('extension/src/app/editor/EditorStrip.tsx').e2e, editors);
+  assert.deepEqual(plan('extension/src/app/projects/EditorPane.tsx').e2e, [
+    'editor-strip',
+    'project-keys',
+    'projects',
+    'projects-demo',
+    'scratches',
+  ]);
   assert.equal(plan('extension/src/editorSettings/resolve.ts').growth, false);
 });
 
 test('profiles and a project’s .editorconfig (D39): the edition, its host and the demo’s data run the editor’s step too', () => {
-  const editors = ['compare', 'editor-settings', 'project-keys', 'projects', 'projects-demo', 'scratches'];
+  const editors = [
+    'compare',
+    'editor-settings',
+    'editor-strip',
+    'project-keys',
+    'projects',
+    'projects-demo',
+    'scratches',
+  ];
   assert.deepEqual(plan('extension/src/editorSettings/editorconfig/glob.ts').e2e, editors);
   assert.deepEqual(plan('extension/src/app/settings/EditorSettingsProfiles.tsx').e2e, ['editor-settings', 'shell']);
   assert.ok(plan('extension/src/edition/free.ts').e2e.includes('editor-settings'));
@@ -58,6 +84,7 @@ test('profiles and a project’s .editorconfig (D39): the edition, its host and 
   assert.deepEqual(plan('extension/src/history/idbStore.ts').e2e, ['history']);
   assert.deepEqual(plan('extension/src/projects/demo/data.ts').e2e, [
     'editor-settings',
+    'editor-strip',
     'project-keys',
     'projects',
     'projects-demo',

@@ -524,6 +524,12 @@ out.push(
         'не хранится',
       ],
       [
+        'Выбор на полосе кнопок редактора: «Wrap long lines», «Show whitespace»',
+        'нет (как в настройках)',
+        'поверх сохранённой настройки, только для этого файла (в «Compare code» — для стороны); живёт, как выбор в индикаторе, пока файл открыт (вид файла и diff того же пути — общий, обмен сторон переносит); в сравнении рядом перенос недоступен; настройки и профили не меняет',
+        'не хранится',
+      ],
+      [
         'Профили (Pro)',
         `один — ${ed.profiles.defaultName}`,
         `до ${ed.profiles.max} вместе с ${ed.profiles.defaultName}; имя — до ${ed.profiles.nameMax} знаков, без управляющих, не повторяется (без учёта регистра); ${ed.profiles.defaultName} не переименовывается и не удаляется; запись — до ${ed.profiles.chars.toLocaleString('ru-RU')} знаков JSON`,
@@ -570,6 +576,32 @@ out.push(
       chordLabel(code.shortcuts.other[a.id], false),
     ]),
   ),
+);
+h('Клавиши команд редактора (полоса кнопок; привязывает модуль редактора, в настройках не меняются)');
+// The module's one table (crates/review-view/src/editor_keys.json), in gpui's notation: `cmd-shift-z`, `ctrl-y`.
+const editorKeys = JSON.parse(src('crates/review-view/src/editor_keys.json'));
+const gpuiKey = (keys, mac) => {
+  const parts = keys.split('-');
+  const key = parts.pop().toUpperCase();
+  return mac
+    ? `${parts.includes('shift') ? '⇧' : ''}${parts.includes('cmd') ? '⌘' : ''}${key}`
+    : [...parts.map(p => ({ ctrl: 'Ctrl', shift: 'Shift' })[p] ?? p), key].join('+');
+};
+out.push(
+  table(
+    ['Команда', 'macOS', 'Windows / Linux', 'Чем'],
+    Object.entries(editorKeys).map(([command, keys]) => [
+      `\`${command}\``,
+      gpuiKey(keys.mac, true),
+      gpuiKey(keys.other, false),
+      command === 'paste'
+        ? 'вставка браузера (событие `paste`): в модуле не привязана, кнопка читает буфер страницей'
+        : 'действие gpui-kit; на macOS привязывает модуль, иначе gpui-kit',
+    ]),
+  ),
+);
+out.push(
+  '\nCopy all — без клавиши (у gpui-kit нет такого действия): кнопка читает текст стороны. Save на полосе — ⌘S / Ctrl+S страницы (файл проекта и открытый файл).',
 );
 h('История инструментов');
 const hs = code.history.settings;
