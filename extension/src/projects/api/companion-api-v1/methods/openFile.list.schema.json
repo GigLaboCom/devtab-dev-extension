@@ -79,7 +79,7 @@
         "oneOf": [
           {
             "const": "open-with",
-            "description": "\"Open With\" of the system (no version produces it yet).",
+            "description": "\"Open With\" of the system (the helper `devtab-open`).",
             "type": "string"
           },
           {
