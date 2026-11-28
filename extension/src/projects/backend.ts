@@ -48,6 +48,8 @@ export interface ConnectionStatus extends Connection {
 export interface Capabilities {
   /** The methods this backend answers (the companion's `welcome`; the demo answers all of them, writes in memory). */
   methods: readonly Method[];
+  /** Most points on one page of `history.project` (`welcome.limits.maxHistoryPage`); absent when not announced. */
+  historyPage?: number;
   /** Whether what it shows is the demo's invented data. */
   demo: boolean;
 }

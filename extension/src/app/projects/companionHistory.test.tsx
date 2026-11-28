@@ -2,9 +2,11 @@
  * The local history on the companion of stage 7 (row 7.5), through the seam to the scripted companion: a file's feed
  * with its commits and the stretch the companion did not watch (and the event that tells of one), a restore with its
  * question and its undo, a refusal in the page's words, the project's feed page by page with its deleted files, a
- * deleted file brought back, «Since your last visit», clearing the history answered with the command for Terminal (or
- * the companion's window), «Open in Compare code»; a companion of stage 6 (no restore, no clearing) and one with no
- * history at all — inactive, one sentence, nothing sent. The editor page is played by a fake.
+ * deleted file brought back, a file a commit deleted and its points without a text (by `content`, or by label from a
+ * companion older than the field), the page size the companion announces, «Since your last visit», clearing the
+ * history answered with the command for Terminal (or the companion's window), «Open in Compare code»; a companion of
+ * stage 6 (no restore, no clearing) and one with no history at all — inactive, one sentence, nothing sent. The editor
+ * page is played by a fake.
  */
 import { SidePanels } from './SidePanels';
 import { ProjectsPage } from '../sections/ProjectsPage';
@@ -261,6 +263,69 @@ describe('the project’s history (row 7.5)', () => {
     expect((await backend.call('file.read', { project: PROJECT, path: 'gone.txt' })).text).toBe(
       'This file will be deleted.\n',
     );
+  });
+
+  it('a file a commit deleted: listed; its points without a text offer nothing (by `content`); restored from the commit that added it', async () => {
+    make();
+    const { history } = await historyOf('docs/readme.md');
+    fireEvent.click(within(history).getByRole('radio', { name: 'Project' }));
+    const deleted = await within(history).findByRole('group', { name: 'Deleted files' });
+    fireEvent.click(within(deleted).getByRole('button', { name: 'History of retired.txt, deleted' }));
+    await waitFor(() => expect(labels(history)).toEqual(['Remove retired.txt', 'Before rollback', 'Add retired.txt']));
+    // Neither label is one the page knows: the companion's `content: false` says so.
+    for (const label of ['Remove retired.txt', 'Before rollback']) {
+      const row = rowOf(history, label);
+      expect(row.getAttribute('data-text')).toBe('none');
+      expect(row.textContent).toContain('No version kept');
+      expect(within(row).queryAllByRole('button')).toHaveLength(0);
+    }
+    fireEvent.click(within(rowOf(history, 'Add retired.txt')).getByRole('button', { name: 'Restore…' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Restore this version?' });
+    expect(dialog.textContent).toContain('retired.txt was deleted. It will be created again');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Restore' }));
+    expect(await within(history).findByText('Restored: the file is back.')).toBeTruthy();
+    expect(sent('history.restore').at(-1)).toMatchObject({ path: 'retired.txt', currentHash: null });
+    expect((await backend.call('file.read', { project: PROJECT, path: 'retired.txt' })).text).toBe(
+      'A file a commit deleted.\n',
+    );
+  });
+
+  it('pages of the size the companion announces (`maxHistoryPage`)', async () => {
+    make({ limits: { maxHistoryPage: 40 } });
+    await backend.connect();
+    let { hash } = await backend.call('file.read', { project: PROJECT, path: 'src/new.txt' });
+    for (let i = 0; i < 40; i++)
+      ({ hash } = await backend.call('file.save', {
+        project: PROJECT,
+        path: 'src/new.txt',
+        baseHash: hash,
+        text: `v${i}\n`,
+      }));
+    const { history } = await historyOf('src/new.txt');
+    fireEvent.click(within(history).getByRole('radio', { name: 'Project' }));
+    await waitFor(() => expect(history.querySelectorAll('.kit-projects-point:not([data-deleted])')).toHaveLength(40));
+    fireEvent.click(within(history).getByRole('button', { name: 'Show more' }));
+    await waitFor(() =>
+      expect(history.querySelectorAll('.kit-projects-point:not([data-deleted])').length).toBeGreaterThan(40),
+    );
+    expect(sent('history.project').every(p => p.limit === 40)).toBe(true);
+  });
+
+  it('a companion older than `content`: a moment without a text known by its label; pages as before (100)', async () => {
+    make({ contentFlag: false });
+    await backend.connect();
+    const { points } = await backend.call('history.file', { project: PROJECT, path: 'gone.txt' });
+    expect(points.some(p => 'content' in p)).toBe(false);
+    const { history } = await historyOf('docs/readme.md');
+    fireEvent.click(within(history).getByRole('radio', { name: 'Project' }));
+    const deleted = await within(history).findByRole('group', { name: 'Deleted files' });
+    expect(sent('history.project').at(-1)).toMatchObject({ limit: 100 });
+    fireEvent.click(within(deleted).getByRole('button', { name: 'History of gone.txt, deleted' }));
+    await waitFor(() => expect(labels(history)).toEqual(['Deleted while away', 'Saved']));
+    const noText = rowOf(history, 'Deleted while away');
+    expect(noText.textContent).toContain('No version kept');
+    expect(within(noText).queryAllByRole('button')).toHaveLength(0);
+    expect(within(rowOf(history, 'Saved')).getByRole('button', { name: 'Restore…' })).toBeTruthy();
   });
 
   it('«Since your last visit»: what changed after the person last left; the visit remembered on leaving', async () => {

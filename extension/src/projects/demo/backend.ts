@@ -41,7 +41,13 @@ import type {
 import type { DemoFile, DemoProjectSeed } from './data';
 
 /** The limits of the API (§5.5). */
-export const LIMITS = { textBytes: 5 * 1024 * 1024, treeEntries: 5000, matches: 5000, deleteFiles: 2000 } as const;
+export const LIMITS = {
+  textBytes: 5 * 1024 * 1024,
+  treeEntries: 5000,
+  matches: 5000,
+  deleteFiles: 2000,
+  historyPage: 500,
+} as const;
 
 /** A hook's failure the next commit meets. */
 export type HookFailure =
@@ -1009,12 +1015,14 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
     },
     'history.project': ({ project, since, cursor, limit }) => {
       const p = projectOf(project);
-      const all: ProjectPoint[] = newestFirst(p.points.filter(pt => since == null || pt.timeMs >= since)).map(pt => ({
+      const all: (ProjectPoint & { content: boolean })[] = newestFirst(
+        p.points.filter(pt => since == null || pt.timeMs >= since),
+      ).map(pt => ({
         ...toFilePoint(pt),
         path: pt.path,
       }));
       const from = cursor ? Number(cursor) : 0;
-      const size = Math.min(Math.max(1, limit ?? 500), 500);
+      const size = Math.min(Math.max(1, limit ?? LIMITS.historyPage), LIMITS.historyPage);
       const deleted = [...new Set(p.points.map(pt => pt.path))].filter(path => !p.disk.has(path)).sort();
       return {
         points: all.slice(from, from + size),
@@ -1055,7 +1063,8 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       }),
   };
 
-  const toFilePoint = (pt: Point): FilePoint => ({
+  const toFilePoint = (pt: Point): FilePoint & { content: boolean } => ({
+    content: pt.text !== null,
     point: pt.point,
     label: pt.label,
     source: pt.source,
@@ -1095,7 +1104,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
     // The demo needs no permission and has no companion to try again.
     requestPermission: () => Promise.resolve(false),
     retry: () => undefined,
-    capabilities: () => ({ methods: Object.keys(handlers) as Method[], demo: true }),
+    capabilities: () => ({ methods: Object.keys(handlers) as Method[], historyPage: LIMITS.historyPage, demo: true }),
     async call<M extends Method>(method: M, params: Params<M>, opts: CallOptions<M> = {}): Promise<Result<M>> {
       const handler = (handlers as unknown as Record<string, Handler<M> | undefined>)[method];
       if (!handler) return fail('unknown-method', `unknown method ${String(method)}`, { method: String(method) });

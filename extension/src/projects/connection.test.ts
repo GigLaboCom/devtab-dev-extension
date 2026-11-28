@@ -71,10 +71,15 @@ const setup = (
     answer?: boolean;
     mode?: 'normal' | 'empty' | 'fresh' | 'version' | 'not-running';
     methods?: 'all' | 'stage3';
+    companion?: { contentFlag?: boolean; limits?: Record<string, number> };
   } = {},
 ) => {
   const permission = fakePermission(options.granted ?? true, options.answer ?? true);
-  const fake = fakeCompanion({ mode: options.mode ?? 'normal', methods: options.methods ?? 'all' });
+  const fake = fakeCompanion({
+    mode: options.mode ?? 'normal',
+    methods: options.methods ?? 'all',
+    ...options.companion,
+  });
   const clock = manualTimers();
   const reload = vi.fn();
   const links = { open: fake.openLink };
@@ -264,6 +269,21 @@ describe('the companion’s backend', () => {
       .catch((e: unknown) => e);
     expect(isCompanionError(error, 'unknown-method')).toBe(true);
     expect(fake.ports[0]!.sent.some(f => (f as { method?: string }).method === 'file.save')).toBe(false);
+  });
+
+  it('gives the history’s page the companion announces (`maxHistoryPage`); none when an older one does not', async () => {
+    const announced = setup();
+    const backend = companionBackend(announced.connection);
+    await backend.connect();
+    expect(backend.capabilities().historyPage).toBe(500);
+    const smaller = setup({ companion: { limits: { maxHistoryPage: 40 } } });
+    const small = companionBackend(smaller.connection);
+    await small.connect();
+    expect(small.capabilities().historyPage).toBe(40);
+    const older = setup({ companion: { contentFlag: false } });
+    const old = companionBackend(older.connection);
+    await old.connect();
+    expect(old.capabilities()).not.toHaveProperty('historyPage');
   });
 
   it('routes events by project (the companion’s own to every listener) and says the subscriptions again after a reconnect', async () => {

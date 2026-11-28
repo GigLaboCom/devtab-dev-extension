@@ -5,8 +5,9 @@
  * compared with the current file, two points with each other, a point opened in «Compare code» next to the current
  * file (whose side saves back into the project, ../../compare/handoff.ts `origin`), and a point restored — after a
  * question, with the comparison in the editor; the version it replaces is kept by the companion («Before restore»), so
- * a restore is undone the same way. A moment the companion noted without a text (`Before create`, `Deleted while away`)
- * is listed and offers nothing to open.
+ * a restore is undone the same way. A point the companion says keeps no text (`content: false`: `Before create`,
+ * `Deleted while away`, a binary or over-limit file's copy, the commit that deleted the file) is listed and offers
+ * nothing to open.
  *
  * What the backend does not offer is not asked for: a companion without the feeds shows one sentence; one of stage 6
  * or older (no restore, no clearing) shows the feeds and one sentence, and sends neither. Restoring needs a writable
@@ -37,19 +38,22 @@ import type { Workspace } from './useWorkspace';
 import type { FilePoint, HistoryGap, ProjectPoint } from '@src/projects/types';
 import type { ReactElement } from 'react';
 
-/** Points asked for at a time in the project's feed (the companion gives at most 500). */
+/** Points asked for at a time in the project's feed, at most the companion's page (`maxHistoryPage`). */
 export const HISTORY_PAGE = 100;
+/** The companion's page when it does not announce one (`limits.maxHistoryPage` of its documentation). */
+const COMPANION_PAGE = 500;
 /** The stretches the companion did not watch, said at most (the newest). */
 export const GAPS_SHOWN = 3;
 /** How long a request that may wait for the companion's window goes before the page says so. */
 const WAIT_SAID_AFTER_MS = 400;
 
 /**
- * The companion's labels of a moment it noted without keeping a text (`c:none`): nothing to open, compare or restore.
- * By label, since a point is opaque to the page.
+ * A point without a text has nothing to open, compare or restore: the companion says so (`content`). One older than
+ * the field is read by its labels of a moment noted without a text (`c:none`).
  */
 const WITHOUT_TEXT: ReadonlySet<string> = new Set(['Before create', 'Deleted while away']);
-const hasText = (point: FilePoint): boolean => !(point.source === 'companion' && WITHOUT_TEXT.has(point.label));
+const hasText = (point: FilePoint): boolean =>
+  point.content ?? !(point.source === 'companion' && WITHOUT_TEXT.has(point.label));
 
 type Scope = 'file' | 'project' | 'away';
 type Point = FilePoint | ProjectPoint;
@@ -92,6 +96,8 @@ export const HistoryPanel = ({ workspace, lastVisit = null }: HistoryPanelProps)
     restore: workspace.can('history.restore'),
     purge: workspace.can('history.requestPurge'),
   };
+  const companionPage = backend.capabilities().historyPage ?? COMPANION_PAGE;
+  const page = Math.min(HISTORY_PAGE, companionPage);
   const [scope, setScope] = useState<Scope>(offers.file ? 'file' : 'project');
   // Whose history the file scope shows: the open file, or a deleted one picked from the project's list.
   const [deletedSubject, setDeletedSubject] = useState<string | null>(null);
@@ -149,7 +155,7 @@ export const HistoryPanel = ({ workspace, lastVisit = null }: HistoryPanelProps)
           .call('history.project', {
             project: project.id,
             // The pages already shown stay shown when the feed is read again.
-            limit: Math.min(HISTORY_PAGE * pages, 500),
+            limit: Math.min(page * pages, companionPage),
             ...(scope === 'away' && { since: lastVisit }),
           })
           .then(r => ({ points: r.points, next: r.next ?? null, deleted: r.deleted ?? [], gaps: [] }));
@@ -171,20 +177,20 @@ export const HistoryPanel = ({ workspace, lastVisit = null }: HistoryPanelProps)
     };
     // `pages` is read with the rest: a page more is asked for by `more`, not by reading everything again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backend, project.id, subject, scope, version, lastVisit, fileScope, offers.file, offers.project]);
+  }, [backend, project.id, subject, scope, version, lastVisit, fileScope, offers.file, offers.project, companionPage]);
 
   // How many files changed since the last visit, for the scope's switch.
   useEffect(() => {
     if (!away) return setAwayFiles(null);
     let ok = true;
-    backend.call('history.project', { project: project.id, since: lastVisit, limit: 500 }).then(
+    backend.call('history.project', { project: project.id, since: lastVisit, limit: companionPage }).then(
       r => ok && setAwayFiles(new Set(r.points.map(p => p.path)).size),
       () => ok && setAwayFiles(null),
     );
     return () => {
       ok = false;
     };
-  }, [away, backend, project.id, lastVisit, version]);
+  }, [away, backend, project.id, lastVisit, version, companionPage]);
 
   const more = async (): Promise<void> => {
     if (!feed?.next) return;
@@ -192,7 +198,7 @@ export const HistoryPanel = ({ workspace, lastVisit = null }: HistoryPanelProps)
       const r = await backend.call('history.project', {
         project: project.id,
         cursor: feed.next,
-        limit: HISTORY_PAGE,
+        limit: page,
         ...(scope === 'away' && { since: lastVisit }),
       });
       if (!live.current) return;

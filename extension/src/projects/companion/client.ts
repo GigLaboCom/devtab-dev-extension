@@ -26,7 +26,8 @@ export interface Welcome {
   server: string;
   platform: string;
   methods: string[];
-  limits: AnnouncedLimits;
+  /** A companion older than the full list announces only these two; the rest may be absent. */
+  limits: Pick<AnnouncedLimits, 'maxRequestBytes' | 'maxTextBytes'> & Partial<AnnouncedLimits>;
 }
 
 export type Handshake =

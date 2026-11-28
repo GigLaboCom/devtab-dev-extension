@@ -19,6 +19,11 @@ export const companionBackend = (connection: CompanionConnection): ProjectBacken
   let told: CompanionClient | null = null;
 
   const methods = (): readonly Method[] => (connection.welcome()?.methods ?? []) as Method[];
+  /** The page size the companion announces, when it does (a companion older than the full `welcome.limits` does not). */
+  const historyPage = (): number | undefined => {
+    const announced = connection.welcome()?.limits.maxHistoryPage;
+    return Number.isSafeInteger(announced) && announced! > 0 ? announced : undefined;
+  };
 
   const undoEvents = connection.onEvent(frame => {
     const event = frame as CompanionEvent;
@@ -46,7 +51,10 @@ export const companionBackend = (connection: CompanionConnection): ProjectBacken
   return {
     name: 'companion',
     connect: () => connection.start().then(({ state, companion }) => ({ state, ...(companion && { companion }) })),
-    capabilities: (): Capabilities => ({ methods: methods(), demo: false }),
+    capabilities: (): Capabilities => {
+      const page = historyPage();
+      return { methods: methods(), demo: false, ...(page !== undefined && { historyPage: page }) };
+    },
     async call<M extends Method>(method: M, params: Params<M>, options: CallOptions<M> = {}): Promise<Result<M>> {
       const client = await connection.client();
       resubscribe(client);

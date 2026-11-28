@@ -188,7 +188,7 @@ describe('reading', () => {
     expect(points.at(-1)!.source).toBe('commit');
     // In the contract's shape: no field it does not name.
     for (const point of points)
-      expect(Object.keys(point).sort()).toEqual(['label', 'point', 'size', 'source', 'timeMs']);
+      expect(Object.keys(point).sort()).toEqual(['content', 'label', 'point', 'size', 'source', 'timeMs']);
     const project = await backend.call('history.project', { project: LEDGER, limit: 3 });
     expect(project.points).toHaveLength(3);
     expect(project.next).toBe('3');
@@ -303,14 +303,17 @@ describe('writing in memory', () => {
     );
   });
 
-  it('a moment noted without its text (Before create) has no content; clearing answers with the command', async () => {
+  it('a moment noted without its text (Before create) has no content, and says so; clearing answers with the command', async () => {
     const backend = open();
     await backend.call('file.create', { project: GARDEN, path: 'new.txt', text: 'x\n' });
     const { points } = await backend.call('history.file', { project: GARDEN, path: 'new.txt' });
-    expect(points.map(p => [p.label, p.source, p.size])).toEqual([
-      ['Saved', 'server', 2],
-      ['Before create', 'companion', 0],
+    expect(points.map(p => [p.label, p.source, p.size, p.content])).toEqual([
+      ['Saved', 'server', 2, true],
+      ['Before create', 'companion', 0, false],
     ]);
+    const feed = await backend.call('history.project', { project: GARDEN });
+    expect(feed.points.find(p => p.path === 'new.txt' && p.label === 'Before create')?.content).toBe(false);
+    expect(backend.capabilities().historyPage).toBe(500);
     expect(await codeOf(backend.call('history.content', { project: GARDEN, point: points[1]!.point }))).toBe(
       'not-found',
     );

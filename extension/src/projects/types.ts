@@ -57,8 +57,10 @@ export type Hunk = Contract.Hunk;
 export type ChunkHunk = Contract.IndexedHunk;
 export type FileHunks = Contract.GitHunks;
 export type PointSource = Contract.PointSource;
-export type FilePoint = Contract.HistoryPoint;
-export type ProjectPoint = Contract.ProjectPoint;
+/** A point as the page takes it: `content` is absent from a companion older than the field. */
+type MaybeContent<T extends { content: boolean }> = Omit<T, 'content'> & { content?: boolean };
+export type FilePoint = MaybeContent<Contract.HistoryPoint>;
+export type ProjectPoint = MaybeContent<Contract.ProjectPoint>;
 /** A stretch of time in which the companion did not watch the project (`history.file.gaps`, `historyGaps`). */
 export type HistoryGap = Contract.Gap;
 export type Restored = Contract.Restored;
