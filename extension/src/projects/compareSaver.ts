@@ -1,8 +1,13 @@
 /**
- * «Compare code» saving a side that is a project's file (the companion's specification §7.6, partial restore: a version
- * opened next to the current file, pieces carried over by hand, Save). The side came with its origin — the project,
- * the path, the version it is (`baseHash`) and which backend had it (../compare/handoff.ts); Save is `projectSaver`'s
- * (./projectSaver.ts): `file.save` from that version, so a file changed on disk meanwhile is not overwritten.
+ * «Compare code» saving a side that is a companion's file (the companion's specification §7.6, partial restore: a
+ * version opened next to the current file, pieces carried over by hand, Save). The side came with its origin
+ * (../compare/handoff.ts) — which file, the version it is (`baseHash`) and which backend had it:
+ *
+ * - a project's file: Save is `projectSaver`'s (./projectSaver.ts) — `file.save` from that version;
+ * - a file opened from the computer (D42): Save is the root's saver of such files (`openFiles.saver`,
+ *   ./openFiles/saver.ts) over the root's seam (`openFiles.files`) — `openFile.save` from that version.
+ *
+ * Either way a file changed on disk meanwhile is not overwritten.
  *
  * Who holds the port: «Compare code» is another section, and the Projects section let its port go when the person left
  * it (§8.2). So each Save opens a connection of its own through the Projects section's composition root (the same
@@ -17,25 +22,46 @@ import { projectsBehaviors } from './behaviors';
 import { errorOf, projectSaver } from './projectSaver';
 import { errorLine } from '../app/projects/errors';
 import { TEXT } from '../app/projects/text';
-import type { ProjectFileOrigin } from '../compare/handoff';
-import type { SaveResult, SideSaver } from '../compare/sideSaver';
-import type { ProjectBackendFactory } from './backend';
+import { isOpenedFileOrigin } from '../compare/handoff';
+import type { CompanionFileOrigin } from '../compare/handoff';
+import type { SaveRequest, SaveResult, SideSaver } from '../compare/sideSaver';
+import type { ProjectBackend, ProjectBackendFactory } from './backend';
+import type { OpenFilesBehaviors } from './behaviors';
+
+/** One Save of the side over a connected backend: the result, and the version the next Save starts from. */
+type SaveOnce = (backend: ProjectBackend, request: SaveRequest, base: string) => Promise<[SaveResult, string]>;
 
 export const compareProjectSaver = (
-  origin: ProjectFileOrigin,
-  backends: ProjectBackendFactory = projectsBehaviors().backend,
+  origin: CompanionFileOrigin,
+  backends?: ProjectBackendFactory,
+  openFiles?: OpenFilesBehaviors,
 ): SideSaver => {
+  // The root is asked only for what the caller did not give.
+  const root = !backends || (isOpenedFileOrigin(origin) && !openFiles) ? projectsBehaviors() : null;
+  const backendOf = backends ?? root!.backend;
+  const opened = openFiles ?? root?.openFiles;
   let base = origin.baseHash;
+
+  const once: SaveOnce = isOpenedFileOrigin(origin)
+    ? async (backend, request, from) => {
+        if (!opened) return [{ status: 'failed', message: TEXT.history.compareFailed(TEXT.notOffered) }, from];
+        const saver = opened.saver(opened.files(backend), origin.file, origin.name, from);
+        return [await saver.save(request), saver.baseHash];
+      }
+    : async (backend, request, from) => {
+        const saver = projectSaver(backend, origin.project, origin.path, from);
+        return [await saver.save(request), saver.baseHash];
+      };
+
   return {
     name: 'project',
     async save(request): Promise<SaveResult> {
-      const backend = backends();
+      const backend = backendOf();
       try {
         await backend.connect();
         if (backend.name !== origin.backend) return { status: 'failed', message: TEXT.history.compareNotConnected };
-        const saver = projectSaver(backend, origin.project, origin.path, base);
-        const result = await saver.save(request);
-        if (result.status === 'saved') base = saver.baseHash;
+        const [result, wrote] = await once(backend, request, base);
+        if (result.status === 'saved') base = wrote;
         if (result.status !== 'failed') return result;
         const error = errorOf(result);
         return {

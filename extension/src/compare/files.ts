@@ -12,7 +12,7 @@
  *   Save writes it back; line ends are kept as they are (the editor shows `\r\n` files unchanged);
  * - an empty file is fine: an empty side.
  */
-import type { ProjectFileOrigin } from './handoff';
+import type { CompanionFileOrigin } from './handoff';
 import type { DroppedEntry } from '@src/shared/viewerProtocol';
 
 /** The largest file a side takes: the editor compares and shows a 50 000-line, 2.5 MB pair in well under a second. */
@@ -37,8 +37,8 @@ export interface SideText {
   handle: FileSystemFileHandle | null;
   /** The file began with a UTF-8 byte-order mark (taken off the text, written back on Save). */
   bom: boolean;
-  /** A project's file the text is (handed over by the Projects section): Save writes it back there. */
-  project?: ProjectFileOrigin | null;
+  /** The companion's file the text is (handed over by the Projects section): Save writes it back there. */
+  project?: CompanionFileOrigin | null;
 }
 
 /** What a drop or a pick yields: texts in order, or — if anything was wrong — the problems and no texts. */

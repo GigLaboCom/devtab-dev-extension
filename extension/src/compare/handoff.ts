@@ -20,12 +20,35 @@ export interface ProjectFileOrigin {
   backend: 'companion' | 'demo';
 }
 
+/**
+ * A text that is a file opened from the computer as the Projects section showed it (D42, its history's «Open in Compare
+ * code»): Save writes the side back through the companion — `openFile.save` from `baseHash`, so a file changed on disk
+ * meanwhile is not overwritten. Only the companion has such files; data only, as above.
+ */
+export interface OpenedFileOrigin {
+  /** The companion's id of the opened file. */
+  file: string;
+  /** Its name, for what the page says. */
+  name: string;
+  /** Where it is as the companion shows it (`~/…`): for what the page says, never a path to act on. */
+  displayPath: string;
+  /** The version of the file the text is (`openFile.read.hash`). */
+  baseHash: string;
+  backend: 'companion';
+}
+
+/** A file of the companion's that a handed text is: a project's, or one opened from the computer. */
+export type CompanionFileOrigin = ProjectFileOrigin | OpenedFileOrigin;
+
+/** Whether the origin is a file opened from the computer rather than a project's. */
+export const isOpenedFileOrigin = (origin: CompanionFileOrigin): origin is OpenedFileOrigin => 'file' in origin;
+
 /** A handed text: its content and, when the sender gave one, a name (a file's, which tells the language). */
 export interface HandedCompareText {
   text: string;
   name: string | null;
-  /** The project's file the text is, when it is one: Save writes it back there. */
-  origin?: ProjectFileOrigin;
+  /** The companion's file the text is, when it is one (a project's, an opened one): Save writes it back there. */
+  origin?: CompanionFileOrigin;
 }
 
 let pending: readonly HandedCompareText[] | null = null;

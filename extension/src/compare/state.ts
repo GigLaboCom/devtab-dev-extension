@@ -13,7 +13,7 @@
  *   from outside makes it read-only again. Whether a side is modified comes from the editor.
  */
 import type { SideText } from './files';
-import type { ProjectFileOrigin } from './handoff';
+import type { CompanionFileOrigin } from './handoff';
 import type { DiffShown, Side } from '@extension/review-wasm';
 
 export type { Side } from '@extension/review-wasm';
@@ -35,8 +35,11 @@ export interface SideMeta {
   /** Edited since it was loaded or saved (the editor says). */
   modified: boolean;
   empty: boolean;
-  /** The project's file the side is (handed over by the Projects section): Save writes it back there. */
-  project: ProjectFileOrigin | null;
+  /**
+   * The companion's file the side is (handed over by the Projects section: a project's, or a file opened from the
+   * computer): Save writes it back there.
+   */
+  project: CompanionFileOrigin | null;
 }
 
 export interface Counts {

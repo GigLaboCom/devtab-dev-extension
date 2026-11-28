@@ -19,6 +19,7 @@ import { useOffer } from '../shell/sectionKeys';
 import { createDebug } from '@extension/logger';
 import { sideWord } from '@src/compare/actions';
 import { collectDrop } from '@src/compare/files';
+import { isOpenedFileOrigin } from '@src/compare/handoff';
 import { LANGUAGES, labelOf, languageOfFile } from '@src/compare/languages';
 import {
   SIDES,
@@ -307,8 +308,10 @@ export const ComparePage = ({ behaviors, frameKeys, editorSettings, keys }: Comp
             ? 'Comparing the pasted texts: the original on the left, the changed text on the right.'
             : arrivals.length === 2
               ? `Comparing ${named[0]} (original) with ${named[1]} (changed).${
-                  projectSide
-                    ? ` The ${sideWord(projectSide.side)} side is the project’s file: edit it, then Save writes it back.`
+                  projectSide?.text.project
+                    ? ` The ${sideWord(projectSide.side)} side is ${
+                        isOpenedFileOrigin(projectSide.text.project) ? 'the opened file' : 'the project’s file'
+                      }: edit it, then Save writes it back.`
                     : ''
                 }`
               : `${named[0]} is on the ${sideWord(first.side)} side.`,
@@ -639,14 +642,22 @@ export const ComparePage = ({ behaviors, frameKeys, editorSettings, keys }: Comp
                   {sideName(meta)}
                 </span>
                 {meta.origin === 'example' && <span className="kit-compare-badge">Example</span>}
-                {meta.project && (
-                  <span
-                    className="kit-compare-badge"
-                    data-badge="project"
-                    title={`Save writes it back to ${meta.project.path} in its project.`}>
-                    Project file
-                  </span>
-                )}
+                {meta.project &&
+                  (isOpenedFileOrigin(meta.project) ? (
+                    <span
+                      className="kit-compare-badge"
+                      data-badge="opened-file"
+                      title={`Save writes it back to ${meta.project.displayPath} through the companion.`}>
+                      Opened file
+                    </span>
+                  ) : (
+                    <span
+                      className="kit-compare-badge"
+                      data-badge="project"
+                      title={`Save writes it back to ${meta.project.path} in its project.`}>
+                      Project file
+                    </span>
+                  ))}
                 {meta.editable && (
                   <span className="kit-compare-badge" data-badge="editing">
                     Editing
