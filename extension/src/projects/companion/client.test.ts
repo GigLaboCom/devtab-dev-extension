@@ -243,17 +243,26 @@ describe('the contract’s vectors', () => {
     for (const part of v.stream ?? []) expect(serverFrame(part)).not.toBeNull();
   });
 
-  it.each(calls)('%s: the client gives the page what the companion answered', async (_name, v) => {
-    const fake = fakeCompanion();
+  // A vector file is a sequence (a project made writable, then asked again; a commit, then undone): each file's calls
+  // go to one companion that plays them in order.
+  const files = Object.entries(VECTORS).filter(([file]) => file !== 'hello.json' && file !== 'chunking.json');
+  it.each(files)('%s: the client gives the page what the companion answered, call after call', async (_file, list) => {
+    const fake = fakeCompanion({ replay: true });
     const { client } = await openClient({ openLink: fake.openLink, extension: '1' });
-    const parts: unknown[] = [];
-    const outcome = await client!.call(v.request.method, v.request.params, { onStream: p => parts.push(p) }).then(
-      result => ({ result }),
-      (e: unknown) => ({ code: isCompanionError(e) ? e.code : String(e) }),
-    );
-    if (v.response.type === 'error') expect(outcome).toEqual({ code: (v.response.error as { code: string }).code });
-    else expect(outcome).toEqual({ result: v.response.result });
-    expect(parts).toEqual((v.stream ?? []).map(s => (s as { data: unknown }).data));
+    for (const v of list as {
+      request: { method: string; params: unknown };
+      response: Record<string, unknown>;
+      stream?: unknown[];
+    }[]) {
+      const parts: unknown[] = [];
+      const outcome = await client!.call(v.request.method, v.request.params, { onStream: p => parts.push(p) }).then(
+        result => ({ result }),
+        (e: unknown) => ({ code: isCompanionError(e) ? e.code : String(e) }),
+      );
+      if (v.response.type === 'error') expect(outcome).toEqual({ code: (v.response.error as { code: string }).code });
+      else expect(outcome).toEqual({ result: v.response.result });
+      expect(parts).toEqual((v.stream ?? []).map(s => (s as { data: unknown }).data));
+    }
     client!.close();
     await settle();
   });

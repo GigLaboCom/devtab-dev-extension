@@ -11,6 +11,7 @@ import { fakeCompanion } from '@src/projects/companion/fakeLink';
 import { createConnection } from '@src/projects/connection';
 import { demoBackend } from '@src/projects/demo/backend';
 import { memoryLayout } from '@src/projects/layoutMemory';
+import { projectSaver } from '@src/projects/projectSaver';
 import { recordingSaver } from '@src/projects/scratch/fakeSaver';
 import { memoryScratches } from '@src/projects/scratch/storage';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -52,6 +53,7 @@ const page = (route: Route) => {
     layoutMemory: memoryLayout(),
     scratchStore: memoryScratches(),
     scratchSaver: recordingSaver(),
+    fileSaver: projectSaver,
   };
   return render(<ProjectsPage route={route} behaviors={behaviors} />);
 };
@@ -70,10 +72,11 @@ beforeEach(() => {
   window.location.hash = '#/projects';
 });
 afterEach(() => cleanup());
+const TEXT_NOT_OFFERED = 'This companion cannot do this yet.';
 
 describe('the section and the companion', () => {
   it('no permission: the demo with its notice, and «Connect the companion»; the click asks and connects', async () => {
-    const { chrome } = make(false);
+    const { chrome } = make(false, { methods: 'stage3' });
     page({ section: 'projects' });
     await screen.findByRole('group', { name: 'Work' });
     expect(screen.getByRole('note').textContent).toContain('invented projects');
@@ -83,7 +86,7 @@ describe('the section and the companion', () => {
     await waitFor(() => expect(connection().dataset.state).toBe('ready'));
     expect(await screen.findByText('repo')).toBeTruthy();
     expect(screen.queryByRole('note')).toBeNull();
-    // A companion of this stage lists no trusted folders: said, not failed.
+    // A companion of stage 3 lists no trusted folders: said, not failed.
     expect(screen.getByText('This companion does not list trusted folders yet.')).toBeTruthy();
   });
 
@@ -104,8 +107,8 @@ describe('the section and the companion', () => {
     }
   });
 
-  it('a view project: the tree, the companion’s writes inactive with why, nothing failing', async () => {
-    make(true);
+  it('an older companion (stage 3): the tree, every write inactive with why, nothing failing', async () => {
+    make(true, { methods: 'stage3' });
     page({ section: 'projects', project: 'p_abcdefgh23' });
     const tree = await screen.findByRole('tree', { name: 'Files' });
     await waitFor(() => expect(tree.querySelector('[data-path="build"]')?.getAttribute('data-ignored')).toBe(''));
@@ -115,10 +118,13 @@ describe('the section and the companion', () => {
     // Nothing that would fail: the changes, and one line instead of the commit.
     expect(within(commit).queryByRole('button', { name: 'Commit' })).toBeNull();
     expect(within(commit).queryByRole('checkbox')).toBeNull();
-    expect(within(commit).getByText(/its changes and diffs can be looked at, not committed/)).toBeTruthy();
-    const makeMine = screen.getByRole('button', { name: 'Make writable…' });
-    expect(makeMine.hasAttribute('disabled')).toBe(true);
-    expect(makeMine.getAttribute('title')).toBe('This companion cannot do this yet.');
+    expect(within(commit).getByText(/cannot commit yet: the changes and diffs can be looked at/)).toBeTruthy();
+    // The vectors' project is writable through its trusted folder; an older companion still cannot change it.
+    const makeView = screen.getByRole('button', { name: 'Make read only' });
+    expect(makeView.hasAttribute('disabled')).toBe(true);
+    expect(makeView.getAttribute('title')).toBe('This companion cannot do this yet.');
+    for (const name of ['New file…', 'New folder…'])
+      expect(screen.getByRole('button', { name, hidden: true }).getAttribute('title')).toContain(TEXT_NOT_OFFERED);
     expect(screen.queryByText(/^Failed/)).toBeNull();
   });
 

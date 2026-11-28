@@ -1,8 +1,10 @@
 /**
  * The project's tree (§8.4 «Дерево»): folders read as they are opened, ignored entries dimmed (Р18), secrets marked read
  * only (Р19), files that run code marked (Р25), a link that leads out of the project shown and never followed. A
- * folder is read again when the project's files change.
+ * folder is read again when the project's files change. Above it, the file actions (./FileActions.tsx): new file, new
+ * folder, rename, delete.
  */
+import { FileActions } from './FileActions';
 import { TEXT, printable } from './text';
 import { ChevronDownIcon, ChevronRightIcon, FileIcon, FolderIcon, LinkIcon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -33,7 +35,7 @@ const Marks = ({ entry }: { entry: TreeEntry }): ReactElement => (
 );
 
 export const ProjectTree = ({ workspace }: { workspace: Workspace }): ReactElement => {
-  const { backend, project, version, path: current, open } = workspace;
+  const { backend, project, version, path: current, open, noteRoot } = workspace;
   const [folders, setFolders] = useState<Record<string, Folder>>({});
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['']));
 
@@ -41,12 +43,15 @@ export const ProjectTree = ({ workspace }: { workspace: Workspace }): ReactEleme
     (path: string) => {
       setFolders(f => (f[path]?.state === 'ready' ? f : { ...f, [path]: { state: 'loading' } }));
       backend.call('tree.list', { project: project.id, path }).then(
-        listing => setFolders(f => ({ ...f, [path]: { state: 'ready', listing } })),
+        listing => {
+          setFolders(f => ({ ...f, [path]: { state: 'ready', listing } }));
+          if (path === '') noteRoot(listing.entries);
+        },
         (e: unknown) =>
           setFolders(f => ({ ...f, [path]: { state: 'failed', message: e instanceof Error ? e.message : String(e) } })),
       );
     },
-    [backend, project.id],
+    [backend, project.id, noteRoot],
   );
 
   // Every open folder again after a change; a folder that went away is closed.
@@ -137,7 +142,8 @@ export const ProjectTree = ({ workspace }: { workspace: Workspace }): ReactEleme
 
   return (
     <nav className="kit-projects-tree-frame" aria-label={TEXT.treeLabel}>
-      <ul className="kit-projects-tree" role="tree" aria-label={TEXT.treeLabel}>
+      <FileActions workspace={workspace} />
+      <ul className="kit-projects-tree" role="tree" aria-label={TEXT.treeLabel} data-takes-keyboard="">
         {renderFolder('')}
       </ul>
     </nav>

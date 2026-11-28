@@ -9,6 +9,7 @@ import { parseRoute } from '../route';
 import { ProjectsPage } from '../sections/ProjectsPage';
 import { demoBackend } from '@src/projects/demo/backend';
 import { memoryLayout } from '@src/projects/layoutMemory';
+import { projectSaver } from '@src/projects/projectSaver';
 import { recordingSaver } from '@src/projects/scratch/fakeSaver';
 import { areaScratches, memoryArea } from '@src/projects/scratch/storage';
 import { ask } from '@src/shortcuts/intent';
@@ -45,6 +46,7 @@ const behaviors = (): ProjectsBehaviors => ({
   layoutMemory: memoryLayout(),
   scratchStore: store,
   scratchSaver: saver,
+  fileSaver: projectSaver,
 });
 const page = (scratches = true) => (
   <ProjectsPage route={parseRoute(window.location.hash)} behaviors={behaviors()} scratches={scratches} keys={keys} />

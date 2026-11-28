@@ -55,9 +55,19 @@ export const projectBackendContract = (name: string, make: () => ProjectBackendH
       const connection = await backend.connect();
       expect(['ready', 'ready-empty', 'paused']).toContain(connection.state);
       const { methods } = backend.capabilities();
-      for (const method of CONTRACT_METHODS) expect(methods).toContain(method);
-      // Writing is all or nothing: a backend that saves offers every write.
-      if (methods.includes('file.save')) for (const method of WRITE_METHODS) expect(methods).toContain(method);
+      // Every read of the contract; of the writes, each offered on its own (no `file.delete` without a Trash, no push
+      // before the companion has it) — a backend that saves offers the writes of files and commits together.
+      for (const method of CONTRACT_METHODS.filter(m => !WRITE_METHODS.includes(m))) expect(methods).toContain(method);
+      if (methods.includes('file.save'))
+        for (const method of [
+          'file.create',
+          'folder.create',
+          'file.rename',
+          'git.commit',
+          'git.rollback',
+          'git.undoCommit',
+        ] as const)
+          expect(methods).toContain(method);
       await rejects(backend.call('no.such' as 'projects.list', {}), 'unknown-method');
       backend.dispose();
     });
@@ -158,6 +168,7 @@ export const projectBackendContract = (name: string, make: () => ProjectBackendH
       const { backend, mine, settle } = await open();
       if (!mine) return;
       const events: CompanionEvent[] = [];
+      await backend.call('events.subscribe', { project: mine.id });
       const undo = backend.subscribe(mine.id, e => events.push(e));
       const path = 'contract-probe.txt';
       const { hash: created } = await backend.call('file.create', { project: mine.id, path, text: 'one\n' });
@@ -182,8 +193,8 @@ export const projectBackendContract = (name: string, make: () => ProjectBackendH
       backend.dispose();
     });
 
-    it('commits the checked files: they leave the changes and wait to be pushed; an undo brings them back', async () => {
-      const { backend, mine } = await open();
+    it('commits the checked files: they leave the changes (and wait to be pushed); an undo brings them back', async () => {
+      const { backend, mine, offers } = await open();
       if (!mine) return;
       const path = 'contract-commit.txt';
       await backend.call('file.create', { project: mine.id, path, text: 'commit me\n' });
@@ -210,7 +221,9 @@ export const projectBackendContract = (name: string, make: () => ProjectBackendH
         }),
         'stale-selection',
       );
-      const outgoing = (await backend.call('git.outgoing', { project: mine.id })).commits.length;
+      const outgoing = offers('git.outgoing')
+        ? (await backend.call('git.outgoing', { project: mine.id })).commits.length
+        : null;
       const { sha } = await backend.call('git.commit', {
         project: mine.id,
         message: 'Add the contract probe',
@@ -221,7 +234,8 @@ export const projectBackendContract = (name: string, make: () => ProjectBackendH
       const after = await backend.call('git.status', { project: mine.id });
       expect(after.headSha).toBe(sha);
       expect(after.files.some(f => f.path === path)).toBe(false);
-      expect((await backend.call('git.outgoing', { project: mine.id })).commits.length).toBe(outgoing + 1);
+      if (outgoing !== null)
+        expect((await backend.call('git.outgoing', { project: mine.id })).commits.length).toBe(outgoing + 1);
       expect((await backend.call('git.messages', { project: mine.id })).messages[0]).toBe('Add the contract probe');
       const undone = await backend.call('git.undoCommit', { project: mine.id, headSha: sha });
       expect(undone.message).toBe('Add the contract probe');
@@ -231,8 +245,8 @@ export const projectBackendContract = (name: string, make: () => ProjectBackendH
     });
 
     it('restores a point of a file’s history over the current text, keeping that one; refuses a stale one', async () => {
-      const { backend, mine } = await open();
-      if (!mine) return;
+      const { backend, mine, offers } = await open();
+      if (!mine || !offers('history.restore')) return;
       const path = 'contract-history.txt';
       const { hash: first } = await backend.call('file.create', { project: mine.id, path, text: 'first\n' });
       const { hash: second } = await backend.call('file.save', {
@@ -265,8 +279,8 @@ export const projectBackendContract = (name: string, make: () => ProjectBackendH
       backend.dispose();
     });
 
-    it('rolls a changed file back to HEAD, and deletes a new one only when asked', async () => {
-      const { backend, mine } = await open();
+    it('rolls a changed file back to HEAD, and deletes a new one only when asked (where there is a Trash)', async () => {
+      const { backend, mine, offers } = await open();
       if (!mine) return;
       const path = 'contract-rollback.txt';
       await backend.call('file.create', { project: mine.id, path, text: 'new\n' });
@@ -279,6 +293,21 @@ export const projectBackendContract = (name: string, make: () => ProjectBackendH
         expect: { files: [{ path, diskHash: entry.diskHash }] },
       });
       expect(kept.trashed).toEqual([]);
+      if (!offers('file.delete')) {
+        // No Trash: nothing is deleted, and it says so before anything changes.
+        await rejects(
+          backend.call('git.rollback', {
+            project: mine.id,
+            paths: [path],
+            deleteAdded: true,
+            expect: { files: [{ path, diskHash: entry.diskHash }] },
+          }),
+          'trash-unavailable',
+        );
+        expect((await backend.call('file.read', { project: mine.id, path })).text).toBe('new\n');
+        backend.dispose();
+        return;
+      }
       const gone = await backend.call('git.rollback', {
         project: mine.id,
         paths: [path],

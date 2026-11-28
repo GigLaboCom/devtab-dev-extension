@@ -10,6 +10,7 @@
  * No timers, no editor and no backend of its own: they come in, so the schedule is tested on the test's clock.
  */
 import { isCompanionError } from './types';
+import type { CompanionError } from './types';
 
 export const AUTOSAVE_DELAY_MS = 1000;
 /** Without the companion, the edit is tried again after this many pauses. */
@@ -22,7 +23,8 @@ export type SaveState =
   | { kind: 'saving' }
   | { kind: 'conflict'; currentHash: string }
   | { kind: 'offline' }
-  | { kind: 'refused'; message: string };
+  /** The companion refused the write (a secret, `.git`, a read-only project, …): the page says why by its code. */
+  | { kind: 'refused'; error: CompanionError };
 
 export interface AutosaveTimers {
   set(run: () => void, ms: number): unknown;
@@ -38,9 +40,13 @@ export interface AutosaveOptions {
   /** The editor's text now. */
   read(): Promise<string>;
   /** `file.save`: the new hash, or a rejection (`conflict` with the disk's hash). */
-  save(text: string, baseHash: string, reason: 'auto' | 'explicit'): Promise<{ hash: string }>;
-  /** A text was written: the editor's baseline moves to it. */
-  onSaved?(text: string, hash: string): void;
+  save(
+    text: string,
+    baseHash: string,
+    reason: 'auto' | 'explicit',
+  ): Promise<{ hash: string; protected?: string | null }>;
+  /** A text was written: the editor's baseline moves to it; `marked` names the rule when the file runs code. */
+  onSaved?(text: string, hash: string, marked: string | null): void;
   onState?(state: SaveState): void;
   timers?: AutosaveTimers;
 }
@@ -56,6 +62,8 @@ export interface Autosave {
   takeDisk(text: string, hash: string): void;
   readonly state: SaveState;
   readonly baseHash: string;
+  /** The text the file holds as far as this schedule knows (the last written or taken). */
+  readonly savedText: string;
   dispose(): void;
 }
 
@@ -65,7 +73,9 @@ const browserTimers: AutosaveTimers = {
 };
 
 /** Errors after which the edit is kept and written again later: the companion is away for a while. */
-const AWAY = new Set(['server-restarting', 'rate-limited', 'paused', 'cancelled', 'internal']);
+const AWAY = new Set(['server-restarting', 'rate-limited', 'paused', 'cancelled', 'internal', 'not-running']);
+/** Refusals of this text, not of the file: the next edit tries again (a character the encoding holds, a shorter text). */
+const OF_THE_TEXT = new Set(['not-encodable', 'too-large', 'disk-low']);
 
 export const createAutosave = (options: AutosaveOptions): Autosave => {
   const delay = options.delayMs ?? AUTOSAVE_DELAY_MS;
@@ -103,10 +113,11 @@ export const createAutosave = (options: AutosaveOptions): Autosave => {
     }
     setState({ kind: 'saving' });
     try {
-      const { hash } = await options.save(text, baseHash, reason);
+      const saved = await options.save(text, baseHash, reason);
+      const { hash } = saved;
       baseHash = hash;
       savedText = text;
-      options.onSaved?.(text, hash);
+      options.onSaved?.(text, hash, saved.protected ?? null);
       setState(dirty ? { kind: 'pending' } : { kind: 'saved' });
     } catch (error) {
       dirty = true;
@@ -115,21 +126,26 @@ export const createAutosave = (options: AutosaveOptions): Autosave => {
         setState({ kind: 'conflict', currentHash });
       } else if (!isCompanionError(error) || AWAY.has(error.code)) {
         setState({ kind: 'offline' });
-        // Tried again by itself after a while; the next edit tries sooner.
+        // Tried again by itself after a while (what the companion asked to wait, when it said); the next edit sooner.
+        const asked = isCompanionError(error) ? error.data?.retryAfterMs : undefined;
         stopTimer();
-        timer = timers.set(() => {
-          timer = null;
-          void flush('auto');
-        }, delay * RETRY_FACTOR);
+        timer = timers.set(
+          () => {
+            timer = null;
+            void flush('auto');
+          },
+          typeof asked === 'number' && asked > 0 ? asked : delay * RETRY_FACTOR,
+        );
       } else {
-        setState({ kind: 'refused', message: error.message });
+        setState({ kind: 'refused', error });
       }
     }
   };
 
   const flush = (reason: 'auto' | 'explicit' = 'auto'): Promise<void> => {
     stopTimer();
-    if (disposed || state.kind === 'conflict' || state.kind === 'refused') return running ?? Promise.resolve();
+    if (disposed || state.kind === 'conflict') return running ?? Promise.resolve();
+    if (state.kind === 'refused' && (!OF_THE_TEXT.has(state.error.code) || !dirty)) return running ?? Promise.resolve();
     if (state.kind === 'offline' && reason === 'auto' && running) return running;
     if (running) {
       // One write at a time: this one follows the write in flight and carries the newest text.
@@ -146,7 +162,9 @@ export const createAutosave = (options: AutosaveOptions): Autosave => {
     edited() {
       if (disposed) return;
       dirty = true;
-      if (state.kind === 'conflict' || state.kind === 'refused') return;
+      if (state.kind === 'conflict') return;
+      // A refusal of the file stays until it is opened again; one of the text is tried again with the new text.
+      if (state.kind === 'refused' && !OF_THE_TEXT.has(state.error.code)) return;
       if (state.kind !== 'saving') setState({ kind: 'pending' });
       schedule();
     },
@@ -172,6 +190,9 @@ export const createAutosave = (options: AutosaveOptions): Autosave => {
     },
     get baseHash() {
       return baseHash;
+    },
+    get savedText() {
+      return savedText;
     },
     dispose() {
       disposed = true;

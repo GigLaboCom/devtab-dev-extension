@@ -11,8 +11,10 @@
 import type { CompanionEvent, Method, Params, ProjectId, Result, StreamOf } from './types';
 
 /**
- * How the section stands with the companion (§8.5). The demo alone is `ready` at once. `not-initialised` and `paused`
- * are typed but not reached yet: the companion of this stage captures no environment and does not write.
+ * How the section stands with the companion (§8.5). The demo alone is `ready` at once. `not-initialised`: connected,
+ * but `devtab init` was never run — no environment captured, no trusted folder, no project. `paused` is typed but not
+ * reached: no companion version pauses its writes yet. Waiting for the companion's window (`awaiting-confirmation` of
+ * §8.5) is a state of the one request that waits, not of the connection: the rest of the page keeps working.
  */
 export type ConnectionState =
   | 'no-permission'
@@ -63,8 +65,11 @@ export interface ProjectBackend {
   capabilities(): Capabilities;
   /** One method of the API; rejects with a `CompanionError` (./types.ts) in the API's form. */
   call<M extends Method>(method: M, params: Params<M>, options?: CallOptions<M>): Promise<Result<M>>;
-  /** The events of one project (and the companion's own, which name no project); returns the undo. */
-  subscribe(project: ProjectId, onEvent: (event: CompanionEvent) => void): () => void;
+  /**
+   * The events of one project and the companion's own, which name no project (`projects.changed`, `server.restarted`);
+   * with `null`, the companion's own alone — what the list of projects follows. Returns the undo.
+   */
+  subscribe(project: ProjectId | null, onEvent: (event: CompanionEvent) => void): () => void;
   /** Each change of the connection; returns the undo. */
   onState(listener: (state: ConnectionState) => void): () => void;
   /** The connection as the page shows it. */

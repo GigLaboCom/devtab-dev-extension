@@ -4,7 +4,10 @@
  * HEAD or with a point of the history, or two points compared. A binary, a too-large file and a link out of the
  * project are said, not opened; a secret and a file of a read-only project open read only. A file changed on disk
  * under an unsaved edit stops its saving and offers the three choices (Р23); without an unsaved edit the disk's text is
- * taken by itself.
+ * taken by itself — the editor is asked for its text first, so a keystroke whose edit has not reached the page yet still
+ * counts. Each write goes through the composition root's saver (`projectSaver`: `file.save` from the version read); a
+ * refusal of the companion's write policy is said in the page's words (./errors.ts), and the mark «runs code» that a
+ * write names (a hooks folder among them, which a read does not) stays.
  *
  * Keys (D38): while a diff with changes is shown the part offers "next change" and "previous change" (the editor
  * brings the hunk into view, `viewer/reveal-hunk`; past the last one it starts again at the first, as the IDEs' diff
@@ -16,8 +19,11 @@
  * The project's own settings (its `.editorconfig`, Pro) are asked for with the file's text — both reads at once — so
  * the file opens with them; when the project's settings change (the `files.changed` event names an `.editorconfig`)
  * the open file is resolved again. The profile in force is the project's own, if it names one, else the active one;
- * the indicator's popup chooses the project's own where profiles exist.
+ * the indicator's popup chooses the project's own where profiles exist. In the free edition the popup says that a
+ * project's `.editorconfig` is part of Pro only for a project that has one in its root, as the Files tree listed it —
+ * nothing is read for that (D40).
  */
+import { errorLine } from './errors';
 import { TEXT, formatSize, formatTime, printable } from './text';
 import { useEditorFrame } from './useEditorFrame';
 import { IndentIndicator } from '../editor/IndentIndicator';
@@ -41,6 +47,7 @@ import type { EditorView, Workspace } from './useWorkspace';
 import type { EditorSettingsBehaviors } from '@src/editorSettings/behaviors';
 import type { ProjectEditorSettings, ProjectFiles, ProjectSettings } from '@src/editorSettings/project';
 import type { Autosave, SaveState } from '@src/projects/autosave';
+import type { ProjectSaverFactory } from '@src/projects/projectSaver';
 import type { FrameKeys, KeyChord } from '@src/shared/keys';
 import type { ReactElement } from 'react';
 
@@ -64,6 +71,8 @@ export interface EditorPaneProps {
   onShowHistory?: () => void;
   /** The editor's settings (D39); absent: the editor keeps its own defaults and there is no indicator. */
   editorSettings?: EditorSettingsBehaviors;
+  /** How the open file is saved (seam `SideSaver`, the composition root's `projectSaver`). */
+  fileSaver: ProjectSaverFactory;
 }
 
 const saveText = (state: SaveState): string => {
@@ -79,7 +88,8 @@ const saveText = (state: SaveState): string => {
     case 'offline':
       return TEXT.offlineState;
     case 'refused':
-      return TEXT.refusedState(state.message);
+      // Why — a sentence — goes under the bar (`kit-projects-refused`): the bar keeps the short state.
+      return TEXT.refusedShort;
   }
 };
 
@@ -99,6 +109,7 @@ export const EditorPane = ({
   autosaveDelayMs,
   onShowHistory,
   editorSettings,
+  fileSaver,
 }: EditorPaneProps): ReactElement => {
   const { backend, project, path, view, reveal, changed } = workspace;
   const [content, setContent] = useState<Content>({ kind: 'none' });
@@ -272,22 +283,18 @@ export const EditorPane = ({
       setSaveState({ kind: 'saved' });
       if (readOnly !== null) return;
       session.current = `${target}:${Date.now().toString(36)}`;
+      const saver = fileSaver(backend, project.id, target, file.hash, { session: session.current });
       autosave.current = createAutosave({
         delayMs: autosaveDelayMs,
         baseHash: file.hash,
         savedText: file.text,
         read: () => read('new'),
-        save: (text, baseHash, reason) =>
-          backend.call('file.save', {
-            project: project.id,
-            path: target,
-            baseHash,
-            text,
-            session: session.current,
-            reason,
-          }),
-        onSaved: text => {
+        save: (text, baseHash, reason) => saver.write(text, baseHash, reason),
+        onSaved: (text, _hash, marked) => {
           request(id => ({ type: 'viewer/mark-saved', id, side: 'new', text }));
+          // The companion names what marks a file as running code on each write (a hooks folder too, which a read
+          // does not): the mark stays once it was given.
+          if (marked) setContent(c => (c.kind === 'file' && !c.runsCode ? { ...c, runsCode: true } : c));
           workspace.refresh();
         },
         onState: setSaveState,
@@ -295,7 +302,7 @@ export const EditorPane = ({
     },
     // `workspace.refresh` is stable; the rest is what a file is opened with.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [autosaveDelayMs, backend, openIndent, post, project.class, project.id, projectFor, read, request],
+    [autosaveDelayMs, backend, fileSaver, openIndent, post, project.class, project.id, projectFor, read, request],
   );
 
   const load = useCallback(
@@ -381,7 +388,7 @@ export const EditorPane = ({
               ? TEXT.tooLarge(size)
               : isCompanionError(error, 'outside-project')
                 ? TEXT.outsideLink
-                : TEXT.failed(error instanceof Error ? error.message : String(error)),
+                : errorLine(error, 'read'),
         });
       } finally {
         loading.current = false;
@@ -407,10 +414,15 @@ export const EditorPane = ({
     if (!changed.n || !path || !changed.paths.includes(path) || contentRef.current.kind !== 'file') return;
     let live = true;
     backend.call('file.read', { project: project.id, path }).then(
-      file => {
+      async file => {
         const current = autosave.current;
         if (!live || !current || file.hash === current.baseHash) return;
-        if (current.state.kind === 'saved' && editor.shown?.sides.new.modified !== true) {
+        // What the editor holds now, asked of it: a keystroke whose edit has not reached the page yet still counts as
+        // an unsaved edit, so it meets the conflict instead of being replaced by the disk's text.
+        const mine = await read('new').catch(() => null);
+        if (!live || autosave.current !== current) return;
+        const unsaved = mine === null ? editor.shown?.sides.new.modified === true : mine !== current.savedText;
+        if (current.state.kind === 'saved' && !unsaved) {
           const editorSettings = openIndent({ new: file.text }, path)?.new;
           request(id => ({
             type: 'viewer/show-file',
@@ -425,7 +437,10 @@ export const EditorPane = ({
           }));
           current.takeDisk(file.text, file.hash);
           setNote(TEXT.updatedFromDisk);
-        } else void current.flush('auto');
+        } else {
+          current.edited();
+          void current.flush('auto');
+        }
       },
       () => undefined,
     );
@@ -453,6 +468,9 @@ export const EditorPane = ({
   }, [leave]);
 
   // ---- the conflict's choices (Р23) ------------------------------------------------------------------------------
+  // The open file's mark «runs code», kept while the conflict's choices show other views.
+  const runsCode = useRef(false);
+  if (content.kind === 'file') runsCode.current = content.runsCode;
   const keepMine = async (): Promise<void> => {
     const back = contentRef.current.kind === 'compare';
     const mine = back ? await read('new') : null;
@@ -470,7 +488,7 @@ export const EditorPane = ({
           ...(editorSettings && { editor: editorSettings }),
         },
       }));
-      setContent({ kind: 'file', readOnly: null, runsCode: false });
+      setContent({ kind: 'file', readOnly: null, runsCode: runsCode.current });
     }
   };
   const applyExternal = async (): Promise<void> => {
@@ -489,7 +507,7 @@ export const EditorPane = ({
       },
     }));
     autosave.current?.takeDisk(file.text, file.hash);
-    setContent({ kind: 'file', readOnly: null, runsCode: !!file.protected });
+    setContent({ kind: 'file', readOnly: null, runsCode: runsCode.current || !!file.protected });
   };
   const showComparison = async (): Promise<void> => {
     if (!path) return;
@@ -510,6 +528,10 @@ export const EditorPane = ({
     post({ type: 'viewer/set-editable', side: 'new', editable: true, focus: false });
     setContent({ kind: 'compare' });
   };
+
+  // In the free edition the popup names Pro's project settings only for a project that has them: an `.editorconfig` in
+  // its root as the Files tree listed it (nothing is read for this, D40).
+  const hasEditorConfig = workspace.root?.some(e => e.name === '.editorconfig' && e.kind === 'file') ?? false;
 
   const fileOrDiff =
     content.kind === 'file' || (content.kind === 'diff' && (view.kind === 'diff' || view.kind === 'file'));
@@ -563,13 +585,14 @@ export const EditorPane = ({
               onOpenChange={setIndentOpen}
               settingsHref={routeHash({ section: 'settings' })}
               {...(indent.profile.id !== DEFAULT_PROFILE && { profileName: indent.profile.name })}
-              {...(projectFactory && {
-                project: {
-                  included: projectFactory.included,
-                  deciding: decidingFiles(indent.project, indent.effective.new),
-                  problem: indent.project?.problem ?? null,
-                },
-              })}
+              {...(projectFactory &&
+                (projectFactory.included || hasEditorConfig) && {
+                  project: {
+                    included: projectFactory.included,
+                    deciding: decidingFiles(indent.project, indent.effective.new),
+                    problem: indent.project?.problem ?? null,
+                  },
+                })}
               {...(profiles.included &&
                 editorSettings?.profiles && {
                   projectProfile: {
@@ -624,6 +647,11 @@ export const EditorPane = ({
           )}
         </span>
       </div>
+      {saveState.kind === 'refused' && content.kind === 'file' && (
+        <p className="kit-projects-refused" role="alert" data-refused="">
+          {TEXT.refusedState(errorLine(saveState.error, 'save'))}
+        </p>
+      )}
       {(conflict || content.kind === 'compare') && (
         <div className="kit-projects-conflict" role="alert">
           <span>{TEXT.conflictNotice}</span>

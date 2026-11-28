@@ -20,6 +20,7 @@ import { noProjectEditorSettings } from '@src/editorSettings/project';
 import { memoryEditorArea, memoryEditorSettings } from '@src/editorSettings/storage';
 import { demoBackend } from '@src/projects/demo/backend';
 import { memoryLayout } from '@src/projects/layoutMemory';
+import { projectSaver } from '@src/projects/projectSaver';
 import { recordingSaver } from '@src/projects/scratch/fakeSaver';
 import { areaScratches, memoryArea } from '@src/projects/scratch/storage';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -108,6 +109,7 @@ const projects = (): ProjectsBehaviors => ({
   layoutMemory: memoryLayout(),
   scratchStore: scratches,
   scratchSaver: recordingSaver(),
+  fileSaver: projectSaver,
 });
 
 const behaviorsOf = (
@@ -127,8 +129,8 @@ const openPopup = async () => {
   return screen.findByRole('dialog', { name: 'Indentation of this file' });
 };
 
-const openProjectFile = async (behaviors: EditorSettingsBehaviors, path: string) => {
-  window.location.hash = `#/projects/${GARDEN}/${path}`;
+const openProjectFile = async (behaviors: EditorSettingsBehaviors, path: string, project = GARDEN) => {
+  window.location.hash = `#/projects/${project}/${path}`;
   render(<ProjectsPage route={parseRoute(window.location.hash)} behaviors={projects()} editorSettings={behaviors} />);
   const editor = fakeEditor();
   await editor.attach();
@@ -350,6 +352,8 @@ describe('the free edition', () => {
 
   it('a project file: no .editorconfig is read, the indicator is as before, and its popup says so in one line', async () => {
     const { opened } = await openProjectFile(behaviorsOf('free'), 'Cargo.toml');
+    // The line is there for a project whose root, as the Files tree listed it, has an `.editorconfig`.
+    await screen.findByRole('treeitem', { name: /\.editorconfig/ });
     expect(opened.request.editor?.indentSize).toBe(4);
     const button = await indicator();
     expect(button.dataset.source).not.toBe('project');
@@ -360,6 +364,15 @@ describe('the free edition', () => {
     expect(within(popup).queryByRole('combobox', { name: 'Profile of this project' })).toBeNull();
     expect(reads.filter(p => EDITORCONFIG_RE.test(p))).toEqual([]);
     expect(reads).toEqual(['Cargo.toml']);
+  });
+
+  it('a project without an .editorconfig in its root: nothing about Pro in the popup, and nothing read for it', async () => {
+    await openProjectFile(behaviorsOf('free'), 'src/server.ts', 'p_demo0ledgr');
+    await screen.findByRole('treeitem', { name: /package\.json/ });
+    const popup = await openPopup();
+    expect(popup.querySelector('[data-project-note]')).toBeNull();
+    expect(popup.textContent).not.toContain('Pro');
+    expect(reads).toEqual(['src/server.ts']);
   });
 
   it('a scratch shows nothing about a project or Pro', async () => {

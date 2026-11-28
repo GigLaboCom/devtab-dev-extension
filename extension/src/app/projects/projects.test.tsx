@@ -8,6 +8,7 @@ import { SidePanels } from './SidePanels';
 import { ProjectsPage } from '../sections/ProjectsPage';
 import { demoBackend } from '@src/projects/demo/backend';
 import { memoryLayout } from '@src/projects/layoutMemory';
+import { projectSaver } from '@src/projects/projectSaver';
 import { recordingSaver } from '@src/projects/scratch/fakeSaver';
 import { memoryScratches } from '@src/projects/scratch/storage';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -87,6 +88,7 @@ const behaviors = (autosaveDelayMs = 20): ProjectsBehaviors => ({
   layoutMemory: memoryLayout(),
   scratchStore: memoryScratches(),
   scratchSaver: recordingSaver(),
+  fileSaver: projectSaver,
 });
 
 const show = (route: Route, delay?: number) => render(<ProjectsPage route={route} behaviors={behaviors(delay)} />);
@@ -364,8 +366,12 @@ describe('the Commit window', () => {
     await within(panel).findByRole('group', { name: 'Changes' });
     fireEvent.change(within(panel).getByPlaceholderText('Commit message'), { target: { value: 'Try' } });
     fireEvent.click(within(panel).getByRole('button', { name: 'Commit' }));
-    expect(await within(panel).findByText('pre-commit failed. Nothing was committed.')).toBeTruthy();
-    expect(panel.querySelector('.kit-projects-output')?.textContent).toBe('pre-commit: secret found in README.md');
+    expect(
+      await within(panel).findByText(/^pre-commit failed\. Nothing was committed\. Fix what it reports/),
+    ).toBeTruthy();
+    // Streamed into the output, a line at a time with its end; said once (not again under the sentence).
+    expect(panel.querySelector('[data-output]')?.textContent).toBe('pre-commit: secret found in README.md\n');
+    expect(panel.querySelectorAll('.kit-projects-output')).toHaveLength(1);
     expect((within(panel).getByPlaceholderText('Commit message') as HTMLTextAreaElement).value).toBe('Try');
     expect(within(panel).getByRole('checkbox', { name: 'README.md' }).getAttribute('data-state')).toBe('checked');
   });

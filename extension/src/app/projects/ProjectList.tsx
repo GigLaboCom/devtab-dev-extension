@@ -1,12 +1,14 @@
 /**
  * The list of projects (§8.4, §3.7а): grouped by the name of the trusted folder each lies in, in the folders' order;
  * the projects outside every trusted folder in a group of their own. Projects never appear by themselves (Р33): the
- * list is what was added; an empty one says how to add one.
+ * list is what was added — «Add project…» by its title, or `devtab add` in the folder; an empty one says both and, with
+ * no trusted folder yet, how to make one (§8.5 `ready-empty`).
  */
+import { SaidNote } from './SaidNote';
 import { TEXT, printable } from './text';
 import { routeHash } from '../route';
 import type { ProjectSummary, TrustedLocation } from '@src/projects/types';
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 export interface ProjectGroup {
   /** The folder's name, or null for the projects outside every folder. */
@@ -40,20 +42,30 @@ export const groupProjects = (
 export interface ProjectListProps {
   projects: readonly ProjectSummary[];
   locations: readonly TrustedLocation[];
+  /** Whether the backend lists trusted folders (an empty list then means there is none). */
+  folders?: boolean;
   current?: string;
+  /** «Add project…», next to the title. */
+  add?: ReactNode;
 }
 
-export const ProjectList = ({ projects, locations, current }: ProjectListProps): ReactElement => {
+export const ProjectList = ({ projects, locations, folders = false, current, add }: ProjectListProps): ReactElement => {
   const groups = groupProjects(projects, locations);
   return (
     <section className="kit-projects-home-part" aria-labelledby="projects-list-title">
-      <h2 id="projects-list-title" className="kit-projects-part-title">
-        {TEXT.projectsTitle}
-      </h2>
+      <div className="kit-projects-part-head">
+        <h2 id="projects-list-title" className="kit-projects-part-title">
+          {TEXT.projectsTitle}
+        </h2>
+        {add}
+      </div>
       {groups.length === 0 ? (
         <div className="kit-projects-empty">
           <p>{TEXT.noProjects}</p>
           <code className="kit-projects-command">{TEXT.noProjectsCommand}</code>
+          {folders && locations.length === 0 && (
+            <SaidNote said={{ text: TEXT.noFoldersYet, command: TEXT.noFoldersCommand }} tone="info" kind="trust" />
+          )}
         </div>
       ) : (
         groups.map(group => (

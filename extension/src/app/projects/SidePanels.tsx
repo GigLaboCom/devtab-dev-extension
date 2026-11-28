@@ -49,6 +49,9 @@ const viewId = (view: PanelView): string => `projects-view-${view}`;
 /** What takes the keyboard in a view: its field (find), the first row of the tree, else its first control. */
 const FOCUSABLE =
   'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), button:not([disabled]), a[href], [tabindex="0"]';
+const TAKES_KEYBOARD = FOCUSABLE.split(', ')
+  .map(selector => `[data-takes-keyboard] ${selector}`)
+  .join(', ');
 
 const SidePanelsLayout = ({ parts, changes, memory, reveal, activate, hintOf }: WorkspaceLayoutProps): ReactElement => {
   const workspace = useRef<HTMLDivElement>(null);
@@ -105,7 +108,9 @@ const SidePanelsLayout = ({ parts, changes, memory, reveal, activate, hintOf }: 
     cancelAnimationFrame(focusFrame.current);
     const until = performance.now() + 1000;
     const attempt = (): void => {
-      const target = document.getElementById(viewId(id))?.querySelector<HTMLElement>(FOCUSABLE);
+      // A view may name where the keyboard goes (the Files view: its tree, not the actions above it).
+      const view = document.getElementById(viewId(id));
+      const target = view?.querySelector<HTMLElement>(TAKES_KEYBOARD) ?? view?.querySelector<HTMLElement>(FOCUSABLE);
       if (target) target.focus();
       else if (performance.now() < until) focusFrame.current = requestAnimationFrame(attempt);
       else document.getElementById(switchId(id))?.focus();

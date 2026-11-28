@@ -65,7 +65,13 @@
  *                              scratch's language), .kit-projects-scratch (a list item: the link and its delete button)
  *   .kit-projects-bar          a project's or a scratch's bar: -back, -title (a scratch's in place of it while renamed:
  *                              .kit-projects-bar-name), -path, -branch, .kit-projects-class[data-class], -actions;
- *                              a scratch's editor is the only part of its .kit-projects-workspace
+ *                              a scratch's editor is the only part of its .kit-projects-workspace; a project's bar and
+ *                              what it says sit in .kit-projects-bar-frame
+ *   .kit-projects-said[data-tone]   something said with what to do (.kit-projects-said-text, each command in
+ *                              .kit-projects-said-command with its Copy button, a hook's output in .kit-projects-output);
+ *                              .kit-projects-part-head — a part's title with its button («Add project…»);
+ *                              .kit-projects-path-form — a dialog's path field; .kit-projects-file-actions — the Files
+ *                              view's actions above the tree
  *   .kit-projects-workspace    the side panel, the editor and the bottom panel:
  *     .kit-projects-side[data-open]   the side panel (its width inline): .kit-projects-side-head (.kit-projects-switches
  *                              of .kit-projects-switch[data-view] — -label, .kit-projects-badge —, .kit-projects-panel-hide),
@@ -77,7 +83,8 @@
  *                              .kit-projects-tree-note[data-tone]); .kit-projects-row[data-ignored][aria-current]
  *                              (.kit-projects-row-name, .kit-projects-row-gap), .kit-projects-mark[data-mark]
  *     .kit-projects-editor     .kit-projects-editor-bar (-path, -title, -tools, .kit-projects-save[data-state]),
- *                              .kit-projects-conflict, .kit-projects-editor-view > .kit-projects-frame and
+ *                              .kit-projects-conflict, .kit-projects-refused (why a file was not saved),
+ *                              .kit-projects-editor-view > .kit-projects-frame and
  *                              .kit-projects-card
  *     .kit-projects-commit     .kit-projects-commit-head (-tools), .kit-projects-changes > .kit-projects-change-group
  *                              (-head, -title, .kit-projects-change-list > .kit-projects-change[data-change] with
@@ -1032,6 +1039,74 @@
     overflow-wrap: anywhere;
   }
 
+  /* Something said with what to do: a sentence, commands to copy, the output of a hook. */
+  .kit-projects-said {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: calc(var(--spacing) * 1.5);
+    min-width: 0;
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+  }
+
+  .kit-projects-said[data-tone='error'] > .kit-projects-said-text {
+    color: var(--destructive);
+  }
+
+  .kit-projects-said[data-tone='success'] > .kit-projects-said-text {
+    color: var(--foreground);
+  }
+
+  .kit-projects-said-text {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .kit-projects-said-command {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 1);
+    max-width: 100%;
+  }
+
+  .kit-projects-said-command > .kit-projects-command {
+    min-width: 0;
+    user-select: all;
+  }
+
+  .kit-projects-said > .kit-projects-output {
+    align-self: stretch;
+  }
+
+  .kit-projects-part-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: calc(var(--spacing) * 2);
+  }
+
+  .kit-projects-path-form {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 2);
+  }
+
+  .kit-projects-file-actions {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 1);
+    padding-block-end: calc(var(--spacing) * 1);
+  }
+
+  .kit-projects-bar-frame {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 1);
+  }
+
   /* The list of projects and the trusted folders. */
   .kit-projects-home {
     display: grid;
@@ -1593,6 +1668,17 @@
   .kit-projects-conflict {
     background: var(--status-warning-background);
     font-size: var(--text-xs);
+  }
+
+  /* Why a project's file was not saved: a sentence under the bar, which keeps its short state. */
+  .kit-projects-refused {
+    margin: 0;
+    padding: calc(var(--spacing) * 1.5) calc(var(--spacing) * 2);
+    border-block-end: 1px solid var(--border);
+    color: var(--destructive);
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+    overflow-wrap: anywhere;
   }
 
   .kit-projects-editor-view {

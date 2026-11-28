@@ -5,8 +5,8 @@
  * Two sources. The methods, events and error codes the companion offers today come from its contract — the copy in
  * ./api/ and the types made from its schemas (./api/types.gen.ts, scripts/contract-sync.mjs); the companion's contract
  * is the source of truth for them, and the demo answers in the same shapes. The methods the companion does not offer
- * yet (the trusted folders, the class changes, every write, commit, push and restore) are written here by hand after
- * the specification's tables, until a newer contract brings them.
+ * yet (the commits to push, push, restoring from the history and purging it) are written here by hand after the
+ * specification's tables, until a newer contract brings them.
  *
  * Paths are relative POSIX paths inside the project (`""` is the root); no answer carries an absolute path or the
  * home directory — a project's root is its `displayPath` (`~/…`).
@@ -57,17 +57,17 @@ export type PointSource = Contract.PointSource;
 export type FilePoint = Contract.HistoryPoint;
 export type ProjectPoint = Contract.ProjectPoint;
 
-// ---- by hand, until the companion offers them --------------------------------------------------------------------
+export type TrustedLocation = Contract.LocationSummary;
+export type CommitSelection = Contract.Selected;
+export type ExpectedFile = Contract.ExpectedFile;
+export type CommitParams = Contract.CommitParams;
+export type CommitResult = Contract.CommitResult;
+/** A part of a commit's (or a push's) output, streamed while it runs: git's and the hooks' text as it came. */
+export type OutputLine = Contract.CommitOutput;
+export type SaveParams = Contract.SaveParams;
+export type Saved = Contract.Saved;
 
-/** A trusted folder (§3.7, §3.7а): read only for the page — no method creates or changes one. */
-export interface TrustedLocation {
-  /** Its name, given outside the browser (`devtab trust <folder> --name <name>`); the folder's own name without one. */
-  name: string;
-  displayPath: string;
-  mode: 'write' | 'read-only';
-  projects: number;
-  createdVia: 'terminal' | 'dialog' | 'init';
-}
+// ---- by hand, until the companion offers them --------------------------------------------------------------------
 
 export interface OutgoingCommit {
   sha: string;
@@ -88,45 +88,6 @@ export interface Outgoing {
   behindAtLastFetch: number;
 }
 
-export interface SaveParams {
-  project: ProjectId;
-  path: string;
-  /** The hash of the text the edit started from: the save is refused (`conflict`) when the disk moved on. */
-  baseHash: string;
-  text: string;
-  /** One per editing session of the file: the companion keeps one «Before edit» snapshot for it. */
-  session?: string;
-  reason?: 'auto' | 'explicit';
-}
-
-export interface CommitSelection {
-  path: string;
-  /** Hunk indices of `git.hunks`; absent — the whole file. */
-  chunks?: number[];
-}
-
-export interface CommitParams {
-  project: ProjectId;
-  message: string;
-  selection: CommitSelection[];
-  /** Unchecked = `--no-verify`: skips `pre-commit` and `commit-msg` only. */
-  runHooks: boolean;
-  expect: { headSha?: string | null; files: { path: string; diskHash?: string | null }[] };
-}
-
-export interface CommitResult {
-  sha: string;
-  hookChangedCommit: string[];
-  changedAfter: string[];
-  indexKept: string[];
-}
-
-/** A line of a hook's or of git's output, streamed while a commit or a push runs. */
-export interface OutputLine {
-  stream: 'stdout' | 'stderr';
-  text: string;
-}
-
 export interface PushResult {
   pushed: number;
   remote: string;
@@ -141,29 +102,7 @@ type InProject<P = object> = { project: ProjectId } & P;
 
 /** Every method of the first version: the contract's, and the ones written here until the companion offers them. */
 export interface Methods extends Contract.ContractMethods {
-  'locations.list': Of<object, TrustedLocation[]>;
-  'project.requestAdd': Of<{ path: string }, { id: ProjectId; class: ProjectClass; via: Via }>;
-  'project.requestMine': Of<InProject, { class: 'mine' }>;
-  'project.setView': Of<InProject, { class: 'view' }>;
-  'project.remove': Of<InProject, object>;
-  'env.requestCapture': Of<object, { capturedAt: number; path: string[] }>;
   'git.outgoing': Of<InProject, Outgoing>;
-  'git.messages': Of<InProject, { messages: string[] }>;
-  'file.save': Of<SaveParams, { hash: string; mtimeMs: number }>;
-  'file.create': Of<InProject<{ path: string; text: string }>, { hash: string }>;
-  'folder.create': Of<InProject<{ path: string }>, object>;
-  'file.rename': Of<InProject<{ from: string; to: string }>, object>;
-  'file.delete': Of<InProject<{ path: string; baseHash?: string }>, { trashed: true; files: number }>;
-  'git.commit': Of<CommitParams, CommitResult, OutputLine>;
-  'git.rollback': Of<
-    InProject<{
-      paths: string[];
-      deleteAdded: boolean;
-      expect: { files: { path: string; diskHash?: string | null }[] };
-    }>,
-    { rolledBack: string[]; trashed: string[] }
-  >;
-  'git.undoCommit': Of<InProject<{ headSha?: string | null }>, { message: string; paths: string[] }>;
   'git.push': Of<
     InProject<{ expect: { headSha?: string | null; remote: string; branch: string } }>,
     PushResult,
@@ -181,7 +120,10 @@ export type Params<M extends Method> = Methods[M]['params'];
 export type Result<M extends Method> = Methods[M]['result'];
 export type StreamOf<M extends Method> = Methods[M]['stream'];
 
-/** The methods that write: only in a project of class «mine». */
+/**
+ * The methods that write: only in a project of class «mine». A backend offers each on its own (the companion lists in
+ * its `welcome` what it can do: no `file.delete` without a Trash, no push and no restore before its later stages).
+ */
 export const WRITE_METHODS: readonly Method[] = [
   'project.setView',
   'file.save',

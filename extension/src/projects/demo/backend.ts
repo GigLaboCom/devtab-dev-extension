@@ -158,6 +158,9 @@ const baseName = (path: string): string => path.slice(path.lastIndexOf('/') + 1)
 export const isSecretPath = (path: string): boolean => SECRET.some(rule => rule.test(baseName(path)));
 export const protectedRule = (path: string): string | undefined => PROTECTED.find(([rule]) => rule.test(path))?.[1];
 const isGitPath = (path: string): boolean => path === '.git' || path.startsWith('.git/');
+/** A path as one word of a shell command: as it is when it is plain, in single quotes otherwise. */
+const shellWord = (path: string): string =>
+  /^[\w~@%+=:,./-]+$/.test(path) ? path : `'${path.replace(/'/g, `'\\''`)}'`;
 
 const checkPath = (path: string, field = 'path'): void => {
   if (typeof path !== 'string') fail('invalid-params', `${field} must be a string`, { field });
@@ -252,7 +255,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
   let nextCommitFailure: HookFailure | null = null;
   let nextPushFailure: PushFailure | null = null;
 
-  const listeners = new Map<ProjectId, Set<(event: CompanionEvent) => void>>();
+  const listeners = new Map<ProjectId | null, Set<(event: CompanionEvent) => void>>();
   const stateListeners = new Set<(state: ConnectionState) => void>();
   let disposed = false;
 
@@ -313,7 +316,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
     if (paused) fail('paused', 'the companion has paused writes');
     checkPath(path, field);
     if (path === '' || isGitPath(path))
-      fail('protected-path', `${path || 'the root'} may not be written`, { rule: '.git' });
+      fail('protected-path', `${path || 'the root'} may not be written`, { rule: 'git-dir' });
     if (isSecretPath(path)) fail('secret-file', `${path} holds secrets: read only from the page`);
     const file = p.disk.get(path);
     if (file !== undefined && typeof file !== 'string' && 'link' in file)
@@ -346,7 +349,9 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       if (hidden.has(path)) continue;
       const inHead = p.head.get(path);
       const onDisk = p.disk.get(path);
-      const diskHash = onDisk === undefined ? null : hashOf(onDisk);
+      // The text's hash for a text; for a binary or too large file only its bytes' (`diskBytesHash`), as the companion.
+      const diskHash = isText(onDisk) ? textHash(onDisk) : null;
+      const diskBytesHash = onDisk !== undefined && !isText(onDisk) ? hashOf(onDisk) : null;
       const entry = (change: StatusFile['change'], from: string | null = null): StatusFile => ({
         path,
         group: change === 'untracked' ? 'unversioned' : 'changes',
@@ -354,6 +359,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
         renamedFrom: from,
         stagedOutside: p.stagedOutside.has(path),
         diskHash,
+        diskBytesHash,
       });
       if (p.conflicted.has(path) && onDisk !== undefined) files.push(entry('conflicted'));
       else if (renamedFrom.has(path)) files.push(entry('renamed', renamedFrom.get(path)!));
@@ -369,6 +375,14 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
   const hashOf = (file: DemoFile): string =>
     typeof file === 'string' ? textHash(file) : textHash(`${JSON.stringify(file)}`);
 
+  /** Whether a file is still the version the page showed: the text's hash, else the bytes' (both null: deleted). */
+  const sameVersion = (
+    now: StatusFile | undefined,
+    shown: { diskHash?: string | null; diskBytesHash?: string | null },
+  ): boolean =>
+    (now?.diskHash ?? null) === (shown.diskHash ?? null) &&
+    (now?.diskHash != null || (now?.diskBytesHash ?? null) === (shown.diskBytesHash ?? null));
+
   /** What HEAD holds for a path of the working tree (its old name when renamed). */
   const headFor = (p: Project, path: string): DemoFile | undefined => {
     const from = statusFiles(p).find(f => f.path === path)?.renamedFrom;
@@ -380,16 +394,16 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
   const cancelled = (signal: AbortSignal | undefined): void => {
     if (signal?.aborted) fail('cancelled', 'cancelled');
   };
+  /** Git's and the hooks' output, a line at a time, as the companion streams it (`{text}`, each line with its end). */
   const emitLines = async (
     lines: readonly string[],
-    stream: OutputLine['stream'],
     opts: CallOptions<'git.commit'> | CallOptions<'git.push'>,
   ): Promise<string[]> => {
     for (const text of lines) {
       cancelled(opts.signal);
       await wait(120);
       cancelled(opts.signal);
-      opts.onStream?.({ stream, text });
+      opts.onStream?.({ text: `${text}\n` } satisfies OutputLine);
     }
     return [...lines];
   };
@@ -404,6 +418,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
     class: p.class,
     via: p.via,
     location: p.seed.location,
+    locationName: locations.find(l => l.displayPath === p.seed.location)?.name ?? null,
     branch: p.seed.branch,
     state: 'open',
   });
@@ -424,6 +439,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
         class: p.class,
         via: p.via,
         location: p.seed.location,
+        locationName: locations.find(l => l.displayPath === p.seed.location)?.name ?? null,
         branch: p.seed.branch,
         upstream: p.upstream,
         ahead: p.commits.filter(c => !c.pushed).length,
@@ -439,31 +455,50 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
         ...l,
         projects: [...projects.values()].filter(p => p.present && p.seed.location === l.displayPath).length,
       })),
-    'project.requestAdd': () =>
-      fail('confirmation-unavailable', 'the demo cannot add a project: that is the companion’s, from the terminal'),
+    // The demo's folders are invented: no path typed on this computer is inside one, and it has no window to ask in —
+    // it answers as a companion without its window does, with the command for Terminal.
+    'project.requestAdd': ({ path }) => {
+      if (typeof path !== 'string' || !path.startsWith('/'))
+        fail('invalid-params', 'the path must be absolute', { field: 'path' });
+      return fail('confirmation-unavailable', 'the companion has no window to ask in', {
+        reason: 'no-window',
+        command: `cd ${shellWord(path)} && devtab add`,
+      });
+    },
     'project.requestMine': ({ project }) => {
       const p = projectOf(project);
       const location = locations.find(l => l.displayPath === p.seed.location);
       if (!location || location.mode !== 'write')
-        return fail('confirmation-unavailable', 'outside a trusted folder only the companion’s window can allow it');
+        return fail('confirmation-unavailable', 'outside a trusted folder only the companion’s window can allow it', {
+          reason: 'no-window',
+          command: `cd ${shellWord(p.seed.displayPath)} && devtab add --write`,
+        });
       p.class = 'mine';
       p.via = 'location';
-      emit({ name: 'project.changed', project, data: { class: 'mine' } });
+      emit({ name: 'project.changed', project, data: { class: 'mine', via: 'location' } });
+      emit({ name: 'projects.changed', project: null, data: {} });
       return { class: 'mine' };
     },
     'project.setView': ({ project }) => {
       const p = projectOf(project);
       if (p.class !== 'mine') fail('not-mine', 'the project is «view» already');
       p.class = 'view';
-      emit({ name: 'project.changed', project, data: { class: 'view' } });
+      // Made read only by the person: a trusted folder does not raise it again.
+      p.via = 'person';
+      emit({ name: 'project.changed', project, data: { class: 'view', via: 'person' } });
+      emit({ name: 'projects.changed', project: null, data: {} });
       return { class: 'view' };
     },
     'project.remove': ({ project }) => {
       projectOf(project).present = false;
+      emit({ name: 'projects.changed', project: null, data: {} });
       return {};
     },
     'env.requestCapture': () =>
-      fail('confirmation-unavailable', 'the demo has no environment to capture: that is the companion’s'),
+      fail('confirmation-unavailable', 'the companion has no window to ask in', {
+        reason: 'no-window',
+        command: 'devtab env capture',
+      }),
     'events.subscribe': ({ project }) => (projectOf(project), {}),
     'events.unsubscribe': () => ({}),
 
@@ -471,7 +506,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
     'tree.list': ({ project, path }) => {
       const p = projectOf(project);
       checkPath(path);
-      if (isGitPath(path)) fail('protected-path', '.git is not shown', { rule: '.git' });
+      if (isGitPath(path)) fail('protected-path', '.git is not shown', { rule: 'git-dir' });
       const prefix = path === '' ? '' : `${path}/`;
       const children = new Map<string, 'file' | 'dir'>();
       for (const key of p.disk.keys()) {
@@ -510,7 +545,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
     'file.read': ({ project, path }): FileText => {
       const p = projectOf(project);
       checkPath(path);
-      if (isGitPath(path)) fail('protected-path', '.git is not read', { rule: '.git' });
+      if (isGitPath(path)) fail('protected-path', '.git is not read', { rule: 'git-dir' });
       const text = textOf(p.disk.get(path), path);
       return {
         text,
@@ -666,7 +701,8 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
     'git.messages': ({ project }) => ({ messages: [...projectOf(project).messages] }),
 
     // ---- writing files --------------------------------------------------------------------------------------
-    'file.save': ({ project, path, baseHash, text, session }) => {
+    'file.save': ({ project, path, baseHash, text, session: given }) => {
+      const session = given ?? undefined;
       const p = projectOf(project);
       writable(p, path);
       const current = p.disk.get(path);
@@ -688,16 +724,17 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
         last.text = text;
       } else point(p, path, 'Saved', text, session === undefined ? {} : { session });
       changed(project, [path]);
-      return { hash, mtimeMs: p.mtimes.get(path)! };
+      return { hash, mtimeMs: p.mtimes.get(path)!, protected: protectedRule(path) ?? null };
     },
-    'file.create': ({ project, path, text }) => {
+    'file.create': ({ project, path, text: given }) => {
+      const text = given ?? '';
       const p = projectOf(project);
       writable(p, path);
       if (p.disk.has(path) || filesUnder(p.disk, path).length) fail('exists', `${path} exists`);
       setDisk(p, path, text);
       point(p, path, 'Saved', text);
       changed(project, [path]);
-      return { hash: textHash(text) };
+      return { hash: textHash(text), protected: protectedRule(path) ?? null };
     },
     'folder.create': ({ project, path }) => {
       const p = projectOf(project);
@@ -706,7 +743,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       // A folder with nothing in it is not kept by the demo's tree of files: it holds a placeholder.
       setDisk(p, `${path}/.gitkeep`, '');
       changed(project, [path]);
-      return {};
+      return { protected: protectedRule(`${path}/`) ?? null };
     },
     'file.rename': ({ project, from, to }) => {
       const p = projectOf(project);
@@ -722,7 +759,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
         setDisk(p, to + path.slice(from.length), file);
       }
       changed(project, [from, to]);
-      return {};
+      return { protected: protectedRule(to) ?? null };
     },
     'file.delete': ({ project, path }) => {
       const p = projectOf(project);
@@ -755,14 +792,25 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       if (!message.trim()) fail('invalid-params', 'the commit message is empty', { field: 'message' });
       if (!identity) fail('identity-missing', 'git has no user.name or user.email');
       const status = statusFiles(p);
-      const stale = expect.files.filter(f => status.find(s => s.path === f.path)?.diskHash !== f.diskHash);
+      const stale = expect.files.filter(
+        f =>
+          !sameVersion(
+            status.find(s => s.path === f.path),
+            f,
+          ),
+      );
       if (expect.headSha !== headSha(p) || stale.length)
         fail('stale-selection', 'the files or HEAD changed since they were shown', { paths: stale.map(f => f.path) });
-      for (const { path } of selection) {
+      for (const { path, chunks } of selection) {
         const entry = status.find(s => s.path === path);
         if (!entry) fail('stale-selection', `${path} has no changes`, { paths: [path] });
         if (entry!.change === 'conflicted')
-          fail('hunks-unsupported', `${path} has a conflict`, { reason: 'conflicted' });
+          fail('hunks-unsupported', `${path} has a conflict`, { reason: 'conflicted', path });
+        if (chunks) {
+          const whole: Record<string, string> = { renamed: 'renamed', deleted: 'deleted', untracked: 'new-file' };
+          const reason = whole[entry!.change] ?? (isText(p.disk.get(path)) ? null : 'binary');
+          if (reason) fail('hunks-unsupported', `${path} is committed whole`, { reason, path });
+        }
       }
       const hooks = runHooks ? p.seed.hooks.filter(h => h === 'pre-commit' || h === 'commit-msg') : [];
       const failure = nextCommitFailure;
@@ -772,14 +820,13 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
         if (failure?.code === 'hook-failed') {
           const output = await emitLines(
             failure.output ?? [`${hook}: checking ${selection.length} files…`, `${hook}: 1 problem found`],
-            'stderr',
             opts,
           );
           fail('hook-failed', `${hook} exited with 1`, { hook, exitCode: 1, output: output.join('\n') });
         }
         if (failure?.code === 'hook-tool-missing') {
           const tool = failure.tool ?? 'npx';
-          const output = await emitLines([`${hook}: line 1: ${tool}: command not found`], 'stderr', opts);
+          const output = await emitLines([`${hook}: line 1: ${tool}: command not found`], opts);
           fail('hook-tool-missing', `${hook} did not find ${tool}`, {
             hook,
             tool,
@@ -788,16 +835,15 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
           });
         }
         if (failure?.code === 'hook-timeout') {
-          await emitLines([`${hook}: running…`], 'stdout', opts);
+          await emitLines([`${hook}: running…`], opts);
           fail('hook-timeout', `${hook} ran out of time`, { hook, afterMs: 300_000 });
         }
         await emitLines(
           [`pre-commit: checking ${selection.length} files…`, 'pre-commit: no secrets found', 'pre-commit: passed'],
-          'stdout',
           opts,
         );
       }
-      if (hooks.includes('commit-msg')) await emitLines(['commit-msg: message format ok'], 'stdout', opts);
+      if (hooks.includes('commit-msg')) await emitLines(['commit-msg: message format ok'], opts);
       cancelled(opts.signal);
       const before = new Map<string, DemoFile | null>();
       const keep = (path: string) => before.has(path) || before.set(path, p.head.get(path) ?? null);
@@ -832,13 +878,20 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
         if (isText(file)) point(p, path, 'Commit', file);
       }
       emit({ name: 'git.changed', project, data: {} });
-      return { sha: commit.sha, hookChangedCommit: [], changedAfter: [], indexKept: [] };
+      const skipped = runHooks ? [] : p.seed.hooks.filter(h => h === 'pre-commit' || h === 'commit-msg');
+      return { sha: commit.sha, hookChangedCommit: [], changedAfter: [], indexKept: [], hooksSkipped: skipped };
     },
     'git.rollback': ({ project, paths, deleteAdded, expect }) => {
       const p = projectOf(project);
       for (const path of paths) writable(p, path);
       const status = statusFiles(p);
-      const stale = expect.files.filter(f => status.find(s => s.path === f.path)?.diskHash !== f.diskHash);
+      const stale = expect.files.filter(
+        f =>
+          !sameVersion(
+            status.find(s => s.path === f.path),
+            f,
+          ),
+      );
       if (stale.length)
         fail('stale-selection', 'the files changed since they were shown', { paths: stale.map(f => f.path) });
       const rolledBack: string[] = [];
@@ -893,7 +946,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
       const failure = nextPushFailure;
       nextPushFailure = null;
       const target = `${DEMO_REMOTE_HOST}:demo/${p.seed.name}.git`;
-      await emitLines([`Enumerating objects: ${going.length * 4 + 1}, done.`], 'stderr', opts);
+      await emitLines([`Enumerating objects: ${going.length * 4 + 1}, done.`], opts);
       if (failure) {
         const messages: Record<PushFailure, [string, Record<string, unknown>]> = {
           'push-rejected': ['the remote branch has commits this one does not', { remote, branch: p.seed.branch }],
@@ -909,11 +962,7 @@ export const demoBackend = (options: DemoOptions = {}): DemoBackend => {
         const [message, data] = messages[failure];
         fail(failure, message, data);
       }
-      await emitLines(
-        [`Writing objects: 100% (${going.length * 3}/${going.length * 3}), done.`, `To ${target}`],
-        'stderr',
-        opts,
-      );
+      await emitLines([`Writing objects: 100% (${going.length * 3}/${going.length * 3}), done.`, `To ${target}`], opts);
       cancelled(opts.signal);
       const setUpstream = p.upstream === null;
       for (const commit of going) commit.pushed = true;

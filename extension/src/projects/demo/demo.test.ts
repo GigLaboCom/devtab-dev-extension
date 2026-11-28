@@ -295,13 +295,13 @@ describe('writing in memory', () => {
       },
       { onStream: line => lines.push(line) },
     );
-    expect(lines.map(l => l.text)).toContain('pre-commit: passed');
-    expect(lines.map(l => l.text)).toContain('commit-msg: message format ok');
+    expect(lines.map(l => l.text.trimEnd())).toContain('pre-commit: passed');
+    expect(lines.map(l => l.text.trimEnd())).toContain('commit-msg: message format ok');
     const after = await backend.call('git.status', { project: LEDGER });
     expect(after.files.map(f => f.path)).not.toContain('src/money.ts');
     expect(after.files.map(f => f.path)).not.toContain('src/currency.ts');
     // Undone: the rename is a change again, as git would see it.
-    await backend.call('git.undoCommit', { project: LEDGER, headSha: after.headSha });
+    await backend.call('git.undoCommit', { project: LEDGER, headSha: after.headSha! });
     const undone = await backend.call('git.status', { project: LEDGER });
     expect(undone.files.find(f => f.path === 'src/money.ts')).toMatchObject({
       change: 'renamed',
@@ -312,16 +312,16 @@ describe('writing in memory', () => {
   it('undoes the last commit of the seed, refuses a pushed one and the first one', async () => {
     const backend = open();
     const { headSha } = await backend.call('git.status', { project: LEDGER });
-    const undone = await backend.call('git.undoCommit', { project: LEDGER, headSha });
+    const undone = await backend.call('git.undoCommit', { project: LEDGER, headSha: headSha! });
     expect(undone).toEqual({ message: 'Answer 404 with a formatted zero', paths: ['src/server.ts'] });
     const settled = await backend.call('git.status', { project: 'p_demo0settl' });
-    expect(await dataOf(backend.call('git.undoCommit', { project: 'p_demo0settl', headSha: settled.headSha }))).toEqual(
-      {
-        reason: 'pushed',
-      },
-    );
+    expect(
+      await dataOf(backend.call('git.undoCommit', { project: 'p_demo0settl', headSha: settled.headSha! })),
+    ).toEqual({
+      reason: 'pushed',
+    });
     const garden = await backend.call('git.status', { project: GARDEN });
-    expect(await dataOf(backend.call('git.undoCommit', { project: GARDEN, headSha: garden.headSha }))).toEqual({
+    expect(await dataOf(backend.call('git.undoCommit', { project: GARDEN, headSha: garden.headSha! }))).toEqual({
       reason: 'root',
     });
   });
@@ -336,7 +336,7 @@ describe('writing in memory', () => {
       { onStream: l => lines.push(l.text) },
     );
     expect(pushed).toEqual({ pushed: 1, remote: 'origin', branch: 'lunar-period', setUpstream: true });
-    expect(lines.at(-1)).toBe('To git.example.invalid:demo/tide-tracker.git');
+    expect(lines.at(-1)?.trimEnd()).toBe('To git.example.invalid:demo/tide-tracker.git');
     expect(await backend.call('git.outgoing', { project: TIDES })).toMatchObject({
       commits: [],
       upstream: 'origin/lunar-period',

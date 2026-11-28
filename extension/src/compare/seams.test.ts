@@ -10,6 +10,9 @@ import { lineCount } from './files';
 import { LANGUAGES } from './languages';
 import { blobOf, chooseSaver, downloadSaver, fileSystemSaver } from './sideSaver';
 import { browserTextSource } from './textSource';
+import { demoBackend } from '@src/projects/demo/backend';
+import { textHash } from '@src/projects/demo/diff';
+import { projectSaver } from '@src/projects/projectSaver';
 import { describe, expect, it, vi } from 'vitest';
 import type { SaveRequest, SideSaver } from './sideSaver';
 
@@ -64,6 +67,43 @@ const savers = () => {
       revokeObjectURL: () => undefined,
     },
   });
+  // A project's file through the companion's seam (the demo's backend, which answers as the companion does): the
+  // last text written is what the project's file now holds.
+  const backend = demoBackend({
+    projects: [
+      {
+        id: 'p_saverseam',
+        name: 'seam',
+        displayPath: '~/seam',
+        location: null,
+        class: 'mine',
+        via: 'terminal',
+        branch: 'main',
+        remote: null,
+        upstream: null,
+        behind: 0,
+        hooks: [],
+        head: { 'changed.rs': 'fn old() {}\n' },
+        disk: { 'changed.rs': 'fn old() {}\n' },
+        ignore: [],
+        commits: [{ summary: 'Start', author: 'Someone', ago: 60, pushed: false }],
+        history: [],
+        messages: [],
+      },
+    ],
+    locations: [],
+  });
+  const project = projectSaver(backend, 'p_saverseam', 'changed.rs', textHash('fn old() {}\n'), {
+    ask: async suggested => {
+      if (cancelNext) {
+        cancelNext = false;
+        return null;
+      }
+      return `saved/${suggested}`;
+    },
+  });
+  const projectText = async (): Promise<string | undefined> =>
+    (await backend.call('file.read', { project: 'p_saverseam', path: project.path })).text;
   doc.addEventListener('click', event => {
     const link = event.target as HTMLAnchorElement;
     if (cancelNext) {
@@ -77,6 +117,7 @@ const savers = () => {
     all: [
       ['file-system-access', fsa, () => picked.written.at(-1)],
       ['download', download, async () => (downloads.length ? textOf(downloads.at(-1)!.blob) : undefined)],
+      ['project', project, projectText],
     ] as Array<[string, SideSaver, () => Promise<string | undefined> | string | undefined]>,
     picked,
     downloads,
@@ -104,6 +145,13 @@ describe.each(savers().all.map(([name]) => name))('SideSaver contract: %s', name
     expect(result.status).toBe('saved');
     expect(await last()).toBe('fn main() {}\n');
     if (result.status === 'saved') expect(['picked.rs', 'changed.rs']).toContain(result.fileName);
+  });
+  it('a closed "where?" writes nothing and says cancelled', async () => {
+    const { world, saver } = pick();
+    world.cancel();
+    const result = await saver.saveAs(request());
+    // The download has no "where?" of its own: the browser decides; the others ask and are cancelled.
+    if (name !== 'download') expect(result).toEqual({ status: 'cancelled' });
   });
   it('Save of a side with no file of its own does what Save as does', async () => {
     const { saver, last } = pick();

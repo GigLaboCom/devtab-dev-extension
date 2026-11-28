@@ -5,7 +5,15 @@
 import { go, routeHash } from '../route';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ProjectBackend } from '@src/projects/backend';
-import type { FilePoint, GitStatus, HistoryPoint, Method, ProjectState, ProjectSummary } from '@src/projects/types';
+import type {
+  FilePoint,
+  GitStatus,
+  HistoryPoint,
+  Method,
+  ProjectState,
+  ProjectSummary,
+  TreeEntry,
+} from '@src/projects/types';
 
 /** How the editor shows the open file. */
 export type EditorView =
@@ -47,6 +55,9 @@ export interface Workspace {
   /** Something failed: said once, in the page's status line. */
   error: string | null;
   setError(message: string | null): void;
+  /** The project's root folder as the Files tree last listed it; null before it did (nothing reads it for this). */
+  root: readonly TreeEntry[] | null;
+  noteRoot(entries: readonly TreeEntry[]): void;
 }
 
 export const useWorkspace = (
@@ -63,6 +74,7 @@ export const useWorkspace = (
   const [view, setView] = useState<EditorView>({ kind: 'file' });
   const [reveal, setReveal] = useState<Reveal | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [root, setRoot] = useState<readonly TreeEntry[] | null>(null);
   const counter = useRef(0);
   const nextView = useRef<{ path: string; view: EditorView; reveal?: Omit<Reveal, 'n'> } | null>(null);
   const changedRef = useRef(onProjectChanged);
@@ -150,5 +162,7 @@ export const useWorkspace = (
     can: method => backend.capabilities().methods.includes(method),
     error,
     setError,
+    root,
+    noteRoot: setRoot,
   };
 };

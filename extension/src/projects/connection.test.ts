@@ -66,10 +66,15 @@ const manualTimers = () => {
 };
 
 const setup = (
-  options: { granted?: boolean; answer?: boolean; mode?: 'normal' | 'empty' | 'version' | 'not-running' } = {},
+  options: {
+    granted?: boolean;
+    answer?: boolean;
+    mode?: 'normal' | 'empty' | 'fresh' | 'version' | 'not-running';
+    methods?: 'all' | 'stage3';
+  } = {},
 ) => {
   const permission = fakePermission(options.granted ?? true, options.answer ?? true);
-  const fake = fakeCompanion({ mode: options.mode ?? 'normal' });
+  const fake = fakeCompanion({ mode: options.mode ?? 'normal', methods: options.methods ?? 'all' });
   const clock = manualTimers();
   const reload = vi.fn();
   const links = { open: fake.openLink };
@@ -214,9 +219,41 @@ describe('the connection', () => {
   });
 });
 
+describe('a companion never set up, and one that is', () => {
+  it('no project, no trusted folder, no environment captured: `not-initialised`', async () => {
+    const { connection } = setup({ mode: 'fresh' });
+    expect((await connection.start()).state).toBe('not-initialised');
+    // Calls still go: the page lists the (empty) projects and the companion's state.
+    expect(await (await connection.client()).call('projects.list', {})).toEqual([]);
+  });
+
+  it('no project but a trusted folder: `ready-empty`', async () => {
+    const { connection } = setup({ mode: 'empty' });
+    expect((await connection.start()).state).toBe('ready-empty');
+  });
+
+  it('`projects.changed` reads the list again, quietly (no `reconnecting`)', async () => {
+    const { connection, fake, states } = setup();
+    await connection.start();
+    const lists = () => fake.ports[0]!.sent.filter(f => (f as { method?: string }).method === 'projects.list').length;
+    const before = lists();
+    states.length = 0;
+    fake.emit('projects.changed', null, {});
+    await settle();
+    expect(lists()).toBe(before + 1);
+    expect(states).not.toContain('reconnecting');
+    expect(connection.status().state).toBe('ready');
+  });
+
+  it('a companion of stage 3 (no `locations.list`) with no project is `ready-empty`, never `not-initialised`', async () => {
+    const { connection } = setup({ mode: 'empty', methods: 'stage3' });
+    expect((await connection.start()).state).toBe('ready-empty');
+  });
+});
+
 describe('the companion’s backend', () => {
-  it('offers what the welcome lists; a write it does not list is refused here and never sent', async () => {
-    const { connection, fake } = setup();
+  it('offers what the welcome lists; a write an older companion does not list is refused here and never sent', async () => {
+    const { connection, fake } = setup({ methods: 'stage3' });
     const backend = companionBackend(connection);
     await backend.connect();
     expect(backend.capabilities()).toMatchObject({ demo: false });

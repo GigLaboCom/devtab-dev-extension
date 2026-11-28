@@ -10,6 +10,7 @@ import { ProjectsPage } from '../sections/ProjectsPage';
 import { LANGUAGES } from '@src/compare/languages';
 import { demoBackend } from '@src/projects/demo/backend';
 import { memoryLayout } from '@src/projects/layoutMemory';
+import { projectSaver } from '@src/projects/projectSaver';
 import { recordingSaver } from '@src/projects/scratch/fakeSaver';
 import { areaScratches, memoryArea } from '@src/projects/scratch/storage';
 import { SCRATCH_MAX_CHARS, SCRATCH_MAX_COUNT, compareNames, fileName } from '@src/projects/scratch/store';
@@ -89,6 +90,7 @@ const behaviors = (): ProjectsBehaviors => ({
   layoutMemory: memoryLayout(),
   scratchStore: store,
   scratchSaver: saver,
+  fileSaver: projectSaver,
 });
 
 /** The page at the address the window has now, as the shell renders it. */

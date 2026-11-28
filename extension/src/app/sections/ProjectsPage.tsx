@@ -21,6 +21,7 @@
  * EditorPane.tsx). "New scratch file" is asked for from any page (src/shortcuts/intent.ts: in the page's memory, never
  * the address): the page's language popup opens at once here, or as the section arrives.
  */
+import { AddProject } from '../projects/AddProject';
 import { CommitPanel } from '../projects/CommitPanel';
 import { ConnectionBar } from '../projects/ConnectionBar';
 import { DemoNotice } from '../projects/DemoNotice';
@@ -149,7 +150,7 @@ const Workspace = ({
         hintOf={(view, title) => hintOf(keys, viewKeys[view], title)}
         parts={{
           files: <ProjectTree workspace={workspace} />,
-          commit: <CommitPanel workspace={workspace} />,
+          commit: <CommitPanel workspace={workspace} keys={keys} />,
           editor: (
             <EditorPane
               workspace={workspace}
@@ -157,6 +158,7 @@ const Workspace = ({
               keys={keys}
               editorSettings={editorSettings}
               autosaveDelayMs={behaviors.autosaveDelayMs}
+              fileSaver={behaviors.fileSaver}
               onShowHistory={() => {
                 setHistoryAsked(n => n + 1);
                 ask('history');
@@ -234,7 +236,8 @@ const Projects = ({
       const next = backend.status();
       setStatus(next);
       // Back from a lost port or a restarted server, or now connected: read everything again.
-      if ((next.state === 'ready' || next.state === 'ready-empty') && previous !== next.state) {
+      const connected = next.state === 'ready' || next.state === 'ready-empty' || next.state === 'not-initialised';
+      if (connected && previous !== next.state) {
         setGeneration(g => g + 1);
       }
       previous = next.state;
@@ -247,6 +250,15 @@ const Projects = ({
     if (status.connecting) return;
     reload();
   }, [reload, demo, generation, status.connecting]);
+
+  // A project added or removed, a class or a trusted folder changed — here or in the terminal: the lists again.
+  useEffect(
+    () =>
+      backend.subscribe(null, event => {
+        if (event.name === 'projects.changed') reload();
+      }),
+    [backend, reload, demo],
+  );
 
   const project = route.project ? lists?.projects.find(p => p.id === route.project) : undefined;
   const scratch = scratches ? route.scratch : undefined;
@@ -341,7 +353,23 @@ const Projects = ({
           </header>
           {(lists || scratches) && (
             <div className="kit-projects-home">
-              {lists && <ProjectList projects={lists.projects} locations={lists.locations} />}
+              {lists && (
+                <ProjectList
+                  projects={lists.projects}
+                  locations={lists.locations}
+                  folders={lists.folders}
+                  add={
+                    <AddProject
+                      backend={backend}
+                      keys={keys}
+                      onAdded={id => {
+                        reload();
+                        go(routeHash({ section: 'projects', project: id }));
+                      }}
+                    />
+                  }
+                />
+              )}
               {scratches && (
                 <ScratchGroup
                   store={behaviors.scratchStore}

@@ -6,10 +6,21 @@
  * author; Commit and «Commit and Push…». No confirmation before a commit (§6.2): it can be undone while not pushed.
  * A project that cannot commit (read only, or a companion that does not offer it) shows its changes, their diffs and
  * chunks, and one line saying why there is nothing more: no checkboxes, no message, no buttons that would fail (D35).
+ *
+ * What is checked goes to the companion with what the page showed (`expect`: HEAD and each file's version — the text's
+ * hash, or the bytes' for a binary file), so a file that changed since is refused (`stale-selection`) rather than
+ * committed unseen. The output of git and the hooks streams into a live region as it comes; every refusal is said in
+ * the page's words with what to do (./errors.ts), the message and the checks stay. «Undo last commit» is offered for
+ * a commit the companion may undo — one this page made while it is still HEAD, or one waiting to be pushed — and goes
+ * away when the companion answers that it cannot. Keys (D38): Commit while the keyboard is in this view, Undo last
+ * commit while it is offered.
  */
+import { errorText, toneOf } from './errors';
 import { PushDialog } from './PushDialog';
 import { RollbackDialog } from './RollbackDialog';
+import { SaidNote } from './SaidNote';
 import { TEXT, printable, terminalText } from './text';
+import { hintOf, useOffer } from '../shell/sectionKeys';
 import { isCompanionError } from '@src/projects/types';
 import { Button } from '@workspace/ui/button';
 import { Checkbox } from '@workspace/ui/checkbox';
@@ -25,6 +36,8 @@ import {
   Undo2Icon,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { SectionKeys } from '../shell/sectionKeys';
+import type { Said } from './errors';
 import type { Workspace } from './useWorkspace';
 import type { CommitSelection, FileHunks, GitIdentity, Outgoing, StatusFile } from '@src/projects/types';
 import type { ReactElement } from 'react';
@@ -32,7 +45,7 @@ import type { ReactElement } from 'react';
 /** A file's checks: the whole file, or some of its chunks (by index). */
 type Check = 'all' | ReadonlySet<number>;
 
-type Note = { tone: 'info' | 'success' | 'error'; text: string; detail?: string };
+type Note = { tone: 'info' | 'success' | 'error'; said: Said; kind: string; retry?: boolean; capture?: boolean };
 
 const checkable = (file: StatusFile): boolean => file.change !== 'conflicted';
 
@@ -47,9 +60,14 @@ const changeLabel = (file: StatusFile): string =>
 
 export interface CommitPanelProps {
   workspace: Workspace;
+  /** The user's shortcuts as the section gets them; absent: no keys. */
+  keys?: SectionKeys;
 }
 
-export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
+/** The paths a result names, shown as text. */
+const pathList = (paths: readonly string[]): string => paths.map(printable).join(', ');
+
+export const CommitPanel = ({ workspace, keys }: CommitPanelProps): ReactElement => {
   const { backend, project, status, state, version, path: openPath, can } = workspace;
   // What is written needs a writable project and a backend that offers the write: otherwise inactive, with why.
   const commits = can('git.commit');
@@ -73,7 +91,17 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
   const [rollbackOpen, setRollbackOpen] = useState(false);
   const [rolledBack, setRolledBack] = useState<string[]>([]);
   const [pushOpen, setPushOpen] = useState(false);
+  // The commit this page made last (it may be undone while it is HEAD), and the HEADs the companion would not undo.
+  const [lastCommit, setLastCommit] = useState<string | null>(null);
+  const [notUndoable, setNotUndoable] = useState<ReadonlySet<string>>(new Set());
+  // The keyboard is in this view: Commit's key is offered only then, as in an IDE's commit window.
+  const [focused, setFocused] = useState(false);
   const abort = useRef<AbortController | null>(null);
+  // A note that appears is brought into view, to its end: in a short panel it may land below the fold.
+  const noteFrame = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (note) noteFrame.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [note]);
 
   const files = useMemo(() => status?.files ?? [], [status]);
   const fileOf = (path: string): StatusFile | undefined => files.find(f => f.path === path);
@@ -169,8 +197,15 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
   }, 0);
   const hooksShown = (state?.hooks ?? []).some(h => h === 'pre-commit' || h === 'commit-msg');
   const canCommit = mine && !busy && checkedFiles.length > 0 && message.trim().length > 0 && !!identity?.email;
-  // Commits not pushed yet: the last one can be undone, and they can be pushed.
-  const undoable = (outgoing?.commits.length ?? 0) > 0;
+  // The last commit may be undone when it waits to be pushed (a companion that lists those), or when this page made it
+  // and it is still HEAD; the companion has the last word, and once it says no, the action goes for that HEAD.
+  const head = status?.headSha ?? null;
+  const waitingToPush = outgoing ? outgoing.commits.length > 0 : false;
+  const undoable =
+    can('git.undoCommit') &&
+    head !== null &&
+    !notUndoable.has(head) &&
+    (waitingToPush || lastCommit === head || (!outgoing && !!state?.upstream && (state.ahead ?? 0) > 0));
   const branchLine = `${
     state?.branch
       ? TEXT.branchLine(printable(state.branch), state.upstream == null ? null : printable(state.upstream), state.ahead)
@@ -187,7 +222,7 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
     abort.current = controller;
     setBusy(true);
     setOutput([]);
-    setNote({ tone: 'info', text: TEXT.committing });
+    setNote({ tone: 'info', kind: 'committing', said: { text: TEXT.committing } });
     try {
       const done = await backend.call(
         'git.commit',
@@ -196,19 +231,34 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
           message,
           selection,
           runHooks: hooksShown ? runHooks : true,
-          expect: { headSha: status.headSha, files: checkedFiles.map(f => ({ path: f.path, diskHash: f.diskHash })) },
+          expect: { headSha: status.headSha, files: checkedFiles.map(expected) },
         },
-        { signal: controller.signal, onStream: line => setOutput(o => [...o, line.text]) },
+        { signal: controller.signal, onStream: part => setOutput(o => [...o, part.text]) },
       );
-      setNote({ tone: 'success', text: TEXT.committed(selection.length, done.sha.slice(0, 7)) });
+      const said = [
+        TEXT.committed(selection.length, done.sha.slice(0, 7)),
+        done.hooksSkipped?.length ? TEXT.hooksWereSkipped(pathList(done.hooksSkipped)) : null,
+        done.indexKept.length ? TEXT.indexKept(pathList(done.indexKept)) : null,
+        done.hookChangedCommit.length ? TEXT.hookChangedCommit(pathList(done.hookChangedCommit)) : null,
+        done.changedAfter.length ? TEXT.changedAfter(pathList(done.changedAfter)) : null,
+      ];
+      setNote({ tone: 'success', kind: 'committed', said: { text: said.filter(Boolean).join(' ') } });
+      setLastCommit(done.sha);
+      // The committed files' checks go: what is left of them are other hunks now, with other numbers.
+      setChecks(previous => {
+        const next = new Map(previous);
+        for (const { path } of selection) next.delete(path);
+        return next;
+      });
       setMessage('');
       setRunHooks(true);
       setSelected(null);
       workspace.refresh();
       if (andPush) setPushOpen(true);
     } catch (error) {
-      setNote(commitError(error));
-      if (isCompanionError(error, 'stale-selection')) workspace.refresh();
+      setNote(commitNote(error, project.id));
+      if (isCompanionError(error, 'stale-selection') || isCompanionError(error, 'undo-unavailable'))
+        workspace.refresh();
     } finally {
       setBusy(false);
       abort.current = null;
@@ -216,14 +266,27 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
   };
 
   const undo = async (): Promise<void> => {
-    if (!status) return;
+    if (!status?.headSha) return;
+    const undoing = status.headSha;
     try {
-      const done = await backend.call('git.undoCommit', { project: project.id, headSha: status.headSha });
+      const done = await backend.call('git.undoCommit', { project: project.id, headSha: undoing });
       setMessage(done.message);
-      setNote({ tone: 'success', text: TEXT.undone });
+      setLastCommit(null);
+      setNote({ tone: 'success', kind: 'undone', said: { text: TEXT.undone } });
       workspace.refresh();
     } catch (error) {
-      setNote({ tone: 'error', text: error instanceof Error ? error.message : String(error) });
+      if (isCompanionError(error, 'undo-unavailable')) setNotUndoable(s => new Set([...s, undoing]));
+      setNote({ tone: 'error', kind: 'undo', said: errorText(error, 'undo', project.id) });
+      workspace.refresh();
+    }
+  };
+  /** The companion's window may capture the environment again; without one it says the command. */
+  const capture = async (): Promise<void> => {
+    try {
+      await backend.call('env.requestCapture', {});
+      setNote({ tone: 'success', kind: 'captured', said: { text: TEXT.retry } });
+    } catch (error) {
+      setNote({ tone: toneOf(error), kind: 'capture', said: errorText(error, 'capture', project.id) });
     }
   };
 
@@ -235,13 +298,23 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
         project: project.id,
         paths: rollbackPaths,
         deleteAdded,
-        expect: { files: rollbackPaths.map(path => ({ path, diskHash: fileOf(path)?.diskHash ?? null })) },
+        expect: {
+          files: rollbackPaths.map(path => {
+            const file = fileOf(path);
+            return file ? expected(file) : { path, diskHash: null };
+          }),
+        },
       });
       setRolledBack(done.rolledBack);
-      setNote({ tone: 'success', text: TEXT.rolledBack(done.rolledBack.length + done.trashed.length) });
+      setNote({
+        tone: 'success',
+        kind: 'rolled-back',
+        said: { text: TEXT.rolledBack(done.rolledBack.length + done.trashed.length) },
+      });
       workspace.refresh();
     } catch (error) {
-      setNote({ tone: 'error', text: error instanceof Error ? error.message : String(error) });
+      setNote({ tone: 'error', kind: 'rollback', said: errorText(error, 'rollback', project.id) });
+      if (isCompanionError(error, 'stale-selection')) workspace.refresh();
     }
   };
   // «Undo rollback»: each file's «Before rollback» point, restored (§6.8).
@@ -264,6 +337,11 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
     setNote(null);
     workspace.refresh();
   };
+
+  useOffer(keys, {
+    'projects:commit-checked': focused && canCommit && (() => void commit(false)),
+    'projects:undo-commit': undoable && !busy && (() => void undo()),
+  });
 
   const groups = [
     { id: 'changes', title: TEXT.changes, files: files.filter(f => f.group === 'changes') },
@@ -301,7 +379,13 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
   );
 
   return (
-    <section className="kit-projects-commit" aria-labelledby="projects-commit-title">
+    <section
+      className="kit-projects-commit"
+      aria-labelledby="projects-commit-title"
+      onFocus={() => setFocused(true)}
+      onBlur={event => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
+      }}>
       <div className="kit-projects-commit-head">
         <h2 id="projects-commit-title" className="kit-projects-part-title">
           {TEXT.commitTitle}
@@ -423,7 +507,7 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
       {selected && hunks && (
         <div className="kit-projects-chunks" role="group" aria-label={TEXT.chunksOf(selected)}>
           <div className="kit-projects-change-group-title">{TEXT.chunksOf(selected)}</div>
-          {!hunks.chunkable ? (
+          {!hunks.chunkable || wholeOnly(fileOf(selected)) ? (
             <p className="kit-projects-tree-note">
               {hunks.reason === 'conflicted' ? TEXT.conflicted : TEXT.wholeFileOnly}
             </p>
@@ -460,9 +544,7 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
       ) : (
         <>
           {identity && !identity.email && (
-            <p className="kit-projects-note" data-tone="error">
-              {TEXT.noIdentity} <code className="kit-projects-command">{TEXT.noIdentityCommand}</code>
-            </p>
+            <SaidNote said={{ text: TEXT.noIdentity, command: TEXT.noIdentityCommand }} kind="identity" />
           )}
           <div className="kit-projects-message">
             <Label htmlFor="projects-commit-message" className="sr-only">
@@ -502,12 +584,24 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
               {!runHooks && <span className="kit-projects-part-hint">{TEXT.hooksSkipped}</span>}
             </div>
           )}
+          {hooksShown && runHooks && (
+            <p className="kit-projects-part-hint" data-hooks="">
+              {TEXT.hooksWillRun((state?.hooks ?? []).map(printable).join(', '))}
+            </p>
+          )}
           <p className="kit-projects-part-hint">{TEXT.checked(checkedFiles.length, chunkCount)}</p>
           <div className="kit-projects-commit-actions">
-            <Button disabled={!canCommit} onClick={() => void commit(false)}>
+            <Button
+              disabled={!canCommit}
+              onClick={() => void commit(false)}
+              {...hintOf(keys, 'projects:commit-checked', TEXT.commit)}>
               {TEXT.commit}
             </Button>
-            <Button variant="outline" disabled={!canCommit || !can('git.push')} onClick={() => void commit(true)}>
+            <Button
+              variant="outline"
+              disabled={!canCommit || !can('git.push')}
+              title={can('git.push') ? undefined : TEXT.pushNotOffered}
+              onClick={() => void commit(true)}>
               {TEXT.commitAndPush}
             </Button>
             {busy && (
@@ -516,17 +610,41 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
               </Button>
             )}
           </div>
-          {output.length > 0 && <pre className="kit-projects-output">{terminalText(output.join('\n'))}</pre>}
+          {(busy || output.length > 0) && (
+            <pre
+              className="kit-projects-output"
+              role="log"
+              aria-live="polite"
+              aria-label={TEXT.hookOutput}
+              data-output="">
+              {terminalText(output.join(''))}
+            </pre>
+          )}
           {note && (
-            <p className="kit-projects-note" data-tone={note.tone} role="status">
-              {note.text}
-              {note.detail && <code className="kit-projects-command">{note.detail}</code>}
-            </p>
+            <SaidNote
+              said={output.length > 0 && note.said.output ? { ...note.said, output: undefined } : note.said}
+              tone={note.tone}
+              kind={note.kind}>
+              {note.retry && (
+                <Button size="sm" variant="outline" disabled={!canCommit} onClick={() => void commit(false)}>
+                  {TEXT.retry}
+                </Button>
+              )}
+              {note.capture && can('env.requestCapture') && (
+                <Button size="sm" variant="ghost" onClick={() => void capture()}>
+                  {TEXT.captureAgain}
+                </Button>
+              )}
+            </SaidNote>
           )}
           {(undoable || rolledBack.length > 0) && (
             <div className="kit-projects-commit-actions">
-              {undoable && can('git.undoCommit') && !busy && (
-                <Button variant="ghost" size="sm" onClick={() => void undo()}>
+              {undoable && !busy && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void undo()}
+                  {...hintOf(keys, 'projects:undo-commit', TEXT.undoCommitTitle)}>
                   {TEXT.undoCommit}
                 </Button>
               )}
@@ -535,18 +653,21 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
                   {TEXT.undoRollback}
                 </Button>
               )}
-              {undoable && can('git.push') && (
+              {waitingToPush && can('git.push') && (
                 <Button variant="ghost" size="sm" onClick={() => setPushOpen(true)}>
                   {TEXT.pushRun}…
                 </Button>
               )}
             </div>
           )}
+          {/* The end of what was said: brought into view when a note appears. */}
+          <div ref={noteFrame} />
         </>
       )}
 
       <RollbackDialog
         paths={rollbackPaths}
+        trash={can('file.delete')}
         open={rollbackOpen}
         onOpenChange={setRollbackOpen}
         onRollback={deleteAdded => void rollback(deleteAdded)}
@@ -556,23 +677,25 @@ export const CommitPanel = ({ workspace }: CommitPanelProps): ReactElement => {
   );
 };
 
-const commitError = (error: unknown): Note => {
-  if (!isCompanionError(error)) return { tone: 'error', text: TEXT.failed(String(error)) };
-  const data = error.data ?? {};
-  switch (error.code) {
-    case 'stale-selection':
-      return { tone: 'error', text: TEXT.staleSelection };
-    case 'hook-failed':
-      return { tone: 'error', text: TEXT.hookFailed(String(data.hook ?? 'A hook')) };
-    case 'hook-tool-missing':
-      return { tone: 'error', text: TEXT.hookToolMissing(String(data.tool ?? 'a tool')) };
-    case 'hook-timeout':
-      return { tone: 'error', text: TEXT.hookTimeout };
-    case 'cancelled':
-      return { tone: 'error', text: TEXT.commitCancelled };
-    case 'identity-missing':
-      return { tone: 'error', text: TEXT.noIdentity, detail: TEXT.noIdentityCommand };
-    default:
-      return { tone: 'error', text: TEXT.failed(error.message) };
-  }
+/** A new file is committed whole (the companion takes no chunks of it). */
+const wholeOnly = (file: StatusFile | undefined): boolean => file?.change === 'untracked' || file?.change === 'added';
+
+/** What a file's version was when it was shown: the text's hash, or the bytes' for a binary or very large file. */
+const expected = (file: StatusFile): { path: string; diskHash: string | null; diskBytesHash?: string | null } => ({
+  path: file.path,
+  diskHash: file.diskHash ?? null,
+  ...(file.diskBytesHash != null && { diskBytesHash: file.diskBytesHash }),
+});
+
+/** A failed commit, said: the page's words by the code, what to do, the hook's output when none was streamed. */
+const commitNote = (error: unknown, project: string): Note => {
+  const said = errorText(error, 'commit', project);
+  const code = isCompanionError(error) ? error.code : 'failed';
+  return {
+    tone: code === 'cancelled' ? 'info' : 'error',
+    kind: code,
+    said,
+    retry: code === 'hook-failed' || code === 'hook-tool-missing' || code === 'hook-timeout' || code === 'index-locked',
+    capture: code === 'hook-tool-missing',
+  };
 };

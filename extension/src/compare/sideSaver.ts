@@ -4,11 +4,14 @@
  * picker, dropped, or saved as before), asking Chrome for write access the first time; without one it does what Save
  * as does. Save as always asks where.
  *
- * Two implementations, chosen by what the browser has (behaviors.ts):
+ * Two implementations here, chosen by what the browser has (behaviors.ts):
  * - `fileSystemSaver` — `showSaveFilePicker` and `FileSystemFileHandle.createWritable` (Chrome 86+, on extension pages
  *   too: docs/spikes/compare-probe);
  * - `downloadSaver` — the fallback: the text as a download (`<a download>` with a `blob:` address, which the
  *   extension's CSP allows); the browser decides where it goes.
+ * A third lives with the Projects section: `projectSaver` (src/projects/projectSaver.ts) saves a side that is a
+ * project's file through the companion (`file.save` from the version it started from; Save as — `file.create`). It
+ * passes the same contract (seams.test.ts) and is chosen by the section's composition root.
  *
  * These are the only writes of «Compare code», and only when the user asks: nothing else is stored (D16).
  */
@@ -34,7 +37,13 @@ export type SaveResult =
       how: 'file' | 'download';
     }
   | { status: 'cancelled' }
-  | { status: 'failed'; message: string };
+  | {
+      status: 'failed';
+      message: string;
+      /** A refusal with a code (the companion's, for `projectSaver`): the page says it in its own words by it. */
+      code?: string;
+      data?: Record<string, unknown>;
+    };
 
 export interface SideSaver {
   /** For the report and the tests. */

@@ -14,7 +14,7 @@ import type { CompanionEvent, Method, Params, ProjectId, Result } from '../types
 import type { CompanionClient } from './client';
 
 export const companionBackend = (connection: CompanionConnection): ProjectBackend => {
-  const listeners = new Map<ProjectId, Set<(event: CompanionEvent) => void>>();
+  const listeners = new Map<ProjectId | null, Set<(event: CompanionEvent) => void>>();
   const subscribed = new Set<ProjectId>();
   let told: CompanionClient | null = null;
 

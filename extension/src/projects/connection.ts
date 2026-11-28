@@ -10,12 +10,14 @@
  *   not-running       the relay could not reach the supervisor (its `not-running` before it exits, finding 7), or the
  *                     supervisor is full: tried again every 5 s by itself
  *   version-mismatch  no API version in common (`unsupported-version`), with which side to update
+ *   not-initialised   connected, but set up never: no project, no trusted folder and no environment captured
+ *                     (`devtab init` was not run) — the page says to run it
  *   ready-empty       connected; `projects.list` is empty
  *   ready             connected, with projects
  *   reconnecting      the port was lost, or the companion's server restarted: tried again at once, then after a pause;
  *                     the page reads everything again once it is back
- * `not-initialised` and `paused` are typed but not reached in this stage (the companion captures no environment and
- * does not write). The permission removed in chrome://extensions → `no-permission`, and the page closes its port
+ * `paused` is typed but not reached (no companion version pauses its writes yet). `projects.changed` — a project added
+ * or removed — reads the list again, so an added first project turns `ready-empty` into `ready`. The permission removed in chrome://extensions → `no-permission`, and the page closes its port
  * itself: Chrome does not close an open one (finding 8).
  */
 import { API_VERSIONS, openClient, realTimers } from './companion/client';
@@ -61,7 +63,7 @@ export interface CompanionConnection {
   dispose(): void;
 }
 
-const CONNECTED = new Set(['ready', 'ready-empty']);
+const CONNECTED = new Set(['ready', 'ready-empty', 'not-initialised']);
 
 export const createConnection = (deps: ConnectionDeps): CompanionConnection => {
   const timers = deps.timers ?? realTimers;
@@ -168,6 +170,7 @@ export const createConnection = (deps: ConnectionDeps): CompanionConnection => {
       lost = 0;
       next.onEvent(event => {
         if (event.name === 'server.restarted') void relist(next);
+        else if (event.name === 'projects.changed') void relist(next, true);
         for (const listener of [...eventListeners]) listener(event);
       });
       next.onClose(() => {
@@ -183,17 +186,37 @@ export const createConnection = (deps: ConnectionDeps): CompanionConnection => {
     return attempt;
   };
 
-  /** `ready` or `ready-empty` by the projects the companion has; `reconnecting` while it reads them again. */
-  const relist = async (of: CompanionClient, first = false): Promise<void> => {
-    if (!first) set({ state: 'reconnecting', connecting: false, companion: of.welcome.companion });
+  /**
+   * `ready` or `ready-empty` by the projects the companion has — `not-initialised` when there is none, no trusted folder
+   * and no environment captured; `reconnecting` while it reads them again after a restart (`quiet`: no such state).
+   */
+  const relist = async (of: CompanionClient, quiet = false): Promise<void> => {
+    if (!quiet) set({ state: 'reconnecting', connecting: false, companion: of.welcome.companion });
     let empty = false;
+    let fresh = false;
     try {
       empty = ((await of.call('projects.list', {})) as unknown[]).length === 0;
+      if (empty) fresh = await neverSetUp(of);
     } catch {
       // The list's own error is the page's to show; the connection stands.
     }
     if (client !== of || disposed) return;
-    set({ state: empty ? 'ready-empty' : 'ready', connecting: false, companion: of.welcome.companion });
+    set({
+      state: fresh ? 'not-initialised' : empty ? 'ready-empty' : 'ready',
+      connecting: false,
+      companion: of.welcome.companion,
+    });
+  };
+
+  /** No environment captured and no trusted folder: `devtab init` never ran (an older companion cannot say). */
+  const neverSetUp = async (of: CompanionClient): Promise<boolean> => {
+    const offers = (method: string): boolean => of.welcome.methods.includes(method);
+    if (!offers('locations.list') || !offers('companion.state')) return false;
+    const [state, locations] = await Promise.all([
+      of.call('companion.state', {}) as Promise<{ env?: { capturedAt?: number | null } }>,
+      of.call('locations.list', {}) as Promise<unknown[]>,
+    ]);
+    return (state.env?.capturedAt ?? null) === null && locations.length === 0;
   };
 
   const removed = (): void => {

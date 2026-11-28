@@ -17,7 +17,8 @@
  * Besides the places there are the commands of a section (`command`: a new scratch file, the open scratch's download,
  * rename, language and delete, the Projects section's panels, quick open and changes — D38): such an action has a
  * target only while a part of the page offers it (the shell's `ShortcutTargets`, shortcuts/targets.ts) — a project
- * open, a scratch open, an edition with scratch files; the indent indicator of an open editor (D39). Without one the action does not take its key: the key goes on to
+ * open, a scratch open, an edition with scratch files; the indent indicator of an open editor (D39); Commit while the
+ * keyboard is in an open project's Commit view, Undo last commit while it is offered, Add project on the list of projects. Without one the action does not take its key: the key goes on to
  * the page, and the editor is not asked to hand it up. Why each default: docs/research/hotkeys.md §9.
  */
 import { FIND_SHORTCUT } from '@src/shared/keys';
@@ -121,6 +122,20 @@ export const COMMANDS: readonly CommandDefinition[] = [
   { id: 'projects:next-change', title: 'Next change', group: PROJECTS_GROUP, keywords: ['diff', 'hunk'] },
   { id: 'projects:previous-change', title: 'Previous change', group: PROJECTS_GROUP, keywords: ['diff', 'hunk'] },
   { id: 'projects:view', title: 'Switch file and diff', group: PROJECTS_GROUP, keywords: ['diff', 'mode'] },
+  // Stages 4–6 of the companion: what a person does often enough to want a key for it.
+  { id: 'projects:commit-checked', title: 'Commit', group: PROJECTS_GROUP, keywords: ['git', 'commit checked'] },
+  {
+    id: 'projects:undo-commit',
+    title: 'Undo last commit',
+    group: PROJECTS_GROUP,
+    keywords: ['git', 'reset', 'revert'],
+  },
+  {
+    id: 'projects:add-project',
+    title: 'Add project',
+    group: PROJECTS_GROUP,
+    keywords: ['repository', 'folder', 'open'],
+  },
   // D39: the indent indicator of the editor that has the keyboard (or was used last); no default key — neither IDE
   // has one for its indicator.
   {
@@ -161,6 +176,10 @@ export const COMMAND_DEFAULTS: Readonly<Record<string, DefaultKey>> = {
   'projects:previous-change': { mac: shifted('ArrowUp', 'arrowup', true), other: shifted('F7', 'f7') },
   // IntelliJ's ⌘D (show diff); ⇧⌘D and Ctrl+Shift+D bookmark all tabs.
   'projects:view': { mac: shifted('KeyD', 'd', true), other: null },
+  // IntelliJ's Commit in its commit window, ⌘Enter / Ctrl+Enter (VS Code's too, in the message box): free in Chrome and
+  // in the editor, and offered only while the keyboard is in the Commit view. Undo last commit and Add project have no
+  // key in either IDE: none here.
+  'projects:commit-checked': { key: 'enter', code: 'Enter', mod: true, shift: false },
 };
 
 export const shortcutActions = (

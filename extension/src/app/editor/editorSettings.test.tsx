@@ -14,6 +14,7 @@ import { BUILT_IN_VALUES, defaultEditorSettings } from '@src/editorSettings/mode
 import { memoryEditorArea, memoryEditorSettings } from '@src/editorSettings/storage';
 import { demoBackend } from '@src/projects/demo/backend';
 import { memoryLayout } from '@src/projects/layoutMemory';
+import { projectSaver } from '@src/projects/projectSaver';
 import { recordingSaver } from '@src/projects/scratch/fakeSaver';
 import { areaScratches, memoryArea } from '@src/projects/scratch/storage';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -83,6 +84,7 @@ const projects = (): ProjectsBehaviors => ({
   layoutMemory: memoryLayout(),
   scratchStore: scratches,
   scratchSaver: recordingSaver(),
+  fileSaver: projectSaver,
 });
 
 const openScratch = async (language: string, text: string) => {

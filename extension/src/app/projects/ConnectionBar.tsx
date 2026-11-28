@@ -1,7 +1,8 @@
 /**
  * The connection part (§8.4, §8.5): how the section stands with the companion and what can be done about it — connect
  * (asks Chrome for the permission, from this click only), check again, the command that explains a stopped companion,
- * which side to update. Nothing is shown once the companion is connected but its version. What Chrome or the companion
+ * which side to update, `devtab init` for a companion never set up. Nothing is shown once the companion is connected
+ * but its version. What Chrome or the companion
  * said is shown as text, never thrown.
  */
 import { TEXT, printable } from './text';
@@ -89,6 +90,17 @@ export const ConnectionBar = ({ backend, status }: ConnectionBarProps): ReactEle
       break;
     case 'reconnecting':
       body = <span>{TEXT.reconnecting}</span>;
+      break;
+    case 'not-initialised':
+      body = (
+        <>
+          <span>{TEXT.notInitialised}</span>
+          <code className="kit-projects-command" data-command="">
+            {TEXT.notInitialisedCommand}
+          </code>
+          {checkAgain}
+        </>
+      );
       break;
     case 'ready-empty':
       body = (

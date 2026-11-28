@@ -2,7 +2,8 @@
  * Push (§6.9; IntelliJ's Push Commits window): the current branch to its upstream (set when there is none), the
  * commits that go, Push and Cancel; while it runs, its output and Cancel; each failure with what to do in the terminal.
  */
-import { TEXT, terminalText, formatTime } from './text';
+import { errorLine } from './errors';
+import { TEXT, formatTime, printable, terminalText } from './text';
 import { isCompanionError } from '@src/projects/types';
 import { Button } from '@workspace/ui/button';
 import {
@@ -39,8 +40,7 @@ export const PushDialog = ({ workspace, open, onOpenChange }: PushDialogProps): 
     let live = true;
     backend.call('git.outgoing', { project: project.id }).then(
       next => live && setOutgoing(next),
-      (e: unknown) =>
-        live && setResult({ tone: 'error', text: TEXT.failed(e instanceof Error ? e.message : String(e)) }),
+      (e: unknown) => live && setResult({ tone: 'error', text: errorLine(e, 'read') }),
     );
     return () => {
       live = false;
@@ -71,11 +71,11 @@ export const PushDialog = ({ workspace, open, onOpenChange }: PushDialogProps): 
     } catch (error) {
       if (isCompanionError(error, 'cancelled')) setResult({ tone: 'error', text: TEXT.searchCancelled });
       else if (isCompanionError(error)) {
-        const command = typeof error.data?.command === 'string' ? error.data.command : undefined;
-        const detail = typeof error.data?.output === 'string' ? error.data.output : undefined;
+        const command = typeof error.data?.command === 'string' ? printable(error.data.command) : undefined;
+        const detail = typeof error.data?.output === 'string' ? terminalText(error.data.output) : undefined;
         setResult({
           tone: 'error',
-          text: TEXT.pushErrors[error.code] ?? error.message,
+          text: TEXT.pushErrors[error.code] ?? errorLine(error, 'commit'),
           ...((command ?? detail) ? { command: command ?? detail } : {}),
         });
       } else setResult({ tone: 'error', text: TEXT.failed(String(error)) });

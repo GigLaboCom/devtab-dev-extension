@@ -402,6 +402,9 @@ describe('the commands of a section (D38)', () => {
       'projects:next-change': '⌥⇧⌘↓',
       'projects:previous-change': '⌥⇧⌘↑',
       'projects:view': '⌥⇧⌘D',
+      'projects:commit-checked': '⌘Enter',
+      'projects:undo-commit': null,
+      'projects:add-project': null,
       'editor:indentation': null,
       'open:projects': '⌥⇧⌘L',
     });
@@ -419,6 +422,9 @@ describe('the commands of a section (D38)', () => {
       'projects:next-change': 'Ctrl+F7',
       'projects:previous-change': 'Ctrl+Shift+F7',
       'projects:view': null,
+      'projects:commit-checked': 'Ctrl+Enter',
+      'projects:undo-commit': null,
+      'projects:add-project': null,
       'editor:indentation': null,
       'open:projects': 'Ctrl+Shift+L',
     });

@@ -118,7 +118,8 @@ export const TEXT = {
   pendingState: 'Edited',
   conflictState: 'Not saved: conflict', // spec: «не сохранён: конфликт»
   offlineState: 'Not saved: no connection to the companion', // spec: «не сохранён: нет связи с компаньоном»
-  refusedState: (message: string) => `Not saved: ${message}`,
+  refusedState: (text: string) => `Not saved: ${text}`,
+  refusedShort: 'Not saved', // spec: «не сохранён»
   conflictNotice: 'The file changed on disk while you were editing it.', // spec: «показываем что изменился»
   keepMine: 'Keep mine', // spec: «keep memory overwrite»
   applyExternal: 'Apply the external change', // spec: «применить внешние правки»
@@ -172,7 +173,7 @@ export const TEXT = {
   undone: 'The last commit is undone; its changes are back.',
   staleSelection: 'Files changed since they were shown. The list is updated; check them again.',
   hookFailed: (hook: string) => `${hook} failed. Nothing was committed.`,
-  hookToolMissing: (tool: string) => `A hook did not find ${tool}. Nothing was committed.`,
+  hookToolMissing: (hook: string, tool: string) => `${hook} did not find ${tool}. Nothing was committed.`,
   hookTimeout: 'A hook ran out of time and was stopped. Nothing was committed.',
   commitCancelled: 'The commit was cancelled. Nothing was committed.',
 
@@ -269,6 +270,155 @@ export const TEXT = {
 
   // Errors any call may meet.
   failed: (message: string) => `Failed: ${message}`,
+
+  // ---- stages 4–6: classes, adding, writing files, committing. Working texts: the owner approves them. ----------
+
+  // The list page and the connection (§3.6, §8.5).
+  addProject: 'Add project…',
+  addProjectTitle: 'Add a project',
+  addProjectBody:
+    'The folder of a git repository on this computer. Inside a trusted folder it is added at once and writable; elsewhere the companion asks you first.',
+  addProjectPath: 'Full path of the folder',
+  addProjectPlaceholder: '/path/to/project',
+  addProjectAbsolute: 'Type the full path, starting with /. A ~ is not expanded.',
+  addProjectRun: 'Add',
+  notInitialised: 'The companion is installed but not set up yet. Run this in Terminal:', // spec: «Выполните devtab init в Terminal»
+  notInitialisedCommand: 'devtab init',
+  noFoldersYet: 'With a trusted folder, projects inside it are added writable at once:',
+  // Waiting for the companion's window (§8.5 `awaiting-confirmation`).
+  awaiting: 'Confirm in the companion’s window.', // spec: «подтвердите в окне компаньона»
+  copyCommand: (command: string) => `Copy the command ${command}`,
+  terminalCommand: 'Command for Terminal',
+
+  // A project's class (§3.2, §8.4 «Класс проекта»).
+  viaTerminal: 'set in the terminal',
+  viaDialog: 'confirmed in the companion’s window',
+  viaPerson: 'made read only by you',
+  viaFolderGone: 'its trusted folder was removed, so it is read only again', // spec: «расположение удалено → просмотр с пояснением»
+  madeMine: 'The project is writable now.',
+  madeView: 'The project is read only now.',
+  removeProject: 'Remove…',
+  removeProjectTitle: (name: string) => `Remove ${name} from the companion?`,
+  removeProjectBody:
+    'The project leaves the list. Nothing in its folder changes, and the companion keeps its history; adding the folder again brings it back.',
+  removeProjectRun: 'Remove',
+
+  // Files: create, rename, delete (§4.6 «Записи файлов»).
+  fileActions: 'File actions',
+  newFile: 'New file…',
+  newFolder: 'New folder…',
+  renameFile: 'Rename…',
+  deleteFile: 'Delete…',
+  newFileTitle: 'New file',
+  newFolderTitle: 'New folder',
+  renameTitle: (path: string) => `Rename ${path}`,
+  pathInProject: 'Path in the project',
+  create: 'Create',
+  renameRun: 'Rename',
+  noTrash: 'The companion cannot move files to the Trash yet. Delete the file in Finder or the terminal.',
+  writeReadOnly: 'The project is read only.',
+  noOpenFile: 'Open a file first.',
+  created: (path: string) => `Created ${path}.`,
+  renamed: (from: string, to: string) => `Renamed ${from} to ${to}.`,
+  deleted: (path: string) => `Moved ${path} to the Trash.`,
+  deleteFileTitle: (path: string) => `Delete ${path}?`,
+  deleteFileBody: 'It goes to the Trash; the companion keeps a copy of it first.',
+  deleteRun: 'Delete',
+
+  // Committing (§6.1–§6.8).
+  pushNotOffered: 'This companion cannot push yet.',
+  hooksWillRun: (hooks: string) => `Hooks that run: ${hooks}`,
+  hooksWereSkipped: (hooks: string) => `Skipped: ${hooks}.`,
+  indexKept: (paths: string) => `A different version staged in the terminal stays in the index: ${paths}.`, // spec §6.1 п. 7
+  hookChangedCommit: (paths: string) => `A hook changed what was committed: ${paths}.`,
+  changedAfter: (paths: string) => `A hook changed files on disk: ${paths}.`,
+  hookOutput: 'Output of git and the hooks',
+  retry: 'Try again',
+  captureAgain: 'Capture the environment again…', // spec §6.3: «Снять окружение заново…»
+  undoCommitTitle: 'Undo last commit',
+  rollbackNoTrash: 'The companion cannot move files to the Trash yet: added files stay on disk.',
+  rollbackBefore: 'The companion keeps each file’s current text as “Before rollback” first.',
+
+  // What the companion refused, in the page's words: by the error's code and its data, never its message.
+  errors: {
+    invalidParams: 'The companion did not take the request.',
+    invalidPath:
+      'That is not a path inside the project: no “..”, “.” or empty parts, no backslash, no control characters.',
+    notFound: 'It is not there any more.',
+    addNotFound: 'No such folder, or it is not a git repository the companion may add.', // one answer for every refusal (S7)
+    outsideProject: 'The path leads outside the project, through a link.',
+    protectedGitDir: 'Files inside .git are never written from the page.',
+    protectedSymlink: 'This is a link: the page does not write through links.',
+    protectedReadOnlyFile: 'The file is read only on disk.',
+    protectedGitFilter: 'Bringing this file back would run a filter of the repository. Roll it back in the terminal.',
+    protectedSubmodule: 'A submodule is not rolled back from the page.',
+    protectedOther: 'This place is protected: the page does not write it.',
+    secretFile: 'This file holds secrets: it is read only from the page.',
+    notMine: 'The project is read only. Make it writable first.',
+    paused: 'The companion has paused writing. To resume, run:',
+    pausedCommand: 'devtab resume',
+    binary: 'This is a binary file: the page does not edit it.',
+    tooLarge: (limit: string) => `The text is larger than the companion takes (${limit}).`,
+    tooManyFiles: (size: number, limit: number) =>
+      `The folder holds ${size.toLocaleString('en-US')} files; the companion moves at most ${limit.toLocaleString('en-US')} at once.`,
+    exists: 'Something with that name is already there.',
+    staleHead: 'The repository moved on since the changes were shown. The list is updated; check them again.',
+    nothingSelected: 'Nothing to commit: the checked files hold no change against HEAD.',
+    hunksUnsupported: (path: string, why: string) =>
+      `${path} can only be committed whole: ${why}. Check the whole file.`,
+    hunkReasons: {
+      binary: 'it is binary',
+      'not-utf8': 'it is not UTF-8',
+      conflicted: 'it has a conflict',
+      renamed: 'it is renamed',
+      deleted: 'it is deleted',
+      submodule: 'it is a submodule',
+      'line-ends': 'a line ends with a lone carriage return',
+      'new-file': 'it is a new file',
+      'does-not-apply': 'the checked chunks no longer apply',
+      'too-large': 'it is too large',
+      'not-a-file': 'it is not a regular file',
+    } as Record<string, string>,
+    hookFailedNext:
+      'Fix what it reports and commit again, or uncheck “Run Git hooks” to skip pre-commit and commit-msg.',
+    hookToolPath: (when: string | null) =>
+      when
+        ? `The companion runs hooks with the PATH captured ${when}. Add the tool’s folder, or check the hook:`
+        : 'The companion runs hooks with a default PATH: no environment was captured. Add the tool’s folder, or check the hook:',
+    hookTimeout: (limit: string) => `A hook ran longer than ${limit} and was stopped. Nothing was committed.`,
+    indexLocked:
+      'Another git holds the repository’s lock file; nothing was done. Try again when it finishes. If no git is running, remove .git/index.lock in the terminal.',
+    signingFailed: 'Signing the commit failed. Nothing was committed. Check the signing setup of your git:',
+    undoUnavailable: {
+      moved: 'The last commit is not the one shown any more. The list is updated.',
+      pushed: 'The last commit is pushed, so it is not undone from the page.',
+      merge: 'The last commit is a merge: it is not undone from the page.',
+      root: 'The first commit of a branch is not undone from the page.',
+      detached: 'HEAD is detached: there is no branch to undo the commit on.',
+    } as Record<string, string>,
+    undoUnavailableOther: 'The last commit cannot be undone from the page.',
+    operationInProgress: (operation: string) =>
+      `A ${operation} is in progress in this repository. Finish or abort it in the terminal; nothing was committed.`,
+    confirmationDeclined: 'The request was declined in the companion’s window.',
+    noWindow: 'The companion cannot ask you in a window yet. Run this in Terminal instead:',
+    requestsOff: 'After three declines the companion takes no more requests from the page. To take them again, run:',
+    confirmationBusy: 'The companion is already asking about something else. Answer that window first.',
+    rateLimited: (seconds: number) => `Too many requests at once. Try again in ${seconds} s.`,
+    gitBusy: (seconds: number) => `Another git operation is running in this project. Try again in ${seconds} s.`,
+    serverRestarting: 'The companion’s server is restarting. Try again in a moment.',
+    cancelled: 'Cancelled.',
+    trashUnavailable: 'The companion cannot move files to the Trash yet: nothing was deleted.',
+    diskLow: (free: string, floor: string) =>
+      `Too little free disk space for the companion to keep a copy first (${free} free, ${floor} needed). Nothing was written.`,
+    notEncodable: (encoding: string) => `The text has characters ${encoding} cannot hold. Nothing was written.`,
+    notRunning: 'The companion is not connected.',
+    unsupportedVersion: 'The companion and this extension speak different versions. Update the older one.',
+    peerNotAllowed: 'The companion did not allow this connection.',
+    tooManyConnections: 'The companion has as many pages connected as it takes. Close another Projects tab.',
+    internal: 'The companion failed. Its debug log has the details.',
+    confirmationRequired: 'The companion waits for you to confirm in its window.',
+    other: (code: string) => `The companion refused (${code}).`,
+  },
 } as const;
 
 /** What a scratch store's refusal says (D34): what was not kept, and what the person can do. */

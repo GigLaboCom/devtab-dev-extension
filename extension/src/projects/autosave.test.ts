@@ -8,7 +8,7 @@ const flushPromises = async (): Promise<void> => {
   for (let i = 0; i < 10; i++) await Promise.resolve();
 };
 
-const setup = (answers: Array<'ok' | 'conflict' | 'away' | 'refused'> = []) => {
+const setup = (answers: Array<'ok' | 'conflict' | 'away' | 'refused' | 'encoding' | 'busy'> = []) => {
   let text = 'opened\n';
   const writes: { text: string; baseHash: string; reason: string }[] = [];
   const states: SaveState['kind'][] = [];
@@ -26,7 +26,9 @@ const setup = (answers: Array<'ok' | 'conflict' | 'away' | 'refused'> = []) => {
       if (answer === 'conflict') throw new CompanionError('conflict', 'changed on disk', { currentHash: 'disk' });
       if (answer === 'away') throw new CompanionError('server-restarting', 'restarting', { retryAfterMs: 100 });
       if (answer === 'refused') throw new CompanionError('secret-file', 'holds secrets');
-      return { hash: `h${writes.length}` };
+      if (answer === 'encoding') throw new CompanionError('not-encodable', 'no', { encoding: 'windows-1252' });
+      if (answer === 'busy') throw new CompanionError('rate-limited', 'too soon', { retryAfterMs: 300 });
+      return { hash: `h${writes.length}`, protected: written.includes('hook') ? 'hooks' : null };
     },
     onState: state => states.push(state.kind),
   });
@@ -141,11 +143,50 @@ describe('autosave', () => {
     const refused = setup(['refused']);
     refused.type('x\n');
     await refused.autosave.flush();
-    expect(refused.autosave.state).toEqual({ kind: 'refused', message: 'holds secrets' });
+    expect(refused.autosave.state).toMatchObject({ kind: 'refused', error: { code: 'secret-file' } });
     refused.type('y\n');
     vi.advanceTimersByTime(5000);
     await refused.autosave.flush();
     expect(refused.writes).toHaveLength(1);
+  });
+
+  it('a refusal of the text (an encoding that cannot hold it) is tried again with the next edit', async () => {
+    const { type, writes, autosave } = setup(['encoding']);
+    type('snowman ☃\n');
+    await autosave.flush();
+    expect(autosave.state).toMatchObject({ kind: 'refused', error: { code: 'not-encodable' } });
+    type('snowman\n');
+    vi.advanceTimersByTime(1000);
+    await flushPromises();
+    expect(writes.map(w => w.text)).toEqual(['snowman ☃\n', 'snowman\n']);
+    expect(autosave.state.kind).toBe('saved');
+  });
+
+  it('`rate-limited` waits what the companion asked, then writes the newest text', async () => {
+    const { type, writes, autosave } = setup(['busy']);
+    type('one\n');
+    await autosave.flush();
+    expect(autosave.state.kind).toBe('offline');
+    vi.advanceTimersByTime(299);
+    await flushPromises();
+    expect(writes).toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    await flushPromises();
+    expect(writes.map(w => w.text)).toEqual(['one\n', 'one\n']);
+  });
+
+  it('tells which rule marks a saved file as running code', async () => {
+    const marks: Array<string | null> = [];
+    const autosave = createAutosave({
+      baseHash: 'h0',
+      savedText: '',
+      read: () => Promise.resolve('#!/bin/sh hook\n'),
+      save: async () => ({ hash: 'h1', protected: 'hooks' }),
+      onSaved: (_text, _hash, marked) => marks.push(marked),
+    });
+    autosave.edited();
+    await autosave.flush();
+    expect(marks).toEqual(['hooks']);
   });
 
   it('after dispose nothing is written', async () => {
