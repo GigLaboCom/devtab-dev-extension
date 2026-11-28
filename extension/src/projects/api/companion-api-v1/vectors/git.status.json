@@ -15,6 +15,7 @@
         "files": [
           {
             "change": "untracked",
+            "diskBytesHash": "5769bbaf2afc05866be07123385b0f6b85d74e90d4fbfbfd9cdd4fca9b7897b5",
             "diskHash": null,
             "group": "unversioned",
             "path": "big.txt",
@@ -23,6 +24,7 @@
           },
           {
             "change": "modified",
+            "diskBytesHash": null,
             "diskHash": "97386c425988e923536e35bdcf9b929f2a25d41ace71dc81391b49d5906d9150",
             "group": "changes",
             "path": "docs/readme.md",
@@ -31,6 +33,7 @@
           },
           {
             "change": "deleted",
+            "diskBytesHash": null,
             "diskHash": null,
             "group": "changes",
             "path": "gone.txt",
@@ -39,6 +42,7 @@
           },
           {
             "change": "untracked",
+            "diskBytesHash": null,
             "diskHash": null,
             "group": "unversioned",
             "path": "link-git",
@@ -47,6 +51,7 @@
           },
           {
             "change": "untracked",
+            "diskBytesHash": null,
             "diskHash": null,
             "group": "unversioned",
             "path": "link-in",
@@ -55,6 +60,7 @@
           },
           {
             "change": "untracked",
+            "diskBytesHash": null,
             "diskHash": null,
             "group": "unversioned",
             "path": "link-out",
@@ -63,6 +69,7 @@
           },
           {
             "change": "modified",
+            "diskBytesHash": null,
             "diskHash": "36a8c5242c933bf17bfe0e6367ba66cb5a1a0348a23b12d89abdacb0e99ef69e",
             "group": "changes",
             "path": "src/app.txt",
@@ -71,6 +78,7 @@
           },
           {
             "change": "untracked",
+            "diskBytesHash": null,
             "diskHash": "0103cc5bcf1407cdb47ea1261afdca6c9bafa635c35605310930e595e5958335",
             "group": "unversioned",
             "path": "src/new.txt",

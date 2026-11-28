@@ -1,0 +1,41 @@
+[
+  {
+    "request": {
+      "id": 72,
+      "method": "project.requestMine",
+      "params": {
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 72,
+      "result": {
+        "class": "mine"
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 75,
+      "method": "project.requestMine",
+      "params": {
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "confirmation-unavailable",
+        "data": {
+          "command": "cd ~/fx/repo && devtab add --write",
+          "reason": "no-window"
+        },
+        "message": "the companion cannot show its window; run the command in a terminal instead"
+      },
+      "id": 75,
+      "type": "error"
+    }
+  }
+]

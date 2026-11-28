@@ -14,16 +14,17 @@
         "ahead": 0,
         "behind": 0,
         "branch": "main",
-        "class": "view",
+        "class": "mine",
         "detached": false,
         "historyGaps": [],
         "hooks": [
           "pre-commit"
         ],
         "hooksPath": false,
-        "location": null,
+        "location": "~/fx",
+        "locationName": "fx",
         "upstream": null,
-        "via": "terminal"
+        "via": "location"
       },
       "type": "result"
     }

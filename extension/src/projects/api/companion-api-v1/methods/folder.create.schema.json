@@ -1,0 +1,39 @@
+{
+  "method": "folder.create",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Parameters naming a path in a project.",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "path"
+    ],
+    "title": "PathParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`folder.create`, `file.rename`: the rule that marks the new path as running code, or null.",
+    "properties": {
+      "protected": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "title": "Written",
+    "type": "object"
+  },
+  "scope": "mine",
+  "summary": "Creates a folder (and missing folders on the way); never over an existing one."
+}

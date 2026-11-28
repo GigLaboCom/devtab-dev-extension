@@ -1,0 +1,62 @@
+[
+  {
+    "request": {
+      "id": 43,
+      "method": "file.create",
+      "params": {
+        "path": "notes/new.txt",
+        "project": "p_abcdefgh23",
+        "text": "made by the page\n"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 43,
+      "result": {
+        "hash": "5c8ead41b7018d96e1a50cc1739ba4f4b2c7cda3a1d98d6c599aa37a3148d224",
+        "protected": null
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 44,
+      "method": "file.create",
+      "params": {
+        "path": "notes/new.txt",
+        "project": "p_abcdefgh23",
+        "text": ""
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "exists",
+        "message": "a file or folder with that name exists already"
+      },
+      "id": 44,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 45,
+      "method": "file.create",
+      "params": {
+        "path": ".husky/pre-commit",
+        "project": "p_abcdefgh23",
+        "text": "#!/bin/sh\n"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 45,
+      "result": {
+        "hash": "a8076d3d28d21e02012b20eaf7dbf75409a6277134439025f282e368e3305abf",
+        "protected": "hooks"
+      },
+      "type": "result"
+    }
+  }
+]

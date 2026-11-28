@@ -1,0 +1,44 @@
+{
+  "method": "file.rename",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`file.rename` parameters: both paths go through the write policy.",
+    "properties": {
+      "from": {
+        "type": "string"
+      },
+      "project": {
+        "type": "string"
+      },
+      "to": {
+        "description": "Never an existing entry (`exists`); missing folders on the way are created.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "from",
+      "to"
+    ],
+    "title": "RenameParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`folder.create`, `file.rename`: the rule that marks the new path as running code, or null.",
+    "properties": {
+      "protected": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "title": "Written",
+    "type": "object"
+  },
+  "scope": "mine",
+  "summary": "Renames or moves a file or folder inside the project; both paths go through the write policy; never over an existing entry."
+}

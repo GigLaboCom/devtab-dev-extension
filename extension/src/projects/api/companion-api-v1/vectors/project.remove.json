@@ -1,0 +1,35 @@
+[
+  {
+    "request": {
+      "id": 77,
+      "method": "project.remove",
+      "params": {
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 77,
+      "result": {},
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 78,
+      "method": "project.remove",
+      "params": {
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "not-found",
+        "message": "no such project"
+      },
+      "id": 78,
+      "type": "error"
+    }
+  }
+]

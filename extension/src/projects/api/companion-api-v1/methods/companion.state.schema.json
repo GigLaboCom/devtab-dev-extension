@@ -11,7 +11,7 @@
     "$defs": {
       "EnvState": {
         "additionalProperties": false,
-        "description": "The captured environment for git hooks (captured from stage 4 on; empty here).",
+        "description": "The environment captured from the person's login shell for git hooks (`devtab init`, `devtab env capture`):\nwhen, and the folders of its `PATH`. `capturedAt` is null until it is captured.",
         "properties": {
           "capturedAt": {
             "format": "uint64",
@@ -83,7 +83,7 @@
         "$ref": "#/$defs/EnvState"
       },
       "paused": {
-        "description": "Whether writing is paused (always false: this companion does not write).",
+        "description": "Whether writing is paused (always false: this version has no pause).",
         "type": "boolean"
       },
       "problems": {

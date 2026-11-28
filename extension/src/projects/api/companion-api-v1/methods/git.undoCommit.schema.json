@@ -1,0 +1,47 @@
+{
+  "method": "git.undoCommit",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`git.undoCommit` parameters.",
+    "properties": {
+      "headSha": {
+        "description": "The commit the page shows as the last one (`git.status.headSha`).",
+        "type": "string"
+      },
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "headSha"
+    ],
+    "title": "UndoParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`git.undoCommit`: the undone commit's message (for the message field) and its paths, now uncommitted.",
+    "properties": {
+      "message": {
+        "type": "string"
+      },
+      "paths": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "message",
+      "paths"
+    ],
+    "title": "UndoneCommit",
+    "type": "object"
+  },
+  "scope": "mine",
+  "summary": "Undoes the last commit of the current branch when no remote branch has it: its changes become                   uncommitted again, its message comes back."
+}

@@ -1,0 +1,98 @@
+{
+  "method": "file.save",
+  "params": {
+    "$defs": {
+      "SaveReason": {
+        "description": "Why a `file.save` is made.",
+        "oneOf": [
+          {
+            "const": "auto",
+            "description": "The page saved by itself after an edit.",
+            "type": "string"
+          },
+          {
+            "const": "explicit",
+            "description": "The person asked to save.",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`file.save` parameters.",
+    "properties": {
+      "baseHash": {
+        "description": "The `hash` of the version the edit started from (`file.read.hash`); a file that changed since is not\nwritten (`conflict`).",
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "project": {
+        "type": "string"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SaveReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "session": {
+        "default": null,
+        "description": "The page's name for this editing session (at most 128 characters). Only a hint: the companion decides when a\nsession ends (10 minutes without a write to the file) and keeps one \"before\" copy per session.",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "text": {
+        "description": "The whole new text, with `\\n` line ends (`\\r\\n` and `\\r` are read as `\\n`); the file keeps its own\nencoding, byte order mark and line ends.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "path",
+      "baseHash",
+      "text"
+    ],
+    "title": "SaveParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`file.save`.",
+    "properties": {
+      "hash": {
+        "description": "The new version of the file (the same hash as `file.read.hash`).",
+        "type": "string"
+      },
+      "mtimeMs": {
+        "format": "double",
+        "type": "number"
+      },
+      "protected": {
+        "description": "The rule that marks the file as running code (hooks, tool settings), or null.",
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "hash",
+      "mtimeMs"
+    ],
+    "title": "Saved",
+    "type": "object"
+  },
+  "scope": "mine",
+  "summary": "Writes a file's new text if the file is still the version `baseHash` names (else `conflict`); keeps its encoding, byte order mark and line ends, and a \"before\" copy first."
+}

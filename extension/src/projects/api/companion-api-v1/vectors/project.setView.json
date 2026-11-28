@@ -1,0 +1,37 @@
+[
+  {
+    "request": {
+      "id": 73,
+      "method": "project.setView",
+      "params": {
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 73,
+      "result": {
+        "class": "view"
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 74,
+      "method": "project.setView",
+      "params": {
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "not-mine",
+        "message": "the project is read-only (view); this needs a writable one"
+      },
+      "id": 74,
+      "type": "error"
+    }
+  }
+]

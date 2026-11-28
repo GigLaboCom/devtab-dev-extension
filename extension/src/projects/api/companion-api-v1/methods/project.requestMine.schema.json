@@ -1,0 +1,51 @@
+{
+  "method": "project.requestMine",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Parameters naming a project.",
+    "properties": {
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project"
+    ],
+    "title": "ProjectParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "ProjectClass": {
+        "oneOf": [
+          {
+            "const": "view",
+            "description": "Read-only: the page reads, nothing more.",
+            "type": "string"
+          },
+          {
+            "const": "mine",
+            "description": "Writable: the page may also write files (and use git, in later versions).",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`project.requestMine`, `project.setView`: the project's class afterwards.",
+    "properties": {
+      "class": {
+        "$ref": "#/$defs/ProjectClass"
+      }
+    },
+    "required": [
+      "class"
+    ],
+    "title": "ClassResult",
+    "type": "object"
+  },
+  "scope": "project",
+  "summary": "Asks to make a project writable (\"mine\"): at once inside a writable trusted folder, otherwise only after the person confirms in the companion's window."
+}

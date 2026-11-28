@@ -1,0 +1,27 @@
+{
+  "method": "project.remove",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Parameters naming a project.",
+    "properties": {
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project"
+    ],
+    "title": "ProjectParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "An empty result.",
+    "title": "Empty",
+    "type": "object"
+  },
+  "scope": "project",
+  "summary": "Removes a project from the companion at once; nothing in its folder is touched, its history stays."
+}

@@ -13,12 +13,12 @@
         "oneOf": [
           {
             "const": "view",
-            "description": "Read-only.",
+            "description": "Read-only: the page reads, nothing more.",
             "type": "string"
           },
           {
             "const": "mine",
-            "description": "Writable (from a later stage of the companion).",
+            "description": "Writable: the page may also write files (and use git, in later versions).",
             "type": "string"
           }
         ]
@@ -60,12 +60,14 @@
             "type": "string"
           },
           "location": {
+            "description": "The trusted folder the project lies in, with `~/` for the home directory; null outside trusted folders.",
             "type": [
               "string",
               "null"
             ]
           },
           "locationName": {
+            "description": "That folder's name (`devtab trust --name`).",
             "type": [
               "string",
               "null"
@@ -94,12 +96,28 @@
       },
       "Via": {
         "description": "How the project got its class.",
-        "enum": [
-          "terminal",
-          "dialog",
-          "location"
-        ],
-        "type": "string"
+        "oneOf": [
+          {
+            "const": "terminal",
+            "description": "A command in the person's terminal (`devtab add`, `devtab add --write`).",
+            "type": "string"
+          },
+          {
+            "const": "dialog",
+            "description": "The companion's confirmation window, after the page asked.",
+            "type": "string"
+          },
+          {
+            "const": "location",
+            "description": "A trusted folder (`devtab trust`) the project lies in or was added through; `location` names the folder\n(null when it is no longer trusted).",
+            "type": "string"
+          },
+          {
+            "const": "person",
+            "description": "The person made it read-only (`devtab read-only`, `project.setView`); a trusted folder does not make it\nwritable again.",
+            "type": "string"
+          }
+        ]
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",

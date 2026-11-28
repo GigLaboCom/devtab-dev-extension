@@ -11,14 +11,14 @@
       "result": [
         {
           "branch": "main",
-          "class": "view",
+          "class": "mine",
           "displayPath": "~/fx/repo",
           "id": "p_abcdefgh23",
-          "location": null,
-          "locationName": null,
+          "location": "~/fx",
+          "locationName": "fx",
           "name": "repo",
           "state": "open",
-          "via": "terminal"
+          "via": "location"
         }
       ],
       "type": "result"

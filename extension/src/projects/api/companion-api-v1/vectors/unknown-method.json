@@ -2,11 +2,12 @@
   {
     "request": {
       "id": 35,
-      "method": "file.save",
+      "method": "git.push",
       "params": {
-        "path": "x.txt",
-        "project": "p_abcdefgh23",
-        "text": "y"
+        "expect": {
+          "headSha": "a5c8a8f38f555426b8634a56dac2a7423e9f3902"
+        },
+        "project": "p_abcdefgh23"
       },
       "type": "call"
     },
@@ -14,7 +15,7 @@
       "error": {
         "code": "unknown-method",
         "data": {
-          "method": "file.save"
+          "method": "git.push"
         },
         "message": "this companion does not offer that method"
       },

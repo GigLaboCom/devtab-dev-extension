@@ -1,0 +1,55 @@
+{
+  "method": "file.delete",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`file.delete` parameters.",
+    "properties": {
+      "baseHash": {
+        "default": null,
+        "description": "For a file: the version the page showed; a file that changed since is not deleted (`conflict`).",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "path": {
+        "type": "string"
+      },
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "path"
+    ],
+    "title": "DeleteParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`file.delete`.",
+    "properties": {
+      "files": {
+        "description": "How many files went to the Trash.",
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "trashed": {
+        "description": "Always true: a deletion goes to the Trash or does not happen.",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "trashed",
+      "files"
+    ],
+    "title": "Deleted",
+    "type": "object"
+  },
+  "scope": "mine",
+  "summary": "Moves a file or folder to the Trash, or refuses with nothing deleted. This version has no Trash: it answers `trash-unavailable` and is not listed in `welcome.methods`."
+}

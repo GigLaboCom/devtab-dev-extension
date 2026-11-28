@@ -1,0 +1,111 @@
+{
+  "method": "git.rollback",
+  "params": {
+    "$defs": {
+      "ExpectedFile": {
+        "additionalProperties": false,
+        "description": "The version of a file the page showed, from `git.status` (or `git.hunks`).",
+        "properties": {
+          "diskBytesHash": {
+            "default": null,
+            "description": "`git.status.diskBytesHash` as shown, for a file without a text hash (binary, above the text limit).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "diskHash": {
+            "description": "`git.status.diskHash` as shown: the text's hash, or null (deleted, binary, above the text limit).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "RollbackExpect": {
+        "additionalProperties": false,
+        "description": "What the page showed when the person chose Rollback.",
+        "properties": {
+          "files": {
+            "description": "One entry for every path.",
+            "items": {
+              "$ref": "#/$defs/ExpectedFile"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`git.rollback` parameters.",
+    "properties": {
+      "deleteAdded": {
+        "description": "\"Delete local copies of added files\": new files go to the Trash (through the deletion policy).",
+        "type": "boolean"
+      },
+      "expect": {
+        "$ref": "#/$defs/RollbackExpect"
+      },
+      "paths": {
+        "description": "Files to bring back to HEAD, whole.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "paths",
+      "deleteAdded",
+      "expect"
+    ],
+    "title": "RollbackParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`git.rollback`.",
+    "properties": {
+      "rolledBack": {
+        "description": "Paths brought back to HEAD (a new file: taken out of the index, kept on disk).",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "trashed": {
+        "description": "New files moved to the Trash.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "rolledBack",
+      "trashed"
+    ],
+    "title": "RolledBack",
+    "type": "object"
+  },
+  "scope": "mine",
+  "summary": "Brings files back to HEAD, whole, through the write policy and with a \"before\" copy of each; new                   files leave the index, and go to the Trash only with `deleteAdded`."
+}

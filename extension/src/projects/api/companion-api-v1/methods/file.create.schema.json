@@ -1,0 +1,51 @@
+{
+  "method": "file.create",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`file.create` parameters.",
+    "properties": {
+      "path": {
+        "description": "The new file; missing folders on the way are created.",
+        "type": "string"
+      },
+      "project": {
+        "type": "string"
+      },
+      "text": {
+        "default": "",
+        "description": "Its text, `\\n` line ends; empty when absent. A new file is UTF-8 without a byte order mark, with LF.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "path"
+    ],
+    "title": "CreateParams",
+    "type": "object"
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`file.create`.",
+    "properties": {
+      "hash": {
+        "type": "string"
+      },
+      "protected": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "hash"
+    ],
+    "title": "Created",
+    "type": "object"
+  },
+  "scope": "mine",
+  "summary": "Creates a file (and missing folders on the way) with a text; never over an existing one."
+}

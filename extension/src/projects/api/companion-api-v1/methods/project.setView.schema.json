@@ -1,0 +1,51 @@
+{
+  "method": "project.setView",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Parameters naming a project.",
+    "properties": {
+      "project": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project"
+    ],
+    "title": "ProjectParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "ProjectClass": {
+        "oneOf": [
+          {
+            "const": "view",
+            "description": "Read-only: the page reads, nothing more.",
+            "type": "string"
+          },
+          {
+            "const": "mine",
+            "description": "Writable: the page may also write files (and use git, in later versions).",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "`project.requestMine`, `project.setView`: the project's class afterwards.",
+    "properties": {
+      "class": {
+        "$ref": "#/$defs/ProjectClass"
+      }
+    },
+    "required": [
+      "class"
+    ],
+    "title": "ClassResult",
+    "type": "object"
+  },
+  "scope": "mine",
+  "summary": "Makes a writable project read-only (\"view\") at once; a trusted folder does not raise it again."
+}

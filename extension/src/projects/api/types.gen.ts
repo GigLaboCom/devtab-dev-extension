@@ -11,14 +11,14 @@ export interface CompanionState {
   /** How deletions from the browser happen; the only value is `trash`. */
   deletePolicy: string;
   env: EnvState;
-  /** Whether writing is paused (always false: this companion does not write). */
+  /** Whether writing is paused (always false: this version has no pause). */
   paused: boolean;
   /** Problems the person should know about, as short English sentences; `devtab doctor` explains each. */
   problems: string[];
   server: ServerState;
 }
 
-/** The captured environment for git hooks (captured from stage 4 on; empty here). */
+/** The environment captured from the person's login shell for git hooks (`devtab init`, `devtab env capture`): when, and the folders of its `PATH`. `capturedAt` is null until it is captured. */
 export interface EnvState {
   capturedAt?: number | null;
   path: string[];
@@ -81,6 +81,12 @@ export interface Side {
   text?: string | null;
 }
 
+/** `env.requestCapture`: when the environment was captured and the folders of its `PATH`. */
+export interface EnvCaptured {
+  capturedAt: number;
+  path: string[];
+}
+
 /** Parameters naming a project. */
 export interface ProjectParams {
   project: string;
@@ -88,6 +94,37 @@ export interface ProjectParams {
 
 /** An empty result. */
 export type Empty = Record<string, never>;
+
+/** `file.create` parameters. */
+export interface CreateParams {
+  /** The new file; missing folders on the way are created. */
+  path: string;
+  project: string;
+  /** Its text, `\n` line ends; empty when absent. A new file is UTF-8 without a byte order mark, with LF. */
+  text?: string;
+}
+
+/** `file.create`. */
+export interface Created {
+  hash: string;
+  protected?: string | null;
+}
+
+/** `file.delete` parameters. */
+export interface DeleteParams {
+  /** For a file: the version the page showed; a file that changed since is not deleted (`conflict`). */
+  baseHash?: string | null;
+  path: string;
+  project: string;
+}
+
+/** `file.delete`. */
+export interface Deleted {
+  /** How many files went to the Trash. */
+  files: number;
+  /** Always true: a deletion goes to the Trash or does not happen. */
+  trashed: boolean;
+}
 
 /** Parameters naming a path in a project. */
 export interface PathParams {
@@ -99,7 +136,7 @@ export interface PathParams {
 export interface FileText {
   bom: boolean;
   encoding: string;
-  /** SHA-256 (hex) of `text`. */
+  /** SHA-256 (hex) of `text`: the version of the file that a later write is compared with (`git.status.diskHash` and `git.hunks.diskHash` are the same hash). */
   hash: string;
   large: boolean;
   lineEnding: LineEnding;
@@ -112,6 +149,44 @@ export interface FileText {
 }
 
 export type LineEnding = 'lf' | 'crlf' | 'mixed';
+
+/** `file.rename` parameters: both paths go through the write policy. */
+export interface RenameParams {
+  from: string;
+  project: string;
+  /** Never an existing entry (`exists`); missing folders on the way are created. */
+  to: string;
+}
+
+/** `folder.create`, `file.rename`: the rule that marks the new path as running code, or null. */
+export interface Written {
+  protected?: string | null;
+}
+
+/** `file.save` parameters. */
+export interface SaveParams {
+  /** The `hash` of the version the edit started from (`file.read.hash`); a file that changed since is not written (`conflict`). */
+  baseHash: string;
+  path: string;
+  project: string;
+  reason?: SaveReason | null;
+  /** The page's name for this editing session (at most 128 characters). Only a hint: the companion decides when a session ends (10 minutes without a write to the file) and keeps one "before" copy per session. */
+  session?: string | null;
+  /** The whole new text, with `\n` line ends (`\r\n` and `\r` are read as `\n`); the file keeps its own encoding, byte order mark and line ends. */
+  text: string;
+}
+
+/** Why a `file.save` is made. */
+export type SaveReason = 'auto' | 'explicit';
+
+/** `file.save`. */
+export interface Saved {
+  /** The new version of the file (the same hash as `file.read.hash`). */
+  hash: string;
+  mtimeMs: number;
+  /** The rule that marks the file as running code (hooks, tool settings), or null. */
+  protected?: string | null;
+}
 
 /** `files.find` parameters. */
 export interface FindParams {
@@ -130,16 +205,70 @@ export interface FoundFile {
   score: number;
 }
 
+/** `git.commit` parameters. */
+export interface CommitParams {
+  expect: CommitExpect;
+  /** The commit message (git's `--cleanup=whitespace` applies; not empty after it). */
+  message: string;
+  project: string;
+  /** "Run Git hooks": false commits with `--no-verify`, which skips `pre-commit` and `commit-msg` only — `prepare-commit-msg` and `post-commit` run all the same. */
+  runHooks: boolean;
+  selection: Selected[];
+}
+
+/** What the page showed when the person pressed Commit. */
+export interface CommitExpect {
+  /** One entry for every checked path. */
+  files: ExpectedFile[];
+  /** `git.status.headSha` (null on a branch without commits). */
+  headSha?: string | null;
+}
+
+/** The version of a file the page showed, from `git.status` (or `git.hunks`). */
+export interface ExpectedFile {
+  /** `git.status.diskBytesHash` as shown, for a file without a text hash (binary, above the text limit). */
+  diskBytesHash?: string | null;
+  /** `git.status.diskHash` as shown: the text's hash, or null (deleted, binary, above the text limit). */
+  diskHash?: string | null;
+  path: string;
+}
+
+/** One checked entry of `git.commit`: a whole file, or chosen hunks of it. */
+export interface Selected {
+  /** Indices of `git.hunks` (HEAD → disk) to commit; absent for the whole file. Not empty when present. */
+  chunks?: number[] | null;
+  path: string;
+}
+
+/** `git.commit`. */
+export interface CommitResult {
+  /** Files on disk a hook changed while the commit ran. */
+  changedAfter: string[];
+  /** Paths a hook changed in the commit itself (the tree after the hooks differs from what was checked). */
+  hookChangedCommit: string[];
+  /** The hooks that were skipped (`--no-verify`): empty when `runHooks` was true. */
+  hooksSkipped: string[];
+  /** Committed paths whose entry in the person's index was left as it was: a version staged from a terminal that is neither the old HEAD's nor the committed one. */
+  indexKept: string[];
+  /** The new commit. */
+  sha: string;
+}
+
+/** One `stream` frame of `git.commit`: output of git and the hooks, in the order it came. */
+export interface CommitOutput {
+  text: string;
+}
+
 /** `git.hunks`. */
 export interface GitHunks {
   /** Whether hunks can be selected one by one. */
   chunkable: boolean;
-  /** SHA-256 (hex) of the text on disk; null when the file is gone. */
+  /** SHA-256 (hex) of the text on disk as `file.read` returns it (the same hash as `file.read.hash`); null when the file is gone or binary. */
   diskHash?: string | null;
   /** SHA-256 (hex) of HEAD's text; null when the file is not in HEAD. */
   headHash?: string | null;
   hunks: IndexedHunk[];
-  /** Why not, when `chunkable` is false: `binary`, `not-utf8`, `conflicted`, `renamed`, `deleted`. */
+  /** Why not, when `chunkable` is false: `binary`, `not-utf8`, `conflicted`, `renamed`, `deleted`, `submodule`, `line-ends` (a line ends with a lone carriage return). Such a file is committed whole. */
   reason?: string | null;
 }
 
@@ -164,6 +293,35 @@ export interface Signing {
   format?: string | null;
 }
 
+/** `git.messages`: the project's recent commit messages, newest first (at most 20). */
+export interface CommitMessages {
+  messages: string[];
+}
+
+/** `git.rollback` parameters. */
+export interface RollbackParams {
+  /** "Delete local copies of added files": new files go to the Trash (through the deletion policy). */
+  deleteAdded: boolean;
+  expect: RollbackExpect;
+  /** Files to bring back to HEAD, whole. */
+  paths: string[];
+  project: string;
+}
+
+/** What the page showed when the person chose Rollback. */
+export interface RollbackExpect {
+  /** One entry for every path. */
+  files: ExpectedFile[];
+}
+
+/** `git.rollback`. */
+export interface RolledBack {
+  /** Paths brought back to HEAD (a new file: taken out of the index, kept on disk). */
+  rolledBack: string[];
+  /** New files moved to the Trash. */
+  trashed: string[];
+}
+
 /** `git.status`. */
 export interface GitStatus {
   branch?: string | null;
@@ -174,7 +332,9 @@ export interface GitStatus {
 /** One changed file of `git.status`. */
 export interface StatusFile {
   change: Change;
-  /** SHA-256 (hex) of the file's bytes on disk; null when deleted, not a regular file or above the text limit. */
+  /** For a regular file that has no `diskHash` (binary, or above the text limit): SHA-256 (hex) of its bytes, so that a commit or rollback can tell it changed since it was shown. Null otherwise. */
+  diskBytesHash?: string | null;
+  /** The version of the file on disk: SHA-256 (hex) of its text as `file.read` returns it (decoded, without a byte order mark, `\n` line ends) — the same hash as `file.read.hash` and `git.hunks.diskHash`. Null when the file is deleted, not a regular file, binary or above the text limit. */
   diskHash?: string | null;
   group: StatusGroup;
   path: string;
@@ -186,6 +346,19 @@ export interface StatusFile {
 export type Change = 'modified' | 'added' | 'deleted' | 'renamed' | 'conflicted' | 'untracked';
 
 export type StatusGroup = 'changes' | 'unversioned';
+
+/** `git.undoCommit` parameters. */
+export interface UndoParams {
+  /** The commit the page shows as the last one (`git.status.headSha`). */
+  headSha: string;
+  project: string;
+}
+
+/** `git.undoCommit`: the undone commit's message (for the message field) and its paths, now uncommitted. */
+export interface UndoneCommit {
+  message: string;
+  paths: string[];
+}
 
 /** `history.content` parameters. */
 export interface PointParams {
@@ -253,6 +426,46 @@ export interface ProjectPoint {
   timeMs: number;
 }
 
+/** One trusted folder of `locations.list`. The list is read-only for the page: no method creates, changes or removes a trusted folder. */
+export interface LocationSummary {
+  createdVia: CreatedVia;
+  /** The folder with `~/` for the home directory. */
+  displayPath: string;
+  mode: LocationMode;
+  name: string;
+  /** How many added projects lie inside it. */
+  projects: number;
+}
+
+/** Who created a trusted folder. */
+export type CreatedVia = 'terminal' | 'dialog' | 'init';
+
+/** What a trusted folder gives the projects inside it. */
+export type LocationMode = 'write' | 'read-only';
+
+/** `project.requestAdd` parameters: the only absolute path the API accepts. */
+export interface RequestAddParams {
+  /** The folder to add: an absolute path (`~` is not expanded). */
+  path: string;
+}
+
+/** `project.requestAdd`. */
+export interface RequestAdded {
+  class: ProjectClass;
+  id: string;
+  via: Via;
+}
+
+export type ProjectClass = 'view' | 'mine';
+
+/** How the project got its class. */
+export type Via = 'terminal' | 'dialog' | 'location' | 'person';
+
+/** `project.requestMine`, `project.setView`: the project's class afterwards. */
+export interface ClassResult {
+  class: ProjectClass;
+}
+
 /** `project.state`. */
 export interface ProjectStateResult {
   ahead: number;
@@ -265,15 +478,13 @@ export interface ProjectStateResult {
   hooks: string[];
   /** Whether the repository sets `core.hooksPath`. */
   hooksPath: boolean;
+  /** The trusted folder the project lies in (`~/…`); null outside trusted folders. */
   location?: string | null;
+  /** That folder's name. */
+  locationName?: string | null;
   upstream?: string | null;
   via: Via;
 }
-
-export type ProjectClass = 'view' | 'mine';
-
-/** How the project got its class. */
-export type Via = 'terminal' | 'dialog' | 'location';
 
 /** One entry of `projects.list`. */
 export interface ProjectSummary {
@@ -282,7 +493,9 @@ export interface ProjectSummary {
   /** The root with `~/` for the home directory. */
   displayPath: string;
   id: string;
+  /** The trusted folder the project lies in, with `~/` for the home directory; null outside trusted folders. */
   location?: string | null;
+  /** That folder's name (`devtab trust --name`). */
   locationName?: string | null;
   /** The folder's name. */
   name: string;
@@ -374,7 +587,12 @@ export type GitChanged = Record<string, never>;
 export interface ProjectChanged {
   class?: ProjectClass | null;
   state?: ProjectRunState | null;
+  /** How the project got its class, sent with `class`. */
+  via?: Via | null;
 }
+
+/** `projects.changed`: a project was added or removed, a class changed, or a trusted folder was added, changed or removed; read `projects.list` and `locations.list` again. No data. */
+export type ProjectsChanged = Record<string, never>;
 
 /** `server.restarted`: a new server process is ready; read again what is shown. No data. */
 export type ServerRestarted = Record<string, never>;
@@ -418,6 +636,7 @@ export type ErrorCode =
   | 'index-locked'
   | 'signing-failed'
   | 'undo-unavailable'
+  | 'operation-in-progress'
   | 'push-rejected'
   | 'push-remote-rejected'
   | 'push-auth-failed'
@@ -436,6 +655,7 @@ export type ErrorCode =
   | 'trash-unavailable'
   | 'confirmation-required'
   | 'disk-low'
+  | 'not-encodable'
   | 'not-running'
   | 'peer-not-allowed'
   | 'too-many-connections'
@@ -447,26 +667,56 @@ export interface ContractMethods {
   'companion.state': { params: NoParams; result: CompanionState; stream: never };
   /** Both sides of a file's diff: HEAD, the index, a commit or a history point against the disk. Scope: project. */
   'diff.sides': { params: DiffParams; result: DiffSides; stream: never };
+  /** Asks to capture the environment from the login shell again; only after the person confirms in the companion's window (`devtab env capture` in a terminal needs none). Scope: companion. */
+  'env.requestCapture': { params: NoParams; result: EnvCaptured; stream: never };
   /** Start sending this connection the project's events. Scope: project. */
   'events.subscribe': { params: ProjectParams; result: Empty; stream: never };
   /** Stop sending this connection the project's events. Scope: project. */
   'events.unsubscribe': { params: ProjectParams; result: Empty; stream: never };
+  /** Creates a file (and missing folders on the way) with a text; never over an existing one. Scope: mine. */
+  'file.create': { params: CreateParams; result: Created; stream: never };
+  /** Moves a file or folder to the Trash, or refuses with nothing deleted. This version has no Trash: it answers `trash-unavailable` and is not listed in `welcome.methods`. Scope: mine. */
+  'file.delete': { params: DeleteParams; result: Deleted; stream: never };
   /** The text of a file (secrets too, flagged); binary and too large files are refused. Scope: project. */
   'file.read': { params: PathParams; result: FileText; stream: never };
+  /** Renames or moves a file or folder inside the project; both paths go through the write policy; never over an existing entry. Scope: mine. */
+  'file.rename': { params: RenameParams; result: Written; stream: never };
+  /** Writes a file's new text if the file is still the version `baseHash` names (else `conflict`); keeps its encoding, byte order mark and line ends, and a "before" copy first. Scope: mine. */
+  'file.save': { params: SaveParams; result: Saved; stream: never };
   /** Files whose path matches a fuzzy query. Scope: project. */
   'files.find': { params: FindParams; result: FoundFile[]; stream: never };
+  /** Creates a folder (and missing folders on the way); never over an existing one. Scope: mine. */
+  'folder.create': { params: PathParams; result: Written; stream: never };
+  /** Commits the checked files and hunks (counted from HEAD) with the companion's own git, in a                   temporary index; the person's index keeps what they staged. Hooks run as in a terminal unless                   `runHooks` is false. Streams the output of git and the hooks; cancellable. Scope: mine. */
+  'git.commit': { params: CommitParams; result: CommitResult; stream: CommitOutput };
   /** The hunks of a file, HEAD against the disk. Scope: project. */
   'git.hunks': { params: PathParams; result: GitHunks; stream: never };
   /** git's user name and email and whether commits are signed. Scope: project. */
   'git.identity': { params: ProjectParams; result: GitIdentity; stream: never };
+  /** The project's recent commit messages, newest first (at most 20). Scope: project. */
+  'git.messages': { params: ProjectParams; result: CommitMessages; stream: never };
+  /** Brings files back to HEAD, whole, through the write policy and with a "before" copy of each; new                   files leave the index, and go to the Trash only with `deleteAdded`. Scope: mine. */
+  'git.rollback': { params: RollbackParams; result: RolledBack; stream: never };
   /** Changed and unversioned files, grouped as in a commit window. Scope: project. */
   'git.status': { params: ProjectParams; result: GitStatus; stream: never };
+  /** Undoes the last commit of the current branch when no remote branch has it: its changes become                   uncommitted again, its message comes back. Scope: mine. */
+  'git.undoCommit': { params: UndoParams; result: UndoneCommit; stream: never };
   /** The text of one history point. Scope: project. */
   'history.content': { params: PointParams; result: HistoryContent; stream: never };
   /** The history points of one regular file inside the project. Scope: project. */
   'history.file': { params: PathParams; result: HistoryFile; stream: never };
   /** The history points of the whole project, page by page. Scope: project. */
   'history.project': { params: HistoryProjectParams; result: HistoryProject; stream: never };
+  /** The trusted folders, read-only: no method creates, changes or removes one. Scope: companion. */
+  'locations.list': { params: NoParams; result: LocationSummary[]; stream: never };
+  /** Removes a project from the companion at once; nothing in its folder is touched, its history stays. Scope: project. */
+  'project.remove': { params: ProjectParams; result: Empty; stream: never };
+  /** Asks to add a folder (an absolute path). Inside a trusted folder: added at once. Elsewhere: only after the person confirms in the companion's window; every refusal of the folder is `not-found`. Scope: companion. */
+  'project.requestAdd': { params: RequestAddParams; result: RequestAdded; stream: never };
+  /** Asks to make a project writable ("mine"): at once inside a writable trusted folder, otherwise only after the person confirms in the companion's window. Scope: project. */
+  'project.requestMine': { params: ProjectParams; result: ClassResult; stream: never };
+  /** Makes a writable project read-only ("view") at once; a trusted folder does not raise it again. Scope: mine. */
+  'project.setView': { params: ProjectParams; result: ClassResult; stream: never };
   /** One project: class, branch, upstream, hooks. Scope: project. */
   'project.state': { params: ProjectParams; result: ProjectStateResult; stream: never };
   /** The added projects with their class, branch and state. Scope: companion. */
@@ -485,6 +735,8 @@ export interface ContractEvents {
   'git.changed': GitChanged;
   /** The project's class or state changed (for example, its folder went missing). */
   'project.changed': ProjectChanged;
+  /** Sent to every connection (`project` null): a project was added or removed, a class changed, or a trusted folder changed; read `projects.list` and `locations.list` again. */
+  'projects.changed': ProjectsChanged;
   /** A new server process is ready (sent to every connection); read again what is shown. */
   'server.restarted': ServerRestarted;
 }
@@ -557,16 +809,31 @@ export type ServerFrame =
 export const CONTRACT_METHODS = [
   'companion.state',
   'diff.sides',
+  'env.requestCapture',
   'events.subscribe',
   'events.unsubscribe',
+  'file.create',
+  'file.delete',
   'file.read',
+  'file.rename',
+  'file.save',
   'files.find',
+  'folder.create',
+  'git.commit',
   'git.hunks',
   'git.identity',
+  'git.messages',
+  'git.rollback',
   'git.status',
+  'git.undoCommit',
   'history.content',
   'history.file',
   'history.project',
+  'locations.list',
+  'project.remove',
+  'project.requestAdd',
+  'project.requestMine',
+  'project.setView',
   'project.state',
   'projects.list',
   'search.start',
@@ -574,7 +841,13 @@ export const CONTRACT_METHODS = [
 ] as const;
 
 /** The events of the contract. */
-export const CONTRACT_EVENTS = ['files.changed', 'git.changed', 'project.changed', 'server.restarted'] as const;
+export const CONTRACT_EVENTS = [
+  'files.changed',
+  'git.changed',
+  'project.changed',
+  'projects.changed',
+  'server.restarted',
+] as const;
 
 /** Every error code (errors.json), with the version of the companion that first sends it. */
 export const CONTRACT_ERRORS = {
@@ -584,24 +857,25 @@ export const CONTRACT_ERRORS = {
   'not-found': 'read',
   'outside-project': 'read',
   'protected-path': 'read',
-  'secret-file': 'write',
-  'not-mine': 'write',
+  'secret-file': 'files',
+  'not-mine': 'classes',
   paused: 'write',
   binary: 'read',
   'too-large': 'read',
-  'too-many-files': 'write',
-  conflict: 'write',
-  exists: 'write',
-  'stale-selection': 'write',
-  'hunks-unsupported': 'write',
-  'nothing-selected': 'write',
-  'identity-missing': 'write',
-  'hook-failed': 'write',
-  'hook-tool-missing': 'write',
-  'hook-timeout': 'write',
-  'index-locked': 'write',
-  'signing-failed': 'write',
-  'undo-unavailable': 'write',
+  'too-many-files': 'files',
+  conflict: 'files',
+  exists: 'files',
+  'stale-selection': 'git',
+  'hunks-unsupported': 'git',
+  'nothing-selected': 'git',
+  'identity-missing': 'git',
+  'hook-failed': 'git',
+  'hook-tool-missing': 'git',
+  'hook-timeout': 'git',
+  'index-locked': 'git',
+  'signing-failed': 'git',
+  'undo-unavailable': 'git',
+  'operation-in-progress': 'git',
   'push-rejected': 'write',
   'push-remote-rejected': 'write',
   'push-auth-failed': 'write',
@@ -610,16 +884,17 @@ export const CONTRACT_ERRORS = {
   'push-detached': 'write',
   'push-timeout': 'write',
   'push-network': 'write',
-  'confirmation-declined': 'write',
-  'confirmation-unavailable': 'write',
-  'confirmation-busy': 'write',
+  'confirmation-declined': 'classes',
+  'confirmation-unavailable': 'classes',
+  'confirmation-busy': 'classes',
   'rate-limited': 'read',
   'server-restarting': 'read',
   'unsupported-version': 'read',
   cancelled: 'read',
-  'trash-unavailable': 'write',
+  'trash-unavailable': 'files',
   'confirmation-required': 'write',
-  'disk-low': 'write',
+  'disk-low': 'files',
+  'not-encodable': 'files',
   'not-running': 'read',
   'peer-not-allowed': 'read',
   'too-many-connections': 'read',

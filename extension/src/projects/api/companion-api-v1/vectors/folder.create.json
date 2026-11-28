@@ -1,0 +1,39 @@
+[
+  {
+    "request": {
+      "id": 46,
+      "method": "folder.create",
+      "params": {
+        "path": "notes/folder",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 46,
+      "result": {
+        "protected": null
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 47,
+      "method": "folder.create",
+      "params": {
+        "path": "notes/folder",
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "exists",
+        "message": "a file or folder with that name exists already"
+      },
+      "id": 47,
+      "type": "error"
+    }
+  }
+]

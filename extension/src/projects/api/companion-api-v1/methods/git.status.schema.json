@@ -35,8 +35,15 @@
           "change": {
             "$ref": "#/$defs/Change"
           },
+          "diskBytesHash": {
+            "description": "For a regular file that has no `diskHash` (binary, or above the text limit): SHA-256 (hex) of its bytes, so\nthat a commit or rollback can tell it changed since it was shown. Null otherwise.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "diskHash": {
-            "description": "SHA-256 (hex) of the file's bytes on disk; null when deleted, not a regular file or above the text limit.",
+            "description": "The version of the file on disk: SHA-256 (hex) of its text as `file.read` returns it (decoded, without a\nbyte order mark, `\\n` line ends) — the same hash as `file.read.hash` and `git.hunks.diskHash`. Null when\nthe file is deleted, not a regular file, binary or above the text limit.",
             "type": [
               "string",
               "null"

@@ -1,0 +1,90 @@
+{
+  "method": "locations.list",
+  "params": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "No parameters.",
+    "title": "NoParams",
+    "type": "object"
+  },
+  "result": {
+    "$defs": {
+      "CreatedVia": {
+        "description": "Who created a trusted folder.",
+        "oneOf": [
+          {
+            "const": "terminal",
+            "description": "`devtab trust`.",
+            "type": "string"
+          },
+          {
+            "const": "dialog",
+            "description": "The box \"trust all projects in this folder\" of the companion's window.",
+            "type": "string"
+          },
+          {
+            "const": "init",
+            "description": "The question of `devtab init`.",
+            "type": "string"
+          }
+        ]
+      },
+      "LocationMode": {
+        "description": "What a trusted folder gives the projects inside it.",
+        "oneOf": [
+          {
+            "const": "write",
+            "description": "Projects inside are writable (\"mine\") without a window.",
+            "type": "string"
+          },
+          {
+            "const": "read-only",
+            "description": "Projects inside are added without a window, read-only (\"view\").",
+            "type": "string"
+          }
+        ]
+      },
+      "LocationSummary": {
+        "additionalProperties": false,
+        "description": "One trusted folder of `locations.list`. The list is read-only for the page: no method creates, changes or\nremoves a trusted folder.",
+        "properties": {
+          "createdVia": {
+            "$ref": "#/$defs/CreatedVia"
+          },
+          "displayPath": {
+            "description": "The folder with `~/` for the home directory.",
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/$defs/LocationMode"
+          },
+          "name": {
+            "type": "string"
+          },
+          "projects": {
+            "description": "How many added projects lie inside it.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "displayPath",
+          "mode",
+          "projects",
+          "createdVia"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "items": {
+      "$ref": "#/$defs/LocationSummary"
+    },
+    "title": "Array_of_LocationSummary",
+    "type": "array"
+  },
+  "scope": "companion",
+  "summary": "The trusted folders, read-only: no method creates, changes or removes one."
+}

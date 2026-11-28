@@ -70,7 +70,7 @@
         "type": "boolean"
       },
       "diskHash": {
-        "description": "SHA-256 (hex) of the text on disk; null when the file is gone.",
+        "description": "SHA-256 (hex) of the text on disk as `file.read` returns it (the same hash as `file.read.hash`); null when\nthe file is gone or binary.",
         "type": [
           "string",
           "null"
@@ -90,7 +90,7 @@
         "type": "array"
       },
       "reason": {
-        "description": "Why not, when `chunkable` is false: `binary`, `not-utf8`, `conflicted`, `renamed`, `deleted`.",
+        "description": "Why not, when `chunkable` is false: `binary`, `not-utf8`, `conflicted`, `renamed`, `deleted`,\n`submodule`, `line-ends` (a line ends with a lone carriage return). Such a file is committed whole.",
         "type": [
           "string",
           "null"

@@ -1,0 +1,97 @@
+[
+  {
+    "request": {
+      "id": 67,
+      "method": "project.requestAdd",
+      "params": {
+        "path": "<HOME>/fx/repo"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 67,
+      "result": {
+        "class": "mine",
+        "id": "p_abcdefgh23",
+        "via": "location"
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 68,
+      "method": "project.requestAdd",
+      "params": {
+        "path": "<HOME>/fx/outside"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "not-found",
+        "message": "not found"
+      },
+      "id": 68,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 69,
+      "method": "project.requestAdd",
+      "params": {
+        "path": "<HOME>/fx/no-such-folder"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "not-found",
+        "message": "not found"
+      },
+      "id": 69,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 70,
+      "method": "project.requestAdd",
+      "params": {
+        "path": "/no-such-folder/app"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "confirmation-unavailable",
+        "data": {
+          "command": "cd /no-such-folder/app && devtab add",
+          "reason": "no-window"
+        },
+        "message": "the companion cannot show its window; run the command in a terminal instead"
+      },
+      "id": 70,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 71,
+      "method": "project.requestAdd",
+      "params": {
+        "path": "relative/app"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "not-found",
+        "message": "not found"
+      },
+      "id": 71,
+      "type": "error"
+    }
+  }
+]

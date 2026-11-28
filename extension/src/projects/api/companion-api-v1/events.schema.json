@@ -43,12 +43,12 @@
           "oneOf": [
             {
               "const": "view",
-              "description": "Read-only.",
+              "description": "Read-only: the page reads, nothing more.",
               "type": "string"
             },
             {
               "const": "mine",
-              "description": "Writable (from a later stage of the companion).",
+              "description": "Writable: the page may also write files (and use git, in later versions).",
               "type": "string"
             }
           ]
@@ -65,6 +65,31 @@
             {
               "const": "missing",
               "description": "The folder is gone or moved.",
+              "type": "string"
+            }
+          ]
+        },
+        "Via": {
+          "description": "How the project got its class.",
+          "oneOf": [
+            {
+              "const": "terminal",
+              "description": "A command in the person's terminal (`devtab add`, `devtab add --write`).",
+              "type": "string"
+            },
+            {
+              "const": "dialog",
+              "description": "The companion's confirmation window, after the page asked.",
+              "type": "string"
+            },
+            {
+              "const": "location",
+              "description": "A trusted folder (`devtab trust`) the project lies in or was added through; `location` names the folder\n(null when it is no longer trusted).",
+              "type": "string"
+            },
+            {
+              "const": "person",
+              "description": "The person made it read-only (`devtab read-only`, `project.setView`); a trusted folder does not make it\nwritable again.",
               "type": "string"
             }
           ]
@@ -93,12 +118,33 @@
               "type": "null"
             }
           ]
+        },
+        "via": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Via"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How the project got its class, sent with `class`."
         }
       },
       "title": "ProjectChanged",
       "type": "object"
     },
     "summary": "The project's class or state changed (for example, its folder went missing)."
+  },
+  "projects.changed": {
+    "data": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "`projects.changed`: a project was added or removed, a class changed, or a trusted folder was added, changed or\nremoved; read `projects.list` and `locations.list` again. No data.",
+      "title": "ProjectsChanged",
+      "type": "object"
+    },
+    "summary": "Sent to every connection (`project` null): a project was added or removed, a class changed, or a trusted folder changed; read `projects.list` and `locations.list` again."
   },
   "server.restarted": {
     "data": {

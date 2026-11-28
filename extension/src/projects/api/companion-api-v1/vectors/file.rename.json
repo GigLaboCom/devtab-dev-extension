@@ -1,0 +1,41 @@
+[
+  {
+    "request": {
+      "id": 48,
+      "method": "file.rename",
+      "params": {
+        "from": "notes/new.txt",
+        "project": "p_abcdefgh23",
+        "to": "notes/renamed.txt"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 48,
+      "result": {
+        "protected": null
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 49,
+      "method": "file.rename",
+      "params": {
+        "from": "notes/renamed.txt",
+        "project": "p_abcdefgh23",
+        "to": "link-out/x"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "outside-project",
+        "message": "the path leads out of the project"
+      },
+      "id": 49,
+      "type": "error"
+    }
+  }
+]

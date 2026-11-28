@@ -1,0 +1,100 @@
+[
+  {
+    "request": {
+      "id": 63,
+      "method": "git.rollback",
+      "params": {
+        "deleteAdded": false,
+        "expect": {
+          "files": [
+            {
+              "diskHash": "36a8c5242c933bf17bfe0e6367ba66cb5a1a0348a23b12d89abdacb0e99ef69e",
+              "path": "src/app.txt"
+            },
+            {
+              "diskHash": null,
+              "path": "gone.txt"
+            }
+          ]
+        },
+        "paths": [
+          "src/app.txt",
+          "gone.txt"
+        ],
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 63,
+      "result": {
+        "rolledBack": [
+          "src/app.txt",
+          "gone.txt"
+        ],
+        "trashed": []
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 64,
+      "method": "git.rollback",
+      "params": {
+        "deleteAdded": true,
+        "expect": {
+          "files": [
+            {
+              "diskHash": "0103cc5bcf1407cdb47ea1261afdca6c9bafa635c35605310930e595e5958335",
+              "path": "src/new.txt"
+            }
+          ]
+        },
+        "paths": [
+          "src/new.txt"
+        ],
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "trash-unavailable",
+        "message": "the companion cannot move files to the Trash here, so it deleted nothing; delete the file in Finder"
+      },
+      "id": 64,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 65,
+      "method": "git.rollback",
+      "params": {
+        "deleteAdded": false,
+        "expect": {
+          "files": [
+            {
+              "diskHash": null,
+              "path": ".env"
+            }
+          ]
+        },
+        "paths": [
+          ".env"
+        ],
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "secret-file",
+        "message": "secret files are shown read-only and never written from the browser; edit them in your own editor"
+      },
+      "id": 65,
+      "type": "error"
+    }
+  }
+]

@@ -1,0 +1,39 @@
+[
+  {
+    "request": {
+      "id": 52,
+      "method": "git.messages",
+      "params": {
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 52,
+      "result": {
+        "messages": []
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 60,
+      "method": "git.messages",
+      "params": {
+        "project": "p_abcdefgh23"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 60,
+      "result": {
+        "messages": [
+          "Add new.txt",
+          "Change line 15 only"
+        ]
+      },
+      "type": "result"
+    }
+  }
+]

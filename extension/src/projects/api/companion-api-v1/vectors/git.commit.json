@@ -1,0 +1,196 @@
+[
+  {
+    "request": {
+      "id": 53,
+      "method": "git.commit",
+      "params": {
+        "expect": {
+          "files": [
+            {
+              "diskHash": "0103cc5bcf1407cdb47ea1261afdca6c9bafa635c35605310930e595e5958335",
+              "path": "src/new.txt"
+            }
+          ],
+          "headSha": "a5c8a8f38f555426b8634a56dac2a7423e9f3902"
+        },
+        "message": "Add new.txt",
+        "project": "p_abcdefgh23",
+        "runHooks": true,
+        "selection": [
+          {
+            "path": "src/new.txt"
+          }
+        ]
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "hook-failed",
+        "data": {
+          "exitCode": 1,
+          "hook": "pre-commit",
+          "output": "the fixture's pre-commit hook refuses every commit\n"
+        },
+        "message": "the pre-commit hook stopped the commit; nothing was committed"
+      },
+      "id": 53,
+      "type": "error"
+    },
+    "stream": [
+      {
+        "data": {
+          "text": "the fixture's pre-commit hook refuses every commit\n"
+        },
+        "id": 53,
+        "seq": 0,
+        "type": "stream"
+      }
+    ]
+  },
+  {
+    "request": {
+      "id": 54,
+      "method": "git.commit",
+      "params": {
+        "expect": {
+          "files": [
+            {
+              "diskHash": "0000000000000000000000000000000000000000000000000000000000000000",
+              "path": "src/new.txt"
+            }
+          ],
+          "headSha": "a5c8a8f38f555426b8634a56dac2a7423e9f3902"
+        },
+        "message": "Stale",
+        "project": "p_abcdefgh23",
+        "runHooks": false,
+        "selection": [
+          {
+            "path": "src/new.txt"
+          }
+        ]
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "stale-selection",
+        "data": {
+          "paths": [
+            "src/new.txt"
+          ]
+        },
+        "message": "the repository or a file changed since the page showed it; nothing was done. Read the status again"
+      },
+      "id": 54,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 55,
+      "method": "git.commit",
+      "params": {
+        "expect": {
+          "files": [],
+          "headSha": "a5c8a8f38f555426b8634a56dac2a7423e9f3902"
+        },
+        "message": "Nothing",
+        "project": "p_abcdefgh23",
+        "runHooks": false,
+        "selection": []
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "nothing-selected",
+        "message": "nothing is checked; nothing was committed"
+      },
+      "id": 55,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 56,
+      "method": "git.commit",
+      "params": {
+        "expect": {
+          "files": [
+            {
+              "diskHash": "36a8c5242c933bf17bfe0e6367ba66cb5a1a0348a23b12d89abdacb0e99ef69e",
+              "path": "src/app.txt"
+            }
+          ],
+          "headSha": "a5c8a8f38f555426b8634a56dac2a7423e9f3902"
+        },
+        "message": "Change line 15 only",
+        "project": "p_abcdefgh23",
+        "runHooks": false,
+        "selection": [
+          {
+            "chunks": [
+              1
+            ],
+            "path": "src/app.txt"
+          }
+        ]
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 56,
+      "result": {
+        "changedAfter": [],
+        "hookChangedCommit": [],
+        "hooksSkipped": [
+          "pre-commit"
+        ],
+        "indexKept": [],
+        "sha": "5b6b5f775097e72d2b9ef3ae399007246d513b99"
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 58,
+      "method": "git.commit",
+      "params": {
+        "expect": {
+          "files": [
+            {
+              "diskHash": "0103cc5bcf1407cdb47ea1261afdca6c9bafa635c35605310930e595e5958335",
+              "path": "src/new.txt"
+            }
+          ],
+          "headSha": "5b6b5f775097e72d2b9ef3ae399007246d513b99"
+        },
+        "message": "Add new.txt",
+        "project": "p_abcdefgh23",
+        "runHooks": false,
+        "selection": [
+          {
+            "path": "src/new.txt"
+          }
+        ]
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 58,
+      "result": {
+        "changedAfter": [],
+        "hookChangedCommit": [],
+        "hooksSkipped": [
+          "pre-commit"
+        ],
+        "indexKept": [],
+        "sha": "18164950badb5dbbf3f6ed43a694fbc95b0916d1"
+      },
+      "type": "result"
+    }
+  }
+]

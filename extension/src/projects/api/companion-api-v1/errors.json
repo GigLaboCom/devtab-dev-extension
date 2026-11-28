@@ -33,20 +33,20 @@
     {
       "code": "protected-path",
       "data": "{rule}",
-      "description": "The path is in a protected place: any segment that folds to `.git` is never read, shown or written.",
+      "description": "The path is in a protected place: any segment that folds to `.git` is never read, shown or written (`rule`: `git-dir`); a write through a symlink or to one (`symlink`) and a write to a file that is read-only on disk (`read-only-file`) are refused; `git.rollback` does not bring back a file whose restoring would run a filter of the repository (`git-filter`), a submodule (`submodule`) or a symlink (`symlink`).",
       "since": "read"
     },
     {
       "code": "secret-file",
       "data": "—",
-      "description": "A write to a secret file (secrets are readable, never written from the browser).",
-      "since": "write"
+      "description": "A write to a secret file (secrets are readable, never written from the browser): saving, creating, renaming, deleting.",
+      "since": "files"
     },
     {
       "code": "not-mine",
       "data": "—",
       "description": "A method that needs a writable (\"mine\") project, called in a view project.",
-      "since": "write"
+      "since": "classes"
     },
     {
       "code": "paused",
@@ -69,80 +69,86 @@
     {
       "code": "too-many-files",
       "data": "{size, limit}",
-      "description": "A folder with too many files for the operation.",
-      "since": "write"
+      "description": "A folder with too many files for the operation (`limits.maxFolderFiles`).",
+      "since": "files"
     },
     {
       "code": "conflict",
       "data": "{currentHash}",
-      "description": "The file changed since `baseHash`.",
-      "since": "write"
+      "description": "The file changed since `baseHash`; nothing was written. `currentHash` is the version on disk now.",
+      "since": "files"
     },
     {
       "code": "exists",
       "data": "—",
-      "description": "Create or rename over an existing file.",
-      "since": "write"
+      "description": "Create or rename over an existing file or folder.",
+      "since": "files"
     },
     {
       "code": "stale-selection",
       "data": "{paths}",
-      "description": "HEAD or files on disk changed since they were shown.",
-      "since": "write"
+      "description": "HEAD or files on disk changed since the page showed them (`git.commit`, `git.rollback`); nothing was done. `paths` names the files that changed (empty when HEAD moved): read the status again.",
+      "since": "git"
     },
     {
       "code": "hunks-unsupported",
-      "data": "{reason}",
-      "description": "Hunks of a binary, non-UTF-8 or conflicted file or a submodule.",
-      "since": "write"
+      "data": "{reason, path}",
+      "description": "Hunks were chosen of a file that can only be committed whole (`reason` as `git.hunks.reason`, or `new-file`, `does-not-apply`); nothing was committed.",
+      "since": "git"
     },
     {
       "code": "nothing-selected",
       "data": "—",
-      "description": "A commit with nothing selected.",
-      "since": "write"
+      "description": "A commit with nothing checked, or whose checked files hold no change against HEAD.",
+      "since": "git"
     },
     {
       "code": "identity-missing",
       "data": "—",
-      "description": "git has no `user.name` / `user.email`.",
-      "since": "write"
+      "description": "git has no `user.name` / `user.email` for the repository; checked before any hook runs. git's own text (with a guessed address) is not passed on.",
+      "since": "git"
     },
     {
       "code": "hook-failed",
       "data": "{hook, exitCode, output}",
-      "description": "A hook exited with a non-zero code.",
-      "since": "write"
+      "description": "A hook stopped the commit; nothing was committed. `hook` is the hook that most likely failed, `exitCode` git's exit code, `output` the end of the output (at most `limits.maxHookOutputBytes`).",
+      "since": "git"
     },
     {
       "code": "hook-tool-missing",
       "data": "{hook, tool, output, pathCapturedAt}",
-      "description": "A hook could not find a tool (code 127, \"command not found\").",
-      "since": "write"
+      "description": "A hook could not find a program (\"command not found\", \"No such file or directory\"); nothing was committed. `pathCapturedAt` is when the environment's `PATH` was captured (null: never, the default `PATH` was used).",
+      "since": "git"
     },
     {
       "code": "hook-timeout",
       "data": "{hook?, afterMs}",
-      "description": "A hook ran out of time and was stopped.",
-      "since": "write"
+      "description": "The commit ran out of time (`limits.commitTimeoutMs`): git and everything it started were stopped, no lock file of it is left; nothing was committed.",
+      "since": "git"
     },
     {
       "code": "index-locked",
       "data": "—",
-      "description": "Someone else holds `.git/index.lock`.",
-      "since": "write"
+      "description": "A lock file of the repository (`.git/index.lock`, a ref's lock) belongs to another git; nothing was done.",
+      "since": "git"
     },
     {
       "code": "signing-failed",
       "data": "{output}",
-      "description": "Signing the commit failed.",
-      "since": "write"
+      "description": "Signing the commit failed (the signing program of the person's git configuration); nothing was committed.",
+      "since": "git"
     },
     {
       "code": "undo-unavailable",
       "data": "{reason}",
-      "description": "The last commit cannot be undone.",
-      "since": "write"
+      "description": "The last commit cannot be undone: `reason` is `moved` (HEAD is not the commit shown), `pushed` (a remote branch has it), `merge`, `root` (the first commit) or `detached` (no branch).",
+      "since": "git"
+    },
+    {
+      "code": "operation-in-progress",
+      "data": "{operation}",
+      "description": "A merge, rebase, cherry-pick or revert is in progress in the repository (`operation`): finish it in a terminal; nothing was committed.",
+      "since": "git"
     },
     {
       "code": "push-rejected",
@@ -195,20 +201,20 @@
     {
       "code": "confirmation-declined",
       "data": "—",
-      "description": "The person declined in the companion's window.",
-      "since": "write"
+      "description": "The person declined in the companion's window, or did not answer within 120 seconds.",
+      "since": "classes"
     },
     {
       "code": "confirmation-unavailable",
-      "data": "—",
-      "description": "No graphical session to show the companion's window.",
-      "since": "write"
+      "data": "{reason, command}",
+      "description": "The companion cannot show its window (`reason`: `no-window` — no window in this version or no graphical session; `requests-off` — after three declines in ten minutes, until `devtab resume-requests`). `command` is what the person can run in a terminal instead.",
+      "since": "classes"
     },
     {
       "code": "confirmation-busy",
       "data": "—",
       "description": "Another confirmation is already waiting.",
-      "since": "write"
+      "since": "classes"
     },
     {
       "code": "rate-limited",
@@ -237,8 +243,8 @@
     {
       "code": "trash-unavailable",
       "data": "—",
-      "description": "The Trash is unavailable; nothing was deleted.",
-      "since": "write"
+      "description": "The Trash is unavailable; nothing was deleted. This version has no Trash yet, so `file.delete` always answers this and is not listed in `welcome.methods`.",
+      "since": "files"
     },
     {
       "code": "confirmation-required",
@@ -248,9 +254,15 @@
     },
     {
       "code": "disk-low",
-      "data": "{freeBytes, floorBytes}",
-      "description": "Free disk space is below the floor; writes and snapshots are refused.",
-      "since": "write"
+      "data": "{freeBytes, floorBytes, usedBytes, budgetBytes}",
+      "description": "Free disk space is below the floor, or the companion's \"before\" copies reached their budget; nothing was written.",
+      "since": "files"
+    },
+    {
+      "code": "not-encodable",
+      "data": "{encoding}",
+      "description": "The text has characters the file's encoding cannot hold; nothing was written.",
+      "since": "files"
     },
     {
       "code": "not-running",

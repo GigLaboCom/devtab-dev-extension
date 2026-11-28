@@ -1,0 +1,23 @@
+[
+  {
+    "request": {
+      "id": 66,
+      "method": "locations.list",
+      "params": {},
+      "type": "call"
+    },
+    "response": {
+      "id": 66,
+      "result": [
+        {
+          "createdVia": "terminal",
+          "displayPath": "~/fx",
+          "mode": "write",
+          "name": "fx",
+          "projects": 1
+        }
+      ],
+      "type": "result"
+    }
+  }
+]

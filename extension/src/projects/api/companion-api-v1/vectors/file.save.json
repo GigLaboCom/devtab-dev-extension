@@ -1,0 +1,119 @@
+[
+  {
+    "request": {
+      "id": 38,
+      "method": "file.save",
+      "params": {
+        "baseHash": "f5c962601b413ccda2fc14d64d98479d9fc74c90c2dde15f25ee9922e57f5074",
+        "path": "crlf.txt",
+        "project": "p_abcdefgh23",
+        "reason": "auto",
+        "session": "s-1",
+        "text": "first\nsecond\nthird\nfourth\n"
+      },
+      "type": "call"
+    },
+    "response": {
+      "id": 38,
+      "result": {
+        "hash": "f22f40641abd9b2975ebfa2cd666c406abe35e420a9edeefab2dda50b35c32e5",
+        "mtimeMs": 0,
+        "protected": null
+      },
+      "type": "result"
+    }
+  },
+  {
+    "request": {
+      "id": 39,
+      "method": "file.save",
+      "params": {
+        "baseHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "path": "crlf.txt",
+        "project": "p_abcdefgh23",
+        "text": "x\n"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "conflict",
+        "data": {
+          "currentHash": "f22f40641abd9b2975ebfa2cd666c406abe35e420a9edeefab2dda50b35c32e5"
+        },
+        "message": "the file changed on disk since it was read; nothing was written"
+      },
+      "id": 39,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 40,
+      "method": "file.save",
+      "params": {
+        "baseHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "path": ".env",
+        "project": "p_abcdefgh23",
+        "text": "X=1\n"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "secret-file",
+        "message": "secret files are shown read-only and never written from the browser; edit them in your own editor"
+      },
+      "id": 40,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 41,
+      "method": "file.save",
+      "params": {
+        "baseHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "path": ".git/config",
+        "project": "p_abcdefgh23",
+        "text": "x"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "protected-path",
+        "data": {
+          "rule": "git-dir"
+        },
+        "message": "the .git folder is never read or listed"
+      },
+      "id": 41,
+      "type": "error"
+    }
+  },
+  {
+    "request": {
+      "id": 42,
+      "method": "file.save",
+      "params": {
+        "baseHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "path": "link-in",
+        "project": "p_abcdefgh23",
+        "text": "x"
+      },
+      "type": "call"
+    },
+    "response": {
+      "error": {
+        "code": "protected-path",
+        "data": {
+          "rule": "symlink"
+        },
+        "message": "the companion never writes through a symlink or to one"
+      },
+      "id": 42,
+      "type": "error"
+    }
+  }
+]
