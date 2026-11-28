@@ -2,12 +2,14 @@
  * The editor page in the Projects section's iframe (src/viewer/, the same module as «Compare code»): what the section
  * sends it (shared/viewerProtocol.ts) and what it answers. Messages wait until the editor has drawn; a full
  * replacement (two texts, one file) drops what waited before it. Only the answer to the latest request that changes
- * what is shown is taken, and the user's edits (no id) always are.
+ * what is shown is taken, and the user's edits (no id) always are. The strip of the editor's buttons runs the editor's
+ * commands through it (`command`, answered by `viewer/done` or `viewer/error`) and greys its buttons by what the module
+ * last said the sides offer (`standing`).
  */
 import { isFromViewer } from '@src/shared/viewerProtocol';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { DiffShown } from '@extension/review-wasm';
-import type { KeyChord, ToViewer } from '@src/shared/viewerProtocol';
+import type { DiffShown, EditorStanding, Side } from '@extension/review-wasm';
+import type { KeyChord, ToViewer, ViewerCommand } from '@src/shared/viewerProtocol';
 import type { RefObject } from 'react';
 
 type Request = Extract<ToViewer, { id: number }>;
@@ -28,7 +30,17 @@ export interface EditorFrame {
   post(message: Exclude<ToViewer, Request> | Request): void;
   /** The text of a side as the editor holds it now. */
   read(side: 'old' | 'new'): Promise<string>;
+  /** What the sides offer the editor's commands, as the module last said (nothing before it has: all off). */
+  standing: EditorStanding;
+  /** Runs an editor command on a side (Paste with its text); `copied`: what a Copy or Cut took. */
+  command(side: Side, command: ViewerCommand, text?: string): Promise<{ copied?: string }>;
 }
+
+/** Before the module has said anything: nothing editable, nothing selected. */
+export const NO_STANDING: EditorStanding = {
+  old: { editable: false, empty: true, selection: false },
+  new: { editable: false, empty: true, selection: false },
+};
 
 export interface EditorFrameHooks {
   /** A key the editor hands up (⌘S, the frame's shortcuts). */
@@ -48,6 +60,10 @@ export const useEditorFrame = (keys: KeyChord[], hooks: EditorFrameHooks): Edito
   const nextId = useRef(0);
   const latest = useRef(0);
   const reads = useRef(new Map<number, { resolve: (text: string) => void; reject: (error: Error) => void }>());
+  const commands = useRef(
+    new Map<number, { resolve: (done: { copied?: string }) => void; reject: (error: Error) => void }>(),
+  );
+  const [standing, setStanding] = useState<EditorStanding>(NO_STANDING);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [shown, setShown] = useState<{ shown: DiffShown | null; count: number }>({ shown: null, count: 0 });
@@ -80,6 +96,21 @@ export const useEditorFrame = (keys: KeyChord[], hooks: EditorFrameHooks): Edito
     [],
   );
 
+  const command = useCallback(
+    (side: Side, name: ViewerCommand, text?: string) =>
+      new Promise<{ copied?: string }>((resolve, reject) => {
+        if (!readyRef.current) return reject(new Error('The editor is still loading.'));
+        // The keyboard goes where a key would have been pressed: into the frame (its document takes keys only while
+        // its window is focused), and there into the side's editor (the editor page focuses it).
+        frame.current?.focus();
+        frame.current?.contentWindow?.focus();
+        const id = ++nextId.current;
+        commands.current.set(id, { resolve, reject });
+        send({ type: 'viewer/command', id, side, command: name, ...(text !== undefined && { text }) });
+      }),
+    [],
+  );
+
   const keyList = JSON.stringify(keys);
   useEffect(() => {
     if (readyRef.current) send({ type: 'viewer/keys', keys: keysRef.current });
@@ -107,11 +138,20 @@ export const useEditorFrame = (keys: KeyChord[], hooks: EditorFrameHooks): Edito
           reads.current.get(data.id)?.resolve(data.text);
           reads.current.delete(data.id);
           return;
+        case 'viewer/standing':
+          setStanding(data.standing);
+          return;
+        case 'viewer/done':
+          commands.current.get(data.id)?.resolve(data.copied !== undefined ? { copied: data.copied } : {});
+          commands.current.delete(data.id);
+          return;
         case 'viewer/error': {
-          const pending = data.id !== undefined ? reads.current.get(data.id) : undefined;
+          const pending =
+            data.id !== undefined ? (reads.current.get(data.id) ?? commands.current.get(data.id)) : undefined;
           if (pending) {
             pending.reject(new Error(data.message));
             reads.current.delete(data.id!);
+            commands.current.delete(data.id!);
           } else if (data.id === undefined && !readyRef.current) setFailed(data.message);
           else if (data.id === undefined || data.id === latest.current) hooksRef.current.onError?.(data.message);
           return;
@@ -127,5 +167,5 @@ export const useEditorFrame = (keys: KeyChord[], hooks: EditorFrameHooks): Edito
     return () => window.removeEventListener('message', onMessage);
   }, []);
 
-  return { frame, ready, failed, shown: shown.shown, shownCount: shown.count, request, post, read };
+  return { frame, ready, failed, shown: shown.shown, shownCount: shown.count, request, post, read, standing, command };
 };

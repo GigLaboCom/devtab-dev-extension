@@ -11,8 +11,16 @@
  * editor anyway, the main page's shortcuts (⌘S would otherwise open the browser's "Save page"), and Tab leaving the
  * editor — at once from a read-only side, after Escape from one being edited, where Tab indents. While the main page
  * has a modal open, this page takes no focus (focusGuard.ts).
+ *
+ * The strip of the editor's buttons on the main page runs the editor's commands here (`viewer/command`): this page takes
+ * the focus, as a key pressed in it would have it — given back to the element that last had the keyboard here
+ * (gpui-web's text input, which loses it when a press on the main page takes the focus away) — and the module runs
+ * gpui-kit's action; what a Copy or Cut writes is
+ * caught and handed up for the main page to write (clipboardCapture.ts). What the sides offer the commands goes up
+ * whenever the module says it changed (`viewer/standing`).
  */
 import './viewer.css';
+import { captureClipboardWrites } from './clipboardCapture';
 import { behindModal, guardFocus } from './focusGuard';
 import { reportUnlessLeaving, watchPageLife } from './pageLife';
 import { createDebug } from '@extension/logger';
@@ -46,6 +54,22 @@ const sideAt = (x: number): Side => (x < window.innerWidth / 2 ? 'old' : 'new');
 guardFocus(window, behindModal(window));
 // Whether the page is going away: a load it interrupts is not the editor's failure (pageLife.ts).
 const life = watchPageLife(window);
+
+// The element that last had the keyboard on this page (gpui-web's text input): a strip's command gives the keys back to
+// it, as a press into the editor would. Its own focus goes when a press on the main page takes the focus away.
+let keyTarget: HTMLElement | null = null;
+document.addEventListener(
+  'focusin',
+  event => {
+    if (event.target instanceof HTMLElement && event.target !== document.body) keyTarget = event.target;
+  },
+  true,
+);
+const takeKeyboard = (): void => {
+  window.focus();
+  const active = document.activeElement;
+  if ((!active || active === document.body) && keyTarget?.isConnected) keyTarget.focus({ preventScroll: true });
+};
 
 const main = async (): Promise<void> => {
   let controller: ReviewController | null = null;
@@ -109,6 +133,22 @@ const main = async (): Promise<void> => {
         return c.revealHunk(message.index);
       case 'viewer/set-editor-settings':
         return c.setEditorSettings(message.settings, message.side);
+      case 'viewer/command': {
+        // As a key pressed here: the keyboard is in this page, and in the side's editor.
+        takeKeyboard();
+        try {
+          const { side, command } = message;
+          let copied: string | undefined;
+          if (command === 'paste') c.pasteText(side, message.text ?? '');
+          else if (command === 'copy' || command === 'cut')
+            copied = captureClipboardWrites(navigator.clipboard, () => c.runCommand(side, command));
+          else c.runCommand(side, command);
+          toParent({ type: 'viewer/done', id: message.id, ...(copied !== undefined && { copied }) });
+        } catch (error) {
+          toParent({ type: 'viewer/error', id: message.id, message: String(error) });
+        }
+        return;
+      }
     }
   };
 
@@ -205,6 +245,8 @@ const main = async (): Promise<void> => {
         if (event.name === 'first-frame') {
           document.getElementById('placeholder')?.setAttribute('hidden', '');
           toParent({ type: 'viewer/ready' });
+        } else if (event.name === 'standing') {
+          toParent({ type: 'viewer/standing', standing: event.standing });
         } else if (event.name === 'shown') {
           // The user's edit, compared once the typing paused, answers no request.
           if (event.shown.cause === 'edit') toParent({ type: 'viewer/shown', shown: event.shown });

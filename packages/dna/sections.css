@@ -97,6 +97,13 @@
  *                              .kit-projects-result-file, .kit-projects-result-line (-number, -text), .kit-projects-match)
  *                              or .kit-projects-history (-bar, .kit-projects-points > .kit-projects-point[data-source]
  *                              [data-text=none] with -time, -label, -path, -actions; -more, -deleted with -title)
+ * The strip of the editor's buttons (extension/src/app/editor/EditorStrip.tsx: a project's file, a scratch, an opened
+ * file, each side of «Compare code»):
+ *   .kit-editor-strip          the toolbar row over an editor: .kit-editor-strip-button[aria-disabled][aria-pressed]
+ *                              (and .kit-editor-strip-more, the ⋯ at its end), .kit-editor-strip-line between two
+ *                              groups, .kit-editor-strip-spacer before the toggles, .kit-editor-strip-measure (the same
+ *                              row out of sight, measured); .kit-compare-strips holds one per side of «Compare code»
+ *   .kit-editor-strip-menu     the more menu: .kit-editor-strip-menu-text (the label, .kit-editor-strip-menu-why under it)
  * The editor's indent indicator (D39: a project's file, a scratch, each side of «Compare code»):
  *   .kit-indent-indicator      the button in an editor's bar: .kit-indent-value ("Spaces: 4"), .kit-indent-source (where
  *                              it comes from)
@@ -2157,6 +2164,100 @@
 
   .kit-editor-profile-note {
     padding-block-end: calc(var(--spacing) * 2);
+  }
+
+  /* The strip of the editor's buttons: one row of 24 px ghost buttons over an editor, as gpui-kit's icon buttons. */
+  .kit-editor-strip {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 0.5);
+    min-width: 0;
+    height: var(--size-control);
+    padding: 0 calc(var(--spacing) * 1);
+    border-block-end: 1px solid var(--border);
+    background: var(--background);
+  }
+
+  .kit-editor-strip-line {
+    flex: none;
+    width: 1px;
+    height: calc(var(--spacing) * 4);
+    margin-inline: calc(var(--spacing) * 1);
+    background: var(--border);
+  }
+
+  .kit-editor-strip-spacer {
+    flex: 1 1 auto;
+    min-width: calc(var(--spacing) * 2);
+  }
+
+  /* Without the toggles' gap on the row, the more button still stands at its end. */
+  .kit-editor-strip-more {
+    margin-inline-start: auto;
+  }
+
+  /* Greyed but reachable (aria-disabled keeps its tooltip and its Tab stop): the kit's disabled colour, no hover. */
+  .kit-editor-strip-button[aria-disabled='true'] {
+    background: transparent;
+    color: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+    cursor: default;
+  }
+
+  /* A toggle that is on: gpui-kit's selected ghost button, as «Compare code»'s Edit. */
+  .kit-editor-strip-button[aria-pressed='true'] {
+    background: var(--accent);
+    color: var(--primary);
+  }
+
+  .kit-editor-strip-measure {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    display: flex;
+    gap: calc(var(--spacing) * 0.5);
+    width: max-content;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* A line of the more menu may carry a second, muted line: why it does nothing now. */
+  .kit-editor-strip-menu .cn-dropdown-menu-item,
+  .kit-editor-strip-menu .cn-dropdown-menu-checkbox-item {
+    height: auto;
+    min-height: var(--size-row);
+  }
+
+  .kit-editor-strip-menu-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .kit-editor-strip-menu-why {
+    max-width: calc(var(--spacing) * 70);
+    padding-block-end: calc(var(--spacing) * 1);
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+    white-space: normal;
+  }
+
+  /* «Compare code»: one strip over each side, under the side's own bar. */
+  .kit-compare-strips {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    border: 1px solid var(--border);
+    border-block-end: 0;
+  }
+
+  /* The editor's frame below draws the line under them. */
+  .kit-compare-strips > .kit-editor-strip {
+    border-block-end: 0;
+  }
+
+  .kit-compare-strips > .kit-editor-strip + .kit-editor-strip {
+    border-inline-start: 1px solid var(--border);
   }
 
   /* The indent indicator (D39): a small ghost button in an editor's bar — the value, then where it comes from. */

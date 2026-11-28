@@ -22,11 +22,20 @@
  * the indicator's popup chooses the project's own where profiles exist. In the free edition the popup says that a
  * project's `.editorconfig` is part of Pro only for a project that has one in its root, as the Files tree listed it —
  * nothing is read for that (D40).
+ *
+ * The strip of the editor's buttons (../editor/EditorStrip.tsx) stands over the editor while a file or a diff is shown,
+ * acting on the file (the right side of a diff): the editor's own commands, and at its head — for the file alone — the
+ * section's Save, the very action of ⌘S (`flush('explicit')`), greyed with the reason when the file is read only or
+ * there is nothing new to save. Its Wrap long lines and Show whitespace are a choice for this file over the saved
+ * settings, kept like the indicator's (the file and diff views of one path share it).
  */
 import { errorLine } from './errors';
 import { TEXT, formatSize, formatTime, printable } from './text';
 import { useEditorFrame } from './useEditorFrame';
+import { EditorStrip } from '../editor/EditorStrip';
 import { IndentIndicator } from '../editor/IndentIndicator';
+import { runStripCommand, viewChoice } from '../editor/strip';
+import { EDITOR_TEXT } from '../editor/text';
 import { useEditorIndent } from '../editor/useEditorIndent';
 import { routeHash } from '../route';
 import { hintOf, useOffer } from '../shell/sectionKeys';
@@ -37,13 +46,14 @@ import { createAutosave } from '@src/projects/autosave';
 import { toLineHunks } from '@src/projects/hunks';
 import { isCompanionError } from '@src/projects/types';
 import { VIEWER_PAGE } from '@src/shared/pages';
-import { sameChord } from '@src/shared/viewerProtocol';
+import { isMac, sameChord } from '@src/shared/viewerProtocol';
 import { Button } from '@workspace/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/toggle-group';
 import { HistoryIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SectionKeys } from '../shell/sectionKeys';
 import type { EditorView, Workspace } from './useWorkspace';
+import type { Clipboard } from '@src/compare/clipboard';
 import type { EditorSettingsBehaviors } from '@src/editorSettings/behaviors';
 import type { ProjectEditorSettings, ProjectFiles, ProjectSettings } from '@src/editorSettings/project';
 import type { Autosave, SaveState } from '@src/projects/autosave';
@@ -73,6 +83,8 @@ export interface EditorPaneProps {
   editorSettings?: EditorSettingsBehaviors;
   /** How the open file is saved (seam `SideSaver`, the composition root's `projectSaver`). */
   fileSaver: ProjectSaverFactory;
+  /** The editor strip's clipboard (seam `Clipboard`); absent: no strip. */
+  clipboard?: Clipboard;
 }
 
 const saveText = (state: SaveState): string => {
@@ -110,6 +122,7 @@ export const EditorPane = ({
   onShowHistory,
   editorSettings,
   fileSaver,
+  clipboard,
 }: EditorPaneProps): ReactElement => {
   const { backend, project, path, view, reveal, changed } = workspace;
   const [content, setContent] = useState<Content>({ kind: 'none' });
@@ -127,9 +140,11 @@ export const EditorPane = ({
   frameKeysRef.current = frameKeys;
 
   const handedUp = useMemo(() => [SAVE_KEY, ...(frameKeys?.keys ?? [])], [frameKeys?.keys]);
+  // ⌘S and the strip's Save: one action.
+  const saveNow = useCallback(() => void autosave.current?.flush('explicit'), []);
   const editor = useEditorFrame(handedUp, {
     onKey: chord => {
-      if (sameChord(chord, SAVE_KEY)) void autosave.current?.flush('explicit');
+      if (sameChord(chord, SAVE_KEY)) saveNow();
       else frameKeysRef.current?.run(chord);
     },
     onShown: shown => {
@@ -540,6 +555,30 @@ export const EditorPane = ({
   // The hunk the keys brought into view last; a new comparison starts before the first.
   const hunk = useRef(-1);
   const changes = (content.kind === 'diff' || content.kind === 'compare') && editor.shown ? editor.shown.changes : 0;
+  const mac = useMemo(() => isMac(), []);
+  const stripped =
+    !!clipboard && !!path && (content.kind === 'file' || content.kind === 'diff' || content.kind === 'compare');
+  // The file's Save: greyed with the reason when it is read only, while it is being written or meets a conflict, and
+  // when nothing new waits to be written.
+  const unsaved =
+    saveState.kind === 'pending' ||
+    saveState.kind === 'offline' ||
+    saveState.kind === 'refused' ||
+    editor.shown?.sides.new.modified === true;
+  const saveOffer =
+    content.kind === 'file'
+      ? {
+          label: TEXT.saveNow,
+          key: SAVE_KEY,
+          unavailable:
+            content.readOnly ??
+            (saveState.kind === 'saving' || saveState.kind === 'conflict'
+              ? saveText(saveState)
+              : unsaved
+                ? null
+                : TEXT.nothingToSave),
+        }
+      : null;
   const shownCount = editor.shownCount;
   useEffect(() => {
     hunk.current = -1;
@@ -667,6 +706,29 @@ export const EditorPane = ({
             </Button>
           )}
         </div>
+      )}
+      {stripped && (
+        <EditorStrip
+          label={EDITOR_TEXT.stripLabel}
+          state={{
+            ready: editor.ready && editor.shownCount > 0,
+            standing: editor.standing.new,
+            layout: editor.shown?.mode ?? 'file',
+            view: {
+              softWrap: indent.effective.new.values.softWrap,
+              whitespace: indent.effective.new.values.whitespace,
+            },
+            save: saveOffer,
+            mac,
+          }}
+          onCommand={command =>
+            void runStripCommand(command, 'new', editor, clipboard, (text, tone) =>
+              tone === 'error' ? workspace.setError(text) : setNote(text),
+            ).catch((error: unknown) => workspace.setError(error instanceof Error ? error.message : String(error)))
+          }
+          onView={(view, on) => indent.chooseView('both', viewChoice(view, on))}
+          onSave={saveNow}
+        />
       )}
       <div className="kit-projects-editor-view">
         <iframe

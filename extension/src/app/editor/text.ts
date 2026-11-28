@@ -1,6 +1,7 @@
 /**
  * Every word of the editor's settings (D39), in one place for the owner's approval: Settings → Editor (with its
- * profiles, Pro) and the indent indicator at each editor (with a project's `.editorconfig`, Pro). Working texts —
+ * profiles, Pro), the indent indicator at each editor (with a project's `.editorconfig`, Pro) and the strip of the
+ * editor's buttons over each editor (./EditorStrip.tsx). Working texts —
  * minimal and factual, nothing about a price or how to get Pro (D40); the owner writes the final ones (D22). The
  * apostrophe is ’.
  */
@@ -136,4 +137,27 @@ export const EDITOR_TEXT = {
   automatic: 'Back to automatic',
   automaticHint: 'Detected from the content when it can be, otherwise the settings.',
   openSettings: 'Editor settings',
+
+  // ---- the strip of the editor's buttons (./EditorStrip.tsx) ------------------------------------------------------
+  // WORKING PLACEHOLDERS — the owner approves or replaces every text of this block. Plain words; a greyed button's
+  // tooltip says why only where the reason is worth saying (Copy all, Wrap long lines side by side; Save's reason is
+  // the host's own words).
+  stripLabel: 'Editor',
+  stripLabelSide: (side: string) => `Editor of the ${side} side`,
+  stripUndo: 'Undo',
+  stripRedo: 'Redo',
+  stripCut: 'Cut',
+  stripCopy: 'Copy',
+  stripCopyAll: 'Copy all',
+  stripPaste: 'Paste',
+  stripSelectAll: 'Select all',
+  stripIndent: 'Indent',
+  stripOutdent: 'Outdent',
+  stripFind: 'Find',
+  stripWrap: 'Wrap long lines',
+  stripWhitespace: 'Show whitespace',
+  stripMore: 'More',
+  stripCopyAllEmpty: 'Nothing to copy: the text is empty.',
+  stripWrapSideBySide: 'Side by side, lines do not wrap: they stay level with the other side.',
+  stripNotCopied: (reason: string) => `Not copied: ${reason}`,
 };

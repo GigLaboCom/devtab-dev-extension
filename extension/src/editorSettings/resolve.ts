@@ -2,7 +2,8 @@
  * What applies to one open text, and where each value came from (research §2.5, §4.8): a pure function over the
  * levels, strongest first —
  *
- *   1. file        the person's choice for this file in the indent indicator (lives while the file is open);
+ *   1. file        the person's choice for this file in the indent indicator, and of how its editor shows it — the
+ *                  strip's Wrap long lines and Show whitespace (both live while the file is open);
  *   2. project     the project's settings for this file — its `.editorconfig` (Pro; ./project.ts); `null` for a scratch,
  *                  «Compare code», a project that says nothing, and in the free edition;
  *   3. detected    the indentation the text already uses (./detect.ts), when the set says to detect it;
@@ -25,6 +26,16 @@ import type { EditorSettings } from '@extension/review-wasm';
 export interface FileChoice {
   indentStyle?: IndentStyle;
   indentSize?: number;
+}
+
+/**
+ * The person's choice of how one open editor shows its text: the editor strip's two toggles. It sits over the saved
+ * settings at the file's level, as the indicator's choice does, and lasts as long (the saved settings and the profiles
+ * are never changed by it).
+ */
+export interface ViewChoice {
+  softWrap?: boolean;
+  whitespace?: boolean;
 }
 
 /** What a project says about a file (its `.editorconfig`, ./project.ts). Only these fields have a meaning there. */
@@ -50,6 +61,8 @@ export interface ResolveInput {
   project: ProjectValues | null;
   /** The person's choice for this file (level 1); null: none. */
   file: FileChoice | null;
+  /** The person's choice of how this file's editor shows it (level 1 too); null or absent: none. */
+  view?: ViewChoice | null;
   /** The built-in values (level 6); the model's unless a test says otherwise. */
   builtIn?: Readonly<EditorValues>;
 }
@@ -115,6 +128,12 @@ export const effectiveEditorSettings = (input: ResolveInput): Effective => {
     sources.indentSize = source;
   }
   values.indentSize = clampSize(values.indentSize);
+  for (const key of ['softWrap', 'whitespace'] as const) {
+    const chosen = input.view?.[key];
+    if (typeof chosen !== 'boolean') continue;
+    values[key] = chosen;
+    sources[key] = 'file';
+  }
   return { values, sources };
 };
 

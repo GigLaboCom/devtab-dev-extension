@@ -9,7 +9,10 @@
  *     choice in the indicator — is resolved again and sent as `viewer/set-editor-settings`, to the side it concerns and
  *     only when it differs from what the side has;
  *   - `choose(side, choice)` is the indicator's choice for one file: it lives while the file is open (`open` with
- *     `keep: false` forgets it); `null` goes back to automatic.
+ *     `keep: false` forgets it); `null` goes back to automatic;
+ *   - `chooseView(side, choice)` is the editor strip's Wrap long lines / Show whitespace for one file: over the saved
+ *     settings in the same way and for as long (a new text forgets it, the same file in another view keeps it, a swap
+ *     carries it); Settings and the profiles never change by it.
  *
  * Which set is active is `profile` of ../../editorSettings/resolve.ts: the profile a project names for itself, else the
  * active one (Pro, ../../editorSettings/profiles.ts), else — and always in the free edition — the Default set; a
@@ -28,7 +31,7 @@ import type { DetectedIndent } from '@src/editorSettings/detect';
 import type { EditorSet, EditorSettingsRecord } from '@src/editorSettings/model';
 import type { EditorProfilesRecord } from '@src/editorSettings/profiles';
 import type { ProjectSettings } from '@src/editorSettings/project';
-import type { Effective, FileChoice } from '@src/editorSettings/resolve';
+import type { Effective, FileChoice, ViewChoice } from '@src/editorSettings/resolve';
 import type { ToViewer } from '@src/shared/viewerProtocol';
 
 const SIDES: readonly Side[] = ['old', 'new'];
@@ -87,6 +90,8 @@ export interface EditorIndent {
   readonly effective: Readonly<Record<Side, Effective>>;
   /** The person's choice for each side's file; null: automatic. */
   readonly choice: Readonly<Record<Side, FileChoice | null>>;
+  /** How each side's editor shows its text by the person's choice (the strip's toggles); null: as the settings say. */
+  readonly view: Readonly<Record<Side, ViewChoice | null>>;
   readonly language: string;
   /** The profile in force here: its id and name. */
   readonly profile: { readonly id: string; readonly name: string };
@@ -113,6 +118,8 @@ export interface EditorIndent {
   setLanguage(language: string): void;
   /** The person's choice for a side's file (`both`: the two sides are one file); null: back to automatic. */
   choose(side: Side | 'both', choice: FileChoice | null): void;
+  /** The strip's toggles for a side's file (`both`: the two sides are one file): what they are to be from now on. */
+  chooseView(side: Side | 'both', choice: ViewChoice): void;
   /** The sides traded places: their detections and choices go with them. */
   swap(): void;
 }
@@ -121,6 +128,7 @@ interface Sides {
   language: string;
   detected: Record<Side, DetectedIndent | null>;
   choice: Record<Side, FileChoice | null>;
+  view: Record<Side, ViewChoice | null>;
   project: ProjectSettings | null;
 }
 
@@ -131,6 +139,7 @@ const resolveSide = (state: Sides, profile: EditorSet, side: Side): Effective =>
     detected: state.detected[side],
     project: state.project?.values ?? null,
     file: state.choice[side],
+    view: state.view[side],
   });
 
 export const useEditorIndent = (
@@ -147,6 +156,7 @@ export const useEditorIndent = (
     language: initialLanguage,
     detected: { old: null, new: null },
     choice: { old: null, new: null },
+    view: { old: null, new: null },
     project: null,
   }));
   const sidesRef = useRef(sides);
@@ -191,6 +201,7 @@ export const useEditorIndent = (
           new: detectedNew,
         },
         choice: keep ? before.choice : { old: null, new: null },
+        view: keep ? before.view : { old: null, new: null },
         project,
       };
       update(next);
@@ -212,6 +223,7 @@ export const useEditorIndent = (
         ...before,
         detected: { ...before.detected, [side]: behaviors.detector.detect(text) },
         choice: { ...before.choice, [side]: null },
+        view: { ...before.view, [side]: null },
       });
     },
     [behaviors, update],
@@ -240,12 +252,28 @@ export const useEditorIndent = (
     [update],
   );
 
+  const chooseView = useCallback<EditorIndent['chooseView']>(
+    (side, choice) => {
+      const before = sidesRef.current;
+      const targets = side === 'both' ? SIDES : [side];
+      const next = { ...before.view };
+      for (const target of targets) next[target] = { ...before.view[target], ...choice };
+      update({ ...before, view: next });
+      // Without settings nothing is resolved or sent by itself: the toggle goes to the editor as it is.
+      if (!behaviors)
+        for (const target of targets)
+          postRef.current({ type: 'viewer/set-editor-settings', side: target, settings: { ...choice } });
+    },
+    [behaviors, update],
+  );
+
   const swap = useCallback(() => {
     const before = sidesRef.current;
     update({
       ...before,
       detected: { old: before.detected.new, new: before.detected.old },
       choice: { old: before.choice.new, new: before.choice.old },
+      view: { old: before.view.new, new: before.view.old },
     });
     // The module carried each side's look with its text: what was sent goes along.
     sent.current = { old: sent.current.new, new: sent.current.old };
@@ -255,6 +283,7 @@ export const useEditorIndent = (
     enabled: !!behaviors,
     effective,
     choice: sides.choice,
+    view: sides.view,
     language: sides.language,
     profile: { id: active.id, name: active.name },
     profiles,
@@ -264,6 +293,7 @@ export const useEditorIndent = (
     replaceSide,
     setLanguage,
     choose,
+    chooseView,
     swap,
   };
 };

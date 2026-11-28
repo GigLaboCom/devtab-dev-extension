@@ -18,12 +18,19 @@
  * Indentation (D39): the scratch opens with what applies to its text (detected from it, its language's values, the
  * settings); a new language brings that language's values; the indent indicator in the editor's bar shows them and
  * changes them for this scratch while it is open.
+ *
+ * The strip of the editor's buttons (../editor/EditorStrip.tsx) stands over the editor: the editor's own commands and
+ * its two view toggles (a choice for this scratch over the saved settings, as the indicator's). A scratch saves itself,
+ * so the strip has no Save; Download stays in the bar.
  */
 import { DeleteScratchDialog } from './DeleteScratchDialog';
 import { LanguagePicker } from './LanguagePicker';
 import { TEXT, printable, scratchRefusal } from './text';
 import { useEditorFrame } from './useEditorFrame';
+import { EditorStrip } from '../editor/EditorStrip';
 import { IndentIndicator } from '../editor/IndentIndicator';
+import { runStripCommand, viewChoice } from '../editor/strip';
+import { EDITOR_TEXT } from '../editor/text';
 import { useEditorIndent } from '../editor/useEditorIndent';
 import { go, routeHash } from '../route';
 import { hintOf, useOffer } from '../shell/sectionKeys';
@@ -32,7 +39,7 @@ import { DEFAULT_PROFILE } from '@src/editorSettings/profiles';
 import { createAutosave } from '@src/projects/autosave';
 import { fileName } from '@src/projects/scratch/store';
 import { VIEWER_PAGE } from '@src/shared/pages';
-import { sameChord } from '@src/shared/viewerProtocol';
+import { isMac, sameChord } from '@src/shared/viewerProtocol';
 import { Button } from '@workspace/ui/button';
 import { Input } from '@workspace/ui/input';
 import { Label } from '@workspace/ui/label';
@@ -40,6 +47,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DownloadIcon, Trash2Icon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SectionKeys } from '../shell/sectionKeys';
+import type { Clipboard } from '@src/compare/clipboard';
 import type { SideSaver } from '@src/compare/sideSaver';
 import type { EditorSettingsBehaviors } from '@src/editorSettings/behaviors';
 import type { Autosave, SaveState } from '@src/projects/autosave';
@@ -68,6 +76,8 @@ export interface ScratchViewProps {
   focus?: boolean;
   /** The editor's settings (D39); absent: the editor keeps its own defaults and there is no indicator. */
   editorSettings?: EditorSettingsBehaviors;
+  /** The editor strip's clipboard (seam `Clipboard`); absent: no strip. */
+  clipboard?: Clipboard;
 }
 
 type Loaded = { kind: 'loading' } | { kind: 'missing' } | { kind: 'open'; info: ScratchInfo };
@@ -84,12 +94,14 @@ export const ScratchView = ({
   autosaveDelayMs,
   focus,
   editorSettings,
+  clipboard,
 }: ScratchViewProps): ReactElement => {
   const [loaded, setLoaded] = useState<Loaded>({ kind: 'loading' });
   const [saveState, setSaveState] = useState<SaveState>({ kind: 'saved' });
   // Why the latest write was not kept; cleared by the next one that is.
   const [refused, setRefused] = useState<ScratchRefusal | null>(null);
-  const [note, setNote] = useState<{ text: string; tone: 'error' | 'success' } | null>(null);
+  const [note, setNote] = useState<{ text: string; tone: 'error' | 'success' | 'info' } | null>(null);
+  const mac = useMemo(() => isMac(), []);
   const [renaming, setRenaming] = useState(false);
   const [deleting, setDeleting] = useState<ScratchInfo | null>(null);
   const autosave = useRef<Autosave | null>(null);
@@ -408,6 +420,32 @@ export const ScratchView = ({
               )}
             </span>
           </div>
+          {info && clipboard && (
+            <EditorStrip
+              label={EDITOR_TEXT.stripLabel}
+              state={{
+                ready: editor.ready && editor.shownCount > 0,
+                standing: editor.standing.new,
+                layout: editor.shown?.mode ?? 'file',
+                view: {
+                  softWrap: indent.effective.new.values.softWrap,
+                  whitespace: indent.effective.new.values.whitespace,
+                },
+                save: null,
+                mac,
+              }}
+              onCommand={command =>
+                void runStripCommand(command, 'new', editor, clipboard, (text, tone) => setNote({ text, tone })).catch(
+                  (error: unknown) =>
+                    setNote({
+                      text: TEXT.failed(error instanceof Error ? error.message : String(error)),
+                      tone: 'error',
+                    }),
+                )
+              }
+              onView={(view, on) => indent.chooseView('both', viewChoice(view, on))}
+            />
+          )}
           <div className="kit-projects-editor-view">
             <iframe
               ref={editor.frame}

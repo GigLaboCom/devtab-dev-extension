@@ -17,12 +17,19 @@
  * The companion's own copies of this file and restoring from them (`openFile.history`, `openFile.historyContent`,
  * `openFile.restore`) are in the seam but not on this page yet: the History panel is a project's (its feeds, its points,
  * its restore against a path) and does not take one file of no project without a rework — left for a later step.
+ *
+ * The strip of the editor's buttons (../editor/EditorStrip.tsx) stands over the editor: the editor's own commands, its
+ * two view toggles (a choice for this file over the saved settings), and at its head the file's Save — the very action
+ * of ⌘S — greyed with the reason when the file is read only (the line the page says above it) or nothing new waits.
  */
 import { errorLine } from './errors';
 import { ForgetFileDialog } from './ForgetFileDialog';
 import { TEXT, printable, scratchRefusal } from './text';
 import { useEditorFrame } from './useEditorFrame';
+import { EditorStrip } from '../editor/EditorStrip';
 import { IndentIndicator } from '../editor/IndentIndicator';
+import { runStripCommand, viewChoice } from '../editor/strip';
+import { EDITOR_TEXT } from '../editor/text';
 import { useEditorIndent } from '../editor/useEditorIndent';
 import { go, routeHash } from '../route';
 import { useOffer } from '../shell/sectionKeys';
@@ -31,11 +38,12 @@ import { DEFAULT_PROFILE } from '@src/editorSettings/profiles';
 import { createAutosave } from '@src/projects/autosave';
 import { isCompanionError } from '@src/projects/types';
 import { VIEWER_PAGE } from '@src/shared/pages';
-import { sameChord } from '@src/shared/viewerProtocol';
+import { isMac, sameChord } from '@src/shared/viewerProtocol';
 import { Button } from '@workspace/ui/button';
 import { CopyIcon, XIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SectionKeys } from '../shell/sectionKeys';
+import type { Clipboard } from '@src/compare/clipboard';
 import type { OpenFilesEdition } from '@src/edition/edition';
 import type { EditorSettingsBehaviors } from '@src/editorSettings/behaviors';
 import type { Autosave, SaveState } from '@src/projects/autosave';
@@ -68,6 +76,8 @@ export interface OpenedFileViewProps {
   keys?: SectionKeys;
   autosaveDelayMs?: number;
   editorSettings?: EditorSettingsBehaviors;
+  /** The editor strip's clipboard (seam `Clipboard`); absent: no strip. */
+  clipboard?: Clipboard;
 }
 
 type Loaded =
@@ -112,11 +122,13 @@ export const OpenedFileView = ({
   keys,
   autosaveDelayMs,
   editorSettings,
+  clipboard,
 }: OpenedFileViewProps): ReactElement => {
   const [loaded, setLoaded] = useState<Loaded>({ kind: 'loading' });
   const [saveState, setSaveState] = useState<SaveState>({ kind: 'saved' });
   const [comparing, setComparing] = useState(false);
-  const [note, setNote] = useState<{ text: string; tone: 'error' | 'success' } | null>(null);
+  const [note, setNote] = useState<{ text: string; tone: 'error' | 'success' | 'info' } | null>(null);
+  const mac = useMemo(() => isMac(), []);
   // The companion refused a save because the file can only be read now: why (its `reason`), until opened again.
   const [locked, setLocked] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
@@ -127,9 +139,11 @@ export const OpenedFileView = ({
   const editable = !!file && edition === 'edit' && file.mode === 'edit' && files.can('save');
 
   const handedUp = useMemo(() => [SAVE_KEY, ...(frameKeys?.keys ?? [])], [frameKeys?.keys]);
+  // ⌘S and the strip's Save: one action.
+  const saveNow = useCallback(() => void autosave.current?.flush('explicit'), []);
   const editor = useEditorFrame(handedUp, {
     onKey: chord => {
-      if (sameChord(chord, SAVE_KEY)) void autosave.current?.flush('explicit');
+      if (sameChord(chord, SAVE_KEY)) saveNow();
       else frameKeysRef.current?.run(chord);
     },
     onShown: shown => {
@@ -292,6 +306,27 @@ export const OpenedFileView = ({
   const freeLine = !!open && edition === 'read';
   // A way out for a text this page will not write: a scratch is editable and downloadable.
   const offerCopy = !!open && !open.editable && !!scratchStore;
+  const readOnlySaid = freeLine ? TEXT.openFiles.freeLine : file ? readOnlyLine(locked ?? file.reason) : '';
+  const unsaved =
+    saveState.kind === 'pending' ||
+    saveState.kind === 'offline' ||
+    saveState.kind === 'refused' ||
+    editor.shown?.sides.new.modified === true;
+  const saveOffer = open
+    ? {
+        label: TEXT.saveNow,
+        key: SAVE_KEY,
+        unavailable: !open.editable
+          ? readOnlySaid
+          : comparing
+            ? TEXT.conflictState
+            : saveState.kind === 'saving' || saveState.kind === 'conflict'
+              ? saveText(saveState)
+              : unsaved
+                ? null
+                : TEXT.nothingToSave,
+      }
+    : null;
   const card =
     editor.failed ??
     (loaded.kind === 'missing'
@@ -398,6 +433,33 @@ export const OpenedFileView = ({
                 </Button>
               )}
             </div>
+          )}
+          {open && clipboard && (
+            <EditorStrip
+              label={EDITOR_TEXT.stripLabel}
+              state={{
+                ready: editor.ready && editor.shownCount > 0,
+                standing: editor.standing.new,
+                layout: editor.shown?.mode ?? 'file',
+                view: {
+                  softWrap: indent.effective.new.values.softWrap,
+                  whitespace: indent.effective.new.values.whitespace,
+                },
+                save: saveOffer,
+                mac,
+              }}
+              onCommand={command =>
+                void runStripCommand(command, 'new', editor, clipboard, (text, tone) => setNote({ text, tone })).catch(
+                  (error: unknown) =>
+                    setNote({
+                      text: TEXT.failed(error instanceof Error ? error.message : String(error)),
+                      tone: 'error',
+                    }),
+                )
+              }
+              onView={(view, on) => indent.chooseView('both', viewChoice(view, on))}
+              onSave={saveNow}
+            />
           )}
           <div className="kit-projects-editor-view">
             <iframe

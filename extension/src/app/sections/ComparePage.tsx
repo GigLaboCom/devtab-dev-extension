@@ -11,8 +11,16 @@
  * Indentation (D39): each side opens with what applies to its own text (../editor/useEditorIndent.ts — detected from
  * it, the language's values, the settings), and each side's bar has its indent indicator: what applies there and the
  * person's choice for that side's text, which lasts until another text replaces it (a swap carries it along).
+ *
+ * Under the side bars, one strip of the editor's buttons over each side (../editor/EditorStrip.tsx): the editor's own
+ * commands on that side and its two view toggles (Wrap long lines greyed: side by side nothing wraps). The side bar
+ * keeps its own actions — Save among them, so the strip has none; what does not fit a narrow side goes into the strip's
+ * more menu.
  */
+import { EditorStrip } from '../editor/EditorStrip';
 import { IndentIndicator } from '../editor/IndentIndicator';
+import { runStripCommand, viewChoice } from '../editor/strip';
+import { EDITOR_TEXT } from '../editor/text';
 import { useEditorIndent } from '../editor/useEditorIndent';
 import { routeHash } from '../route';
 import { useOffer } from '../shell/sectionKeys';
@@ -39,14 +47,16 @@ import { Label } from '@workspace/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@workspace/ui/tooltip';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import type { StripPort } from '../editor/strip';
 import type { SectionKeys } from '../shell/sectionKeys';
+import type { EditorStanding } from '@extension/review-wasm';
 import type { ActionContext, CompareAction, ComparePort } from '@src/compare/actions';
 import type { CompareBehaviors } from '@src/compare/behaviors';
 import type { SideText } from '@src/compare/files';
 import type { Arrival, CompareState, Side, Tone } from '@src/compare/state';
 import type { EditorSettingsBehaviors } from '@src/editorSettings/behaviors';
 import type { FrameKeys } from '@src/shared/keys';
-import type { DroppedEntry, KeyChord, ToViewer } from '@src/shared/viewerProtocol';
+import type { DroppedEntry, KeyChord, ToViewer, ViewerCommand } from '@src/shared/viewerProtocol';
 import type { DragEvent, ReactElement } from 'react';
 
 const debug = createDebug('app:compare');
@@ -141,7 +151,15 @@ export const ComparePage = ({ behaviors, frameKeys, editorSettings, keys }: Comp
   // The latest request that changes what is shown: only its answer (or an edit's) is taken.
   const latest = useRef(0);
   const reads = useRef(new Map<number, { resolve: (text: string) => void; reject: (error: Error) => void }>());
+  const commands = useRef(
+    new Map<number, { resolve: (done: { copied?: string }) => void; reject: (error: Error) => void }>(),
+  );
   const [shown, setShown] = useState({ count: 0, path: '' });
+  // What the sides offer the editor's commands, as the module last said; before it has: nothing.
+  const [standing, setStanding] = useState<EditorStanding>({
+    old: { editable: false, empty: true, selection: false },
+    new: { editable: false, empty: true, selection: false },
+  });
 
   const post = useCallback((message: ToViewer) => {
     if (viewerReady.current) frame.current?.contentWindow?.postMessage(message, location.origin);
@@ -173,6 +191,23 @@ export const ComparePage = ({ behaviors, frameKeys, editorSettings, keys }: Comp
   const say = useCallback(
     (text: string, tone: Tone = 'info') => dispatch({ type: 'notice', notice: { tone, text } }),
     [],
+  );
+  // The strips' roads to the editor: its commands on a side, and a side's text.
+  const stripPort: StripPort = useMemo(
+    () => ({
+      command: (side: Side, command: ViewerCommand, text?: string) =>
+        new Promise<{ copied?: string }>((resolve, reject) => {
+          if (!viewerReady.current) return reject(new Error('The editor is still loading.'));
+          // The keyboard goes into the frame, and there into the side's editor (the editor page focuses it).
+          frame.current?.focus();
+          frame.current?.contentWindow?.focus();
+          const id = ++nextId.current;
+          commands.current.set(id, { resolve, reject });
+          post({ type: 'viewer/command', id, side, command, ...(text !== undefined && { text }) });
+        }),
+      read,
+    }),
+    [post, read],
   );
   const indent = useEditorIndent(editorSettings, post, DEFAULT_LANGUAGE);
   const indentRef = useRef(indent);
@@ -505,11 +540,20 @@ export const ComparePage = ({ behaviors, frameKeys, editorSettings, keys }: Comp
           reads.current.get(data.id)?.resolve(data.text);
           reads.current.delete(data.id);
           return;
+        case 'viewer/standing':
+          setStanding(data.standing);
+          return;
+        case 'viewer/done':
+          commands.current.get(data.id)?.resolve(data.copied !== undefined ? { copied: data.copied } : {});
+          commands.current.delete(data.id);
+          return;
         case 'viewer/error': {
-          const pending = data.id !== undefined ? reads.current.get(data.id) : undefined;
+          const pending =
+            data.id !== undefined ? (reads.current.get(data.id) ?? commands.current.get(data.id)) : undefined;
           if (pending) {
             pending.reject(new Error(data.message));
             reads.current.delete(data.id!);
+            commands.current.delete(data.id!);
           } else if (data.id === undefined) {
             if (!viewerReady.current) dispatch({ type: 'viewer', viewer: 'error' });
             dispatch({ type: 'notice', notice: { tone: 'error', text: data.message } });
@@ -686,6 +730,34 @@ export const ComparePage = ({ behaviors, frameKeys, editorSettings, keys }: Comp
               </div>
             );
           })}
+        </div>
+
+        <div className="kit-compare-strips">
+          {SIDES.map(side => (
+            <EditorStrip
+              key={side}
+              side={side}
+              label={EDITOR_TEXT.stripLabelSide(sideWord(side))}
+              state={{
+                ready: state.viewer === 'ready',
+                standing: standing[side],
+                layout: 'diff',
+                view: {
+                  softWrap: indent.effective[side].values.softWrap,
+                  whitespace: indent.effective[side].values.whitespace,
+                },
+                save: null,
+                mac,
+              }}
+              onCommand={command => {
+                lastSide.current = side;
+                void runStripCommand(command, side, stripPort, behaviors.clipboard, say).catch((error: unknown) =>
+                  say(error instanceof Error ? error.message : String(error), 'error'),
+                );
+              }}
+              onView={(view, on) => indent.chooseView(side, viewChoice(view, on))}
+            />
+          ))}
         </div>
 
         <div className="kit-compare-view">

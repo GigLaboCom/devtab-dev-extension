@@ -99,6 +99,25 @@ describe('viewer protocol', () => {
     expect(isFromViewer({ type: 'viewer/grammar', state: 'failed', message: 'x' })).toBe(false);
   });
 
+  it('the strip’s commands: a known command on a side, the text with Paste alone; the standing as flags, never text', () => {
+    expect(isToViewer({ type: 'viewer/command', id: 1, side: 'new', command: 'undo' })).toBe(true);
+    expect(isToViewer({ type: 'viewer/command', id: 2, side: 'old', command: 'find' })).toBe(true);
+    expect(isToViewer({ type: 'viewer/command', id: 3, side: 'new', command: 'paste', text: 'a\nb' })).toBe(true);
+    expect(isToViewer({ type: 'viewer/command', id: 4, side: 'new', command: 'paste' })).toBe(false);
+    expect(isToViewer({ type: 'viewer/command', id: 5, side: 'new', command: 'copy', text: 'x' })).toBe(false);
+    expect(isToViewer({ type: 'viewer/command', id: 6, side: 'new', command: 'copyAll' })).toBe(false);
+    expect(isToViewer({ type: 'viewer/command', id: 7, side: 'left', command: 'undo' })).toBe(false);
+    expect(isToViewer({ type: 'viewer/command', side: 'new', command: 'undo' })).toBe(false);
+    const flags = { editable: true, empty: false, selection: true };
+    expect(isFromViewer({ type: 'viewer/standing', standing: { old: flags, new: flags } })).toBe(true);
+    expect(isFromViewer({ type: 'viewer/standing', standing: { old: flags } })).toBe(false);
+    expect(isFromViewer({ type: 'viewer/standing', standing: { old: flags, new: { editable: true } } })).toBe(false);
+    expect(isFromViewer({ type: 'viewer/done', id: 9 })).toBe(true);
+    expect(isFromViewer({ type: 'viewer/done', id: 9, copied: 'selected' })).toBe(true);
+    expect(isFromViewer({ type: 'viewer/done', id: 9, copied: 4 })).toBe(false);
+    expect(isFromViewer({ type: 'viewer/done' })).toBe(false);
+  });
+
   it('a chord takes ⌘ on a Mac and Ctrl elsewhere', () => {
     const event = { key: 'S', metaKey: true, ctrlKey: false, shiftKey: true };
     expect(chordOf(event, true)).toEqual({ key: 's', mod: true, shift: true });

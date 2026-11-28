@@ -120,6 +120,10 @@ export const TEXT = {
   offlineState: 'Not saved: no connection to the companion', // spec: «не сохранён: нет связи с компаньоном»
   refusedState: (text: string) => `Not saved: ${text}`,
   refusedShort: 'Not saved', // spec: «не сохранён»
+  // The Save at the head of the editor strip (src/app/editor/EditorStrip.tsx). Working placeholders: the owner writes
+  // these texts.
+  saveNow: 'Save now',
+  nothingToSave: 'Saved: nothing new to save.',
   conflictNotice: 'The file changed on disk while you were editing it.', // spec: «показываем что изменился»
   keepMine: 'Keep mine', // spec: «keep memory overwrite»
   applyExternal: 'Apply the external change', // spec: «применить внешние правки»

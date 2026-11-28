@@ -14,13 +14,21 @@
  * The editor page also hands up what happens on its canvas that belongs to the main page: a drag of files entering it
  * (the main page then covers the editor with its drop targets), a drop that reached it anyway, the main page's
  * keyboard shortcuts, and Tab leaving the editor.
+ *
+ * The strip of the editor's buttons (src/app/editor/EditorStrip.tsx) runs the editor's own commands on a side
+ * (`viewer/command`: undo, cut, find, …, and paste with the text the page read from the clipboard); each answers
+ * `viewer/done` with its id — with `copied`, the text a Copy or Cut took, which the page puts on the clipboard (its
+ * click is the activation) — or `viewer/error`. What the sides offer those commands comes up whenever it changes
+ * (`viewer/standing`): flags, never text.
  */
 import type { KeyChord } from './keys';
 import type {
   CompareRequest,
   DiffPayload,
   DiffShown,
+  EditorCommand,
   EditorSettings,
+  EditorStanding,
   FileRequest,
   Side,
   SideRequest,
@@ -59,7 +67,24 @@ export type ToViewer =
   | { type: 'viewer/reveal-line'; line: number; column?: number }
   | { type: 'viewer/reveal-hunk'; index: number }
   /** How a side's editor (both without `side`) indents and shows its text from now on; no answer. */
-  | { type: 'viewer/set-editor-settings'; side?: Side; settings: EditorSettings };
+  | { type: 'viewer/set-editor-settings'; side?: Side; settings: EditorSettings }
+  /** One of the editor's commands on a side, as its key runs it; Paste carries the page's clipboard text. */
+  | { type: 'viewer/command'; id: number; side: Side; command: ViewerCommand; text?: string };
+
+/** What `viewer/command` may run: the editor's own commands, and Paste with the page's text. */
+export type ViewerCommand = EditorCommand | 'paste';
+
+export const VIEWER_COMMANDS: readonly ViewerCommand[] = [
+  'undo',
+  'redo',
+  'cut',
+  'copy',
+  'paste',
+  'selectAll',
+  'indent',
+  'outdent',
+  'find',
+];
 
 /** Editor page → main page. `id` is the request's; an error without one is the editor's own (it could not start). */
 export type FromViewer =
@@ -71,6 +96,10 @@ export type FromViewer =
   | { type: 'viewer/drop'; side: Side; entries: DroppedEntry[] }
   | { type: 'viewer/key'; chord: KeyChord; side: Side | null }
   | { type: 'viewer/leave'; backwards: boolean }
+  /** What both sides offer the editor's commands, whenever it changes. */
+  | { type: 'viewer/standing'; standing: EditorStanding }
+  /** A command ran; `copied`: what a Copy or Cut took, for the page to put on the clipboard. */
+  | { type: 'viewer/done'; id: number; copied?: string }
   | GrammarNote;
 
 /**
@@ -90,6 +119,12 @@ const isIndex = (value: unknown): value is number => Number.isInteger(value) && 
 const isSettings = (value: unknown): boolean => value === undefined || isObject(value);
 const isSideSettings = (value: unknown): boolean =>
   value === undefined || (isObject(value) && isSettings(value.old) && isSettings(value.new));
+const isFlags = (value: unknown): boolean =>
+  isObject(value) &&
+  typeof value.editable === 'boolean' &&
+  typeof value.empty === 'boolean' &&
+  typeof value.selection === 'boolean';
+const isCommand = (value: unknown): value is ViewerCommand => VIEWER_COMMANDS.includes(value as ViewerCommand);
 const isChord = (value: unknown): value is KeyChord =>
   isObject(value) &&
   typeof value.key === 'string' &&
@@ -151,6 +186,14 @@ export const isToViewer = (data: unknown): data is ToViewer => {
       return isIndex(data.index);
     case 'viewer/set-editor-settings':
       return (data.side === undefined || isSide(data.side)) && isObject(data.settings);
+    case 'viewer/command':
+      return (
+        isId(data.id) &&
+        isSide(data.side) &&
+        isCommand(data.command) &&
+        // The text belongs to Paste alone, and Paste needs it.
+        (data.command === 'paste' ? typeof data.text === 'string' : data.text === undefined)
+      );
     default:
       return false;
   }
@@ -174,6 +217,10 @@ export const isFromViewer = (data: unknown): data is FromViewer => {
       return isChord(data.chord) && (data.side === null || isSide(data.side));
     case 'viewer/leave':
       return typeof data.backwards === 'boolean';
+    case 'viewer/standing':
+      return isObject(data.standing) && isFlags(data.standing.old) && isFlags(data.standing.new);
+    case 'viewer/done':
+      return isId(data.id) && (data.copied === undefined || typeof data.copied === 'string');
     case 'viewer/grammar':
       return (
         typeof data.language === 'string' &&

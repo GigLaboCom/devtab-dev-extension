@@ -175,6 +175,7 @@ const Workspace = ({
               editorSettings={editorSettings}
               autosaveDelayMs={behaviors.autosaveDelayMs}
               fileSaver={behaviors.fileSaver}
+              clipboard={behaviors.clipboard}
               onShowHistory={() => {
                 setHistoryAsked(n => n + 1);
                 ask('history');
@@ -377,6 +378,7 @@ const Projects = ({
           editorSettings={editorSettings}
           autosaveDelayMs={behaviors.autosaveDelayMs}
           focus={made.current === scratch}
+          clipboard={behaviors.clipboard}
         />
       ) : file && opened.files ? (
         <OpenedFileView
@@ -396,6 +398,7 @@ const Projects = ({
           keys={keys}
           editorSettings={editorSettings}
           autosaveDelayMs={behaviors.autosaveDelayMs}
+          clipboard={behaviors.clipboard}
         />
       ) : project ? (
         <Workspace
